@@ -1,10 +1,10 @@
 import React from 'react';
-import useHover from '../../hooks/use_hover.js'
+import useHover from '../../hooks/use_hover.js';
 import Tooltip from './tooltip.jsx';
 import ShowIcon from '../../icons/show.svg?react';
 import HideIcon from '../../icons/hide.svg?react';
 
-const VisibilityButton = (props) => {
+const VisibilityButton = props => {
   const { autoHide, toggleAutoHide } = props;
   const containerRef = React.useRef();
   const [hover, onMouseEnter, onMouseLeave] = useHover();
@@ -18,21 +18,20 @@ const VisibilityButton = (props) => {
       onMouseLeave={onMouseLeave}
       onClick={toggleAutoHide}
     >
-      {autoHide ? <ShowIcon /> : <HideIcon /> }
-      { hover && (
-          <Tooltip containerRef={containerRef}>
-            <div id={'yipyip-visibility-tooltip'}>
-              <div>{autoHide ? 'Turn Autohide off' : 'Turn Autohide on' }</div>
-              <div id={'yipyip-visibility-tooltip-keyboard-shortcuts'}>
-                <div class={'yipyip-info-panel-shortcut-key'}>Option</div>
-                <div class={'yipyip-info-panel-shortcut-key'}>Escape</div>
-              </div>
+      {autoHide ? <ShowIcon /> : <HideIcon />}
+      {hover && (
+        <Tooltip containerRef={containerRef}>
+          <div id={'yipyip-visibility-tooltip'}>
+            <div>{autoHide ? 'Turn Autohide off' : 'Turn Autohide on'}</div>
+            <div id={'yipyip-visibility-tooltip-keyboard-shortcuts'}>
+              <div class={'yipyip-info-panel-shortcut-key'}>Option</div>
+              <div class={'yipyip-info-panel-shortcut-key'}>Escape</div>
             </div>
-          </Tooltip>
-        )
-      }
+          </div>
+        </Tooltip>
+      )}
     </div>
-  )
-}
+  );
+};
 
 export default VisibilityButton;

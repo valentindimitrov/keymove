@@ -17,15 +17,12 @@
     "react-dom": "^17.0.2"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.5",
+    "@biomejs/biome": "2.5.8",
     "@testing-library/jest-dom": "6.9.1",
     "@testing-library/react": "^11.2.7",
     "@types/node": "^24.13.3",
+    "@vitejs/plugin-react": "^6.0.5",
     "@wxt-dev/module-react": "^1.2.2",
-    "eslint": "^9.39.5",
-    "eslint-plugin-react": "^7.37.5",
-    "eslint-plugin-react-hooks": "^7.1.1",
-    "globals": "^17.11.0",
     "jsdom": "^30.0.1",
     "vite": "^8.2.1",
     "vite-plugin-svgr": "^5.2.0",
@@ -35,19 +32,20 @@
   "scripts": {
     "postinstall": "wxt prepare",
     "dev": "wxt -b chrome --mv3",
-    "dev:firefox": "wxt -b firefox --mv2",
+    "dev:firefox": "wxt -b firefox --mv3",
     "build": "yarn build:chromium && yarn build:firefox",
     "build:chromium": "wxt build -b chrome --mv3",
     "build:vivaldi": "wxt build -b chrome --mv3",
-    "build:firefox": "wxt build -b firefox --mv2",
+    "build:firefox": "wxt build -b firefox --mv3",
     "zip": "yarn zip:chromium && yarn zip:firefox",
     "zip:chromium": "wxt zip -b chrome --mv3",
-    "zip:firefox": "wxt zip -b firefox --mv2",
-    "package": "yarn zip",
+    "zip:firefox": "wxt zip -b firefox --mv3",
     "verify": "node scripts/validate-builds.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "eslint .",
-    "quality": "yarn lint && yarn test && yarn build && yarn verify"
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "lint": "biome lint .",
+    "quality": "yarn format:check && yarn lint && yarn test && yarn build && yarn verify"
   }
 }

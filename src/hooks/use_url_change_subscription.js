@@ -10,12 +10,12 @@ const useUrlChangeSubscription = () => {
 
     const wrappedPushState = function () {
       pushState.apply(window.history, arguments);
-      updateHost()
+      updateHost();
     };
 
     const wrappedReplaceState = function () {
       replaceState.apply(window.history, arguments);
-      updateHost()
+      updateHost();
     };
 
     window.history.pushState = wrappedPushState;
@@ -30,10 +30,10 @@ const useUrlChangeSubscription = () => {
         window.history.replaceState = replaceState;
       }
       window.removeEventListener('popstate', updateHost);
-    }
-  }, [])
+    };
+  }, []);
 
-  return { host }
-}
+  return { host };
+};
 
 export default useUrlChangeSubscription;

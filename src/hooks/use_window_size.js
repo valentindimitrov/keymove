@@ -2,32 +2,37 @@ import React from 'react';
 import useWindowEvent from './use_window_event.js';
 
 function getWindowDimensions() {
-  return { height: window.innerHeight, width: window.innerWidth }
+  return { height: window.innerHeight, width: window.innerWidth };
 }
 
-const useWindowSize = (listen=true, timeoutDuration=0) => {
-  const [windowSize, setWindowSize] = React.useState(getWindowDimensions())
+const useWindowSize = (listen = true, timeoutDuration = 0) => {
+  const [windowSize, setWindowSize] = React.useState(getWindowDimensions());
   const resizeTimeout = React.useRef();
 
   const resize = React.useCallback(() => {
-    if (resizeTimeout.current) { clearTimeout(resizeTimeout.current) }
+    if (resizeTimeout.current) {
+      clearTimeout(resizeTimeout.current);
+    }
 
     if (timeoutDuration === 0) {
-      setWindowSize(getWindowDimensions())
+      setWindowSize(getWindowDimensions());
     } else {
-      resizeTimeout.current = setTimeout(() => setWindowSize(getWindowDimensions()), timeoutDuration);
+      resizeTimeout.current = setTimeout(
+        () => setWindowSize(getWindowDimensions()),
+        timeoutDuration,
+      );
     }
-  }, [timeoutDuration])
+  }, [timeoutDuration]);
 
   React.useEffect(() => {
     if (listen) {
-      setWindowSize(getWindowDimensions())
+      setWindowSize(getWindowDimensions());
     }
-  }, [listen])
+  }, [listen]);
 
-  useWindowEvent('resize', listen, resize)
+  useWindowEvent('resize', listen, resize);
 
-  return windowSize
-}
+  return windowSize;
+};
 
 export default useWindowSize;

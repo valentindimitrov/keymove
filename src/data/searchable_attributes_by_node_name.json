@@ -1,5 +1,5 @@
 {
-  "A": ["title", "aria-label", "href"],
+  "A": ["title", "aria-label"],
   "INPUT": ["name", "placeholder", "value", "aria-label"],
   "SELECT": ["name"],
   "TEXTAREA": ["name", "placeholder", "title"],

@@ -13,12 +13,8 @@
   "relevant_word_to_selector_mappings": {
     "home": "a[href=\"/\"]"
   },
-  "relevant_words": [
-    "comment"
-  ],
+  "relevant_words": ["comment"],
   "synonyms": {
-    "mutual": [
-      ["vote", "upvote"]
-    ]
+    "mutual": [["vote", "upvote"]]
   }
 }

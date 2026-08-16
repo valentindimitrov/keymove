@@ -11,13 +11,10 @@ export default defineContentScript({
   runAt: 'document_idle',
   main() {
     const detectedBrowser = detect();
-    const extensionRoot = createExtensionRoot(
-      contentStyles,
-      detectedBrowser && detectedBrowser.name
-    );
+    const extensionRoot = createExtensionRoot(contentStyles, detectedBrowser?.name);
 
     if (extensionRoot) {
       ReactDOM.render(<Searchbar />, extensionRoot.app);
     }
-  }
+  },
 });

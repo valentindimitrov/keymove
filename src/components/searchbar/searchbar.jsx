@@ -1,20 +1,20 @@
 import React from 'react';
-import useWindowEvent from "../../hooks/use_window_event.js";
-import useDocumentEvent from "../../hooks/use_document_event.js";
-import useHighlights from "../../hooks/use_highlights.js";
-import useKeyboardShortcuts from "../../hooks/use_keyboard_shortcuts.js";
-import useStoredSettings from "../../hooks/use_stored_settings.js";
-import useUrlChangeSubscription from "../../hooks/use_url_change_subscription.js";
-import useExtensionMessaging from "../../hooks/use_extension_messaging.js";
+import useWindowEvent from '../../hooks/use_window_event.js';
+import useDocumentEvent from '../../hooks/use_document_event.js';
+import useHighlights from '../../hooks/use_highlights.js';
+import useKeyboardShortcuts from '../../hooks/use_keyboard_shortcuts.js';
+import useStoredSettings from '../../hooks/use_stored_settings.js';
+import useUrlChangeSubscription from '../../hooks/use_url_change_subscription.js';
+import useExtensionMessaging from '../../hooks/use_extension_messaging.js';
 
-import Utils from "../../lib/utils.js";
-import FindInPage from "../../lib/find_in_page.js";
-import SearchInput from "./search_input.jsx";
-import Selections from "./selections.jsx";
-import MatchesSummary from "./matches_summary.jsx";
-import DraggableContainer from "./draggable_container.jsx";
-import InfoDropdown from "./info_dropdown.jsx";
-import VisibilityButton from "./visibility_button.jsx";
+import Utils from '../../lib/utils.js';
+import FindInPage from '../../lib/find_in_page.js';
+import SearchInput from './search_input.jsx';
+import Selections from './selections.jsx';
+import MatchesSummary from './matches_summary.jsx';
+import DraggableContainer from './draggable_container.jsx';
+import InfoDropdown from './info_dropdown.jsx';
+import VisibilityButton from './visibility_button.jsx';
 import Logo from '../../icons/logo-without-color.svg?react';
 
 const SCROLL_OR_RESIZE_UPDATE_TIMEOUT_DURATION = 100;
@@ -27,7 +27,7 @@ const Searchbar = () => {
   const containerRef = React.useRef();
   const searchInputRef = React.useRef();
 
-  const { host } = useUrlChangeSubscription()
+  const { host } = useUrlChangeSubscription();
   const [prevHost, setPrevHost] = React.useState(host);
 
   const {
@@ -36,8 +36,8 @@ const Searchbar = () => {
     useOnEveryWebsite,
     updateUseOnEveryWebsite,
     alwaysOn,
-    updateAlwaysOn
-  } = useStoredSettings()
+    updateAlwaysOn,
+  } = useStoredSettings();
 
   const [isHidden, setIsHidden] = React.useState(autoHide);
   const [prevAutoHide, setPrevAutoHide] = React.useState(autoHide);
@@ -53,64 +53,67 @@ const Searchbar = () => {
   const [hideSelections, setHideSelections] = React.useState(false);
 
   const focusSearchInput = React.useCallback(() => {
-    searchInputRef.current.focus()
-  }, [])
+    searchInputRef.current.focus();
+  }, []);
 
   const clearMatchingNodes = React.useCallback(() => {
-    setMatchingNodes([])
-    setMatchingLinksAndButtons([])
-  }, [])
+    setMatchingNodes([]);
+    setMatchingLinksAndButtons([]);
+  }, []);
 
   const cancelPendingSearch = React.useCallback(() => {
     if (selectionUpdateTimeout.current) {
-      clearTimeout(selectionUpdateTimeout.current)
+      clearTimeout(selectionUpdateTimeout.current);
     }
     if (searchAbortController.current) {
-      searchAbortController.current.abort()
+      searchAbortController.current.abort();
     }
-  }, [])
+  }, []);
 
   const resetSearchTextAndMatches = React.useCallback(() => {
-    cancelPendingSearch()
-    setSearchText('')
-    clearMatchingNodes()
-    setSelectedSelectionIndex(0)
-  }, [cancelPendingSearch, clearMatchingNodes])
+    cancelPendingSearch();
+    setSearchText('');
+    clearMatchingNodes();
+    setSelectedSelectionIndex(0);
+  }, [cancelPendingSearch, clearMatchingNodes]);
 
   const resetTemporarilyEnabled = React.useCallback(() => {
     if (isDisabled && temporarilyEnabled) {
-      setTemporarilyEnabled(false)
+      setTemporarilyEnabled(false);
     }
-  }, [isDisabled, temporarilyEnabled])
+  }, [isDisabled, temporarilyEnabled]);
 
   const hide = React.useCallback(() => {
-    setIsHidden(true)
-    resetSearchTextAndMatches()
-    resetTemporarilyEnabled()
-  }, [resetSearchTextAndMatches, resetTemporarilyEnabled])
+    setIsHidden(true);
+    resetSearchTextAndMatches();
+    resetTemporarilyEnabled();
+  }, [resetSearchTextAndMatches, resetTemporarilyEnabled]);
 
   const handleBlur = React.useCallback(() => {
     if (autoHide) {
-      setIsHidden(true)
+      setIsHidden(true);
     }
-    resetSearchTextAndMatches()
-    resetTemporarilyEnabled()
-  }, [autoHide, resetSearchTextAndMatches, resetTemporarilyEnabled])
+    resetSearchTextAndMatches();
+    resetTemporarilyEnabled();
+  }, [autoHide, resetSearchTextAndMatches, resetTemporarilyEnabled]);
 
-  const clickSelectedMatchingNodeAndReset = React.useCallback(event => {
-    if (matchingLinksAndButtons.length > 0) {
-      event.preventDefault()
-      event.stopPropagation()
+  const clickSelectedMatchingNodeAndReset = React.useCallback(
+    event => {
+      if (matchingLinksAndButtons.length > 0) {
+        event.preventDefault();
+        event.stopPropagation();
 
-      const node = matchingLinksAndButtons[selectedSelectionIndex];
-      Utils.clickOrFocusNode(node)
+        const node = matchingLinksAndButtons[selectedSelectionIndex];
+        Utils.clickOrFocusNode(node);
 
-      if (autoHide) {
-        setIsHidden(true)
+        if (autoHide) {
+          setIsHidden(true);
+        }
+        resetSearchTextAndMatches();
       }
-      resetSearchTextAndMatches()
-    }
-  }, [matchingLinksAndButtons, selectedSelectionIndex, resetSearchTextAndMatches, autoHide])
+    },
+    [matchingLinksAndButtons, selectedSelectionIndex, resetSearchTextAndMatches, autoHide],
+  );
 
   const updateMatchingNodesAndScrollToSelectedIndex = React.useCallback(async () => {
     const controller = new AbortController();
@@ -124,245 +127,314 @@ const Searchbar = () => {
         return;
       }
 
-      setMatchingNodes(matchingNodes)
-      setMatchingLinksAndButtons(matchingLinksAndButtons)
-      setSelectedSelectionIndex(bestMatchingLinkOrButtonIndex)
+      setMatchingNodes(matchingNodes);
+      setMatchingLinksAndButtons(matchingLinksAndButtons);
+      setSelectedSelectionIndex(bestMatchingLinkOrButtonIndex);
 
       if (matchingLinksAndButtons.length > 0) {
-        Utils.scrollToNodeAtIndexInList(matchingLinksAndButtons, bestMatchingLinkOrButtonIndex)
-        setScrollOrResizeRefresh(refresh => !refresh)
+        Utils.scrollToNodeAtIndexInList(matchingLinksAndButtons, bestMatchingLinkOrButtonIndex);
+        setScrollOrResizeRefresh(refresh => !refresh);
       }
     } catch (error) {
       if (error.name !== 'AbortError') {
-        console.error('YipYip search failed:', error)
+        console.error('YipYip search failed:', error);
       }
     }
-  }, [searchText])
+  }, [searchText]);
 
   const updateSelectionPositionsAfterTimeout = React.useCallback(() => {
-    setHideSelections(true)
-    if (scrollOrResizeUpdateTimeout.current) { clearTimeout(scrollOrResizeUpdateTimeout.current) }
+    setHideSelections(true);
+    if (scrollOrResizeUpdateTimeout.current) {
+      clearTimeout(scrollOrResizeUpdateTimeout.current);
+    }
     scrollOrResizeUpdateTimeout.current = setTimeout(() => {
-      setScrollOrResizeRefresh(refresh => !refresh)
-      setHideSelections(false)
-    }, SCROLL_OR_RESIZE_UPDATE_TIMEOUT_DURATION)
-  }, [])
+      setScrollOrResizeRefresh(refresh => !refresh);
+      setHideSelections(false);
+    }, SCROLL_OR_RESIZE_UPDATE_TIMEOUT_DURATION);
+  }, []);
 
   const updateSelectionAndScrollToSelectedAfterTimeout = React.useCallback(() => {
-    cancelPendingSearch()
-    clearMatchingNodes()
+    cancelPendingSearch();
+    clearMatchingNodes();
 
     selectionUpdateTimeout.current = setTimeout(() => {
       updateMatchingNodesAndScrollToSelectedIndex();
-    }, SEARCH_TEXT_UPDATE_TIMEOUT_DURATION)
-  }, [cancelPendingSearch, clearMatchingNodes, updateMatchingNodesAndScrollToSelectedIndex])
+    }, SEARCH_TEXT_UPDATE_TIMEOUT_DURATION);
+  }, [cancelPendingSearch, clearMatchingNodes, updateMatchingNodesAndScrollToSelectedIndex]);
 
-  const preventDefaultEventAndSelectNextMatchingNode = React.useCallback((event, forward=true) => {
-    event.preventDefault();
-    event.stopPropagation();
+  const preventDefaultEventAndSelectNextMatchingNode = React.useCallback(
+    (event, forward = true) => {
+      event.preventDefault();
+      event.stopPropagation();
 
-    if (matchingLinksAndButtons.length > 1) {
-      const newSelectedSelectionIndex = (selectedSelectionIndex + (forward ? 1 : (matchingLinksAndButtons.length-1))) % matchingLinksAndButtons.length;
-      setSelectedSelectionIndex(newSelectedSelectionIndex)
-      Utils.scrollToNodeAtIndexInList(matchingLinksAndButtons, newSelectedSelectionIndex)
-      setScrollOrResizeRefresh(refresh => !refresh)
-    }
-  }, [matchingLinksAndButtons, selectedSelectionIndex])
+      if (matchingLinksAndButtons.length > 1) {
+        const newSelectedSelectionIndex =
+          (selectedSelectionIndex + (forward ? 1 : matchingLinksAndButtons.length - 1)) %
+          matchingLinksAndButtons.length;
+        setSelectedSelectionIndex(newSelectedSelectionIndex);
+        Utils.scrollToNodeAtIndexInList(matchingLinksAndButtons, newSelectedSelectionIndex);
+        setScrollOrResizeRefresh(refresh => !refresh);
+      }
+    },
+    [matchingLinksAndButtons, selectedSelectionIndex],
+  );
 
   const preventDefaultAndClearSearchText = React.useCallback(event => {
     event.preventDefault();
     event.stopPropagation();
-    setSearchText('')
-  }, [])
+    setSearchText('');
+  }, []);
 
-  const handleNextMatchShortcut = React.useCallback(event => {
-    const differentInputIsActive = Utils.differentInputIsActive(searchInputRef.current);
-    if (!isHidden && (!isDisabled || temporarilyEnabled) && (Utils.elementIsActive(searchInputRef.current) || !differentInputIsActive)) {
-      preventDefaultEventAndSelectNextMatchingNode(event)
-    }
-  }, [isHidden, isDisabled, temporarilyEnabled, preventDefaultEventAndSelectNextMatchingNode])
+  const handleNextMatchShortcut = React.useCallback(
+    event => {
+      const differentInputIsActive = Utils.differentInputIsActive(searchInputRef.current);
+      if (
+        !isHidden &&
+        (!isDisabled || temporarilyEnabled) &&
+        (Utils.elementIsActive(searchInputRef.current) || !differentInputIsActive)
+      ) {
+        preventDefaultEventAndSelectNextMatchingNode(event);
+      }
+    },
+    [isHidden, isDisabled, temporarilyEnabled, preventDefaultEventAndSelectNextMatchingNode],
+  );
 
-  const handlePreviousMatchShortcut = React.useCallback(event => {
-    const differentInputIsActive = Utils.differentInputIsActive(searchInputRef.current);
-    if (!isHidden && (!isDisabled || temporarilyEnabled) && (Utils.elementIsActive(searchInputRef.current) || !differentInputIsActive)) {
-      preventDefaultEventAndSelectNextMatchingNode(event, false)
-    }
-  }, [isHidden, isDisabled, temporarilyEnabled, preventDefaultEventAndSelectNextMatchingNode])
+  const handlePreviousMatchShortcut = React.useCallback(
+    event => {
+      const differentInputIsActive = Utils.differentInputIsActive(searchInputRef.current);
+      if (
+        !isHidden &&
+        (!isDisabled || temporarilyEnabled) &&
+        (Utils.elementIsActive(searchInputRef.current) || !differentInputIsActive)
+      ) {
+        preventDefaultEventAndSelectNextMatchingNode(event, false);
+      }
+    },
+    [isHidden, isDisabled, temporarilyEnabled, preventDefaultEventAndSelectNextMatchingNode],
+  );
 
-  const handleSelectShortcut = React.useCallback(event => {
-    if ((!isDisabled || temporarilyEnabled) && !isHidden) {
-      clickSelectedMatchingNodeAndReset(event)
-    }
-  }, [isHidden, isDisabled, temporarilyEnabled, clickSelectedMatchingNodeAndReset])
+  const handleSelectShortcut = React.useCallback(
+    event => {
+      if ((!isDisabled || temporarilyEnabled) && !isHidden) {
+        clickSelectedMatchingNodeAndReset(event);
+      }
+    },
+    [isHidden, isDisabled, temporarilyEnabled, clickSelectedMatchingNodeAndReset],
+  );
 
-  const handleClearShortcut = React.useCallback(event => {
-    const differentInputIsActive = Utils.differentInputIsActive(searchInputRef.current);
-    if ((!isDisabled || temporarilyEnabled) && !isHidden && !differentInputIsActive) {
-      preventDefaultAndClearSearchText(event)
-    }
-  }, [isHidden, isDisabled, temporarilyEnabled, preventDefaultAndClearSearchText])
+  const handleClearShortcut = React.useCallback(
+    event => {
+      const differentInputIsActive = Utils.differentInputIsActive(searchInputRef.current);
+      if ((!isDisabled || temporarilyEnabled) && !isHidden && !differentInputIsActive) {
+        preventDefaultAndClearSearchText(event);
+      }
+    },
+    [isHidden, isDisabled, temporarilyEnabled, preventDefaultAndClearSearchText],
+  );
 
-  const handleFocusShortcut = React.useCallback(event => {
-    if (!isDisabled || temporarilyEnabled) {
-      event.preventDefault();
-      event.stopPropagation();
-      setIsHidden(false)
-      focusSearchInput();
-    }
-  }, [focusSearchInput, isDisabled, temporarilyEnabled])
+  const handleFocusShortcut = React.useCallback(
+    event => {
+      if (!isDisabled || temporarilyEnabled) {
+        event.preventDefault();
+        event.stopPropagation();
+        setIsHidden(false);
+        focusSearchInput();
+      }
+    },
+    [focusSearchInput, isDisabled, temporarilyEnabled],
+  );
 
   const toggleUseOnEveryWebsite = React.useCallback(() => {
-    updateUseOnEveryWebsite(!useOnEveryWebsite)
-  }, [useOnEveryWebsite, updateUseOnEveryWebsite])
+    updateUseOnEveryWebsite(!useOnEveryWebsite);
+  }, [useOnEveryWebsite, updateUseOnEveryWebsite]);
 
   const toggleAutoHide = React.useCallback(() => {
-    updateAutoHide(!autoHide)
-  }, [autoHide, updateAutoHide])
+    updateAutoHide(!autoHide);
+  }, [autoHide, updateAutoHide]);
 
   const toggleAlwaysOn = React.useCallback(() => {
-    updateAlwaysOn(!alwaysOn)
-  }, [alwaysOn, updateAlwaysOn])
+    updateAlwaysOn(!alwaysOn);
+  }, [alwaysOn, updateAlwaysOn]);
 
-  const handleToggleAutohideShortcut = React.useCallback(event => {
-    if (!isDisabled || temporarilyEnabled) {
-      event.preventDefault()
-      toggleAutoHide()
-    }
-  }, [toggleAutoHide, isDisabled, temporarilyEnabled])
+  const handleToggleAutohideShortcut = React.useCallback(
+    event => {
+      if (!isDisabled || temporarilyEnabled) {
+        event.preventDefault();
+        toggleAutoHide();
+      }
+    },
+    [toggleAutoHide, isDisabled, temporarilyEnabled],
+  );
 
-  const handleClearSearchOrHideShortcut = React.useCallback(event => {
-    const differentInputIsActive = Utils.differentInputIsActive(searchInputRef.current);
-    const isEnabled = (!isDisabled || temporarilyEnabled) && !isHidden && !differentInputIsActive;
-    if (isEnabled && searchText.length > 0) {
-      preventDefaultAndClearSearchText(event)
-    } else if (isEnabled && Utils.elementIsActive(searchInputRef.current)) {
-      searchInputRef.current.blur()
-    } else {
-      handleBlur()
-    }
-  }, [searchText, preventDefaultAndClearSearchText, isDisabled, temporarilyEnabled, isHidden, handleBlur])
+  const handleClearSearchOrHideShortcut = React.useCallback(
+    event => {
+      const differentInputIsActive = Utils.differentInputIsActive(searchInputRef.current);
+      const isEnabled = (!isDisabled || temporarilyEnabled) && !isHidden && !differentInputIsActive;
+      if (isEnabled && searchText.length > 0) {
+        preventDefaultAndClearSearchText(event);
+      } else if (isEnabled && Utils.elementIsActive(searchInputRef.current)) {
+        searchInputRef.current.blur();
+      } else {
+        handleBlur();
+      }
+    },
+    [
+      searchText,
+      preventDefaultAndClearSearchText,
+      isDisabled,
+      temporarilyEnabled,
+      isHidden,
+      handleBlur,
+    ],
+  );
 
   const keyboardShortcutHandlerMapping = React.useMemo(() => {
     return {
-      "next_match": handleNextMatchShortcut,
-      "previous_match": handlePreviousMatchShortcut,
-      "select_match": handleSelectShortcut,
-      "clear_searchbar": handleClearShortcut,
-      "focus_searchbar": handleFocusShortcut,
-      "toggle_autohide": handleToggleAutohideShortcut,
-      "clear_search_or_hide": handleClearSearchOrHideShortcut
-    }
-  }, [handleNextMatchShortcut, handlePreviousMatchShortcut, handleSelectShortcut,
-    handleClearShortcut, handleFocusShortcut, handleToggleAutohideShortcut,
-    handleClearSearchOrHideShortcut
-  ])
+      next_match: handleNextMatchShortcut,
+      previous_match: handlePreviousMatchShortcut,
+      select_match: handleSelectShortcut,
+      clear_searchbar: handleClearShortcut,
+      focus_searchbar: handleFocusShortcut,
+      toggle_autohide: handleToggleAutohideShortcut,
+      clear_search_or_hide: handleClearSearchOrHideShortcut,
+    };
+  }, [
+    handleNextMatchShortcut,
+    handlePreviousMatchShortcut,
+    handleSelectShortcut,
+    handleClearShortcut,
+    handleFocusShortcut,
+    handleToggleAutohideShortcut,
+    handleClearSearchOrHideShortcut,
+  ]);
 
-  const handleShortcut = React.useCallback((keyboardShortcutName, event) => {
-    const keyboardEventHandler = keyboardShortcutHandlerMapping[keyboardShortcutName]
-    if (keyboardEventHandler) {
-      keyboardEventHandler(event)
-    }
-  }, [keyboardShortcutHandlerMapping])
+  const handleShortcut = React.useCallback(
+    (keyboardShortcutName, event) => {
+      const keyboardEventHandler = keyboardShortcutHandlerMapping[keyboardShortcutName];
+      if (keyboardEventHandler) {
+        keyboardEventHandler(event);
+      }
+    },
+    [keyboardShortcutHandlerMapping],
+  );
 
-  const handleKeydown = React.useCallback(event => {
-    const differentInputIsActive = Utils.differentInputIsActive(searchInputRef.current);
-    if (!differentInputIsActive && !Utils.elementIsActive(searchInputRef.current) &&
-      Utils.keyValidForFocus(event.key) && !event.metaKey && !event.altKey && !event.ctrlKey
-    ) {
-      event.preventDefault();
-      event.stopPropagation();
-      setIsHidden(false);
-      setSearchText(`${searchText}${event.key}`);
-      focusSearchInput();
-    }
-  }, [focusSearchInput, searchText])
+  const handleKeydown = React.useCallback(
+    event => {
+      const differentInputIsActive = Utils.differentInputIsActive(searchInputRef.current);
+      if (
+        !differentInputIsActive &&
+        !Utils.elementIsActive(searchInputRef.current) &&
+        Utils.keyValidForFocus(event.key) &&
+        !event.metaKey &&
+        !event.altKey &&
+        !event.ctrlKey
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        setIsHidden(false);
+        setSearchText(`${searchText}${event.key}`);
+        focusSearchInput();
+      }
+    },
+    [focusSearchInput, searchText],
+  );
 
-  const handleBrowserActionClicked = React.useCallback(() => {
+  const handleToolbarActionClicked = React.useCallback(() => {
     if (isDisabled) {
-      setTemporarilyEnabled(true)
+      setTemporarilyEnabled(true);
     }
 
-    setIsHidden(false)
+    setIsHidden(false);
     focusSearchInput();
-  }, [isDisabled, focusSearchInput])
+  }, [isDisabled, focusSearchInput]);
 
   React.useEffect(() => {
     if (searchText !== prevSearchText) {
-      setPrevSearchText(searchText)
-      updateSelectionAndScrollToSelectedAfterTimeout()
+      setPrevSearchText(searchText);
+      updateSelectionAndScrollToSelectedAfterTimeout();
     }
-  }, [searchText, prevSearchText, updateSelectionAndScrollToSelectedAfterTimeout])
+  }, [searchText, prevSearchText, updateSelectionAndScrollToSelectedAfterTimeout]);
 
   React.useEffect(() => {
     return () => {
-      cancelPendingSearch()
+      cancelPendingSearch();
       if (scrollOrResizeUpdateTimeout.current) {
-        clearTimeout(scrollOrResizeUpdateTimeout.current)
+        clearTimeout(scrollOrResizeUpdateTimeout.current);
       }
-    }
-  }, [cancelPendingSearch])
+    };
+  }, [cancelPendingSearch]);
 
   React.useEffect(() => {
     if (autoHide !== prevAutoHide) {
-      setPrevAutoHide(autoHide)
+      setPrevAutoHide(autoHide);
 
       if (autoHide) {
-        hide()
+        hide();
       } else {
-        setIsHidden(false)
+        setIsHidden(false);
 
         if (!isDisabled || temporarilyEnabled) {
-          focusSearchInput()
+          focusSearchInput();
         }
       }
     }
-  }, [autoHide, prevAutoHide, hide, focusSearchInput, isDisabled, temporarilyEnabled])
+  }, [autoHide, prevAutoHide, hide, focusSearchInput, isDisabled, temporarilyEnabled]);
 
   React.useEffect(() => {
     const useOnEveryWebsiteChanged = useOnEveryWebsite !== prevUseOnEveryWebsite;
     if (useOnEveryWebsiteChanged) {
-      setPrevUseOnEveryWebsite(useOnEveryWebsite)
+      setPrevUseOnEveryWebsite(useOnEveryWebsite);
     }
 
     const hostChanged = host !== prevHost;
     if (hostChanged) {
-      setPrevHost(host)
+      setPrevHost(host);
     }
 
     if (useOnEveryWebsiteChanged || hostChanged) {
       const newIsDisabled = !useOnEveryWebsite && !Utils.hostIsGmail();
-      setIsDisabled(newIsDisabled)
+      setIsDisabled(newIsDisabled);
       if (newIsDisabled) {
-        resetSearchTextAndMatches()
+        resetSearchTextAndMatches();
       } else if (temporarilyEnabled) {
-        setTemporarilyEnabled(false)
+        setTemporarilyEnabled(false);
       }
     }
-  }, [useOnEveryWebsite, prevUseOnEveryWebsite, resetSearchTextAndMatches,
-    temporarilyEnabled, host, prevHost])
+  }, [
+    useOnEveryWebsite,
+    prevUseOnEveryWebsite,
+    resetSearchTextAndMatches,
+    temporarilyEnabled,
+    host,
+    prevHost,
+  ]);
 
-  const hasMatchingLinksOrButtons = React.useMemo(() => matchingLinksAndButtons.length > 0, [matchingLinksAndButtons]);
+  const hasMatchingLinksOrButtons = React.useMemo(
+    () => matchingLinksAndButtons.length > 0,
+    [matchingLinksAndButtons],
+  );
 
   const shouldBindEvents = React.useMemo(() => {
-    return (!isDisabled || temporarilyEnabled) && !isHidden && hasMatchingLinksOrButtons
-  }, [isDisabled, temporarilyEnabled, isHidden, hasMatchingLinksOrButtons])
+    return (!isDisabled || temporarilyEnabled) && !isHidden && hasMatchingLinksOrButtons;
+  }, [isDisabled, temporarilyEnabled, isHidden, hasMatchingLinksOrButtons]);
 
-  useWindowEvent('scroll', shouldBindEvents, updateSelectionPositionsAfterTimeout)
-  useWindowEvent('wheel', shouldBindEvents, updateSelectionPositionsAfterTimeout)
-  useWindowEvent('resize', shouldBindEvents, updateSelectionPositionsAfterTimeout)
-  useDocumentEvent('keydown', (!isDisabled || temporarilyEnabled) && alwaysOn, handleKeydown, true)
-  useKeyboardShortcuts(handleShortcut)
-  useHighlights({ searchText, matchingNodes })
-  useExtensionMessaging({ handleBrowserActionClicked })
+  useWindowEvent('scroll', shouldBindEvents, updateSelectionPositionsAfterTimeout);
+  useWindowEvent('wheel', shouldBindEvents, updateSelectionPositionsAfterTimeout);
+  useWindowEvent('resize', shouldBindEvents, updateSelectionPositionsAfterTimeout);
+  useDocumentEvent('keydown', (!isDisabled || temporarilyEnabled) && alwaysOn, handleKeydown, true);
+  useKeyboardShortcuts(handleShortcut);
+  useHighlights({ searchText, matchingNodes });
+  useExtensionMessaging({ handleToolbarActionClicked });
 
   return (
-    <div class={((isDisabled && !temporarilyEnabled) || isHidden) ? 'yipyip-hidden' : ''}>
-      { !hideSelections && <Selections
+    <div class={(isDisabled && !temporarilyEnabled) || isHidden ? 'yipyip-hidden' : ''}>
+      {!hideSelections && (
+        <Selections
           refresh={scrollOrResizeRefresh}
           selectedSelectionIndex={selectedSelectionIndex}
           matchingLinksAndButtons={matchingLinksAndButtons}
         />
-      }
+      )}
       <DraggableContainer containerRef={containerRef} searchInputRef={searchInputRef}>
         <Logo />
         <SearchInput
@@ -375,10 +447,7 @@ const Searchbar = () => {
           selectedSelectionIndex={selectedSelectionIndex}
           matchingLinksAndButtons={matchingLinksAndButtons}
         />
-        <VisibilityButton
-          autoHide={autoHide}
-          toggleAutoHide={toggleAutoHide}
-        />
+        <VisibilityButton autoHide={autoHide} toggleAutoHide={toggleAutoHide} />
         <InfoDropdown
           temporarilyEnabled={temporarilyEnabled}
           autoHide={autoHide}
@@ -390,7 +459,7 @@ const Searchbar = () => {
         />
       </DraggableContainer>
     </div>
-  )
-}
+  );
+};
 
 export default Searchbar;

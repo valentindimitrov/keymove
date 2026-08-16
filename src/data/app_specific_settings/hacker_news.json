@@ -6,9 +6,7 @@
       "_comment": "Increase score of the 'Hacker News' button at the top of the page"
     }
   ],
-  "relevant_words": [
-    "hacker"
-  ],
+  "relevant_words": ["hacker"],
   "synonyms": {
     "directed": {
       "home": ["hacker news"]

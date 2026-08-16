@@ -18,7 +18,7 @@
   -moz-border-radius: 12px !important;
   -ms-border-radius: 12px !important;
   border-radius: 12px !important;
-  border: 1px solid rgba(180, 180, 180, 0.20) !important;
+  border: 1px solid rgba(180, 180, 180, 0.2) !important;
   background-color: rgba(35, 35, 35, 0.6) !important;
   box-shadow: none !important;
   -webkit-backdrop-filter: blur(16px) !important;
@@ -65,7 +65,8 @@
   box-sizing: border-box !important;
 }
 
-#yipyip-input, #yipyip-matches-summary {
+#yipyip-input,
+#yipyip-matches-summary {
   color: white !important;
   font-family: "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif !important;
   font-size: 13px !important;
@@ -93,16 +94,19 @@
   margin: 0 10px !important;
 }
 
-#yipyip-input::placeholder { /* Chrome, Firefox, Opera, Safari 10.1+ */
+#yipyip-input::placeholder {
+  /* Chrome, Firefox, Opera, Safari 10.1+ */
   color: rgba(255, 255, 255, 0.65) !important;
   opacity: 1 !important; /* Firefox */
 }
 
-#yipyip-input:-ms-input-placeholder { /* Internet Explorer 10-11 */
+#yipyip-input:-ms-input-placeholder {
+  /* Internet Explorer 10-11 */
   color: rgba(255, 255, 255, 0.65) !important;
 }
 
-#yipyip-input::-ms-input-placeholder { /* Microsoft Edge */
+#yipyip-input::-ms-input-placeholder {
+  /* Microsoft Edge */
   color: rgba(255, 255, 255, 0.65) !important;
 }
 
@@ -210,7 +214,8 @@
   text-decoration: underline !important;
 }
 
-.yipyip-info-panel-list-item, .yipyip-info-panel-row {
+.yipyip-info-panel-list-item,
+.yipyip-info-panel-row {
   padding: 4px 0 !important;
   font-size: 13px !important;
   font-weight: 400 !important;
@@ -245,7 +250,7 @@
 .yipyip-info-panel-shortcut-key {
   display: inline-block !important;
   text-align: center !important;
-  border: 1px solid rgba(255,255,255,0.27) !important;
+  border: 1px solid rgba(255, 255, 255, 0.27) !important;
   min-width: 16px !important;
   font-size: 12px !important;
   color: white !important;
@@ -277,7 +282,7 @@
 .yipyip-info-panel-setting-description {
   margin-top: 5px;
   font-size: 12px !important;
-  color: rgba(255,255,255, 0.7) !important;
+  color: rgba(255, 255, 255, 0.7) !important;
 }
 
 .yipyip-info-panel-setting-checkbox {
@@ -329,7 +334,7 @@
   appearance: none !important;
   outline: none !important;
   border: none !important;
-  background-color: rgba(255,255,255,0.15) !important;
+  background-color: rgba(255, 255, 255, 0.15) !important;
   -webkit-border-radius: 7px !important;
   -moz-border-radius: 7px !important;
   -ms-border-radius: 7px !important;
@@ -347,7 +352,7 @@
 }
 
 .yipyip-info-panel-button:hover {
-  background-color: rgba(255,255,255,0.22) !important;
+  background-color: rgba(255, 255, 255, 0.22) !important;
   color: white !important;
   text-decoration: none !important;
 }
@@ -437,11 +442,11 @@
   -moz-border-radius: 7px !important;
   -ms-border-radius: 7px !important;
   border-radius: 7px !important;
-  background-color: rgba(255,255,255,0.15) !important;
+  background-color: rgba(255, 255, 255, 0.15) !important;
 }
 
 #yipyip-learn-how-link:hover {
-  background-color: rgba(255,255,255,0.22) !important;
+  background-color: rgba(255, 255, 255, 0.22) !important;
 }
 
 :host(.yipyip-firefox) #yipyip-container,

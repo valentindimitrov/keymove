@@ -1,13 +1,19 @@
 import React from 'react';
-import useHover from '../../hooks/use_hover.js'
+import useHover from '../../hooks/use_hover.js';
 import InfoPanel from './info_panel/info_panel.jsx';
 import Tooltip from './tooltip.jsx';
 import HelpIcon from '../../icons/help.svg?react';
 import TemporarilyEnabledMessage from './temporarily_enabled_message.jsx';
 
-const InfoDropdown = (props) => {
-  const { autoHide, toggleAutoHide, useOnEveryWebsite, toggleUseOnEveryWebsite,
-    temporarilyEnabled, alwaysOn, toggleAlwaysOn
+const InfoDropdown = props => {
+  const {
+    autoHide,
+    toggleAutoHide,
+    useOnEveryWebsite,
+    toggleUseOnEveryWebsite,
+    temporarilyEnabled,
+    alwaysOn,
+    toggleAlwaysOn,
   } = props;
 
   const containerRef = React.useRef();
@@ -24,9 +30,9 @@ const InfoDropdown = (props) => {
         alwaysOn={alwaysOn}
         toggleAlwaysOn={toggleAlwaysOn}
       />
-    )
+    );
   } else if (temporarilyEnabled) {
-    tooltipContents = <TemporarilyEnabledMessage />
+    tooltipContents = <TemporarilyEnabledMessage />;
   }
 
   return (
@@ -38,14 +44,13 @@ const InfoDropdown = (props) => {
       onMouseLeave={onMouseLeave}
     >
       <HelpIcon />
-      { tooltipContents && (
-          <Tooltip containerRef={containerRef} key={hover ? 'hover' : temporarilyEnabled}>
-            {tooltipContents}
-          </Tooltip>
-        )
-      }
+      {tooltipContents && (
+        <Tooltip containerRef={containerRef} key={hover ? 'hover' : temporarilyEnabled}>
+          {tooltipContents}
+        </Tooltip>
+      )}
     </div>
-  )
-}
+  );
+};
 
-export default InfoDropdown
+export default InfoDropdown;

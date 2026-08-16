@@ -43,7 +43,11 @@ const useHighlights = ({ searchText, matchingNodes }) => {
     const highlightRegistry = typeof CSS !== 'undefined' ? CSS.highlights : null;
     const normalizedQuery = searchText.toLocaleLowerCase().trimStart();
 
-    if (!highlightRegistry || typeof window.Highlight === 'undefined' || normalizedQuery.length < 2) {
+    if (
+      !highlightRegistry ||
+      typeof window.Highlight === 'undefined' ||
+      normalizedQuery.length < 2
+    ) {
       return undefined;
     }
 
@@ -52,7 +56,7 @@ const useHighlights = ({ searchText, matchingNodes }) => {
 
     return () => highlightRegistry.delete(YIPYIP_HIGHLIGHT_NAME);
   }, [matchingNodes, searchText]);
-}
+};
 
 export { highlightRangesForNodes, rangesForTextNode };
 export default useHighlights;

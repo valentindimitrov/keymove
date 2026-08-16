@@ -1,18 +1,18 @@
 class Synonyms {
-  static getSynonymsForTextFromSettings(text, synonyms={}) {
-    const synonymWord = Object.keys(synonyms).find(word => word.includes(text))
+  static getSynonymsForTextFromSettings(text, synonyms = {}) {
+    const synonymWord = Object.keys(synonyms).find(word => word.includes(text));
     if (synonymWord) {
-      return synonyms[synonymWord]
+      return synonyms[synonymWord];
     } else {
-      return []
+      return [];
     }
   }
 
   static mergeMutualSynonymsIntoDirected(synonymsData) {
     return {
       ...mutualSynonymSetsToDirected(synonymsData.mutual || []),
-      ...synonymsData.directed
-    }
+      ...synonymsData.directed,
+    };
   }
 }
 
@@ -25,10 +25,10 @@ function mutualSynonymSetsToDirected(mutualSynonymSets) {
       } else {
         obj[word] = otherWordsInSet;
       }
-    })
+    });
 
-    return obj
-  }, {})
+    return obj;
+  }, {});
 }
 
 export default Synonyms;

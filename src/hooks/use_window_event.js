@@ -6,9 +6,9 @@ function useWindowEvent(effect, conditional, callback) {
       return undefined;
     }
 
-    window.addEventListener(effect, callback)
-    return () => window.removeEventListener(effect, callback)
-  }, [effect, conditional, callback])
+    window.addEventListener(effect, callback);
+    return () => window.removeEventListener(effect, callback);
+  }, [effect, conditional, callback]);
 }
 
 export default useWindowEvent;

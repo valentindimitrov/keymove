@@ -34,12 +34,11 @@ function yieldToMainThread(signal) {
 }
 
 class PageSearchIndex {
-  constructor(searchableAttributeSettings, additionalSelectors=[]) {
+  constructor(searchableAttributeSettings, additionalSelectors = []) {
     this.searchableAttributeSettings = searchableAttributeSettings;
-    this.selector = [
-      searchableAttributeSettings.searchableAttributeSettingsByNodeNameToQuerySelector(),
-      ...additionalSelectors
-    ].filter(Boolean).join(', ');
+    this.actionableSelector =
+      searchableAttributeSettings.searchableAttributeSettingsByNodeNameToQuerySelector();
+    this.additionalSelectors = additionalSelectors;
     this.records = new Map();
     this.handleMutations = this.handleMutations.bind(this);
 
@@ -49,15 +48,26 @@ class PageSearchIndex {
       attributes: true,
       characterData: true,
       childList: true,
-      subtree: true
+      subtree: true,
     });
   }
 
   isCandidate(node) {
-    return node && node.nodeType === Node.ELEMENT_NODE &&
+    return (
+      node &&
+      node.nodeType === Node.ELEMENT_NODE &&
       node.id !== YIPYIP_ROOT_ID &&
       !DO_NOT_SEARCH_NODE_TYPES.includes(node.nodeName) &&
-      node.matches(this.selector);
+      (this.hasDirectSearchableText(node) ||
+        node.matches(this.actionableSelector) ||
+        this.additionalSelectors.some(selector => node.matches(selector)))
+    );
+  }
+
+  hasDirectSearchableText(node) {
+    return [...node.childNodes].some(
+      child => child.nodeType === Node.TEXT_NODE && child.textContent.trim().length > 0,
+    );
   }
 
   addCandidate(node) {
@@ -67,12 +77,21 @@ class PageSearchIndex {
   }
 
   addSubtree(root) {
-    if (!root || root.nodeType !== Node.ELEMENT_NODE) {
+    if (!root) {
+      return;
+    }
+
+    if (root.nodeType === Node.TEXT_NODE) {
+      this.refreshCandidate(root.parentElement);
+      return;
+    }
+
+    if (root.nodeType !== Node.ELEMENT_NODE) {
       return;
     }
 
     this.addCandidate(root);
-    root.querySelectorAll(this.selector).forEach(node => this.addCandidate(node));
+    root.querySelectorAll('*').forEach(node => this.addCandidate(node));
   }
 
   removeSubtree(root) {
@@ -81,7 +100,15 @@ class PageSearchIndex {
     }
 
     this.records.delete(root);
-    root.querySelectorAll(this.selector).forEach(node => this.records.delete(node));
+    root.querySelectorAll('*').forEach(node => this.records.delete(node));
+  }
+
+  refreshCandidate(node) {
+    if (this.isCandidate(node)) {
+      this.records.set(node, null);
+    } else {
+      this.records.delete(node);
+    }
   }
 
   invalidateAncestors(node) {
@@ -103,14 +130,8 @@ class PageSearchIndex {
       return;
     }
 
-    if (this.records.has(root)) {
-      this.records.set(root, null);
-    }
-    root.querySelectorAll(this.selector).forEach(node => {
-      if (this.records.has(node)) {
-        this.records.set(node, null);
-      }
-    });
+    this.refreshCandidate(root);
+    root.querySelectorAll('*').forEach(node => this.refreshCandidate(node));
   }
 
   handleMutations(mutations) {
@@ -118,12 +139,11 @@ class PageSearchIndex {
       if (mutation.type === 'childList') {
         mutation.removedNodes.forEach(node => this.removeSubtree(node));
         mutation.addedNodes.forEach(node => this.addSubtree(node));
+        this.refreshCandidate(mutation.target);
       } else if (mutation.type === 'attributes') {
-        if (this.records.has(mutation.target) && !this.isCandidate(mutation.target)) {
-          this.records.delete(mutation.target);
-        }
-        this.addSubtree(mutation.target);
         this.invalidateSubtree(mutation.target);
+      } else if (mutation.type === 'characterData') {
+        this.refreshCandidate(mutation.target.parentElement);
       }
 
       this.invalidateAncestors(mutation.target);
@@ -138,16 +158,22 @@ class PageSearchIndex {
 
     const record = {
       node,
-      innerText: Utils.getTextContentOfNode(node).toLocaleLowerCase().trim().replace(NO_BREAK_SPACE_REGEX, ' '),
+      innerText: Utils.getTextContentOfNode(node)
+        .toLocaleLowerCase()
+        .trim()
+        .replace(NO_BREAK_SPACE_REGEX, ' '),
       attributeValues: this.searchableAttributeSettings.searchableAttributeValuesForNode(node),
-      visible: this.isVisible(node)
+      visible: this.isVisible(node),
     };
     this.records.set(node, record);
     return record;
   }
 
   isVisible(node) {
-    if (!node.isConnected || !(node.offsetWidth || node.offsetHeight || node.getClientRects().length)) {
+    if (
+      !node.isConnected ||
+      !(node.offsetWidth || node.offsetHeight || node.getClientRects().length)
+    ) {
       return false;
     }
 
@@ -155,7 +181,7 @@ class PageSearchIndex {
     return computedStyle.visibility !== 'hidden' && computedStyle.opacity !== '0';
   }
 
-  async search(nodeScorer, { signal, limit=DEFAULT_RESULT_LIMIT }={}) {
+  async search(nodeScorer, { signal, limit = DEFAULT_RESULT_LIMIT } = {}) {
     const nodes = [...this.records.keys()];
     const matches = [];
 
@@ -175,7 +201,11 @@ class PageSearchIndex {
           return;
         }
 
-        const score = nodeScorer.scoreNodeWithValues(node, record.innerText, record.attributeValues);
+        const score = nodeScorer.scoreNodeWithValues(
+          node,
+          record.innerText,
+          record.attributeValues,
+        );
         if (score > 0) {
           matches.push({ node, score });
         }
@@ -186,15 +216,17 @@ class PageSearchIndex {
       }
     }
 
+    const matchingNodes = matches.map(match => match.node);
     const matchingLinksAndButtons = matches
+      .filter(match => this.searchableAttributeSettings.isLinkOrButtonOrInput(match.node))
       .sort((first, second) => second.score - first.score)
       .slice(0, limit)
       .map(match => match.node);
 
     return {
-      matchingNodes: matchingLinksAndButtons,
+      matchingNodes,
       matchingLinksAndButtons,
-      bestMatchingLinkOrButtonIndex: matchingLinksAndButtons.length > 0 ? 0 : null
+      bestMatchingLinkOrButtonIndex: matchingLinksAndButtons.length > 0 ? 0 : null,
     };
   }
 

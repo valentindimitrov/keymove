@@ -1,14 +1,12 @@
-import { INPUT_NODE_TYPES, KEYS_VALID_FOR_FOCUS_REGEX, MAC_OS_PLATFORMS } from "../constants.js";
+import { INPUT_NODE_TYPES, KEYS_VALID_FOR_FOCUS_REGEX, MAC_OS_PLATFORMS } from '../constants.js';
 
 function differentInputIsActive(inputElement) {
   const activeElement = getDeepActiveElement();
-  return activeElement &&
-    activeElement !== inputElement &&
-    elementIsEditable(activeElement)
+  return activeElement && activeElement !== inputElement && elementIsEditable(activeElement);
 }
 
 function elementIsEditable(element) {
-  return element.isContentEditable || INPUT_NODE_TYPES.includes(element.nodeName)
+  return element.isContentEditable || INPUT_NODE_TYPES.includes(element.nodeName);
 }
 
 function getDeepActiveElement() {
@@ -28,9 +26,9 @@ function clickOrFocusNode(node) {
     node.focus();
   } else {
     const eventConfig = {
-      'view': window,
-      'bubbles': true,
-      'cancelable': true
+      view: window,
+      bubbles: true,
+      cancelable: true,
     };
 
     var mouseoverEvent = new MouseEvent('mouseover', eventConfig);
@@ -64,16 +62,16 @@ function clampNumber(number, min, max) {
 }
 
 function compareDescending(a, b) {
-  return b - a
+  return b - a;
 }
 
 function isMacOS() {
   const platform = window.navigator.platform;
-  return MAC_OS_PLATFORMS.includes(platform)
+  return MAC_OS_PLATFORMS.includes(platform);
 }
 
 function nodeIsInViewport(node) {
-  const element = node.nodeType === Node.TEXT_NODE ? node.parentNode : node
+  const element = node.nodeType === Node.TEXT_NODE ? node.parentNode : node;
   const boundingRect = element.getBoundingClientRect();
   return (
     boundingRect.top >= 0 &&
@@ -86,12 +84,12 @@ function nodeIsInViewport(node) {
 function scrollToNodeAtIndexInList(nodeList, selectedIndex) {
   const selectedMatchingNode = nodeList.length > 0 ? nodeList[selectedIndex] : null;
   if (selectedMatchingNode) {
-    selectedMatchingNode.scrollIntoViewIfNeeded()
+    selectedMatchingNode.scrollIntoViewIfNeeded();
   }
 }
 
 function hostIsGmail() {
-  return window.location.host === 'mail.google.com'
+  return window.location.host === 'mail.google.com';
 }
 
 const Utils = {
@@ -105,7 +103,7 @@ const Utils = {
   isMacOS,
   nodeIsInViewport,
   scrollToNodeAtIndexInList,
-  hostIsGmail
-}
+  hostIsGmail,
+};
 
-export default Utils
+export default Utils;

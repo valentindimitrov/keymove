@@ -1,15 +1,27 @@
-import { FIELD_BOOSTS, SEARCH_TERM_BOOSTS, STARTS_WITH_BOOST, RELEVANT_WORD_BOOST,
-  RELEVANT_SELECTOR_BOOST, IS_VISIBLE_BOOST
-} from "../constants.js";
+import {
+  FIELD_BOOSTS,
+  SEARCH_TERM_BOOSTS,
+  STARTS_WITH_BOOST,
+  RELEVANT_WORD_BOOST,
+  RELEVANT_SELECTOR_BOOST,
+  IS_VISIBLE_BOOST,
+} from '../constants.js';
 
-import Utils from "./utils.js";
+import Utils from './utils.js';
 import Synonyms from './synonyms.js';
 
 const WHITESPACE_SPLIT_REGEX = /[(\s+)\-.,/\u200B-\u200D\uFEFF\u200E\u200F]+/;
 const NO_BREAK_SPACE_REGEX = /\u00a0/g;
 
 class NodeScorer {
-  constructor(searchText, synonyms, relevantWords, relevantSelectors, relevantWordToSelectorMappings, searchableAttributeSettings) {
+  constructor(
+    searchText,
+    synonyms,
+    relevantWords,
+    relevantSelectors,
+    relevantWordToSelectorMappings,
+    searchableAttributeSettings,
+  ) {
     this.queryText = searchText;
     this.synonyms = Synonyms.getSynonymsForTextFromSettings(searchText, synonyms);
     this.relevantWords = relevantWords;
@@ -20,63 +32,89 @@ class NodeScorer {
 
   scoreNode(node) {
     const { innerText, attributeValues } = this.valuesForNode(node);
-    return this.scoreNodeWithValues(node, innerText, attributeValues)
+    return this.scoreNodeWithValues(node, innerText, attributeValues);
   }
 
   scoreNodeWithValues(node, innerText, attributeValues) {
-    return this.score(node, innerText, attributeValues)
+    return this.score(node, innerText, attributeValues);
   }
 
   nodeMatches(node) {
     const { innerText, attributeValues } = this.valuesForNode(node);
 
-    return this.nodeMatchesWithValues(node, innerText, attributeValues)
+    return this.nodeMatchesWithValues(node, innerText, attributeValues);
   }
 
   nodeMatchesWithValues(node, innerText, attributeValues) {
-
     if (innerText && innerText.length > 0 && innerText.includes(this.queryText)) {
-      return true
+      return true;
     }
 
-    if (attributeValues.length > 0 && attributeValues.some(attributeValue => attributeValue.includes(this.queryText))) {
-      return true
+    if (
+      attributeValues.length > 0 &&
+      attributeValues.some(attributeValue => attributeValue.includes(this.queryText))
+    ) {
+      return true;
     }
 
-    if (innerText && innerText.length > 0 && this.synonyms.some(synonym => innerText.includes(synonym))) {
-      return true
+    if (
+      innerText &&
+      innerText.length > 0 &&
+      this.synonyms.some(synonym => innerText.includes(synonym))
+    ) {
+      return true;
     }
 
-    if (attributeValues.length > 0 && this.synonyms.some(synonym => attributeValues.some(attributeValue => attributeValue.includes(synonym)))) {
-      return true
+    if (
+      attributeValues.length > 0 &&
+      this.synonyms.some(synonym =>
+        attributeValues.some(attributeValue => attributeValue.includes(synonym)),
+      )
+    ) {
+      return true;
     }
 
-    const wordWithSelectorMatchingQuery = Object.keys(this.relevantWordToSelectorMappings).find(word => word.startsWith(this.queryText))
-    if (wordWithSelectorMatchingQuery && node.matches(this.relevantWordToSelectorMappings[wordWithSelectorMatchingQuery])) {
-      return true
+    const wordWithSelectorMatchingQuery = Object.keys(this.relevantWordToSelectorMappings).find(
+      word => word.startsWith(this.queryText),
+    );
+    if (
+      wordWithSelectorMatchingQuery &&
+      node.matches(this.relevantWordToSelectorMappings[wordWithSelectorMatchingQuery])
+    ) {
+      return true;
     }
 
-    return false
+    return false;
   }
 
   valuesForNode(node) {
     return {
-      innerText: Utils.getTextContentOfNode(node).slice().toLocaleLowerCase().trim().replace(NO_BREAK_SPACE_REGEX, " "),
-      attributeValues: this.searchableAttributeSettings.searchableAttributeValuesForNode(node)
+      innerText: Utils.getTextContentOfNode(node)
+        .slice()
+        .toLocaleLowerCase()
+        .trim()
+        .replace(NO_BREAK_SPACE_REGEX, ' '),
+      attributeValues: this.searchableAttributeSettings.searchableAttributeValuesForNode(node),
     };
   }
 
   score(node, innerText, attributeValues) {
     let score = 0;
 
-    innerText = innerText.replace(NO_BREAK_SPACE_REGEX, " ")
-    const innerTextWords = this.getWordsFromText(innerText)
+    innerText = innerText.replace(NO_BREAK_SPACE_REGEX, ' ');
+    const innerTextWords = this.getWordsFromText(innerText);
     if (innerText && innerText.length > 0) {
-      score = this.fieldScore(innerText, innerTextWords, this.queryText, FIELD_BOOSTS.innerText, SEARCH_TERM_BOOSTS.searchText)
+      score = this.fieldScore(
+        innerText,
+        innerTextWords,
+        this.queryText,
+        FIELD_BOOSTS.innerText,
+        SEARCH_TERM_BOOSTS.searchText,
+      );
     }
 
     if (attributeValues.length > 0) {
-      const highestAttributeScore = this.getHighestAttributeScore(attributeValues, this.queryText)
+      const highestAttributeScore = this.getHighestAttributeScore(attributeValues, this.queryText);
       if (highestAttributeScore > score) {
         score = highestAttributeScore;
       }
@@ -84,11 +122,12 @@ class NodeScorer {
 
     if (score === 0 && this.synonyms.length > 0) {
       if (innerText && innerText.length > 0) {
-        score = this.getHighestSynonymScore(innerText, innerTextWords)
+        score = this.getHighestSynonymScore(innerText, innerTextWords);
       }
 
       if (attributeValues.length > 0) {
-        const highestSynonymAttributePairScore = this.getHighestSynonymAttributePairScore(attributeValues)
+        const highestSynonymAttributePairScore =
+          this.getHighestSynonymAttributePairScore(attributeValues);
         if (highestSynonymAttributePairScore > score) {
           score = highestSynonymAttributePairScore;
         }
@@ -96,9 +135,20 @@ class NodeScorer {
     }
 
     if (score === 0) {
-      const wordWithSelectorMatchingQuery = Object.keys(this.relevantWordToSelectorMappings).find(word => word.startsWith(this.queryText))
-      if (wordWithSelectorMatchingQuery && node.matches(this.relevantWordToSelectorMappings[wordWithSelectorMatchingQuery])) {
-        score = this.fieldScore(wordWithSelectorMatchingQuery, [wordWithSelectorMatchingQuery], this.queryText, FIELD_BOOSTS.innerText, SEARCH_TERM_BOOSTS.searchText)
+      const wordWithSelectorMatchingQuery = Object.keys(this.relevantWordToSelectorMappings).find(
+        word => word.startsWith(this.queryText),
+      );
+      if (
+        wordWithSelectorMatchingQuery &&
+        node.matches(this.relevantWordToSelectorMappings[wordWithSelectorMatchingQuery])
+      ) {
+        score = this.fieldScore(
+          wordWithSelectorMatchingQuery,
+          [wordWithSelectorMatchingQuery],
+          this.queryText,
+          FIELD_BOOSTS.innerText,
+          SEARCH_TERM_BOOSTS.searchText,
+        );
       }
     }
 
@@ -112,26 +162,32 @@ class NodeScorer {
       }
     }
 
-    return score
+    return score;
   }
 
-  fieldScore(fieldText, fieldWords, queryText, fieldBoost=1, queryTermBoost=1) {
+  fieldScore(fieldText, fieldWords, queryText, fieldBoost = 1, queryTermBoost = 1) {
     let score = 0;
 
-    if (!fieldText || fieldText.length === 0) { return 0 }
+    if (!fieldText || fieldText.length === 0) {
+      return 0;
+    }
 
     if (fieldText.includes(queryText)) {
       score += fieldBoost * queryTermBoost;
     }
 
     if (score > 0) {
-      const queryWords = this.getWordsFromText(queryText)
-      const hasWordStartingWithQueryText = fieldWords.some(word => queryWords.some(qWord => word.startsWith(qWord)));
+      const queryWords = this.getWordsFromText(queryText);
+      const hasWordStartingWithQueryText = fieldWords.some(word =>
+        queryWords.some(qWord => word.startsWith(qWord)),
+      );
       if (hasWordStartingWithQueryText) {
-        score = score * STARTS_WITH_BOOST
+        score = score * STARTS_WITH_BOOST;
       }
 
-      const relevantWord = this.relevantWords.find(word => queryWords.some(qWord => word.includes(qWord)) && fieldWords.includes(word))
+      const relevantWord = this.relevantWords.find(
+        word => queryWords.some(qWord => word.includes(qWord)) && fieldWords.includes(word),
+      );
       if (relevantWord) {
         score = score * RELEVANT_WORD_BOOST;
       }
@@ -144,16 +200,16 @@ class NodeScorer {
     return text.split(WHITESPACE_SPLIT_REGEX);
   }
 
-  getHighestAttributeScore(attributeTextValues, queryText, queryIsSynonym=false) {
+  getHighestAttributeScore(attributeTextValues, queryText, queryIsSynonym = false) {
     const attributeScores = attributeTextValues.map(attributeValue => {
-      const attributeWords = this.getWordsFromText(attributeValue)
+      const attributeWords = this.getWordsFromText(attributeValue);
       return this.fieldScore(
         attributeValue,
         attributeWords,
         queryText,
         FIELD_BOOSTS.attribute,
-        queryIsSynonym ? SEARCH_TERM_BOOSTS.synonym : SEARCH_TERM_BOOSTS.searchText
-      )
+        queryIsSynonym ? SEARCH_TERM_BOOSTS.synonym : SEARCH_TERM_BOOSTS.searchText,
+      );
     });
     return this.getHighestScore(attributeScores);
   }
@@ -165,15 +221,15 @@ class NodeScorer {
         innerTextWords,
         synonym,
         FIELD_BOOSTS.innerText,
-        SEARCH_TERM_BOOSTS.synonym
-      )
+        SEARCH_TERM_BOOSTS.synonym,
+      );
     });
     return this.getHighestScore(synonymScores);
   }
 
   getHighestSynonymAttributePairScore(attributeTextValues) {
     const synonymScores = this.synonyms.map(synonym => {
-      return this.getHighestAttributeScore(attributeTextValues, synonym, true)
+      return this.getHighestAttributeScore(attributeTextValues, synonym, true);
     });
     return this.getHighestScore(synonymScores);
   }

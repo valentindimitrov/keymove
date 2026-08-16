@@ -11,21 +11,35 @@ class FindInPage {
   constructor(searchText) {
     this.searchText = searchText.toLocaleLowerCase().trimStart();
     const host = window.location.host;
-    const appSpecificSettings = AppSpecificSettings.getSettingsForHost(host)
+    const appSpecificSettings = AppSpecificSettings.getSettingsForHost(host);
     const synonyms = Synonyms.mergeMutualSynonymsIntoDirected(appSpecificSettings.synonyms || {});
     const relevantWords = appSpecificSettings.relevant_words || [];
-    const relevantWordToSelectorMappings = appSpecificSettings.relevant_word_to_selector_mappings || {};
+    const relevantWordToSelectorMappings =
+      appSpecificSettings.relevant_word_to_selector_mappings || {};
 
-    const relevantSelectors = (appSpecificSettings.relevant_selectors || [])
-      .map(selectorData => selectorData.selector);
+    const relevantSelectors = (appSpecificSettings.relevant_selectors || []).map(
+      selectorData => selectorData.selector,
+    );
 
-    const additionalButtonSelectors = (appSpecificSettings.additional_button_selectors || [])
-      .map(selectorData => selectorData.selector);
+    const additionalButtonSelectors = (appSpecificSettings.additional_button_selectors || []).map(
+      selectorData => selectorData.selector,
+    );
 
-    const additionalSearchableAttributesByNodeName = appSpecificSettings.additional_searchable_attributes_by_node_name || {};
+    const additionalSearchableAttributesByNodeName =
+      appSpecificSettings.additional_searchable_attributes_by_node_name || {};
 
-    this.searchableAttributeSettings = new SearchableAttributeSettings(additionalButtonSelectors, additionalSearchableAttributesByNodeName);
-    this.nodeScorer = new NodeScorer(this.searchText, synonyms, relevantWords, relevantSelectors, relevantWordToSelectorMappings, this.searchableAttributeSettings);
+    this.searchableAttributeSettings = new SearchableAttributeSettings(
+      additionalButtonSelectors,
+      additionalSearchableAttributesByNodeName,
+    );
+    this.nodeScorer = new NodeScorer(
+      this.searchText,
+      synonyms,
+      relevantWords,
+      relevantSelectors,
+      relevantWordToSelectorMappings,
+      this.searchableAttributeSettings,
+    );
 
     if (!sharedIndex || sharedIndexHost !== host) {
       if (sharedIndex) {
@@ -35,17 +49,17 @@ class FindInPage {
       sharedIndexHost = host;
       sharedIndex = new PageSearchIndex(
         this.searchableAttributeSettings,
-        Object.values(relevantWordToSelectorMappings)
+        Object.values(relevantWordToSelectorMappings),
       );
     }
   }
 
-  findMatches(options={}) {
+  findMatches(options = {}) {
     if (this.searchText.length < 2) {
       return Promise.resolve({
         matchingNodes: [],
         matchingLinksAndButtons: [],
-        bestMatchingLinkOrButtonIndex: null
+        bestMatchingLinkOrButtonIndex: null,
       });
     }
 

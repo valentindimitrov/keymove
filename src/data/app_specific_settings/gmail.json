@@ -16,16 +16,9 @@
       "_comment": "Increase score of the 'Star' button vs. the 'Starred' navigation item when viewing an email."
     }
   ],
-  "relevant_words": [
-    "forward",
-    "compose",
-    "reply",
-    "starred"
-  ],
+  "relevant_words": ["forward", "compose", "reply", "starred"],
   "synonyms": {
-    "mutual": [
-      ["delete", "trash", "discard"]
-    ],
+    "mutual": [["delete", "trash", "discard"]],
     "directed": {
       "new": ["compose"],
       "tag": ["label"],

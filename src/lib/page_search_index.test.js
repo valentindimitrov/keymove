@@ -16,11 +16,11 @@ function waitForMutations() {
 beforeAll(() => {
   Object.defineProperty(HTMLElement.prototype, 'offsetWidth', {
     configurable: true,
-    get: () => 100
+    get: () => 100,
   });
   Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
     configurable: true,
-    get: () => 20
+    get: () => 20,
   });
 });
 
@@ -40,9 +40,37 @@ test('ranks all results by relevance instead of DOM order', async () => {
 
   expect(result.matchingLinksAndButtons.map(node => node.textContent)).toEqual([
     'Save settings',
-    'Autosave'
+    'Autosave',
   ]);
   expect(result.bestMatchingLinkOrButtonIndex).toBe(0);
+});
+
+test('does not treat a shared URL path as matching link text', async () => {
+  document.body.innerHTML = `
+    <a href="/comake/yip-yip/issues">Issues</a>
+    <a href="/comake/yip-yip/pulls">Pull requests</a>
+    <a href="/comake/yip-yip">yip-yip</a>
+  `;
+  index = new PageSearchIndex(settings);
+
+  const result = await index.search(scorerFor('yip'));
+
+  expect(result.matchingLinksAndButtons.map(node => node.textContent)).toEqual(['yip-yip']);
+});
+
+test('highlights text matches without adding them to Tab navigation', async () => {
+  document.body.innerHTML = `
+    <button aria-label="Watch comake/yip-yip">Watch</button>
+    <article><p>YipYip is an always-on search assistant.</p></article>
+  `;
+  const button = document.querySelector('button');
+  const paragraph = document.querySelector('p');
+  index = new PageSearchIndex(settings);
+
+  const result = await index.search(scorerFor('yip'));
+
+  expect(result.matchingNodes).toEqual(expect.arrayContaining([button, paragraph]));
+  expect(result.matchingLinksAndButtons).toEqual([button]);
 });
 
 test('refreshes cached records when the page mutates', async () => {
@@ -75,8 +103,9 @@ test('adds and removes candidates when their role changes', async () => {
 });
 
 test('limits the rendered result set', async () => {
-  document.body.innerHTML = Array.from({ length: DEFAULT_RESULT_LIMIT + 10 }, (_, index) =>
-    `<button>Save ${index}</button>`
+  document.body.innerHTML = Array.from(
+    { length: DEFAULT_RESULT_LIMIT + 10 },
+    (_, index) => `<button>Save ${index}</button>`,
   ).join('');
   index = new PageSearchIndex(settings);
 
@@ -91,6 +120,7 @@ test('cancels obsolete searches', async () => {
   const controller = new AbortController();
   controller.abort();
 
-  await expect(index.search(scorerFor('save'), { signal: controller.signal }))
-    .rejects.toMatchObject({ name: 'AbortError' });
+  await expect(
+    index.search(scorerFor('save'), { signal: controller.signal }),
+  ).rejects.toMatchObject({ name: 'AbortError' });
 });

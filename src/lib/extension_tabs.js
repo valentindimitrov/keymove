@@ -16,7 +16,9 @@ function isInjectableUrl(url) {
       return false;
     }
 
-    return !(parsedUrl.hostname === 'chrome.google.com' && parsedUrl.pathname.startsWith('/webstore'));
+    return !(
+      parsedUrl.hostname === 'chrome.google.com' && parsedUrl.pathname.startsWith('/webstore')
+    );
   } catch {
     return false;
   }
