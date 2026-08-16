@@ -19,14 +19,21 @@ class NodeScorer {
   }
 
   scoreNode(node) {
-    const innerText = Utils.getTextContentOfNode(node).slice().toLowerCase().trim().replace(NO_BREAK_SPACE_REGEX, " ");
-    const attributeValues = this.searchableAttributeSettings.searchableAttributeValuesForNode(node);
+    const { innerText, attributeValues } = this.valuesForNode(node);
+    return this.scoreNodeWithValues(node, innerText, attributeValues)
+  }
+
+  scoreNodeWithValues(node, innerText, attributeValues) {
     return this.score(node, innerText, attributeValues)
   }
 
   nodeMatches(node) {
-    const innerText = Utils.getTextContentOfNode(node).slice().toLowerCase().trim().replace(NO_BREAK_SPACE_REGEX, " ");
-    const attributeValues = this.searchableAttributeSettings.searchableAttributeValuesForNode(node);
+    const { innerText, attributeValues } = this.valuesForNode(node);
+
+    return this.nodeMatchesWithValues(node, innerText, attributeValues)
+  }
+
+  nodeMatchesWithValues(node, innerText, attributeValues) {
 
     if (innerText && innerText.length > 0 && innerText.includes(this.queryText)) {
       return true
@@ -50,6 +57,13 @@ class NodeScorer {
     }
 
     return false
+  }
+
+  valuesForNode(node) {
+    return {
+      innerText: Utils.getTextContentOfNode(node).slice().toLocaleLowerCase().trim().replace(NO_BREAK_SPACE_REGEX, " "),
+      attributeValues: this.searchableAttributeSettings.searchableAttributeValuesForNode(node)
+    };
   }
 
   score(node, innerText, attributeValues) {

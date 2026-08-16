@@ -1,9 +1,9 @@
 import React from 'react';
 import useHover from '../../hooks/use_hover.js'
-import InfoPanel from './info_panel/info_panel.js';
-import Tooltip from './tooltip.js';
-import { ReactComponent as HelpIcon } from '../../icons/help.svg';
-import TemporarilyEnabledMessage from './temporarily_enabled_message.js';
+import InfoPanel from './info_panel/info_panel.jsx';
+import Tooltip from './tooltip.jsx';
+import HelpIcon from '../../icons/help.svg?react';
+import TemporarilyEnabledMessage from './temporarily_enabled_message.jsx';
 
 const InfoDropdown = (props) => {
   const { autoHide, toggleAutoHide, useOnEveryWebsite, toggleUseOnEveryWebsite,

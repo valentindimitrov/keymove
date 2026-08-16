@@ -1,79 +1,58 @@
 import React from 'react';
-import Utils from "../lib/utils.js";
-import { YIPYIP_HIGHLIGHT_CLASS } from "../constants.js"
+import { YIPYIP_HIGHLIGHT_NAME } from '../constants.js';
 
-function matchDataFromNodeTextMatchingRegex(node, textRegex) {
-  const nodeText = Utils.getTextContentOfNode(node)
-  // Use a regular expression to check if this text node contains the target text.
-  return nodeText.length > 0 ? textRegex.exec(nodeText) : null;
+function rangesForTextNode(textNode, query) {
+  const text = textNode.textContent || '';
+  const normalizedText = text.toLocaleLowerCase();
+  const ranges = [];
+  let matchIndex = normalizedText.indexOf(query);
+
+  while (matchIndex !== -1) {
+    const range = new Range();
+    range.setStart(textNode, matchIndex);
+    range.setEnd(textNode, matchIndex + query.length);
+    ranges.push(range);
+    matchIndex = normalizedText.indexOf(query, matchIndex + query.length);
+  }
+
+  return ranges;
 }
 
-function findChildNodeAndMatchDataWithTextMatchingRegex(node, textRegex, matches=[]) {
-  if (node.nodeType === Node.TEXT_NODE) {
-    const match = matchDataFromNodeTextMatchingRegex(node, textRegex)
-    if (match != null) {
-      matches.push({ node, match })
+function highlightRangesForNodes(nodes, query) {
+  const ranges = [];
+  const visitedTextNodes = new Set();
+
+  nodes.forEach(node => {
+    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+    let textNode = walker.nextNode();
+
+    while (textNode) {
+      if (!visitedTextNodes.has(textNode)) {
+        visitedTextNodes.add(textNode);
+        ranges.push(...rangesForTextNode(textNode, query));
+      }
+      textNode = walker.nextNode();
     }
-  } else if (node.nodeType === Node.ELEMENT_NODE && node.childNodes.length > 0) {
-    [...node.childNodes].forEach(childNode => {
-      findChildNodeAndMatchDataWithTextMatchingRegex(childNode, textRegex, matches)
-    })
-  }
+  });
 
-  return matches
+  return ranges;
 }
 
-function removeHighlights() {
-  const highlights = [...document.getElementsByClassName(YIPYIP_HIGHLIGHT_CLASS)]
-  for (let i = 0; i < highlights.length; i++) {
-    removeHighlight(highlights[i])
-  }
-}
-
-function removeHighlight(highlightNode) {
-  const highlightNodeText = Utils.getTextContentOfNode(highlightNode)
-  const replacementTextNode = document.createTextNode(highlightNodeText);
-  highlightNode.parentNode.replaceChild(replacementTextNode, highlightNode);
-  replacementTextNode.parentNode.normalize();
-}
-
-function highlightNodeWithMatchData(node, match) {
-  // Create a document fragment to hold the new nodes.
-  const fragment = document.createDocumentFragment();
-  // Create a new text node for any preceding text.
-  fragment.appendChild(document.createTextNode(match[1]));
-
-  // Create the wrapper mark tag and add the matched text to it.
-  const markNode = document.createElement('mark');
-  markNode.setAttribute('class', YIPYIP_HIGHLIGHT_CLASS)
-  markNode.appendChild(document.createTextNode(match[2]));
-  fragment.appendChild(markNode);
-
-  // Create a new text node for any following text.
-  fragment.appendChild(document.createTextNode(match[3]));
-
-  // Replace the existing text node with the fragment.
-  node.parentNode.replaceChild(fragment, node);
-}
-
-const useHighlights = (props) => {
-  const { searchText, matchingNodes } = props;
-
-  const textRegex = React.useMemo(() => Utils.regexpMatchingTextAtStartOrEndOrSurroundedByNonWordChars(searchText), [searchText])
-
+const useHighlights = ({ searchText, matchingNodes }) => {
   React.useEffect(() => {
-    matchingNodes.forEach(node => {
-      node.normalize();
-      const matchingNodesAndMatchData = findChildNodeAndMatchDataWithTextMatchingRegex(node, textRegex);
-      matchingNodesAndMatchData.forEach(matchingNodeAndMatchData => {
-        highlightNodeWithMatchData(matchingNodeAndMatchData.node, matchingNodeAndMatchData.match)
-      })
-    })
+    const highlightRegistry = typeof CSS !== 'undefined' ? CSS.highlights : null;
+    const normalizedQuery = searchText.toLocaleLowerCase().trimStart();
 
-    return () => {
-      removeHighlights()
+    if (!highlightRegistry || typeof window.Highlight === 'undefined' || normalizedQuery.length < 2) {
+      return undefined;
     }
-  }, [matchingNodes, textRegex])
+
+    const ranges = highlightRangesForNodes(matchingNodes, normalizedQuery);
+    highlightRegistry.set(YIPYIP_HIGHLIGHT_NAME, new window.Highlight(...ranges));
+
+    return () => highlightRegistry.delete(YIPYIP_HIGHLIGHT_NAME);
+  }, [matchingNodes, searchText]);
 }
 
+export { highlightRangesForNodes, rangesForTextNode };
 export default useHighlights;

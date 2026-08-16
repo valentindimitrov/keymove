@@ -19,12 +19,14 @@ Video Demo: https://www.youtube.com/watch?v=y7wGtyeEoKQ
 ## Extension store listings
 [Google Chrome Extension](https://chrome.google.com/webstore/detail/yipyip/flbkmacappdledphgdoolmenldginemg/)\
 [Firefox Extension](https://addons.mozilla.org/en-US/firefox/addon/yipyip/)\
-Edge Add-On (Coming Soon)
+The Chromium build can also be installed in Vivaldi.
 
 
 # How it works
 
-When a user types in the YipYip search bar on a webpage, YipYip recursively scans through the webpage's DOM node tree to find all nodes which match the users query. Whether a node matches the query or not is determined by detecting if any text within the node includes the user's query or if an attribute of the node includes the user's query.
+YipYip builds a cached index of actionable elements on the page and keeps it current with a `MutationObserver`. As the user types, searches run against the cached text and relevant attributes in small, cancellable chunks, then return the 50 highest-scoring results. This avoids rescanning the entire DOM for every keystroke.
+
+The search interface is mounted in a Shadow DOM so its styles do not leak into the website (and the website's styles do not accidentally break it). Matching text is highlighted with the CSS Custom Highlight API and JavaScript `Range` objects, which leaves the website's DOM and event listeners untouched.
 
 Not all attributes a node may have are relevant for our purposes, thus, YipYip only searches a specific list of attributes per node based on it's tag name. These can be found in [searchable_attributes_by_node_name.json](https://github.com/comake/yip-yip/blob/main/src/data/searchable_attributes_by_node_name.json)
 
@@ -51,16 +53,44 @@ Once the matching buttons, links, and inputs are found and sorted according to s
 Please use [GitHub issues](https://github.com/comake/yip-yip/issues) to report any bugs or feature requests. If you can, send in a PR and we will review.
 
 ### Work with the code
+
+YipYip uses WXT with Vite. Node.js 24 or newer and Yarn 1.22 are required.
+
 1. Run these commands in your terminal
 ```
 git clone https://github.com/comake/yip-yip.git
 cd yip-yip
-yarn build
+yarn install --frozen-lockfile
+yarn dev
 ```
-2. Go to chrome://extensions
-3. Turn on [Developer Mode](https://developer.chrome.com/docs/extensions/mv3/faq/#faq-dev-01) in the top right
-4. Click `Load unpacked` in the top left of chrome://extensions and select the `build` folder within your local `yip-yip` folder, or just drag the `build` folder into the chrome://extensions page.
-5. Every time you make a change to the code, run `yarn build` then refresh the extension in the browser.
+2. Go to `chrome://extensions`.
+3. Turn on [Developer Mode](https://developer.chrome.com/docs/extensions/mv3/faq/#faq-dev-01) in the top right.
+4. Click **Load unpacked** and select `.output/chrome-mv3-dev`. WXT normally opens and reloads a development browser automatically, so manual loading is only needed when using an existing browser profile.
+
+The build commands work on Windows, macOS, and Linux:
+
+| Command | Output |
+| --- | --- |
+| `yarn dev` | Live Chromium MV3 development build in `.output/chrome-mv3-dev` |
+| `yarn dev:firefox` | Live Firefox MV2 development build in `.output/firefox-mv2-dev` |
+| `yarn build:chromium` | Manifest V3 build in `.output/chrome-mv3` |
+| `yarn build:vivaldi` | The same Manifest V3 Chromium artifact used by Vivaldi |
+| `yarn build:firefox` | Manifest V2 build in `.output/firefox-mv2` |
+| `yarn build` | Both production builds |
+| `yarn zip` | Browser ZIPs and a Firefox source archive in `.output` |
+| `yarn quality` | Lint, test, build, and validate both targets |
+
+Set `WXT_FIREFOX_EXTENSION_ID` to the existing AMO extension ID when preparing an update for Firefox. It is intentionally not hard-coded because changing an existing add-on's ID would create a different extension.
+
+### Install in Vivaldi
+
+1. Run `yarn build:vivaldi`.
+2. Open `vivaldi://extensions` in Vivaldi.
+3. Enable **Developer mode**.
+4. Click **Load unpacked** and select `.output/chrome-mv3`.
+5. Pin YipYip from Vivaldi's extension toolbar if you want its action button to remain visible.
+
+Like other Chromium extensions, YipYip cannot run on browser-owned pages such as `vivaldi://settings`, `vivaldi://extensions`, or the Chrome Web Store. File URLs also require **Allow access to file URLs** on the extension details page.
 
 ### Changing data
 Edit the data of a specific App in `src/data/app_specific_settings/{app_name}.json`.
@@ -86,5 +116,4 @@ YipYip is licensed under the BSD 4 License. See [LICENSE](https://github.com/com
 Adler Faulkner: [@adlerfaulkner](https://github.com/adlerfaulkner)
 
 ## TODOs
-- [ ] Testing with Jest
 - [ ] Allow score weights to be changed per App config?

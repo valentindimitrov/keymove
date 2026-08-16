@@ -1,5 +1,5 @@
 import React from 'react';
-import Selection from "./selection.js";
+import Selection from "./selection.jsx";
 
 const Selections = (props) => {
   const { selectedSelectionIndex, matchingLinksAndButtons, refresh } = props;

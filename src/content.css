@@ -1,4 +1,6 @@
-#yipyip-root {
+:host {
+  all: initial;
+  display: block;
   text-transform: none;
 }
 
@@ -117,22 +119,6 @@
 
 .yipyip-selection.yipyip-selected-selection {
   opacity: 1 !important;
-}
-
-.yipyip-highlight {
-  display: inline !important;
-  padding: 0 !important;
-  margin: 0 !important;
-  background-color: yellow !important;
-  position: relative !important;
-  top: unset !important;
-  left: unset !important;
-  bottom: unset !important;
-  right: unset !important;
-  font-family: inherit !important;
-  font-size: inherit !important;
-  font-weight: inherit !important;
-  color: black !important;
 }
 
 .yipyip-icon-button {
@@ -458,11 +444,11 @@
   background-color: rgba(255,255,255,0.22) !important;
 }
 
-#yipyip-root.yipyip-firefox #yipyip-container,
-#yipyip-root.yipyip-firefox .yipyip-tooltip-panel {
+:host(.yipyip-firefox) #yipyip-container,
+:host(.yipyip-firefox) .yipyip-tooltip-panel {
   background-color: rgba(35, 35, 35, 0.9) !important;
 }
 
-#yipyip-root.yipyip-firefox .yipyip-tooltip-arrow {
+:host(.yipyip-firefox) .yipyip-tooltip-arrow {
   border-color: rgba(35, 35, 35, 0.9) transparent !important;
 }

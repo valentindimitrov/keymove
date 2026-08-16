@@ -1,24 +1,26 @@
 import { INPUT_NODE_TYPES, KEYS_VALID_FOR_FOCUS_REGEX, MAC_OS_PLATFORMS } from "../constants.js";
 
 function differentInputIsActive(inputElement) {
-  return document.activeElement &&
-    document.activeElement !== inputElement &&
-    (
-      elementIsEditable(document.activeElement) ||
-      elementHasEditableShadowRoot(document.activeElement)
-    )
+  const activeElement = getDeepActiveElement();
+  return activeElement &&
+    activeElement !== inputElement &&
+    elementIsEditable(activeElement)
 }
 
 function elementIsEditable(element) {
   return element.isContentEditable || INPUT_NODE_TYPES.includes(element.nodeName)
 }
 
-function elementHasEditableShadowRoot(element) {
-  return element.shadowRoot && element.shadowRoot.activeElement &&
-    (
-      elementIsEditable(element.shadowRoot.activeElement) ||
-      elementHasEditableShadowRoot(element.shadowRoot.activeElement)
-    )
+function getDeepActiveElement() {
+  let activeElement = document.activeElement;
+  while (activeElement && activeElement.shadowRoot && activeElement.shadowRoot.activeElement) {
+    activeElement = activeElement.shadowRoot.activeElement;
+  }
+  return activeElement;
+}
+
+function elementIsActive(element) {
+  return getDeepActiveElement() === element;
 }
 
 function clickOrFocusNode(node) {
@@ -49,12 +51,6 @@ function keyValidForFocus(key) {
   return KEYS_VALID_FOR_FOCUS_REGEX.test(key);
 }
 
-function regexpMatchingTextAtStartOrEndOrSurroundedByNonWordChars(text) {
-  // Construct a regular expression that matches text at the start or end of a string or surrounded by non-word characters.
-  // Escape any special regex characters in text.
-  return new RegExp(`(^|.*)(${text.replace(/[\\^$*+.?[\]{}()|]/, '\\$&')})($|.*)`, 'im');
-}
-
 function getTextContentOfNode(node) {
   if (typeof node.textContent == 'string') {
     return node.textContent;
@@ -65,14 +61,6 @@ function getTextContentOfNode(node) {
 
 function clampNumber(number, min, max) {
   return Math.min(Math.max(number, min), max);
-}
-
-function stringContainsSubstringInList(string, substrings) {
-  return substrings.some(substring => stringContainsSubstringWithOrWithoutSpaces(string, substring))
-}
-
-function stringContainsSubstringWithOrWithoutSpaces(string, substring) {
-  return string.includes(substring) || string.replace(/\s/g, '').includes(substring)
 }
 
 function compareDescending(a, b) {
@@ -108,13 +96,11 @@ function hostIsGmail() {
 
 const Utils = {
   differentInputIsActive,
+  elementIsActive,
   clickOrFocusNode,
   keyValidForFocus,
-  regexpMatchingTextAtStartOrEndOrSurroundedByNonWordChars,
   getTextContentOfNode,
   clampNumber,
-  stringContainsSubstringInList,
-  stringContainsSubstringWithOrWithoutSpaces,
   compareDescending,
   isMacOS,
   nodeIsInViewport,

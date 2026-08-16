@@ -6,18 +6,31 @@ const useUrlChangeSubscription = () => {
   React.useEffect(() => {
     const pushState = window.history.pushState;
     const replaceState = window.history.replaceState;
+    const updateHost = () => setHost(window.location.host);
 
-    window.history.pushState = function () {
+    const wrappedPushState = function () {
       pushState.apply(window.history, arguments);
-      setHost(window.location.host)
+      updateHost()
     };
 
-    window.history.replaceState = function () {
+    const wrappedReplaceState = function () {
       replaceState.apply(window.history, arguments);
-      setHost(window.location.host)
+      updateHost()
     };
 
-    window.addEventListener('popstate', () => setHost(window.location.host));
+    window.history.pushState = wrappedPushState;
+    window.history.replaceState = wrappedReplaceState;
+    window.addEventListener('popstate', updateHost);
+
+    return () => {
+      if (window.history.pushState === wrappedPushState) {
+        window.history.pushState = pushState;
+      }
+      if (window.history.replaceState === wrappedReplaceState) {
+        window.history.replaceState = replaceState;
+      }
+      window.removeEventListener('popstate', updateHost);
+    }
   }, [])
 
   return { host }

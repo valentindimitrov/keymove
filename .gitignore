@@ -9,6 +9,8 @@
 /coverage
 
 # production
+/.output
+/.wxt
 /build
 /firefox_build
 /dist

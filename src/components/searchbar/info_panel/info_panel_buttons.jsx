@@ -1,14 +1,14 @@
-import { ReactComponent as DiscordIcon } from '../../../icons/discord.svg';
-import { ReactComponent as GithubIcon } from '../../../icons/github.svg';
-import { ReactComponent as TwitterIcon } from '../../../icons/twitter.svg';
-import { ReactComponent as FeedbackIcon } from '../../../icons/feedback.svg';
-import InfoPanelButton from './info_panel_button.js';
+import DiscordIcon from '../../../icons/discord.svg?react';
+import GithubIcon from '../../../icons/github.svg?react';
+import TwitterIcon from '../../../icons/twitter.svg?react';
+import FeedbackIcon from '../../../icons/feedback.svg?react';
+import InfoPanelButton from './info_panel_button.jsx';
 
 import { DISCORD_INVITE_LINK, GITHUB_REPO_LINK, TWITTER_LINK, TYPEFORM_FEEDBACK_LINK } from '../../../constants.js';
 
 const BUTTONS_PER_ROW = 2;
 
-const InfoPanelButtons = (props) => {
+const InfoPanelButtons = () => {
   const buttons = [
     {
       link: GITHUB_REPO_LINK,
@@ -36,7 +36,7 @@ const InfoPanelButtons = (props) => {
 
   return (
     <>
-      { [...Array(numberOfButtonRows)].map((rowNumber, index) => {
+      { [...Array(numberOfButtonRows)].map((_, index) => {
           const startIndex = index * BUTTONS_PER_ROW;
           const endIndex = (index+1) * BUTTONS_PER_ROW;
           return (

@@ -1,4 +1,4 @@
-import InfoPanelSettingRow from './info_panel_setting_row.js';
+import InfoPanelSettingRow from './info_panel_setting_row.jsx';
 
 const InfoPanelSettings = (props) => {
   const { autoHide, toggleAutoHide, useOnEveryWebsite, toggleUseOnEveryWebsite,

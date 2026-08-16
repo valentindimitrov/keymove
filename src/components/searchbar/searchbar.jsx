@@ -9,20 +9,21 @@ import useExtensionMessaging from "../../hooks/use_extension_messaging.js";
 
 import Utils from "../../lib/utils.js";
 import FindInPage from "../../lib/find_in_page.js";
-import SearchInput from "./search_input.js";
-import Selections from "./selections.js";
-import MatchesSummary from "./matches_summary.js";
-import DraggableContainer from "./draggable_container.js";
-import InfoDropdown from "./info_dropdown.js";
-import VisibilityButton from "./visibility_button.js";
-import { ReactComponent as Logo } from '../../icons/logo-without-color.svg';
+import SearchInput from "./search_input.jsx";
+import Selections from "./selections.jsx";
+import MatchesSummary from "./matches_summary.jsx";
+import DraggableContainer from "./draggable_container.jsx";
+import InfoDropdown from "./info_dropdown.jsx";
+import VisibilityButton from "./visibility_button.jsx";
+import Logo from '../../icons/logo-without-color.svg?react';
 
 const SCROLL_OR_RESIZE_UPDATE_TIMEOUT_DURATION = 100;
 const SEARCH_TEXT_UPDATE_TIMEOUT_DURATION = 150;
 
-const Searchbar = (props) => {
+const Searchbar = () => {
   const scrollOrResizeUpdateTimeout = React.useRef();
   const selectionUpdateTimeout = React.useRef();
+  const searchAbortController = React.useRef();
   const containerRef = React.useRef();
   const searchInputRef = React.useRef();
 
@@ -34,15 +35,13 @@ const Searchbar = (props) => {
     updateAutoHide,
     useOnEveryWebsite,
     updateUseOnEveryWebsite,
-    userEmail,
     alwaysOn,
     updateAlwaysOn
   } = useStoredSettings()
 
-  const [prevUserEmail, setPrevUserEmail] = React.useState(null);
   const [isHidden, setIsHidden] = React.useState(autoHide);
   const [prevAutoHide, setPrevAutoHide] = React.useState(autoHide);
-  const [isDisabled, setIsDisabled] = React.useState(!userEmail || !useOnEveryWebsite);
+  const [isDisabled, setIsDisabled] = React.useState(!useOnEveryWebsite && !Utils.hostIsGmail());
   const [temporarilyEnabled, setTemporarilyEnabled] = React.useState(false);
   const [prevUseOnEveryWebsite, setPrevUseOnEveryWebsite] = React.useState(useOnEveryWebsite);
   const [searchText, setSearchText] = React.useState('');
@@ -62,11 +61,21 @@ const Searchbar = (props) => {
     setMatchingLinksAndButtons([])
   }, [])
 
-  const resetSearchTextAndMatches = React.useCallback(event => {
+  const cancelPendingSearch = React.useCallback(() => {
+    if (selectionUpdateTimeout.current) {
+      clearTimeout(selectionUpdateTimeout.current)
+    }
+    if (searchAbortController.current) {
+      searchAbortController.current.abort()
+    }
+  }, [])
+
+  const resetSearchTextAndMatches = React.useCallback(() => {
+    cancelPendingSearch()
     setSearchText('')
     clearMatchingNodes()
     setSelectedSelectionIndex(0)
-  }, [clearMatchingNodes])
+  }, [cancelPendingSearch, clearMatchingNodes])
 
   const resetTemporarilyEnabled = React.useCallback(() => {
     if (isDisabled && temporarilyEnabled) {
@@ -80,7 +89,7 @@ const Searchbar = (props) => {
     resetTemporarilyEnabled()
   }, [resetSearchTextAndMatches, resetTemporarilyEnabled])
 
-  const handleBlur = React.useCallback(event => {
+  const handleBlur = React.useCallback(() => {
     if (autoHide) {
       setIsHidden(true)
     }
@@ -103,35 +112,50 @@ const Searchbar = (props) => {
     }
   }, [matchingLinksAndButtons, selectedSelectionIndex, resetSearchTextAndMatches, autoHide])
 
-  const updateMatchingNodesAndScrollToSelectedIndex = React.useCallback(selectedIndex => {
-    const { matchingNodes, matchingLinksAndButtons, bestMatchingLinkOrButtonIndex } = new FindInPage(searchText).findMatches();
-    setMatchingNodes(matchingNodes)
-    setMatchingLinksAndButtons(matchingLinksAndButtons)
-    setSelectedSelectionIndex(bestMatchingLinkOrButtonIndex)
+  const updateMatchingNodesAndScrollToSelectedIndex = React.useCallback(async () => {
+    const controller = new AbortController();
+    searchAbortController.current = controller;
 
-    if (matchingLinksAndButtons.length > 0) {
-      Utils.scrollToNodeAtIndexInList(matchingLinksAndButtons, bestMatchingLinkOrButtonIndex)
-      setScrollOrResizeRefresh(!scrollOrResizeRefresh)
+    try {
+      const { matchingNodes, matchingLinksAndButtons, bestMatchingLinkOrButtonIndex } =
+        await new FindInPage(searchText).findMatches({ signal: controller.signal });
+
+      if (controller.signal.aborted) {
+        return;
+      }
+
+      setMatchingNodes(matchingNodes)
+      setMatchingLinksAndButtons(matchingLinksAndButtons)
+      setSelectedSelectionIndex(bestMatchingLinkOrButtonIndex)
+
+      if (matchingLinksAndButtons.length > 0) {
+        Utils.scrollToNodeAtIndexInList(matchingLinksAndButtons, bestMatchingLinkOrButtonIndex)
+        setScrollOrResizeRefresh(refresh => !refresh)
+      }
+    } catch (error) {
+      if (error.name !== 'AbortError') {
+        console.error('YipYip search failed:', error)
+      }
     }
-  }, [searchText, scrollOrResizeRefresh])
+  }, [searchText])
 
   const updateSelectionPositionsAfterTimeout = React.useCallback(() => {
     setHideSelections(true)
     if (scrollOrResizeUpdateTimeout.current) { clearTimeout(scrollOrResizeUpdateTimeout.current) }
     scrollOrResizeUpdateTimeout.current = setTimeout(() => {
-      setScrollOrResizeRefresh(!scrollOrResizeRefresh)
+      setScrollOrResizeRefresh(refresh => !refresh)
       setHideSelections(false)
     }, SCROLL_OR_RESIZE_UPDATE_TIMEOUT_DURATION)
-  }, [scrollOrResizeRefresh])
+  }, [])
 
   const updateSelectionAndScrollToSelectedAfterTimeout = React.useCallback(() => {
-    if (selectionUpdateTimeout.current) { clearTimeout(selectionUpdateTimeout.current) }
+    cancelPendingSearch()
     clearMatchingNodes()
 
     selectionUpdateTimeout.current = setTimeout(() => {
       updateMatchingNodesAndScrollToSelectedIndex();
     }, SEARCH_TEXT_UPDATE_TIMEOUT_DURATION)
-  }, [clearMatchingNodes, updateMatchingNodesAndScrollToSelectedIndex])
+  }, [cancelPendingSearch, clearMatchingNodes, updateMatchingNodesAndScrollToSelectedIndex])
 
   const preventDefaultEventAndSelectNextMatchingNode = React.useCallback((event, forward=true) => {
     event.preventDefault();
@@ -141,9 +165,9 @@ const Searchbar = (props) => {
       const newSelectedSelectionIndex = (selectedSelectionIndex + (forward ? 1 : (matchingLinksAndButtons.length-1))) % matchingLinksAndButtons.length;
       setSelectedSelectionIndex(newSelectedSelectionIndex)
       Utils.scrollToNodeAtIndexInList(matchingLinksAndButtons, newSelectedSelectionIndex)
-      setScrollOrResizeRefresh(!scrollOrResizeRefresh)
+      setScrollOrResizeRefresh(refresh => !refresh)
     }
-  }, [matchingLinksAndButtons, selectedSelectionIndex, scrollOrResizeRefresh])
+  }, [matchingLinksAndButtons, selectedSelectionIndex])
 
   const preventDefaultAndClearSearchText = React.useCallback(event => {
     event.preventDefault();
@@ -153,14 +177,14 @@ const Searchbar = (props) => {
 
   const handleNextMatchShortcut = React.useCallback(event => {
     const differentInputIsActive = Utils.differentInputIsActive(searchInputRef.current);
-    if (!isHidden && (!isDisabled || temporarilyEnabled) && (document.activeElement === searchInputRef.current || !differentInputIsActive)) {
+    if (!isHidden && (!isDisabled || temporarilyEnabled) && (Utils.elementIsActive(searchInputRef.current) || !differentInputIsActive)) {
       preventDefaultEventAndSelectNextMatchingNode(event)
     }
   }, [isHidden, isDisabled, temporarilyEnabled, preventDefaultEventAndSelectNextMatchingNode])
 
   const handlePreviousMatchShortcut = React.useCallback(event => {
     const differentInputIsActive = Utils.differentInputIsActive(searchInputRef.current);
-    if (!isHidden && (!isDisabled || temporarilyEnabled) && (document.activeElement === searchInputRef.current || !differentInputIsActive)) {
+    if (!isHidden && (!isDisabled || temporarilyEnabled) && (Utils.elementIsActive(searchInputRef.current) || !differentInputIsActive)) {
       preventDefaultEventAndSelectNextMatchingNode(event, false)
     }
   }, [isHidden, isDisabled, temporarilyEnabled, preventDefaultEventAndSelectNextMatchingNode])
@@ -211,7 +235,7 @@ const Searchbar = (props) => {
     const isEnabled = (!isDisabled || temporarilyEnabled) && !isHidden && !differentInputIsActive;
     if (isEnabled && searchText.length > 0) {
       preventDefaultAndClearSearchText(event)
-    } else if (isEnabled && document.activeElement === searchInputRef.current) {
+    } else if (isEnabled && Utils.elementIsActive(searchInputRef.current)) {
       searchInputRef.current.blur()
     } else {
       handleBlur()
@@ -242,7 +266,7 @@ const Searchbar = (props) => {
 
   const handleKeydown = React.useCallback(event => {
     const differentInputIsActive = Utils.differentInputIsActive(searchInputRef.current);
-    if (!differentInputIsActive && document.activeElement !== searchInputRef.current &&
+    if (!differentInputIsActive && !Utils.elementIsActive(searchInputRef.current) &&
       Utils.keyValidForFocus(event.key) && !event.metaKey && !event.altKey && !event.ctrlKey
     ) {
       event.preventDefault();
@@ -254,15 +278,13 @@ const Searchbar = (props) => {
   }, [focusSearchInput, searchText])
 
   const handleBrowserActionClicked = React.useCallback(() => {
-    if (userEmail) {
-      if (isDisabled) {
-        setTemporarilyEnabled(true)
-      }
-
-      setIsHidden(false)
-      focusSearchInput();
+    if (isDisabled) {
+      setTemporarilyEnabled(true)
     }
-  }, [userEmail, isDisabled, focusSearchInput])
+
+    setIsHidden(false)
+    focusSearchInput();
+  }, [isDisabled, focusSearchInput])
 
   React.useEffect(() => {
     if (searchText !== prevSearchText) {
@@ -270,6 +292,15 @@ const Searchbar = (props) => {
       updateSelectionAndScrollToSelectedAfterTimeout()
     }
   }, [searchText, prevSearchText, updateSelectionAndScrollToSelectedAfterTimeout])
+
+  React.useEffect(() => {
+    return () => {
+      cancelPendingSearch()
+      if (scrollOrResizeUpdateTimeout.current) {
+        clearTimeout(scrollOrResizeUpdateTimeout.current)
+      }
+    }
+  }, [cancelPendingSearch])
 
   React.useEffect(() => {
     if (autoHide !== prevAutoHide) {
@@ -298,13 +329,8 @@ const Searchbar = (props) => {
       setPrevHost(host)
     }
 
-    const userEmailChanged = userEmail !== prevUserEmail;
-    if (userEmailChanged) {
-      setPrevUserEmail(userEmail)
-    }
-
-    if (useOnEveryWebsiteChanged || hostChanged || userEmailChanged) {
-      const newIsDisabled = !userEmail || (!useOnEveryWebsite && !Utils.hostIsGmail());
+    if (useOnEveryWebsiteChanged || hostChanged) {
+      const newIsDisabled = !useOnEveryWebsite && !Utils.hostIsGmail();
       setIsDisabled(newIsDisabled)
       if (newIsDisabled) {
         resetSearchTextAndMatches()
@@ -313,7 +339,7 @@ const Searchbar = (props) => {
       }
     }
   }, [useOnEveryWebsite, prevUseOnEveryWebsite, resetSearchTextAndMatches,
-    temporarilyEnabled, host, prevHost, userEmail, prevUserEmail])
+    temporarilyEnabled, host, prevHost])
 
   const hasMatchingLinksOrButtons = React.useMemo(() => matchingLinksAndButtons.length > 0, [matchingLinksAndButtons]);
 

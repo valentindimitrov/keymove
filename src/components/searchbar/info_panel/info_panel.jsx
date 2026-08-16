@@ -1,8 +1,8 @@
-import InfoPanelKeyboardShortcuts from './info_panel_keyboard_shortcuts.js';
-import InfoPanelButtons from './info_panel_buttons.js';
-import InfoPanelSectionHeader from './info_panel_section_header.js';
-import InfoPanelSettings from './info_panel_settings.js';
-import InfoPanelRow from './info_panel_row.js';
+import InfoPanelKeyboardShortcuts from './info_panel_keyboard_shortcuts.jsx';
+import InfoPanelButtons from './info_panel_buttons.jsx';
+import InfoPanelSectionHeader from './info_panel_section_header.jsx';
+import InfoPanelSettings from './info_panel_settings.jsx';
+import InfoPanelRow from './info_panel_row.jsx';
 
 import { COMAKE_LANDING_PAGE_LINK, YIPYIP_WELCOME_LINK } from '../../../constants.js';
 
@@ -15,7 +15,7 @@ const InfoPanel = (props) => {
     Made with ❤️ by <a id={'yipyip-comake-link'} href={COMAKE_LANDING_PAGE_LINK} target='_blank' rel="noreferrer">COMAKE</a>
   </>;
 
-  const learnHowLink = <a id={'yipyip-learn-how-link'} href={YIPYIP_WELCOME_LINK} target='_blank'>Learn how to use YipYip</a>;
+  const learnHowLink = <a id={'yipyip-learn-how-link'} href={YIPYIP_WELCOME_LINK} target='_blank' rel='noreferrer'>Learn how to use YipYip</a>;
 
   return (
     <div id={'yipyip-info-panel'}>

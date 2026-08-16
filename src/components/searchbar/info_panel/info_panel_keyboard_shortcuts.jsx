@@ -1,6 +1,6 @@
 import React from 'react';
 import Utils from '../../../lib/utils.js';
-import InfoPanelShortcutRow from './info_panel_shortcut_row.js';
+import InfoPanelShortcutRow from './info_panel_shortcut_row.jsx';
 import keyboardShortcuts from '../../../data/keyboard_shortcuts.json';
 
 const InfoPanelKeyboardShortcuts = () => {

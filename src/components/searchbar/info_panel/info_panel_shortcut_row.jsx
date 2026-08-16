@@ -1,5 +1,5 @@
 import React from 'react';
-import InfoPanelRow from './info_panel_row.js'
+import InfoPanelRow from './info_panel_row.jsx'
 
 const InfoPanelShortcutRow = (props) => {
   const { isMacOS, shortcut } = props;

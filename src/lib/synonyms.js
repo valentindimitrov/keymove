@@ -18,9 +18,9 @@ class Synonyms {
 
 function mutualSynonymSetsToDirected(mutualSynonymSets) {
   return mutualSynonymSets.reduce((obj, synonymSet) => {
-    synonymSet.forEach((word, index) => {
+    synonymSet.forEach(word => {
       const otherWordsInSet = synonymSet.filter(otherWordInSet => word !== otherWordInSet);
-      if (obj.hasOwnProperty(word)) {
+      if (Object.hasOwn(obj, word)) {
         obj[word] = obj[word].concat(otherWordsInSet);
       } else {
         obj[word] = otherWordsInSet;
