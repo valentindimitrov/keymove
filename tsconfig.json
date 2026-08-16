@@ -1,0 +1,10 @@
+{
+  "extends": "./.wxt/tsconfig.json",
+  "compilerOptions": {
+    "exactOptionalPropertyTypes": true,
+    "forceConsistentCasingInFileNames": true,
+    "jsx": "react-jsx",
+    "noImplicitReturns": true,
+    "types": ["node", "vitest/globals", "vite-plugin-svgr/client"]
+  }
+}

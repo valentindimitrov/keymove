@@ -5,7 +5,7 @@
   },
   "formatter": {
     "enabled": true,
-    "includes": ["**/*.js", "**/*.jsx", "**/*.json", "**/*.css"],
+    "includes": ["**/*.ts", "**/*.tsx", "**/*.json", "**/*.css"],
     "indentStyle": "space",
     "indentWidth": 2,
     "lineEnding": "auto",
@@ -17,12 +17,11 @@
       "quoteStyle": "single",
       "semicolons": "always",
       "trailingCommas": "all"
-    },
-    "globals": ["chrome"]
+    }
   },
   "linter": {
     "enabled": true,
-    "includes": ["**/*.js", "**/*.jsx"],
+    "includes": ["**/*.ts", "**/*.tsx"],
     "rules": {
       "preset": "none",
       "complexity": {
@@ -94,13 +93,13 @@
   },
   "overrides": [
     {
-      "includes": ["entrypoints/**/*.{js,jsx}"],
+      "includes": ["entrypoints/**/*.{ts,tsx}"],
       "javascript": {
         "globals": ["defineBackground", "defineContentScript"]
       }
     },
     {
-      "includes": ["**/*.test.{js,jsx}", "src/setupTests.js"],
+      "includes": ["**/*.test.{ts,tsx}", "src/setupTests.ts"],
       "javascript": {
         "globals": [
           "afterAll",

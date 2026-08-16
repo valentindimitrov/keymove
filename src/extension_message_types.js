@@ -1,6 +1,0 @@
-const ExtensionMessageTypes = {
-  TOOLBAR_ACTION_CLICKED: 'YIPYIP_TOOLBAR_ACTION_CLICKED',
-  CONTENT_SCRIPT_INSTALLED: 'YIPYIP_CONTENT_SCRIPT_INSTALLED',
-};
-
-export default ExtensionMessageTypes;

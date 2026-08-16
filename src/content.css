@@ -151,10 +151,20 @@
   -ms-flex-pack: center !important;
   -webkit-justify-content: center !important;
   justify-content: center !important;
+  padding: 0 !important;
+  border: none !important;
+  background: transparent !important;
+  font: inherit !important;
 }
 
-.yipyip-icon-button:hover {
+.yipyip-icon-button:hover,
+.yipyip-icon-button:focus-visible {
   background-color: rgba(45, 45, 45, 0.25) !important;
+}
+
+.yipyip-icon-button:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.85) !important;
+  outline-offset: 1px !important;
 }
 
 #yipyip-info-dropdown-button {

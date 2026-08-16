@@ -12,18 +12,21 @@
     "node": ">=24.15.0"
   },
   "dependencies": {
-    "detect-browser": "^5.2.1",
-    "react": "^17.0.2",
-    "react-dom": "^17.0.2"
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.8",
+    "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "6.9.1",
-    "@testing-library/react": "^11.2.7",
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^24.13.3",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
     "@vitejs/plugin-react": "^6.0.5",
     "@wxt-dev/module-react": "^1.2.2",
     "jsdom": "^30.0.1",
+    "typescript": "7.0.2",
     "vite": "^8.2.1",
     "vite-plugin-svgr": "^5.2.0",
     "vitest": "^4.1.10",
@@ -40,12 +43,13 @@
     "zip": "yarn zip:chromium && yarn zip:firefox",
     "zip:chromium": "wxt zip -b chrome --mv3",
     "zip:firefox": "wxt zip -b firefox --mv3",
-    "verify": "node scripts/validate-builds.js",
+    "verify": "node scripts/validate-builds.ts",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "format": "biome format --write .",
     "format:check": "biome format .",
     "lint": "biome lint .",
-    "quality": "yarn format:check && yarn lint && yarn test && yarn build && yarn verify"
+    "quality": "yarn format:check && yarn lint && yarn typecheck && yarn test && yarn build && yarn verify"
   }
 }

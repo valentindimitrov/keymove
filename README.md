@@ -6,7 +6,7 @@ YipYip is an always-on search assistant that turns Gmail (and any other website)
 
 Just type to search.
 
-YipYip highlights any buttons or links in the page matching your search.
+YipYip highlights matching page text and identifies matching buttons, links, and inputs.
 
 Press Tab to jump through the matches.
 
@@ -18,7 +18,7 @@ Video Demo: https://www.youtube.com/watch?v=y7wGtyeEoKQ
 
 ## Extension store listings
 
-[Google Chrome Extension](https://chrome.google.com/webstore/detail/yipyip/flbkmacappdledphgdoolmenldginemg/)\
+[Google Chrome Extension](https://chromewebstore.google.com/detail/yipyip/flbkmacappdledphgdoolmenldginemg)\
 [Firefox Extension](https://addons.mozilla.org/en-US/firefox/addon/yipyip/)\
 The Chromium build can also be installed in Vivaldi.
 
@@ -56,7 +56,7 @@ Please use [GitHub issues](https://github.com/comake/yip-yip/issues) to report a
 
 ### Work with the code
 
-YipYip uses WXT with Vite. Node.js 24 or newer and Yarn 1.22 are required.
+YipYip uses WXT with Vite and strict TypeScript 7. Node.js 24 or newer and Yarn 1.22 are required.
 
 1. Run these commands in your terminal:
 
@@ -82,7 +82,8 @@ The build commands work on Windows, macOS, and Linux:
 | `yarn build:firefox` | Manifest V3 build in `.output/firefox-mv3` |
 | `yarn build` | Both production builds |
 | `yarn zip` | Browser ZIPs and a Firefox source archive in `.output` |
-| `yarn quality` | Check formatting, lint, test, build, and validate both targets |
+| `yarn typecheck` | Run the TypeScript 7 compiler in strict, no-emit mode |
+| `yarn quality` | Check formatting, lint, types, tests, builds, and both browser targets |
 
 All browser packages target Manifest V3. Chromium uses a background service worker, while Firefox's MV3 build uses a background event-page script because Firefox does not support `background.service_worker`.
 
@@ -110,7 +111,7 @@ Add a new file to `src/data/app_specific_settings`, for example `google_drive.js
 | --- | --- | --- |
 | `host` | Required | The [host](https://developer.mozilla.org/en-US/docs/Web/API/URL/host) portion of a URL. To obtain it for a website you're on, enter `window.location.host` into the devtools console. Beware that copying from the address bar won't always work, browsers sometimes hide the `www` portion of the URL. |
 | `additional_searchable_attributes_by_node_name` | | By default YipYip only searches the attributes defined in [searchable_attributes_by_node_name.json](https://github.com/comake/yip-yip/blob/main/src/data/searchable_attributes_by_node_name.json). We chose these defaults because they are the attributes that most commonly hold text describing the meaning/function of a DOM node, which we want to search for. This field allows YipYip to search additional attributes other than the defaults. For example, on [Product Hunt](https://www.producthunt.com), most DOM nodes don't have `name`, `title`, or `aria-label` attributes. They do, however, include a `data-test` attribute which describes the meaning/function of the node in plain text. Thus, in [product_hunt.json](https://github.com/comake/yip-yip/blob/main/src/data/app_specific_settings/product_hunt.json) you can see that we add the `data-test` attribute for nodes with nodeName `BUTTON` or `TEXTAREA`. |
-| `additional_button_selectors` | | By default YipYip searches for DOM nodes whose tag name or `role` attribute specifies that they are buttons, links, or inputs. These selectors are defined [here in constants.js](https://github.com/comake/yip-yip/blob/main/src/constants.js#L33-L34). If there are DOM nodes on a webpage that are clickable/focusable but don't match the default selectors, this field allows you to add additional [CSS selectors](https://www.w3schools.com/cssref/css_selectors.asp) to allow them to be matched by YipYip. |
+| `additional_button_selectors` | | By default YipYip searches for DOM nodes whose tag name or `role` attribute specifies that they are buttons, links, or inputs. These selectors are defined in [`src/constants.ts`](src/constants.ts). If there are DOM nodes on a webpage that are clickable/focusable but don't match the default selectors, this field allows you to add additional [CSS selectors](https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_selectors) to allow them to be matched by YipYip. |
 | `relevant_selectors` | | When scoring DOM nodes to automatically highlight the best or most relevant one after a user enters a query, nodes which match a selector in this list will have their score boosted by `RELEVANT_SELECTOR_BOOST` |
 | `relevant_words` | | When scoring DOM nodes to automatically highlight the best or most relevant one after a user enters a query, nodes which contain one of the words in this list when the user's query is also part of that word will have their score boosted by `RELEVANT_WORD_BOOST`. Eg. on [Product Hunt](https://www.producthunt.com), `comment` is a more relevant word than `community` when the user types `comm`. |
 | `relevant_word_to_selector_mappings` | | Some DOM nodes don't contain text or attributes which give any indication of their meaning/function. This field allows some of these DOM nodes to be selected by mapping a word to a selector which matches the DOM node. For example, on [Product Hunt](https://www.producthunt.com), the large P icon in the orange circle in the top left is just `<a href="/">...</a>`, so we create a mapping of `home: "a[href=\"/\"]"`, which allows that link to be searched for with the word `home`. |
@@ -123,7 +124,3 @@ YipYip is licensed under the BSD 4 License. See [LICENSE](https://github.com/com
 ## Maintained by
 
 Adler Faulkner: [@adlerfaulkner](https://github.com/adlerfaulkner)
-
-## TODOs
-
-- [ ] Allow score weights to be changed per App config?

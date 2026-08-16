@@ -1,0 +1,117 @@
+import React from 'react';
+import {
+  YIPYIP_CONTAINER_DEFAULT_EDGE_MARGIN,
+  YIPYIP_CONTAINER_HEIGHT,
+  YIPYIP_CONTAINER_WIDTH,
+} from '../../constants.js';
+
+import Utils from '../../lib/utils.js';
+
+const RIGHT_VALUE_MIN = 0;
+const BOTTOM_VALUE_MIN = 0;
+
+type DragOffset = { x: number; y: number };
+type DraggableContainerProps = React.PropsWithChildren<{
+  searchInputRef: React.RefObject<HTMLInputElement | null>;
+  containerRef: React.RefObject<HTMLDivElement | null>;
+}>;
+
+const DraggableContainer = (props: DraggableContainerProps) => {
+  const { children, searchInputRef, containerRef } = props;
+
+  const [isDragging, setIsDragging] = React.useState(false);
+  const [dragOffset, setDragOffset] = React.useState<DragOffset | null>(null);
+  const [position, setPosition] = React.useState({
+    bottom: YIPYIP_CONTAINER_DEFAULT_EDGE_MARGIN,
+    right: YIPYIP_CONTAINER_DEFAULT_EDGE_MARGIN,
+  });
+
+  const onDragStart = React.useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      const target = event.target;
+      if (target instanceof Element && target.closest('button, a')) {
+        return;
+      }
+      if (
+        !(event.target === searchInputRef.current && searchInputRef.current.value.length > 0) &&
+        !event.metaKey
+      ) {
+        event.preventDefault();
+        setDragOffset({
+          x: window.innerWidth - position.right - event.clientX,
+          y: window.innerHeight - position.bottom - event.clientY,
+        });
+        setIsDragging(true);
+      }
+    },
+    [position, searchInputRef],
+  );
+
+  const onDragEnd = React.useCallback(
+    (event: MouseEvent) => {
+      setIsDragging(false);
+      if (event.target === searchInputRef.current) {
+        searchInputRef.current?.focus();
+      }
+    },
+    [searchInputRef],
+  );
+
+  const drag = React.useCallback(
+    (event: MouseEvent) => {
+      event.preventDefault();
+      if (!dragOffset) {
+        return;
+      }
+      const newRight = window.innerWidth - event.clientX - dragOffset.x;
+      const newBottom = window.innerHeight - event.clientY - dragOffset.y;
+      setPosition({
+        right: Utils.clampNumber(
+          newRight,
+          RIGHT_VALUE_MIN,
+          window.innerWidth - YIPYIP_CONTAINER_WIDTH,
+        ),
+        bottom: Utils.clampNumber(
+          newBottom,
+          BOTTOM_VALUE_MIN,
+          window.innerHeight - YIPYIP_CONTAINER_HEIGHT,
+        ),
+      });
+    },
+    [dragOffset],
+  );
+
+  React.useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('mousemove', drag);
+      document.addEventListener('mouseup', onDragEnd);
+
+      return () => {
+        document.removeEventListener('mousemove', drag);
+        document.removeEventListener('mouseup', onDragEnd);
+      };
+    }
+    return undefined;
+  }, [isDragging, drag, onDragEnd]);
+
+  const containerStyle = React.useMemo(() => {
+    return {
+      ...position,
+      height: YIPYIP_CONTAINER_HEIGHT,
+      width: YIPYIP_CONTAINER_WIDTH,
+    };
+  }, [position]);
+
+  return (
+    <div
+      id={'yipyip-container'}
+      style={containerStyle}
+      onMouseDown={onDragStart}
+      ref={containerRef}
+    >
+      {children}
+    </div>
+  );
+};
+
+export default DraggableContainer;
