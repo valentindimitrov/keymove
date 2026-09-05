@@ -4,13 +4,13 @@
     "eventMatcher": {
       "code": "Tab",
       "discludedFlags": {
-        "default": ["shiftKey"]
+        "default": ["shiftKey", "ctrlKey", "metaKey", "altKey"]
       }
     },
     "displayKeys": {
       "default": ["Tab"]
     },
-    "text": "to jump to the next match"
+    "text": "to select the next matching text block"
   },
   {
     "name": "previous_match",
@@ -18,22 +18,111 @@
       "code": "Tab",
       "flags": {
         "default": ["shiftKey"]
+      },
+      "discludedFlags": {
+        "default": ["ctrlKey", "metaKey", "altKey"]
       }
     },
     "displayKeys": {
       "default": ["Shift", "Tab"]
     },
-    "text": "to jump to the previous match"
+    "text": "to select the previous matching text block"
+  },
+  {
+    "name": "next_action_match",
+    "eventMatcher": {
+      "code": "Tab",
+      "flags": {
+        "default": ["ctrlKey"]
+      },
+      "discludedFlags": {
+        "default": ["shiftKey", "metaKey", "altKey"]
+      }
+    },
+    "displayKeys": {
+      "default": ["Control", "Tab"]
+    },
+    "text": "to select the next matching action"
+  },
+  {
+    "name": "previous_action_match",
+    "eventMatcher": {
+      "code": "Tab",
+      "flags": {
+        "default": ["ctrlKey", "shiftKey"]
+      },
+      "discludedFlags": {
+        "default": ["metaKey", "altKey"]
+      }
+    },
+    "displayKeys": {
+      "default": ["Shift", "Control", "Tab"]
+    },
+    "text": "to select the previous matching action"
   },
   {
     "name": "select_match",
     "eventMatcher": {
-      "code": "Enter"
+      "code": "Enter",
+      "discludedFlags": {
+        "default": ["shiftKey", "ctrlKey", "metaKey", "altKey"]
+      }
     },
     "displayKeys": {
       "default": ["Enter"]
     },
-    "text": "to click the selected match"
+    "text": "to open the selected action"
+  },
+  {
+    "name": "open_match_in_foreground_tab",
+    "eventMatcher": {
+      "code": "Enter",
+      "flags": {
+        "default": ["shiftKey"]
+      },
+      "discludedFlags": {
+        "default": ["ctrlKey", "metaKey", "altKey"]
+      }
+    },
+    "displayKeys": {
+      "default": ["Shift", "Enter"]
+    },
+    "text": "to open the selected link in a new tab"
+  },
+  {
+    "name": "open_match_in_background_tab",
+    "eventMatcher": {
+      "code": "Enter",
+      "flags": {
+        "default": ["ctrlKey"]
+      },
+      "discludedFlags": {
+        "default": ["shiftKey", "metaKey", "altKey"]
+      }
+    },
+    "displayKeys": {
+      "default": ["Control", "Enter"]
+    },
+    "text": "to open the selected link in a background tab"
+  },
+  {
+    "name": "copy_selected_link",
+    "eventMatcher": {
+      "code": "KeyC",
+      "flags": {
+        "default": ["ctrlKey"],
+        "mac": ["metaKey"]
+      },
+      "discludedFlags": {
+        "default": ["shiftKey", "metaKey", "altKey"],
+        "mac": ["shiftKey", "ctrlKey", "altKey"]
+      }
+    },
+    "displayKeys": {
+      "default": ["Control", "C"],
+      "mac": ["Command", "C"]
+    },
+    "text": "to copy the selected link (or selected text block)"
   },
   {
     "name": "clear_searchbar",
@@ -45,8 +134,8 @@
       }
     },
     "displayKeys": {
-      "default": ["Control", "Delete"],
-      "mac": ["Command", "Delete"]
+      "default": ["Control", "Backspace"],
+      "mac": ["Command", "Backspace"]
     },
     "text": "to clear the searchbar"
   },
@@ -62,21 +151,7 @@
       "default": ["Alt", "F"],
       "mac": ["Option", "F"]
     },
-    "text": "to focus YipYip (or just start typing)"
-  },
-  {
-    "name": "toggle_autohide",
-    "eventMatcher": {
-      "code": "Escape",
-      "flags": {
-        "default": ["altKey"]
-      }
-    },
-    "displayKeys": {
-      "default": ["Alt", "Escape"],
-      "mac": ["Option", "Escape"]
-    },
-    "text": "to toggle Autohide"
+    "text": "to focus the searchbar (or just start typing)"
   },
   {
     "name": "clear_search_or_hide",

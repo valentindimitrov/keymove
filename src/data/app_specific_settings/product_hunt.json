@@ -7,7 +7,7 @@
   "relevant_selectors": [
     {
       "selector": "button[data-test^=\"login-with-\"]",
-      "_comment": "Increase score of the login with google, twitter, facebook, angellist, and apple buttons."
+      "_comment": "Increase the score of third-party sign-in buttons."
     }
   ],
   "relevant_word_to_selector_mappings": {

@@ -4,7 +4,7 @@ test('rejects unsupported keyboard modifier names', () => {
   expect(() =>
     validateKeyboardShortcuts([
       {
-        name: 'next',
+        name: 'next_match',
         eventMatcher: { code: 'Tab', flags: { default: ['controlKey'] } },
       },
     ]),
@@ -15,12 +15,23 @@ test('requires help text shortcuts to define display keys', () => {
   expect(() =>
     validateKeyboardShortcuts([
       {
-        name: 'next',
+        name: 'next_match',
         eventMatcher: { code: 'Tab' },
         text: 'to jump to the next match',
       },
     ]),
   ).toThrow('displayKeys is required when shortcut text is provided');
+});
+
+test('rejects unknown keyboard shortcut names', () => {
+  expect(() =>
+    validateKeyboardShortcuts([
+      {
+        name: 'copy_selected_lnik',
+        eventMatcher: { code: 'KeyC' },
+      },
+    ]),
+  ).toThrow('must be one of next_match');
 });
 
 test('rejects malformed searchable attribute lists', () => {

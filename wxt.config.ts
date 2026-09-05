@@ -1,5 +1,7 @@
+import path from 'node:path';
 import { defineConfig } from 'wxt';
 import svgr from 'vite-plugin-svgr';
+import EXTENSION_IDENTITY from './src/extension_identity.js';
 
 const icons = {
   16: 'logo-16.png',
@@ -14,17 +16,25 @@ const icons = {
 export default defineConfig({
   modules: ['@wxt-dev/module-react'],
   publicDir: 'assets',
+  hooks: {
+    'build:publicAssets': (wxt, files) => {
+      files.push({
+        absoluteSrc: path.resolve(wxt.config.root, 'LICENSE'),
+        relativeDest: 'LICENSE',
+      });
+    },
+  },
   vite: () => ({
     plugins: [svgr()],
   }),
   manifest: ({ browser }) => ({
-    name: 'YipYip',
-    short_name: 'YipYip',
-    description: 'Never touch your mouse again!',
+    name: EXTENSION_IDENTITY.name,
+    short_name: EXTENSION_IDENTITY.shortName,
+    description: EXTENSION_IDENTITY.description,
     icons,
     action: {
       default_icon: icons,
-      default_title: 'Search with YipYip!',
+      default_title: EXTENSION_IDENTITY.toolbarTitle,
     },
     permissions: ['storage', 'scripting'],
     host_permissions: ['*://*/*'],
@@ -43,7 +53,7 @@ export default defineConfig({
         : undefined,
   }),
   zip: {
-    name: 'yipyip',
+    name: EXTENSION_IDENTITY.artifactName,
     artifactTemplate: '{{name}}-v{{version}}-{{browser}}-{{manifestVersion}}.zip',
     sourcesTemplate: '{{name}}-v{{version}}-sources.zip',
     excludeSources: ['.output/**', '.wxt/**', 'coverage/**'],

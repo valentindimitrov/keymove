@@ -1,3 +1,44 @@
+KeyMove licensing
+
+KeyMove is based on YipYip by Comake, Inc.:
+https://github.com/comake/yip-yip
+
+Powered by Comake.
+
+Original contributions to KeyMove by Valentin Dimitrov are licensed under
+the MIT License below. Code inherited or adapted from Comake's YipYip remains
+subject to the BSD 4-Clause License reproduced below. The MIT grant covers
+only the contributions for which Valentin Dimitrov holds the copyright; it
+does not replace or waive the terms applying to the upstream code.
+
+Permission to relicense the upstream code under MIT has not been obtained.
+The combined project is therefore not licensed solely under MIT.
+SPDX license expression: MIT AND BSD-4-Clause
+
+MIT License
+
+Copyright (c) 2026 Valentin Dimitrov
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Upstream license (preserved verbatim)
+
 BSD 4-Clause License
 
 Copyright (c) 2021, Comake, Inc.

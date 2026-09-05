@@ -14,7 +14,6 @@ const Tooltip = (props: TooltipProps) => {
 
   const [hasMounted, setHasMounted] = React.useState(false);
   const panelRef = React.useRef<HTMLDivElement>(null);
-  const arrowRef = React.useRef<HTMLDivElement>(null);
 
   const windowSize = useWindowSize(true, 100);
 
@@ -68,12 +67,12 @@ const Tooltip = (props: TooltipProps) => {
   return (
     <div>
       <Portal>
-        <div className={'yipyip-tooltip-panel'} style={style.panel} ref={panelRef}>
+        <div className={'keymove-tooltip-panel'} style={style.panel} ref={panelRef}>
           {children}
         </div>
       </Portal>
       <Portal>
-        <div className={'yipyip-tooltip-arrow'} style={style.arrow} ref={arrowRef}></div>
+        <div className={'keymove-tooltip-arrow'} style={style.arrow}></div>
       </Portal>
     </div>
   );

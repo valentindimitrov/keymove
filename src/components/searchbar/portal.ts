@@ -1,15 +1,22 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { YIPYIP_PORTAL_ID, YIPYIP_ROOT_ID } from '../../constants.js';
+
+const PortalTargetContext = React.createContext<HTMLElement | null>(null);
+
+type PortalTargetProviderProps = React.PropsWithChildren<{ target: HTMLElement }>;
+
+const PortalTargetProvider = ({ children, target }: PortalTargetProviderProps) => {
+  return React.createElement(PortalTargetContext.Provider, { value: target }, children);
+};
 
 const Portal = (props: React.PropsWithChildren<Record<never, never>>) => {
   const { children } = props;
-  const extensionRoot = document.getElementById(YIPYIP_ROOT_ID);
-  const portal = extensionRoot?.shadowRoot?.getElementById(YIPYIP_PORTAL_ID);
-  if (!portal) {
-    throw new Error('YipYip portal root is missing.');
+  const target = React.useContext(PortalTargetContext);
+  if (!target) {
+    return null;
   }
-  return createPortal(children, portal);
+  return createPortal(children, target);
 };
 
 export default Portal;
+export { PortalTargetProvider };

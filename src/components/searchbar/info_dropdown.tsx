@@ -1,4 +1,5 @@
 import React from 'react';
+import { EXTENSION_NAME } from '../../extension_identity.js';
 import useHover from '../../hooks/use_hover.js';
 import InfoPanel from './info_panel/info_panel.js';
 import Tooltip from './tooltip.js';
@@ -17,6 +18,7 @@ const InfoDropdown = (props: InfoDropdownProps) => {
     temporarilyEnabled,
     alwaysOn,
     toggleAlwaysOn,
+    resetPopupPosition,
   } = props;
 
   const containerRef = React.useRef<HTMLButtonElement>(null);
@@ -34,6 +36,7 @@ const InfoDropdown = (props: InfoDropdownProps) => {
         toggleUseOnEveryWebsite={toggleUseOnEveryWebsite}
         alwaysOn={alwaysOn}
         toggleAlwaysOn={toggleAlwaysOn}
+        resetPopupPosition={resetPopupPosition}
       />
     );
   } else if (temporarilyEnabled) {
@@ -44,8 +47,8 @@ const InfoDropdown = (props: InfoDropdownProps) => {
     <>
       <button
         type="button"
-        id={'yipyip-info-dropdown-button'}
-        className={'yipyip-icon-button'}
+        id={'keymove-info-dropdown-button'}
+        className={'keymove-icon-button'}
         ref={containerRef}
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
@@ -56,8 +59,8 @@ const InfoDropdown = (props: InfoDropdownProps) => {
             setIsOpen(false);
           }
         }}
-        aria-label="YipYip help and settings"
-        aria-controls="yipyip-info-panel"
+        aria-label={`${EXTENSION_NAME} help and settings`}
+        aria-controls="keymove-info-panel"
         aria-expanded={showInfoPanel}
       >
         <HelpIcon />

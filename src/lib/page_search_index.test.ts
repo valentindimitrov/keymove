@@ -6,7 +6,7 @@ let index: PageSearchIndex | null = null;
 const settings = new SearchableAttributeSettings();
 
 function scorerFor(query: string) {
-  return new NodeScorer(query, {}, [], [], {}, settings);
+  return new NodeScorer(query, {}, [], [], {});
 }
 
 function waitForMutations() {
@@ -42,35 +42,47 @@ test('ranks all results by relevance instead of DOM order', async () => {
     'Save settings',
     'Autosave',
   ]);
-  expect(result.bestMatchingLinkOrButtonIndex).toBe(0);
 });
 
 test('does not treat a shared URL path as matching link text', async () => {
   document.body.innerHTML = `
-    <a href="/comake/yip-yip/issues">Issues</a>
-    <a href="/comake/yip-yip/pulls">Pull requests</a>
-    <a href="/comake/yip-yip">yip-yip</a>
+    <a href="/comake/keymove/issues">Issues</a>
+    <a href="/comake/keymove/pulls">Pull requests</a>
+    <a href="/comake/keymove">keymove</a>
   `;
   index = new PageSearchIndex(settings);
 
-  const result = await index.search(scorerFor('yip'));
+  const result = await index.search(scorerFor('key'));
 
-  expect(result.matchingLinksAndButtons.map(node => node.textContent)).toEqual(['yip-yip']);
+  expect(result.matchingLinksAndButtons.map(node => node.textContent)).toEqual(['keymove']);
 });
 
-test('highlights text matches without adding them to Tab navigation', async () => {
+test('keeps attribute-only action matches out of text navigation', async () => {
   document.body.innerHTML = `
-    <button aria-label="Watch comake/yip-yip">Watch</button>
-    <article><p>YipYip is an always-on search assistant.</p></article>
+    <button aria-label="Watch comake/keymove">Watch</button>
+    <article><p>KeyMove is an always-on search assistant.</p></article>
   `;
   const button = document.querySelector('button')!;
   const paragraph = document.querySelector('p')!;
   index = new PageSearchIndex(settings);
 
-  const result = await index.search(scorerFor('yip'));
+  const result = await index.search(scorerFor('key'));
 
-  expect(result.matchingNodes).toEqual(expect.arrayContaining([button, paragraph]));
+  expect(result.matchingText).toEqual([{ node: paragraph, action: null }]);
   expect(result.matchingLinksAndButtons).toEqual([button]);
+});
+
+test('uses a whole text block while retaining its nested action', async () => {
+  document.body.innerHTML =
+    '<article><p>Read the <a href="/docs">documentation</a> now.</p></article>';
+  const paragraph = document.querySelector('p')!;
+  const link = document.querySelector('a')!;
+  index = new PageSearchIndex(settings);
+
+  const result = await index.search(scorerFor('documentation'));
+
+  expect(result.matchingText).toEqual([{ node: paragraph, action: link }]);
+  expect(result.matchingLinksAndButtons).toEqual([link]);
 });
 
 test('refreshes cached records when the page mutates', async () => {

@@ -9,9 +9,8 @@ import {
 
 import Utils from './utils.js';
 import Synonyms from './synonyms.js';
-import SearchableAttributeSettings from './searchable_attribute_settings.js';
 
-const WHITESPACE_SPLIT_REGEX = /[(\s+)\-.,/\u200B-\u200D\uFEFF\u200E\u200F]+/;
+const WHITESPACE_SPLIT_REGEX = /[\s.,/\u200B-\u200D\uFEFF\u200E\u200F-]+/;
 const NO_BREAK_SPACE_REGEX = /\u00a0/g;
 
 class NodeScorer {
@@ -20,7 +19,6 @@ class NodeScorer {
   readonly relevantWords: string[];
   readonly relevantSelectors: string[];
   readonly relevantWordToSelectorMappings: Record<string, string>;
-  readonly searchableAttributeSettings: SearchableAttributeSettings;
 
   constructor(
     searchText: string,
@@ -28,83 +26,19 @@ class NodeScorer {
     relevantWords: string[],
     relevantSelectors: string[],
     relevantWordToSelectorMappings: Record<string, string>,
-    searchableAttributeSettings: SearchableAttributeSettings,
   ) {
     this.queryText = searchText;
     this.synonyms = Synonyms.getSynonymsForTextFromSettings(searchText, synonyms);
     this.relevantWords = relevantWords;
     this.relevantSelectors = relevantSelectors;
     this.relevantWordToSelectorMappings = relevantWordToSelectorMappings;
-    this.searchableAttributeSettings = searchableAttributeSettings;
   }
 
-  scoreNode(node: Element) {
-    const { innerText, attributeValues } = this.valuesForNode(node);
-    return this.scoreNodeWithValues(node, innerText, attributeValues);
-  }
-
-  scoreNodeWithValues(node: Element, innerText: string, attributeValues: string[]) {
-    return this.score(node, innerText, attributeValues);
-  }
-
-  nodeMatches(node: Element) {
-    const { innerText, attributeValues } = this.valuesForNode(node);
-
-    return this.nodeMatchesWithValues(node, innerText, attributeValues);
-  }
-
-  nodeMatchesWithValues(node: Element, innerText: string, attributeValues: string[]) {
-    if (innerText && innerText.length > 0 && innerText.includes(this.queryText)) {
-      return true;
-    }
-
-    if (
-      attributeValues.length > 0 &&
-      attributeValues.some(attributeValue => attributeValue.includes(this.queryText))
-    ) {
-      return true;
-    }
-
-    if (
-      innerText &&
-      innerText.length > 0 &&
+  textMatchesWithValue(innerText: string) {
+    return (
+      innerText.includes(this.queryText) ||
       this.synonyms.some(synonym => innerText.includes(synonym))
-    ) {
-      return true;
-    }
-
-    if (
-      attributeValues.length > 0 &&
-      this.synonyms.some(synonym =>
-        attributeValues.some(attributeValue => attributeValue.includes(synonym)),
-      )
-    ) {
-      return true;
-    }
-
-    const wordWithSelectorMatchingQuery = Object.keys(this.relevantWordToSelectorMappings).find(
-      word => word.startsWith(this.queryText),
     );
-    if (
-      wordWithSelectorMatchingQuery &&
-      this.relevantWordToSelectorMappings[wordWithSelectorMatchingQuery] &&
-      node.matches(this.relevantWordToSelectorMappings[wordWithSelectorMatchingQuery])
-    ) {
-      return true;
-    }
-
-    return false;
-  }
-
-  valuesForNode(node: Element) {
-    return {
-      innerText: Utils.getTextContentOfNode(node)
-        .slice()
-        .toLocaleLowerCase()
-        .trim()
-        .replace(NO_BREAK_SPACE_REGEX, ' '),
-      attributeValues: this.searchableAttributeSettings.searchableAttributeValuesForNode(node),
-    };
   }
 
   score(node: Element, innerText: string, attributeValues: string[]) {
@@ -255,7 +189,11 @@ class NodeScorer {
   }
 
   getHighestScore(scores: number[]) {
-    return scores.sort(Utils.compareDescending)[0] ?? 0;
+    let highestScore = scores[0] ?? 0;
+    for (let index = 1; index < scores.length; index += 1) {
+      highestScore = Math.max(highestScore, scores[index]!);
+    }
+    return highestScore;
   }
 }
 

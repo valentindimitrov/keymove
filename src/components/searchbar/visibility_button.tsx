@@ -17,8 +17,8 @@ const VisibilityButton = (props: VisibilityButtonProps) => {
     <>
       <button
         type="button"
-        id={'yipyip-visibility-button'}
-        className={'yipyip-icon-button'}
+        id={'keymove-visibility-button'}
+        className={'keymove-icon-button'}
         ref={containerRef}
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
@@ -31,12 +31,8 @@ const VisibilityButton = (props: VisibilityButtonProps) => {
       </button>
       {(hover || focused) && (
         <Tooltip containerRef={containerRef}>
-          <div id={'yipyip-visibility-tooltip'}>
+          <div id={'keymove-visibility-tooltip'}>
             <div>{label}</div>
-            <div id={'yipyip-visibility-tooltip-keyboard-shortcuts'}>
-              <div className={'yipyip-info-panel-shortcut-key'}>Option</div>
-              <div className={'yipyip-info-panel-shortcut-key'}>Escape</div>
-            </div>
           </div>
         </Tooltip>
       )}

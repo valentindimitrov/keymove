@@ -1,126 +1,208 @@
-# YipYip
+<p align="center">
+  <img src="assets/logo-192.png" width="112" height="112" alt="KeyMove logo">
+</p>
 
-![image](https://user-images.githubusercontent.com/13453719/136746212-e744bc0e-4830-4abf-9a47-59c21892d72a.png)
+# KeyMove
 
-YipYip is an always-on search assistant that turns Gmail (and any other website) into a keyboard-first product.
+Search and navigate any web page without leaving the keyboard.
 
-Just type to search.
+KeyMove finds visible page text and interactive controls as you type. Use ordinary `Tab` navigation
+to move through complete text blocks, or switch to action navigation for links, buttons, and inputs.
+Selected text is ready to copy, and selected links can be opened in the current tab, a new tab, or
+a background tab.
 
-YipYip highlights matching page text and identifies matching buttons, links, and inputs.
+> [!IMPORTANT]
+> KeyMove is not published in browser extension stores yet. The current version can be built and
+> loaded locally for Chromium, Vivaldi, and Firefox.
 
-Press Tab to jump through the matches.
+## Features
 
-Press Enter to select the current match.
+- Start typing on a page to search immediately—no search dialog required.
+- Navigate matching paragraphs and other semantic text blocks in either direction.
+- Select the complete text block automatically for quick copying with `Ctrl + C` or `Command + C`.
+- Navigate links, buttons, inputs, and other actionable elements separately from page text.
+- Open selected web links in the current tab, a foreground tab, or a background tab.
+- Copy the URL of a selected link directly from action mode.
+- Keep results current as dynamic pages change without rewriting the page DOM.
+- Move the search interface anywhere on screen and retain its position across pages and sessions.
+- Use an accessible, keyboard-operable settings panel with announced match counts.
+- Store preferences locally with no account, sign-in, analytics, or remote search service.
 
-Voila!
+## Using KeyMove
 
-Video Demo: https://www.youtube.com/watch?v=y7wGtyeEoKQ
+Click the KeyMove toolbar button or simply begin typing while the page itself has focus. Matching
+page text is highlighted as the query changes.
 
-## Extension store listings
+KeyMove has two independent navigation modes:
 
-[Google Chrome Extension](https://chromewebstore.google.com/detail/yipyip/flbkmacappdledphgdoolmenldginemg)\
-[Firefox Extension](https://addons.mozilla.org/en-US/firefox/addon/yipyip/)\
-The Chromium build can also be installed in Vivaldi.
+- **Text mode** selects complete paragraphs, headings, list items, table cells, and comparable text
+  blocks. This is the primary mode and uses `Tab` and `Shift + Tab`.
+- **Action mode** selects only interactive elements such as links, buttons, and inputs. It uses
+  `Ctrl + Tab` and `Shift + Ctrl + Tab`.
 
-## How it works
+The two modes retain separate positions. Changing the search query clears both positions, so
+KeyMove never preselects a result before you choose a navigation command.
 
-YipYip builds a cached index of searchable text and actionable elements on the page and keeps it current with a `MutationObserver`. As the user types, searches run against the cached text and relevant attributes in small, cancellable chunks, highlight all textual matches, and return up to 50 of the highest-scoring actionable results for keyboard navigation. This avoids rescanning the entire DOM for every keystroke.
+### Keyboard shortcuts
 
-The search interface is mounted in a Shadow DOM so its styles do not leak into the website (and the website's styles do not accidentally break it). Matching text is highlighted with the CSS Custom Highlight API and JavaScript `Range` objects, which leaves the website's DOM and event listeners untouched.
+| Shortcut | Action |
+| --- | --- |
+| `Tab` | Select the next matching text block. |
+| `Shift + Tab` | Select the previous matching text block. |
+| `Ctrl + Tab` | Select the next matching action. |
+| `Shift + Ctrl + Tab` | Select the previous matching action. |
+| `Enter` | Activate the selected action in the current tab. |
+| `Shift + Enter` | Open the selected `http` or `https` link in a new foreground tab. |
+| `Ctrl + Enter` | Open the selected `http` or `https` link in a new background tab. |
+| `Ctrl + C` | Copy the selected text block or selected link URL. Use `Command + C` on macOS. |
+| `Ctrl + Backspace` | Clear the search. Use `Command + Backspace` on macOS. |
+| `Alt + F` | Focus KeyMove. Use `Option + F` on macOS. |
+| `Escape` | Clear the current search, or hide KeyMove when the search is already empty. |
 
-Not all attributes a node may have are relevant for our purposes, so YipYip only searches a specific list of attributes per node based on its tag name. These can be found in [searchable_attributes_by_node_name.json](https://github.com/comake/yip-yip/blob/main/src/data/searchable_attributes_by_node_name.json).
+In text mode, `Enter` also activates a link or control associated with the selected text block. For
+buttons and inputs, unmodified `Enter` preserves their normal click or focus behavior; modified
+Enter shortcuts never try to open them as new tabs.
 
-In addition to matching nodes against the user's exact query, we also match against synonyms of the user's query. This helps in the case that a user describes their intention in a slightly different way than the webpage does (trash vs. delete vs. discard), especially for buttons which only display an icon and no text. We explored the idea of using a precompiled synonym library or a word similarity algorithm (like [word2vec](https://en.wikipedia.org/wiki/Word2vec)) but decided against such a "generalized" solution because the meaning of a link or button on a webpage is extremely context dependent. Instead, YipYip has a configuration file per URL host with synonyms specific to that host. Each configuration file can be thought of as mapping to an "App" used in the browser (eg. mail.google.com for Gmail, news.ycombinator.com for Hacker News).
+> [!NOTE]
+> Chromium-based browsers may reserve `Ctrl + Tab` for browser-tab switching. Action mode works when
+> the browser delivers the shortcut to the page, but a content script cannot override a
+> browser-level reservation.
 
-After finding all nodes matching the user's query, we filter those nodes down to only those which we want to add selection around and allow the user to select. Several factors determine what gets selected:
+## Settings
 
-1. If the node's tag name specifies that it's a button, link, or input
-2. If the node's `role` attribute specifies that it's a button, link, or input
-3. If the node matches an additional selector defined in that App's configuration file, under the `additional_button_selectors` config
+Open the **KeyMove help and settings** button inside the search interface to configure:
 
-We now score each of the matched buttons, links, and inputs which will be selected. These scores are used to determine which is the "best" matching node that will be selected first. Of course the "best" matching node is highly contextual based on several factors. A node's score is increased if:
-- the match was made through text on the screen vs. a hidden attribute of the node,
-- the match was made through the user's exact query vs. a synonym,
-- the match is on the screen vs. not,
-- any words in the match's fields start with the user's query vs. just including the query,
-- any words in the match's fields are in the user's query and are in a list of "relevant words" in the App's configuration,
-- the node matches one of the selectors in the list of "relevant selectors" in the App's configuration.
+- **Use on all websites (Experimental):** make KeyMove available beyond its optimized site
+  profiles.
+- **Always on:** begin searching whenever you type while another input is not focused.
+- **Autohide:** hide the interface when it is not being used.
+- **Reset popup position:** return the interface to its default location—horizontally centered with
+  its center 75% down the viewport.
 
-Each of these factors has a related weight which determines how much it affects the node's score.
+Dragging the interface saves normalized screen coordinates in extension-local storage. This keeps
+the chosen position useful across different window sizes.
 
-Once the matching buttons, links, and inputs are found and sorted according to score, we add a selection box around each node and focus and scroll to the one with the highest score. A user can then press the `tab` key to jump through the matches, then press the `enter` key to click or focus the selected button, link, or input.
+## Browser support
 
-## Contributing
+KeyMove is a Manifest V3 extension with separate production builds for:
 
-Please use [GitHub issues](https://github.com/comake/yip-yip/issues) to report any bugs or feature requests. If you can, send in a PR and we will review.
+- Chrome and other Chromium browsers
+- Vivaldi, using the Chromium build
+- Firefox
 
-### Work with the code
+Browser-owned pages such as `chrome://extensions`, `vivaldi://extensions`, extension stores, and
+similar protected pages do not allow content scripts. Access to local `file://` pages must be
+enabled manually in the browser's extension settings. New-tab shortcuts intentionally open only
+`http` and `https` links.
 
-YipYip uses WXT with Vite and strict TypeScript 7. Node.js 24 or newer and Yarn 1.22 are required.
+## Install from source
 
-1. Run these commands in your terminal:
+### Requirements
 
-```bash
-git clone https://github.com/comake/yip-yip.git
-cd yip-yip
+- Node.js `24.15.0` or newer
+- Yarn `1.22`
+
+From a local checkout:
+
+```sh
 yarn install --frozen-lockfile
-yarn dev
+yarn build
 ```
 
-2. Go to `chrome://extensions`.
-3. Turn on [Developer Mode](https://developer.chrome.com/docs/extensions/mv3/faq/#faq-dev-01) in the top right.
-4. Click **Load unpacked** and select `.output/chrome-mv3-dev`. WXT normally opens and reloads a development browser automatically, so manual loading is only needed when using an existing browser profile.
+The build creates:
 
-The build commands work on Windows, macOS, and Linux:
+- `.output/chrome-mv3` for Chrome, Chromium, and Vivaldi
+- `.output/firefox-mv3` for Firefox
 
-| Command | Output |
+### Chrome, Chromium, or Vivaldi
+
+1. Open the browser's extension management page. In Vivaldi, use `vivaldi://extensions`.
+2. Enable developer mode.
+3. Choose **Load unpacked**.
+4. Select `.output/chrome-mv3`.
+
+### Firefox
+
+1. Open `about:debugging#/runtime/this-firefox`.
+2. Choose **Load Temporary Add-on**.
+3. Select `.output/firefox-mv3/manifest.json`.
+
+Temporary Firefox installations are removed when Firefox closes. A permanent Firefox package will
+require the release extension ID and normal signing process.
+
+## Privacy and permissions
+
+KeyMove processes page content locally in the browser. It has no user account, email sign-in,
+telemetry, analytics, or remote search backend.
+
+The extension requests:
+
+- **Site access** so it can search and navigate the pages where it is enabled.
+- **Storage** to retain settings and the popup position locally.
+- **Scripting** to initialize KeyMove safely in eligible tabs that were already open when the
+  extension was installed.
+
+Runtime data from imported configuration, extension storage, browser messages, and browser APIs is
+validated before use.
+
+## Development
+
+| Command | Purpose |
 | --- | --- |
-| `yarn dev` | Live Chromium MV3 development build in `.output/chrome-mv3-dev` |
-| `yarn dev:firefox` | Live Firefox MV3 development build in `.output/firefox-mv3-dev` |
-| `yarn build:chromium` | Manifest V3 build in `.output/chrome-mv3` |
-| `yarn build:vivaldi` | The same Manifest V3 Chromium artifact used by Vivaldi |
-| `yarn build:firefox` | Manifest V3 build in `.output/firefox-mv3` |
-| `yarn build` | Both production builds |
-| `yarn zip` | Browser ZIPs and a Firefox source archive in `.output` |
-| `yarn typecheck` | Run the TypeScript 7 compiler in strict, no-emit mode |
-| `yarn quality` | Check formatting, lint, types, tests, builds, and both browser targets |
+| `yarn dev` | Start the Chromium MV3 development build. |
+| `yarn dev:firefox` | Start the Firefox MV3 development build. |
+| `yarn build` | Build both production targets. |
+| `yarn build:chromium` | Build the Chromium/Vivaldi artifact. |
+| `yarn build:vivaldi` | Explicit alias for the Chromium artifact used by Vivaldi. |
+| `yarn build:firefox` | Build the Firefox artifact. |
+| `yarn zip` | Package both browser builds under `.output`. |
+| `yarn format` | Format supported files with Biome. |
+| `yarn lint` | Run Biome lint checks. |
+| `yarn typecheck` | Run strict TypeScript checks without emitting files. |
+| `yarn test` | Run the Vitest/jsdom test suite. |
+| `yarn verify` | Validate completed manifests and bundles after a build. |
+| `yarn quality` | Run formatting, linting, types, tests, both builds, and artifact validation. |
 
-All browser packages target Manifest V3. Chromium uses a background service worker, while Firefox's MV3 build uses a background event-page script because Firefox does not support `background.service_worker`.
+### Architecture
 
-Set `WXT_FIREFOX_EXTENSION_ID` to the existing AMO extension ID when preparing a signed or published Firefox MV3 build. It is intentionally not hard-coded because changing an existing add-on's ID would create a different extension. Temporary development builds can omit it.
+- [entrypoints/content.tsx](entrypoints/content.tsx) mounts the interface inside an isolated Shadow
+  DOM and restores it if a page replaces `document.body`.
+- [src/components/searchbar/searchbar.tsx](src/components/searchbar/searchbar.tsx) coordinates input,
+  the two navigation modes, activation, selection, and copying.
+- [src/lib/page_search_index.ts](src/lib/page_search_index.ts) maintains a mutation-aware page index
+  and performs cancellable, chunked searches.
+- [src/lib/node_scorer.ts](src/lib/node_scorer.ts) scores visible text and configured searchable
+  attributes.
+- [src/hooks/use_highlights.ts](src/hooks/use_highlights.ts) uses the CSS Custom Highlight API
+  without inserting wrappers into host-page content.
+- [src/background.ts](src/background.ts) handles toolbar actions, safe MV3 injection, and validated
+  new-tab requests.
 
-### Install in Vivaldi
+Host-specific scoring and synonyms live in `src/data/app_specific_settings`. Shared search attributes
+and keyboard shortcuts live in `src/data`. Repository conventions and implementation invariants are
+documented in [AGENTS.md](AGENTS.md).
 
-1. Run `yarn build:vivaldi`.
-2. Open `vivaldi://extensions` in Vivaldi.
-3. Enable **Developer mode**.
-4. Click **Load unpacked** and select `.output/chrome-mv3`.
-5. Pin YipYip from Vivaldi's extension toolbar if you want its action button to remain visible.
+## License and acknowledgements
 
-Like other Chromium extensions, YipYip cannot run on browser-owned pages such as `vivaldi://settings`, `vivaldi://extensions`, or the Chrome Web Store. File URLs also require **Allow access to file URLs** on the extension details page.
+KeyMove is inspired by and built on the original code of
+[YipYip by Comake, Inc.](https://github.com/comake/yip-yip). Thank you to its original
+developers for creating and sharing the project.
 
-### Changing data
+Powered by Comake.
 
-Edit the data of a specific App in `src/data/app_specific_settings/{app_name}.json`.
+Original KeyMove contributions by Valentin Dimitrov are available under the **MIT License**.
+Inherited and adapted YipYip code retains its **BSD 4-Clause License**, including its copyright,
+attribution, advertising acknowledgement, and disclaimer requirements. Both license texts and
+their scope are in [LICENSE](LICENSE), which is also included in each browser build.
 
-### Adding App configurations
+An MIT-only license for the combined project is pending permission from the upstream rights
+holders. Attribution does not replace that permission. KeyMove is maintained independently;
+this acknowledgement does not imply Comake's endorsement.
 
-Add a new file to `src/data/app_specific_settings`, for example `google_drive.json` with the following data:
+## Project status and contact
 
-| Field | Required | Description |
-| --- | --- | --- |
-| `host` | Required | The [host](https://developer.mozilla.org/en-US/docs/Web/API/URL/host) portion of a URL. To obtain it for a website you're on, enter `window.location.host` into the devtools console. Beware that copying from the address bar won't always work, browsers sometimes hide the `www` portion of the URL. |
-| `additional_searchable_attributes_by_node_name` | | By default YipYip only searches the attributes defined in [searchable_attributes_by_node_name.json](https://github.com/comake/yip-yip/blob/main/src/data/searchable_attributes_by_node_name.json). We chose these defaults because they are the attributes that most commonly hold text describing the meaning/function of a DOM node, which we want to search for. This field allows YipYip to search additional attributes other than the defaults. For example, on [Product Hunt](https://www.producthunt.com), most DOM nodes don't have `name`, `title`, or `aria-label` attributes. They do, however, include a `data-test` attribute which describes the meaning/function of the node in plain text. Thus, in [product_hunt.json](https://github.com/comake/yip-yip/blob/main/src/data/app_specific_settings/product_hunt.json) you can see that we add the `data-test` attribute for nodes with nodeName `BUTTON` or `TEXTAREA`. |
-| `additional_button_selectors` | | By default YipYip searches for DOM nodes whose tag name or `role` attribute specifies that they are buttons, links, or inputs. These selectors are defined in [`src/constants.ts`](src/constants.ts). If there are DOM nodes on a webpage that are clickable/focusable but don't match the default selectors, this field allows you to add additional [CSS selectors](https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_selectors) to allow them to be matched by YipYip. |
-| `relevant_selectors` | | When scoring DOM nodes to automatically highlight the best or most relevant one after a user enters a query, nodes which match a selector in this list will have their score boosted by `RELEVANT_SELECTOR_BOOST` |
-| `relevant_words` | | When scoring DOM nodes to automatically highlight the best or most relevant one after a user enters a query, nodes which contain one of the words in this list when the user's query is also part of that word will have their score boosted by `RELEVANT_WORD_BOOST`. Eg. on [Product Hunt](https://www.producthunt.com), `comment` is a more relevant word than `community` when the user types `comm`. |
-| `relevant_word_to_selector_mappings` | | Some DOM nodes don't contain text or attributes which give any indication of their meaning/function. This field allows some of these DOM nodes to be selected by mapping a word to a selector which matches the DOM node. For example, on [Product Hunt](https://www.producthunt.com), the large P icon in the orange circle in the top left is just `<a href="/">...</a>`, so we create a mapping of `home: "a[href=\"/\"]"`, which allows that link to be searched for with the word `home`. |
-| `synonyms` | | People have different ways of thinking about or describing what action they want to take. For example, the trash can icon on [Gmail](https://mail.google.com) may be referenced as `trash`, `delete`, or `discard` by different people. To solve for this, we add synonyms. This field is broken into two sections: `mutual` and `directed`. `mutual` is for a set of words that all mean the same thing as each other (for example, trash, delete, and discard). `directed` is for synonyms that we only want to search in one direction (for example, the compose button should be selected when typing `new`, but all buttons matching `new` should not be selected when typing `compose`). You can see an example in [gmail.json](https://github.com/comake/yip-yip/blob/main/src/data/app_specific_settings/gmail.json). |
+The functional modernization and KeyMove rebrand are complete. Store listings, publication
+repository metadata, permanent extension IDs, permission to relicense the upstream code under MIT,
+and upstream contribution documentation are being prepared separately.
 
-## License
-
-YipYip is licensed under the BSD 4 License. See [LICENSE](https://github.com/comake/yip-yip/blob/main/LICENSE)
-
-## Maintained by
-
-Adler Faulkner: [@adlerfaulkner](https://github.com/adlerfaulkner)
+Questions and feedback: [keymove.impulse550@passmail.com](mailto:keymove.impulse550@passmail.com)

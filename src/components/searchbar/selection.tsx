@@ -2,13 +2,13 @@ import React from 'react';
 
 const SELECTION_MARGIN = 7;
 
-type SelectionProps = { node: HTMLElement; isSelected: boolean };
+type SelectionProps = { node: Element; isSelected: boolean };
 
 const Selection = (props: SelectionProps) => {
   const { node, isSelected } = props;
 
   const classes = React.useMemo(() => {
-    return ['yipyip-selection'].concat(isSelected ? ['yipyip-selected-selection'] : []).join(' ');
+    return ['keymove-selection'].concat(isSelected ? ['keymove-selected-selection'] : []).join(' ');
   }, [isSelected]);
 
   const nodeBounds = React.useMemo(() => node.getBoundingClientRect(), [node]);

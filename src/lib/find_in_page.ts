@@ -42,10 +42,9 @@ class FindInPage {
       relevantWords,
       relevantSelectors,
       relevantWordToSelectorMappings,
-      this.searchableAttributeSettings,
     );
 
-    if (!sharedIndex || sharedIndexHost !== host) {
+    if (!sharedIndex || sharedIndexHost !== host || sharedIndex.root !== document.body) {
       if (sharedIndex) {
         sharedIndex.disconnect();
       }
@@ -61,30 +60,19 @@ class FindInPage {
   findMatches(options: { signal?: AbortSignal; limit?: number } = {}) {
     if (this.searchText.length < 2) {
       return Promise.resolve({
-        matchingNodes: [],
+        matchingText: [],
         matchingLinksAndButtons: [],
-        bestMatchingLinkOrButtonIndex: null,
       });
     }
 
     return (
       sharedIndex?.search(this.nodeScorer, options) ??
       Promise.resolve({
-        matchingNodes: [],
+        matchingText: [],
         matchingLinksAndButtons: [],
-        bestMatchingLinkOrButtonIndex: null,
       })
     );
   }
 }
 
-function resetSearchIndex() {
-  if (sharedIndex) {
-    sharedIndex.disconnect();
-  }
-  sharedIndex = null;
-  sharedIndexHost = null;
-}
-
-export { resetSearchIndex };
 export default FindInPage;

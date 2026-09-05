@@ -1,4 +1,4 @@
-import { isInjectableUrl } from './extension_tabs.js';
+import { isInjectableUrl, normalizedOpenableLinkUrl } from './extension_tabs.js';
 
 describe('isInjectableUrl', () => {
   test.each(['https://example.com', 'http://localhost:3000/path', 'file:///C:/example.html'])(
@@ -20,5 +20,21 @@ describe('isInjectableUrl', () => {
     'about:blank',
   ])('rejects a protected or invalid URL: %s', url => {
     expect(isInjectableUrl(url)).toBe(false);
+  });
+});
+
+describe('normalizedOpenableLinkUrl', () => {
+  test('normalizes safe absolute link URLs', () => {
+    expect(normalizedOpenableLinkUrl('https://example.com/path')).toBe('https://example.com/path');
+  });
+
+  test.each([
+    'javascript:alert(1)',
+    'data:text/plain,unsafe',
+    'file:///C:/private.txt',
+    'mailto:test@example.com',
+    'relative',
+  ])('rejects unsupported link targets: %s', url => {
+    expect(normalizedOpenableLinkUrl(url)).toBeNull();
   });
 });

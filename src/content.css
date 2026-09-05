@@ -4,466 +4,365 @@
   text-transform: none;
 }
 
-.yipyip-hidden {
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+.keymove-hidden {
   display: none;
 }
 
-#yipyip-container {
-  padding-left: 15px !important;
-  cursor: grab !important;
-  position: fixed !important;
-  z-index: 2147483003 !important;
-  pointer-events: all !important;
-  -webkit-border-radius: 12px !important;
-  -moz-border-radius: 12px !important;
-  -ms-border-radius: 12px !important;
-  border-radius: 12px !important;
-  border: 1px solid rgba(180, 180, 180, 0.2) !important;
-  background-color: rgba(35, 35, 35, 0.6) !important;
-  box-shadow: none !important;
-  -webkit-backdrop-filter: blur(16px) !important;
-  backdrop-filter: blur(16px) !important;
-  box-sizing: border-box !important;
-  display: -webkit-box !important;
-  display: -moz-box !important;
-  display: -ms-flexbox !important;
-  display: -webkit-flex !important;
-  display: flex !important;
-  -webkit-box-orient: horizontal !important;
-  -ms-box-orient: horizontal !important;
-  -moz-box-orient: horizontal !important;
-  box-orient: horizontal !important;
-  -webkit-box-direction: normal !important;
-  -webkit-flex-direction: row !important;
-  -ms-flex-direction: row !important;
-  flex-direction: row !important;
-  -webkit-box-align: center !important;
-  -moz-box-align: center !important;
-  -ms-flex-align: center !important;
-  -webkit-align-items: center !important;
-  align-items: center !important;
-  box-sizing: border-box !important;
+.keymove-error-fallback {
+  position: fixed;
+  top: 75%;
+  left: 50%;
+  z-index: 2147483003;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 16px;
+  border: 1px solid rgba(180, 180, 180, 0.4);
+  border-radius: 12px;
+  color: white;
+  font:
+    13px / 1.35 "Helvetica Neue",
+    Helvetica,
+    Arial,
+    sans-serif;
+  background: rgba(35, 35, 35, 0.9);
+  transform: translate(-50%, -50%);
 }
 
-#yipyip-container > svg {
-  height: 18px;
+.keymove-error-fallback button {
+  padding: 4px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 4px;
+  color: white;
+  font: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.keymove-error-fallback button:focus-visible {
+  outline: 2px solid white;
+  outline-offset: 2px;
+}
+
+#keymove-container {
+  position: fixed;
+  z-index: 2147483003;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding-left: 15px;
+  border: 1px solid rgba(180, 180, 180, 0.2);
+  border-radius: 12px;
+  background-color: rgba(35, 35, 35, 0.6);
+  box-shadow: none;
+  backdrop-filter: blur(16px);
+  cursor: grab;
+  pointer-events: all;
+}
+
+#keymove-container > svg {
   width: 18px;
   min-width: 18px;
-  fill: rgba(255, 255, 255, 0.75) !important;
+  height: 18px;
+  color: rgba(255, 255, 255, 0.75);
 }
 
-#yipyip-input-container {
-  margin-left: 15px !important;
-  height: 60% !important;
-  -webkit-box-flex: 1 !important;
-  -moz-box-flex: 1 !important;
-  -webkit-flex: 1 !important;
-  -ms-flex: 1 !important;
-  flex: 1 !important;
-  font-size: 13px !important;
-  line-height: 1.35em !important;
-  box-sizing: border-box !important;
+#keymove-input-container {
+  flex: 1;
+  height: 60%;
+  margin-left: 15px;
+  font-size: 13px;
+  line-height: 1.35em;
 }
 
-#yipyip-input,
-#yipyip-matches-summary {
-  color: white !important;
-  font-family: "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif !important;
-  font-size: 13px !important;
-  line-height: 1.35em !important;
-  box-sizing: border-box !important;
+#keymove-input,
+#keymove-matches-summary,
+.keymove-tooltip-panel {
+  color: white;
+  font-family: "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif;
+  font-size: 13px;
+  line-height: 1.35em;
 }
 
-#yipyip-input {
-  margin: 0px !important;
-  background-image: none !important;
-  height: 100% !important;
-  position: relative !important;
-  display: inline-block !important;
-  width: 100% !important;
-  padding: 0 !important;
-  outline: none !important;
-  border: none !important;
-  background-color: transparent !important;
-  box-shadow: none !important;
+#keymove-input {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  outline: none;
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
 }
 
-#yipyip-matches-summary {
-  position: relative !important;
-  display: inline-block !important;
-  margin: 0 10px !important;
+#keymove-matches-summary {
+  position: relative;
+  display: inline-block;
+  margin: 0 10px;
 }
 
-#yipyip-input::placeholder {
-  /* Chrome, Firefox, Opera, Safari 10.1+ */
-  color: rgba(255, 255, 255, 0.65) !important;
-  opacity: 1 !important; /* Firefox */
-}
-
-#yipyip-input:-ms-input-placeholder {
-  /* Internet Explorer 10-11 */
-  color: rgba(255, 255, 255, 0.65) !important;
-}
-
-#yipyip-input::-ms-input-placeholder {
-  /* Microsoft Edge */
-  color: rgba(255, 255, 255, 0.65) !important;
-}
-
-.yipyip-selection {
-  position: fixed !important;
-  border-radius: 9px !important;
-  z-index: 2147483003 !important;
-  display: block !important;
-  border: 3px solid blue !important;
-  opacity: 0.3 !important;
-  pointer-events: none !important;
-  box-sizing: border-box !important;
-}
-
-.yipyip-selection.yipyip-selected-selection {
-  opacity: 1 !important;
-}
-
-.yipyip-icon-button {
-  position: relative !important;
-  height: 36px !important;
-  width: 36px !important;
-  min-width: 36px !important;
-  -webkit-border-radius: 7px !important;
-  -moz-border-radius: 7px !important;
-  -ms-border-radius: 7px !important;
-  border-radius: 7px !important;
+#keymove-input::placeholder {
   color: rgba(255, 255, 255, 0.65);
-  cursor: pointer !important;
-  display: -webkit-box !important;
-  display: -moz-box !important;
-  display: -ms-flexbox !important;
-  display: -webkit-flex !important;
-  display: flex !important;
-  -webkit-box-align: center !important;
-  -moz-box-align: center !important;
-  -ms-flex-align: center !important;
-  -webkit-align-items: center !important;
-  align-items: center !important;
-  -webkit-box-pack: center !important;
-  -moz-box-pack: center !important;
-  -ms-flex-pack: center !important;
-  -webkit-justify-content: center !important;
-  justify-content: center !important;
-  padding: 0 !important;
-  border: none !important;
-  background: transparent !important;
-  font: inherit !important;
+  opacity: 1;
 }
 
-.yipyip-icon-button:hover,
-.yipyip-icon-button:focus-visible {
-  background-color: rgba(45, 45, 45, 0.25) !important;
+.keymove-selection {
+  position: fixed;
+  z-index: 2147483003;
+  display: block;
+  border: 3px solid blue;
+  border-radius: 9px;
+  opacity: 0.3;
+  pointer-events: none;
 }
 
-.yipyip-icon-button:focus-visible {
-  outline: 2px solid rgba(255, 255, 255, 0.85) !important;
-  outline-offset: 1px !important;
+.keymove-selection.keymove-selected-selection {
+  opacity: 1;
 }
 
-#yipyip-info-dropdown-button {
-  margin-right: 6px !important;
+.keymove-icon-button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.65);
+  cursor: pointer;
+  font: inherit;
 }
 
-.yipyip-tooltip-panel {
-  font-family: "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif !important;
-  background-color: rgba(35, 35, 35, 0.6) !important;
-  -webkit-backdrop-filter: blur(16px) !important;
-  backdrop-filter: blur(16px) !important;
-  position: fixed !important;
-  z-index: 2147483004 !important;
-  -webkit-border-radius: 12px !important;
-  -moz-border-radius: 12px !important;
-  -ms-border-radius: 12px !important;
-  border-radius: 12px !important;
+.keymove-icon-button:hover,
+.keymove-icon-button:focus-visible {
+  background-color: rgba(45, 45, 45, 0.25);
 }
 
-.yipyip-tooltip-arrow {
-  position: fixed !important;
-  border-style: solid !important;
-  border-color: rgba(35, 35, 35, 0.6) transparent !important;
-  z-index: 2147483004 !important;
+.keymove-icon-button:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.85);
+  outline-offset: 1px;
 }
 
-#yipyip-info-panel {
-  width: 545px !important;
-  min-width: 545px !important;
-  padding: 20px !important;
-  box-sizing: border-box !important;
+#keymove-info-dropdown-button {
+  margin-right: 6px;
 }
 
-#yipyip-info-panel ol {
-  list-style-type: decimal !important;
-  padding-inline-start: 30px !important;
-  margin-block-start: 0px !important;
-  margin-block-end: 0px !important;
-  margin-inline-start: 0px !important;
-  margin-inline-end: 0px !important;
+.keymove-tooltip-panel {
+  position: fixed;
+  z-index: 2147483004;
+  border-radius: 12px;
+  background-color: rgba(35, 35, 35, 0.6);
+  backdrop-filter: blur(16px);
 }
 
-.yipyip-info-panel-section-header {
-  margin-bottom: 10px !important;
-  font-size: 13px !important;
-  font-weight: 500 !important;
-  color: rgba(255, 255, 255, 0.65) !important;
+.keymove-tooltip-arrow {
+  position: fixed;
+  z-index: 2147483004;
+  border-style: solid;
+  border-color: rgba(35, 35, 35, 0.6) transparent;
 }
 
-.yipyip-info-panel-margin-top-section-header {
-  margin-top: 15px !important;
+#keymove-info-panel {
+  width: 545px;
+  min-width: 545px;
+  padding: 20px;
 }
 
-.yipyip-info-panel-section-header a,
-.yipyip-info-panel-section-header a:hover {
-  color: rgba(255, 255, 255, 0.65) !important;
-  text-decoration: underline !important;
+#keymove-info-panel ol {
+  margin-block: 0;
+  margin-inline: 0;
+  padding-inline-start: 30px;
+  list-style-type: decimal;
 }
 
-.yipyip-info-panel-list-item,
-.yipyip-info-panel-row {
-  padding: 4px 0 !important;
-  font-size: 13px !important;
-  font-weight: 400 !important;
-  color: white !important;
-  box-sizing: border-box !important;
-  line-height: 1.35em !important;
-  letter-spacing: normal !important;
+.keymove-info-panel-section-header {
+  margin-bottom: 10px;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 13px;
+  font-weight: 500;
 }
 
-.yipyip-info-panel-row {
-  padding-left: 15px !important;
-  display: -webkit-box !important;
-  display: -moz-box !important;
-  display: -ms-flexbox !important;
-  display: -webkit-flex !important;
-  display: flex !important;
-  -webkit-box-align: center !important;
-  -moz-box-align: center !important;
-  -ms-flex-align: center !important;
-  -webkit-align-items: center !important;
-  align-items: center !important;
+.keymove-info-panel-margin-top-section-header {
+  margin-top: 15px;
 }
 
-.yipyip-info-panel-setting-row {
-  -webkit-box-align: flex-start !important;
-  -moz-box-align: flex-start !important;
-  -ms-flex-align: flex-start !important;
-  -webkit-align-items: flex-start !important;
-  align-items: flex-start !important;
+.keymove-info-panel-section-header a,
+.keymove-info-panel-section-header a:hover {
+  color: rgba(255, 255, 255, 0.65);
+  text-decoration: underline;
 }
 
-.yipyip-info-panel-shortcut-key {
-  display: inline-block !important;
-  text-align: center !important;
-  border: 1px solid rgba(255, 255, 255, 0.27) !important;
-  min-width: 16px !important;
-  font-size: 12px !important;
-  color: white !important;
-  font-weight: 500 !important;
-  height: 22px !important;
-  line-height: 22px !important;
-  padding: 0 5px !important;
-  margin-right: 5px !important;
-  margin-left: 0px !important;
-  -webkit-border-radius: 4px !important;
-  -moz-border-radius: 4px !important;
-  -ms-border-radius: 4px !important;
-  border-radius: 4px !important;
-  white-space: nowrap !important;
+.keymove-info-panel-list-item,
+.keymove-info-panel-row {
+  padding: 4px 0;
+  color: white;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: normal;
+  line-height: 1.35em;
 }
 
-.yipyip-info-panel-shortcut-text {
-  margin-left: 3px !important;
+.keymove-info-panel-row {
+  display: flex;
+  align-items: center;
+  padding-left: 15px;
 }
 
-.yipyip-info-panel-setting-text {
-  -webkit-box-flex: 1;
-  -moz-box-flex: 1;
-  -webkit-flex: 1;
-  -ms-flex: 1;
+.keymove-info-panel-setting-row {
+  align-items: flex-start;
+}
+
+.keymove-info-panel-shortcut-key {
+  display: inline-block;
+  min-width: 16px;
+  height: 22px;
+  margin-right: 5px;
+  margin-left: 0;
+  padding: 0 5px;
+  border: 1px solid rgba(255, 255, 255, 0.27);
+  border-radius: 4px;
+  color: white;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 22px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.keymove-info-panel-shortcut-text {
+  margin-left: 3px;
+}
+
+.keymove-info-panel-setting-text {
   flex: 1;
 }
 
-.yipyip-info-panel-setting-description {
+.keymove-info-panel-setting-description {
   margin-top: 5px;
-  font-size: 12px !important;
-  color: rgba(255, 255, 255, 0.7) !important;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
 }
 
-.yipyip-info-panel-setting-checkbox {
-  margin: 2px 12px 0 0 !important;
-  -webkit-appearance: checkbox !important;
-  height: 16px !important;
-  width: 16px !important;
-  display: block !important;
-  position: relative !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-  left: 0 !important;
-  top: 0 !important;
-  right: 0 !important;
-  bottom: 0 !important;
+.keymove-info-panel-setting-checkbox {
+  width: 16px;
+  height: 16px;
+  margin: 2px 12px 0 0;
+  appearance: auto;
+  cursor: pointer;
 }
 
-.yipyip-info-panel-setting-checkbox:after {
-  content: none !important;
+.keymove-info-panel-reset-position-button {
+  margin: 10px 0 0 15px;
+  padding: 7px 12px;
+  border: none;
+  border-radius: 6px;
+  background-color: rgba(255, 255, 255, 0.15);
+  color: white;
+  cursor: pointer;
+  font: inherit;
 }
 
-.yipyip-info-panel-button-row {
-  display: -webkit-box !important;
-  display: -moz-box !important;
-  display: -ms-flexbox !important;
-  display: -webkit-flex !important;
-  display: flex !important;
-  -webkit-box-align: center !important;
-  -moz-box-align: center !important;
-  -ms-flex-align: center !important;
-  -webkit-align-items: center !important;
-  align-items: center !important;
-  margin: 12px 9px 0 9px !important;
+.keymove-info-panel-reset-position-button:hover,
+.keymove-info-panel-reset-position-button:focus-visible {
+  background-color: rgba(255, 255, 255, 0.22);
+  outline: 2px solid rgba(255, 255, 255, 0.85);
 }
 
-.yipyip-info-panel-button {
-  flex-basis: 50% !important;
+.keymove-info-panel-button-row {
+  display: flex;
+  align-items: center;
+  margin: 12px 9px 0;
+}
+
+.keymove-info-panel-button {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  margin: 0 6px;
+  padding: 7px 15px;
+  border: none;
+  border-radius: 7px;
+  outline: none;
+  appearance: none;
+  background-color: rgba(255, 255, 255, 0.15);
+  color: white;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: normal;
+  line-height: 1.35em;
+  text-decoration: none;
   white-space: nowrap;
-  box-sizing: border-box !important;
-  line-height: 1.35em !important;
-  letter-spacing: normal !important;
-  text-decoration: none !important;
-  margin: 0px 6px !important;
-  padding: 7px 15px !important;
-  background-color: none !important;
-  color: white !important;
-  font-size: 13px !important;
-  font-weight: 500 !important;
-  appearance: none !important;
-  outline: none !important;
-  border: none !important;
-  background-color: rgba(255, 255, 255, 0.15) !important;
-  -webkit-border-radius: 7px !important;
-  -moz-border-radius: 7px !important;
-  -ms-border-radius: 7px !important;
-  border-radius: 7px !important;
-  display: -webkit-box !important;
-  display: -moz-box !important;
-  display: -ms-flexbox !important;
-  display: -webkit-flex !important;
-  display: flex !important;
-  -webkit-box-align: center !important;
-  -moz-box-align: center !important;
-  -ms-flex-align: center !important;
-  -webkit-align-items: center !important;
-  align-items: center !important;
 }
 
-.yipyip-info-panel-button:hover {
-  background-color: rgba(255, 255, 255, 0.22) !important;
-  color: white !important;
-  text-decoration: none !important;
+.keymove-info-panel-button:hover {
+  background-color: rgba(255, 255, 255, 0.22);
+  color: white;
+  text-decoration: none;
 }
 
-.yipyip-info-panel-button svg {
-  margin-right: 15px !important;
-  height: 18px !important;
-  width: 18px !important;
+.keymove-info-panel-button svg {
+  width: 18px;
+  height: 18px;
+  margin-right: 15px;
 }
 
-.yipyip-icon-button svg {
-  width: 16px !important;
-  height: 16px !important;
+.keymove-icon-button svg {
+  width: 16px;
+  height: 16px;
 }
 
-.yipyip-info-panel-button svg,
-.yipyip-icon-button svg {
-  fill: rgba(255, 255, 255, 0.75) !important;
+.keymove-info-panel-button svg,
+.keymove-icon-button svg {
+  fill: rgba(255, 255, 255, 0.75);
 }
 
-.yipyip-info-panel-button:hover svg,
-.yipyip-icon-button:hover svg {
-  fill: rgba(255, 255, 255, 1) !important;
+.keymove-info-panel-button:hover svg,
+.keymove-icon-button:hover svg {
+  fill: white;
 }
 
-#yipyip-comake-link {
-  text-transform: uppercase !important;
+#keymove-comake-link {
+  text-transform: uppercase;
 }
 
-#yipyip-visibility-tooltip {
-  padding: 15px !important;
-  text-align: center !important;
-  font-size: 13px !important;
-  font-weight: 400 !important;
-  color: white !important;
-  display: -webkit-box !important;
-  display: -moz-box !important;
-  display: -ms-flexbox !important;
-  display: -webkit-flex !important;
-  display: flex !important;
-  -webkit-box-align: center !important;
-  -moz-box-align: center !important;
-  -ms-flex-align: center !important;
-  -webkit-align-items: center !important;
-  align-items: center !important;
-  -webkit-box-orient: vertical !important;
-  -ms-box-orient: vertical !important;
-  -moz-box-orient: vertical !important;
-  box-orient: vertical !important;
-  -webkit-box-direction: normal !important;
-  -webkit-flex-direction: column !important;
-  -ms-flex-direction: column !important;
-  flex-direction: column !important;
+#keymove-visibility-tooltip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 15px;
+  color: white;
+  font-size: 13px;
+  font-weight: 400;
+  text-align: center;
 }
 
-#yipyip-visibility-tooltip-keyboard-shortcuts {
-  margin-top: 8px;
-  display: -webkit-box !important;
-  display: -moz-box !important;
-  display: -ms-flexbox !important;
-  display: -webkit-flex !important;
-  display: flex !important;
-  -webkit-box-align: center !important;
-  -moz-box-align: center !important;
-  -ms-flex-align: center !important;
-  -webkit-align-items: center !important;
-  align-items: center !important;
+#keymove-temporarily-enabled-message {
+  padding: 20px;
+  color: white;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: normal;
+  line-height: 1.35em;
 }
 
-#yipyip-temporarily-enabled-message {
-  padding: 20px !important;
-  font-size: 13px !important;
-  font-weight: 400 !important;
-  color: white !important;
-  box-sizing: border-box !important;
-  line-height: 1.35em !important;
-  letter-spacing: normal !important;
+:host(.keymove-firefox) #keymove-container,
+:host(.keymove-firefox) .keymove-tooltip-panel {
+  background-color: rgba(35, 35, 35, 0.9);
 }
 
-#yipyip-learn-how-link {
-  text-decoration: none !important;
-  padding: 7px 15px !important;
-  color: white !important;
-  font-size: 13px !important;
-  font-weight: 500 !important;
-  -webkit-border-radius: 7px !important;
-  -moz-border-radius: 7px !important;
-  -ms-border-radius: 7px !important;
-  border-radius: 7px !important;
-  background-color: rgba(255, 255, 255, 0.15) !important;
-}
-
-#yipyip-learn-how-link:hover {
-  background-color: rgba(255, 255, 255, 0.22) !important;
-}
-
-:host(.yipyip-firefox) #yipyip-container,
-:host(.yipyip-firefox) .yipyip-tooltip-panel {
-  background-color: rgba(35, 35, 35, 0.9) !important;
-}
-
-:host(.yipyip-firefox) .yipyip-tooltip-arrow {
-  border-color: rgba(35, 35, 35, 0.9) transparent !important;
+:host(.keymove-firefox) .keymove-tooltip-arrow {
+  border-color: rgba(35, 35, 35, 0.9) transparent;
 }

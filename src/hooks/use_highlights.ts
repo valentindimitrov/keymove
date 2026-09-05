@@ -1,5 +1,5 @@
 import React from 'react';
-import { YIPYIP_HIGHLIGHT_NAME } from '../constants.js';
+import { KEYMOVE_HIGHLIGHT_NAME } from '../constants.js';
 
 function rangesForTextNode(textNode: Text, query: string): Range[] {
   const text = textNode.textContent || '';
@@ -54,10 +54,10 @@ const useHighlights = ({ searchText, matchingNodes }: HighlightOptions) => {
     }
 
     const ranges = highlightRangesForNodes(matchingNodes, normalizedQuery);
-    highlightRegistry.set(YIPYIP_HIGHLIGHT_NAME, new window.Highlight(...ranges));
+    highlightRegistry.set(KEYMOVE_HIGHLIGHT_NAME, new window.Highlight(...ranges));
 
     return () => {
-      highlightRegistry.delete(YIPYIP_HIGHLIGHT_NAME);
+      highlightRegistry.delete(KEYMOVE_HIGHLIGHT_NAME);
     };
   }, [matchingNodes, searchText]);
 };

@@ -1,4 +1,4 @@
-import { YIPYIP_APP_ID, YIPYIP_PORTAL_ID, YIPYIP_ROOT_ID } from '../constants.js';
+import { KEYMOVE_APP_ID, KEYMOVE_PORTAL_ID, KEYMOVE_ROOT_ID } from '../constants.js';
 
 type ExtensionRoot = {
   app: HTMLDivElement;
@@ -8,14 +8,14 @@ type ExtensionRoot = {
 };
 
 function createExtensionRoot(stylesText: string, browserName?: string): ExtensionRoot | null {
-  if (document.getElementById(YIPYIP_ROOT_ID)) {
+  if (document.getElementById(KEYMOVE_ROOT_ID)) {
     return null;
   }
 
   const host = document.createElement('div');
-  host.id = YIPYIP_ROOT_ID;
+  host.id = KEYMOVE_ROOT_ID;
   if (browserName === 'firefox') {
-    host.classList.add('yipyip-firefox');
+    host.classList.add('keymove-firefox');
   }
 
   const shadowRoot = host.attachShadow({ mode: 'open' });
@@ -23,10 +23,10 @@ function createExtensionRoot(stylesText: string, browserName?: string): Extensio
   styles.textContent = stylesText;
 
   const app = document.createElement('div');
-  app.id = YIPYIP_APP_ID;
+  app.id = KEYMOVE_APP_ID;
 
   const portal = document.createElement('div');
-  portal.id = YIPYIP_PORTAL_ID;
+  portal.id = KEYMOVE_PORTAL_ID;
 
   shadowRoot.append(styles, app, portal);
   document.body.appendChild(host);
@@ -34,4 +34,16 @@ function createExtensionRoot(stylesText: string, browserName?: string): Extensio
   return { app, host, portal, shadowRoot };
 }
 
+function keepExtensionRootConnected(host: HTMLElement) {
+  const reconnect = () => {
+    if (!host.isConnected && document.body) {
+      document.body.appendChild(host);
+    }
+  };
+  const observer = new MutationObserver(reconnect);
+  observer.observe(document.documentElement, { childList: true, subtree: true });
+  return observer;
+}
+
 export default createExtensionRoot;
+export { keepExtensionRootConnected };

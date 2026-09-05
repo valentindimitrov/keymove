@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import EXTENSION_IDENTITY from '../src/extension_identity.ts';
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -162,13 +163,22 @@ function validateTarget(target: BuildTarget, packageVersion: string) {
   const manifestPath = path.join(buildDirectory, 'manifest.json');
   requireCondition(fs.existsSync(manifestPath), `${target.name}: manifest.json is missing`);
 
+  const license = readRequiredFile(buildDirectory, 'LICENSE', target.name);
+  requireCondition(
+    license === fs.readFileSync(path.join(projectRoot, 'LICENSE'), 'utf8'),
+    `${target.name}: bundled LICENSE must match the repository license`,
+  );
+
   const manifest = parseJsonFile(manifestPath);
   validateManifestShape(manifest, target.name);
   requireCondition(
     manifest.manifest_version === target.manifestVersion,
     `${target.name}: expected Manifest V${target.manifestVersion}`,
   );
-  requireCondition(manifest.name === 'YipYip', `${target.name}: extension name is incorrect`);
+  requireCondition(
+    manifest.name === EXTENSION_IDENTITY.name,
+    `${target.name}: extension name is incorrect`,
+  );
   requireCondition(
     manifest.version === packageVersion,
     `${target.name}: extension version does not match package.json`,
@@ -190,7 +200,7 @@ function validateTarget(target: BuildTarget, packageVersion: string) {
   const contentBundle = readRequiredFile(buildDirectory, contentScript.js[0], target.name);
   const pageStyles = readRequiredFile(buildDirectory, contentScript.css[0], target.name);
   requireCondition(
-    pageStyles.includes('::highlight(yipyip-search-results)'),
+    pageStyles.includes('::highlight(keymove-search-results)'),
     `${target.name}: page-level CSS highlight styles are missing`,
   );
   requireCondition(

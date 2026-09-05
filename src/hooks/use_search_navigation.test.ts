@@ -7,27 +7,30 @@ import {
 test('keeps text and action results in separate navigation collections', () => {
   const textResult = document.createElement('p');
   const actionResult = document.createElement('button');
+  const textMatch = { node: textResult, action: null };
 
   const state = searchNavigationReducer(INITIAL_SEARCH_NAVIGATION_STATE, {
     type: 'set-results',
-    textResults: [textResult],
+    textResults: [textMatch],
     actionResults: [actionResult],
-    selectedActionIndex: 0,
   });
 
-  expect(state.results.text).toEqual([textResult]);
+  expect(state.results.text).toEqual([textMatch]);
   expect(state.results.actions).toEqual([actionResult]);
-  expect(state.selectedIndices).toEqual({ text: 0, actions: 0 });
+  expect(state.selectedIndices).toEqual({ text: null, actions: null });
+  expect(state.mode).toBe(SEARCH_MODES.TEXT);
 });
 
 test('tracks independent selected indices for each mode', () => {
-  const textResults = [document.createElement('p'), document.createElement('p')];
+  const textResults = [
+    { node: document.createElement('p'), action: null },
+    { node: document.createElement('p'), action: null },
+  ];
   const actionResults = [document.createElement('button'), document.createElement('a')];
   let state = searchNavigationReducer(INITIAL_SEARCH_NAVIGATION_STATE, {
     type: 'set-results',
     textResults,
     actionResults,
-    selectedActionIndex: 1,
   });
 
   state = searchNavigationReducer(state, {
@@ -36,11 +39,16 @@ test('tracks independent selected indices for each mode', () => {
     index: 1,
   });
   state = searchNavigationReducer(state, {
+    type: 'set-selected-index',
+    mode: SEARCH_MODES.ACTIONS,
+    index: 1,
+  });
+  state = searchNavigationReducer(state, {
     type: 'set-mode',
-    mode: SEARCH_MODES.TEXT,
+    mode: SEARCH_MODES.ACTIONS,
   });
 
-  expect(state.mode).toBe(SEARCH_MODES.TEXT);
+  expect(state.mode).toBe(SEARCH_MODES.ACTIONS);
   expect(state.selectedIndices).toEqual({ text: 1, actions: 1 });
 });
 
@@ -50,12 +58,17 @@ test('clamps selected indices and resets them when results are cleared', () => {
     type: 'set-results',
     textResults: [],
     actionResults: [actionResult],
-    selectedActionIndex: 20,
   });
 
+  state = searchNavigationReducer(state, {
+    type: 'set-selected-index',
+    mode: SEARCH_MODES.ACTIONS,
+    index: 20,
+  });
   expect(state.selectedIndices.actions).toBe(0);
 
   state = searchNavigationReducer(state, { type: 'clear-results' });
   expect(state.results).toEqual({ text: [], actions: [] });
-  expect(state.selectedIndices).toEqual({ text: 0, actions: 0 });
+  expect(state.selectedIndices).toEqual({ text: null, actions: null });
+  expect(state.mode).toBe(SEARCH_MODES.TEXT);
 });

@@ -2,23 +2,17 @@ export const MAC_OS_PLATFORMS = ['Macintosh', 'MacIntel', 'MacPPC', 'Mac68K'];
 
 export const KEYS_VALID_FOR_FOCUS_REGEX = /^[a-zA-Z0-9-_/]$/i;
 
-export const YIPYIP_ROOT_ID = 'yipyip-root';
-export const YIPYIP_APP_ID = 'yipyip-app';
-export const YIPYIP_PORTAL_ID = 'yipyip-portal';
-export const YIPYIP_INPUT_ID = 'yipyip-input';
-export const YIPYIP_HIGHLIGHT_NAME = 'yipyip-search-results';
-export const YIPYIP_FOLLOWING_HIGHLIGHT_CLASS = 'yipyip-following-highlight';
-export const DISCORD_INVITE_LINK = 'https://discord.gg/CnaC38Ch2p';
+export const KEYMOVE_ROOT_ID = 'keymove-root';
+export const KEYMOVE_APP_ID = 'keymove-app';
+export const KEYMOVE_PORTAL_ID = 'keymove-portal';
+export const KEYMOVE_INPUT_ID = 'keymove-input';
+export const KEYMOVE_HIGHLIGHT_NAME = 'keymove-search-results';
+export const KEYMOVE_FOLLOWING_HIGHLIGHT_CLASS = 'keymove-following-highlight';
 export const COMAKE_LANDING_PAGE_LINK = 'https://comake.io';
-export const GITHUB_REPO_LINK = 'https://github.com/comake/yip-yip';
-export const TWITTER_LINK =
-  'https://twitter.com/intent/tweet?text=So%20amazing%20to%20fly%20through%20the%20web%20with%20%40YipYipSearch,%20my%20always-on%20search%20assistant!%20Never%20have%20to%20take%20my%20fingers%20off%20the%20keyboard%F0%9F%94%A5%F0%9F%92%A8';
-export const YIPYIP_WELCOME_LINK = 'https://www.yip-yip.com/welcome';
-export const TYPEFORM_FEEDBACK_LINK = 'https://comake1.typeform.com/to/auw8nYZg';
 
-export const YIPYIP_CONTAINER_HEIGHT = 50;
-export const YIPYIP_CONTAINER_WIDTH = 300;
-export const YIPYIP_CONTAINER_DEFAULT_EDGE_MARGIN = 10;
+export const KEYMOVE_CONTAINER_HEIGHT = 50;
+export const KEYMOVE_CONTAINER_WIDTH = 300;
+export const POPUP_POSITION_STORAGE_KEY = 'popupPosition';
 
 export const INPUT_NODE_TYPES = ['INPUT', 'TEXTAREA', 'SELECT'];
 export const LINK_OR_BUTTON_OR_INPUT_TYPES = ['BUTTON', 'A', 'LINK', 'INPUT', 'TEXTAREA', 'SELECT'];

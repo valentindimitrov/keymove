@@ -1,4 +1,5 @@
 import React from 'react';
+import { EXTENSION_NAME } from '../extension_identity.js';
 import { SETTINGS_KEYS } from '../constants.js';
 import {
   DEFAULT_STORED_SETTINGS,
@@ -9,12 +10,12 @@ import type { StoredSettingKey } from '../lib/stored_settings_schema.js';
 import { browser, type Browser } from 'wxt/browser';
 
 function reportStorageIssues(issues: string[]) {
-  issues.forEach(issue => console.warn(`YipYip ignored invalid storage data: ${issue}`));
+  issues.forEach(issue => console.warn(`${EXTENSION_NAME} ignored invalid storage data: ${issue}`));
 }
 
 function reportStorageError(operation: string, error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
-  console.error(`YipYip could not ${operation}: ${message}`);
+  console.error(`${EXTENSION_NAME} could not ${operation}: ${message}`);
 }
 
 function persistBooleanSetting(

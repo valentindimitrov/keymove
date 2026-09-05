@@ -1,5 +1,6 @@
 import React from 'react';
-import { YIPYIP_INPUT_ID } from '../../constants.js';
+import { EXTENSION_NAME } from '../../extension_identity.js';
+import { KEYMOVE_INPUT_ID } from '../../constants.js';
 
 type SearchInputProps = {
   searchText: string;
@@ -17,17 +18,17 @@ const SearchInput = (props: SearchInputProps) => {
   );
 
   return (
-    <div id={'yipyip-input-container'}>
+    <div id={'keymove-input-container'}>
       <input
         ref={inputRef}
-        id={YIPYIP_INPUT_ID}
+        id={KEYMOVE_INPUT_ID}
         type="text"
-        placeholder={'YipYip!'}
+        aria-label="Search page"
+        placeholder={`${EXTENSION_NAME}!`}
         value={searchText}
         onChange={onSearchTextChange}
         autoComplete={'off'}
-        name={'yipyip-search'}
-        list="autocompleteOff"
+        name={'keymove-search'}
         data-lpignore="true"
         onBlur={onBlur}
       />

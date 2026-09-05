@@ -20,12 +20,12 @@ const InfoPanelShortcutRow = (props: InfoPanelShortcutRowProps) => {
     <InfoPanelRow>
       {keys.map(key => {
         return (
-          <div key={key} className={'yipyip-info-panel-shortcut-key'}>
+          <div key={key} className={'keymove-info-panel-shortcut-key'}>
             {key}
           </div>
         );
       })}
-      <div className={'yipyip-info-panel-shortcut-text'}>{shortcut.text}</div>
+      <div className={'keymove-info-panel-shortcut-text'}>{shortcut.text}</div>
     </InfoPanelRow>
   );
 };

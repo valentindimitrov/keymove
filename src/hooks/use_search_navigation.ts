@@ -1,4 +1,5 @@
 import React from 'react';
+import type { TextMatch } from '../lib/page_search_index.js';
 
 const SEARCH_MODES = {
   TEXT: 'text',
@@ -10,32 +11,31 @@ type SearchMode = (typeof SEARCH_MODES)[keyof typeof SEARCH_MODES];
 type SearchNavigationState = {
   mode: SearchMode;
   results: {
-    text: Element[];
+    text: TextMatch[];
     actions: HTMLElement[];
   };
-  selectedIndices: Record<SearchMode, number>;
+  selectedIndices: Record<SearchMode, number | null>;
 };
 
 type SearchNavigationAction =
   | {
       type: 'set-results';
-      textResults: Element[];
+      textResults: TextMatch[];
       actionResults: HTMLElement[];
-      selectedActionIndex: number;
     }
   | { type: 'clear-results' }
   | { type: 'set-mode'; mode: SearchMode }
-  | { type: 'set-selected-index'; mode: SearchMode; index: number };
+  | { type: 'set-selected-index'; mode: SearchMode; index: number | null };
 
 const INITIAL_SEARCH_NAVIGATION_STATE: SearchNavigationState = {
-  mode: SEARCH_MODES.ACTIONS,
+  mode: SEARCH_MODES.TEXT,
   results: { text: [], actions: [] },
-  selectedIndices: { text: 0, actions: 0 },
+  selectedIndices: { text: null, actions: null },
 };
 
-function clampIndex(index: number, resultCount: number) {
-  if (resultCount === 0) {
-    return 0;
+function clampIndex(index: number | null, resultCount: number) {
+  if (index === null || resultCount === 0) {
+    return null;
   }
   return Math.min(Math.max(index, 0), resultCount - 1);
 }
@@ -53,15 +53,17 @@ function searchNavigationReducer(
           actions: action.actionResults,
         },
         selectedIndices: {
-          text: 0,
-          actions: clampIndex(action.selectedActionIndex, action.actionResults.length),
+          text: null,
+          actions: null,
         },
+        mode: SEARCH_MODES.TEXT,
       };
     case 'clear-results':
       return {
         ...state,
         results: { text: [], actions: [] },
-        selectedIndices: { text: 0, actions: 0 },
+        selectedIndices: { text: null, actions: null },
+        mode: SEARCH_MODES.TEXT,
       };
     case 'set-mode':
       return { ...state, mode: action.mode };
@@ -84,24 +86,17 @@ function useSearchNavigation() {
     INITIAL_SEARCH_NAVIGATION_STATE,
   );
 
-  const setResults = React.useCallback(
-    (textResults: Element[], actionResults: HTMLElement[], selectedActionIndex: number) => {
-      dispatch({
-        type: 'set-results',
-        textResults,
-        actionResults,
-        selectedActionIndex,
-      });
-    },
-    [],
-  );
+  const setResults = React.useCallback((textResults: TextMatch[], actionResults: HTMLElement[]) => {
+    dispatch({ type: 'set-results', textResults, actionResults });
+  }, []);
 
   const clearResults = React.useCallback(() => dispatch({ type: 'clear-results' }), []);
 
   const setMode = React.useCallback((mode: SearchMode) => dispatch({ type: 'set-mode', mode }), []);
 
   const setSelectedIndex = React.useCallback(
-    (mode: SearchMode, index: number) => dispatch({ type: 'set-selected-index', mode, index }),
+    (mode: SearchMode, index: number | null) =>
+      dispatch({ type: 'set-selected-index', mode, index }),
     [],
   );
 

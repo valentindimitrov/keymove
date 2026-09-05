@@ -1,10 +1,8 @@
-import ExtensionMessageTypes from './extension_message_types.js';
-import { isInjectableUrl } from './lib/extension_tabs.js';
+import ExtensionMessageTypes, { isExtensionMessage } from './extension_message_types.js';
+import { EXTENSION_NAME } from './extension_identity.js';
+import { isInjectableUrl, normalizedOpenableLinkUrl } from './lib/extension_tabs.js';
 import { browser, type Browser } from 'wxt/browser';
 
-// One-release migration for users upgrading from authentication-enabled builds.
-// Remove this after version 1.3.1 has been broadly distributed.
-const LEGACY_EMAIL_SETTING_KEY = 'userEmail';
 const CONTENT_SCRIPT_FILE = '/content-scripts/content.js';
 const CONTENT_STYLESHEET_FILE = 'content-scripts/content.css';
 
@@ -14,13 +12,38 @@ export default function registerBackground() {
   });
 
   browser.runtime.onInstalled.addListener(handleInstallationEvent);
+  browser.runtime.onMessage.addListener((message, sender) => {
+    void handleExtensionMessage(message, sender);
+  });
+}
+
+async function handleExtensionMessage(message: unknown, sender: Browser.runtime.MessageSender) {
+  if (!isExtensionMessage(message) || message.type !== ExtensionMessageTypes.OPEN_LINK_IN_NEW_TAB) {
+    return;
+  }
+
+  if (!sender.tab) {
+    reportExtensionApiError(
+      'open a link requested outside a content-script tab',
+      new Error('missing sender tab'),
+    );
+    return;
+  }
+
+  const url = normalizedOpenableLinkUrl(message.url);
+  if (!url) {
+    reportExtensionApiError('open an invalid link in a new tab', new Error('unsupported URL'));
+    return;
+  }
+
+  try {
+    await browser.tabs.create({ url, active: message.active });
+  } catch (error) {
+    reportExtensionApiError('open the link in a new tab', error);
+  }
 }
 
 function handleInstallationEvent(details: Browser.runtime.InstalledDetails) {
-  void browser.storage.local
-    .remove(LEGACY_EMAIL_SETTING_KEY)
-    .catch(error => reportExtensionApiError('remove the legacy email setting', error));
-
   if (details.reason === 'install') {
     void injectContentScriptToAllTabs().catch(error =>
       reportExtensionApiError('query tabs during installation', error),
@@ -92,7 +115,7 @@ async function injectContentScriptAndStyles(tabId: number) {
 function reportExtensionApiError(operation: string, error: unknown, tabId?: number) {
   const message = error instanceof Error ? error.message : String(error);
   const tabContext = tabId === undefined ? '' : ` in tab ${tabId}`;
-  console.debug(`YipYip could not ${operation}${tabContext}: ${message}`);
+  console.debug(`${EXTENSION_NAME} could not ${operation}${tabContext}: ${message}`);
 }
 
-export { handleInstallationEvent };
+export { handleExtensionMessage, handleInstallationEvent };

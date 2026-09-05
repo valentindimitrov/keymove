@@ -1,4 +1,5 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
+import { EXTENSION_NAME } from '../extension_identity.js';
 import useStoredSettings from './use_stored_settings.js';
 
 const storageMocks = vi.hoisted(() => ({
@@ -47,7 +48,7 @@ test('keeps defaults and reports an unavailable storage read', async () => {
   expect(await screen.findByTestId('auto-hide')).toHaveTextContent('false');
   await waitFor(() =>
     expect(errorSpy).toHaveBeenCalledWith(
-      'YipYip could not read stored settings: storage unavailable',
+      `${EXTENSION_NAME} could not read stored settings: storage unavailable`,
     ),
   );
   errorSpy.mockRestore();
@@ -64,7 +65,7 @@ test('rolls back an optimistic setting update when storage rejects it', async ()
 
   await waitFor(() => expect(screen.getByTestId('auto-hide')).toHaveTextContent('false'));
   expect(errorSpy).toHaveBeenCalledWith(
-    'YipYip could not save the "autoHide" setting: write failed',
+    `${EXTENSION_NAME} could not save the "autoHide" setting: write failed`,
   );
   errorSpy.mockRestore();
 });

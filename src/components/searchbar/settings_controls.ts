@@ -5,6 +5,7 @@ type SettingsControls = {
   toggleUseOnEveryWebsite: () => void;
   alwaysOn: boolean;
   toggleAlwaysOn: () => void;
+  resetPopupPosition: () => void;
 };
 
 export type { SettingsControls };

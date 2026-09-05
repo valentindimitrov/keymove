@@ -1,3 +1,4 @@
+import React from 'react';
 import InfoPanelRow from './info_panel_row.js';
 
 type InfoPanelSettingRowProps = {
@@ -9,20 +10,27 @@ type InfoPanelSettingRowProps = {
 
 const InfoPanelSettingRow = (props: InfoPanelSettingRowProps) => {
   const { label, description, value, onChange } = props;
+  const inputId = React.useId();
+  const descriptionId = `${inputId}-description`;
 
   return (
-    <InfoPanelRow classes={'yipyip-info-panel-setting-row'}>
+    <InfoPanelRow classes={'keymove-info-panel-setting-row'}>
       <input
-        className={'yipyip-info-panel-setting-checkbox'}
+        className={'keymove-info-panel-setting-checkbox'}
+        id={inputId}
         type="checkbox"
         value={value ? '1' : '0'}
         checked={value}
-        name={description}
+        aria-describedby={descriptionId}
         onChange={onChange}
       />
-      <div className={'yipyip-info-panel-setting-text'}>
-        <div className={'yipyip-info-panel-setting-header'}>{label}</div>
-        <div className={'yipyip-info-panel-setting-description'}>{description}</div>
+      <div className={'keymove-info-panel-setting-text'}>
+        <label className={'keymove-info-panel-setting-header'} htmlFor={inputId}>
+          {label}
+        </label>
+        <div id={descriptionId} className={'keymove-info-panel-setting-description'}>
+          {description}
+        </div>
       </div>
     </InfoPanelRow>
   );

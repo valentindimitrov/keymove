@@ -1,11 +1,13 @@
 import Utils from './utils.js';
-import { DO_NOT_SEARCH_NODE_TYPES, YIPYIP_ROOT_ID } from '../constants.js';
+import { DO_NOT_SEARCH_NODE_TYPES, KEYMOVE_ROOT_ID } from '../constants.js';
 import NodeScorer from './node_scorer.js';
 import SearchableAttributeSettings from './searchable_attribute_settings.js';
 
 const DEFAULT_RESULT_LIMIT = 50;
 const SEARCH_CHUNK_SIZE = 100;
 const NO_BREAK_SPACE_REGEX = /\u00a0/g;
+const TEXT_BLOCK_SELECTOR =
+  'p, li, blockquote, pre, td, th, dt, dd, figcaption, h1, h2, h3, h4, h5, h6';
 
 type SearchRecord = {
   node: Element;
@@ -14,11 +16,11 @@ type SearchRecord = {
 };
 
 type Match = { node: Element; score: number };
+type TextMatch = { node: Element; action: HTMLElement | null };
 type SearchOptions = { signal?: AbortSignal; limit?: number };
 type SearchResult = {
-  matchingNodes: Element[];
+  matchingText: TextMatch[];
   matchingLinksAndButtons: HTMLElement[];
-  bestMatchingLinkOrButtonIndex: number | null;
 };
 
 function abortError(): Error {
@@ -50,6 +52,7 @@ function yieldToMainThread(signal?: AbortSignal): Promise<void> {
 }
 
 class PageSearchIndex {
+  readonly root: HTMLElement;
   readonly searchableAttributeSettings: SearchableAttributeSettings;
   readonly actionableSelector: string;
   readonly additionalSelectors: string[];
@@ -60,15 +63,16 @@ class PageSearchIndex {
     searchableAttributeSettings: SearchableAttributeSettings,
     additionalSelectors: string[] = [],
   ) {
+    this.root = document.body;
     this.searchableAttributeSettings = searchableAttributeSettings;
     this.actionableSelector =
       searchableAttributeSettings.searchableAttributeSettingsByNodeNameToQuerySelector();
     this.additionalSelectors = additionalSelectors;
     this.handleMutations = this.handleMutations.bind(this);
 
-    this.addSubtree(document.body);
+    this.addSubtree(this.root);
     this.observer = new MutationObserver(this.handleMutations);
-    this.observer.observe(document.body, {
+    this.observer.observe(this.root, {
       attributes: true,
       characterData: true,
       childList: true,
@@ -79,7 +83,7 @@ class PageSearchIndex {
   isCandidate(node: Node | null): node is Element {
     return (
       node instanceof Element &&
-      node.id !== YIPYIP_ROOT_ID &&
+      node.id !== KEYMOVE_ROOT_ID &&
       !DO_NOT_SEARCH_NODE_TYPES.includes(node.nodeName) &&
       (this.hasDirectSearchableText(node) ||
         node.matches(this.actionableSelector) ||
@@ -158,6 +162,12 @@ class PageSearchIndex {
   }
 
   handleMutations(mutations: MutationRecord[]) {
+    // A queued observer callback can outlive its DOM realm during teardown.
+    // It is also safer to ignore mutations while a page is replacing its document.
+    if (typeof Element === 'undefined') {
+      return;
+    }
+
     mutations.forEach(mutation => {
       if (mutation.type === 'childList') {
         mutation.removedNodes.forEach(node => this.removeSubtree(node));
@@ -212,6 +222,24 @@ class PageSearchIndex {
     return computedStyle.visibility !== 'hidden' && computedStyle.opacity !== '0';
   }
 
+  textContainerForNode(node: Element) {
+    return node.closest(TEXT_BLOCK_SELECTOR) ?? node;
+  }
+
+  actionableAncestorForNode(node: Element): HTMLElement | null {
+    let candidate: Element | null = node;
+    while (candidate && candidate !== document.body) {
+      if (
+        candidate instanceof HTMLElement &&
+        this.searchableAttributeSettings.isLinkOrButtonOrInput(candidate)
+      ) {
+        return candidate;
+      }
+      candidate = candidate.parentElement;
+    }
+    return null;
+  }
+
   async search(
     nodeScorer: NodeScorer,
     { signal, limit = DEFAULT_RESULT_LIMIT }: SearchOptions = {},
@@ -235,11 +263,7 @@ class PageSearchIndex {
           return;
         }
 
-        const score = nodeScorer.scoreNodeWithValues(
-          node,
-          record.innerText,
-          record.attributeValues,
-        );
+        const score = nodeScorer.score(node, record.innerText, record.attributeValues);
         if (score > 0) {
           matches.push({ node, score });
         }
@@ -250,7 +274,26 @@ class PageSearchIndex {
       }
     }
 
-    const matchingNodes = matches.map(match => match.node);
+    const textMatchesByContainer = new Map<Element, TextMatch>();
+    matches.forEach(match => {
+      const record = this.recordForNode(match.node);
+      if (
+        !this.hasDirectSearchableText(match.node) ||
+        !nodeScorer.textMatchesWithValue(record.innerText)
+      ) {
+        return;
+      }
+
+      const textContainer = this.textContainerForNode(match.node);
+      const action = this.actionableAncestorForNode(match.node);
+      const existingMatch = textMatchesByContainer.get(textContainer);
+      if (!existingMatch) {
+        textMatchesByContainer.set(textContainer, { node: textContainer, action });
+      } else if (!existingMatch.action && action) {
+        existingMatch.action = action;
+      }
+    });
+    const matchingText = [...textMatchesByContainer.values()].slice(0, limit);
     const matchingLinksAndButtons = matches
       .filter(
         (match): match is Match & { node: HTMLElement } =>
@@ -262,9 +305,8 @@ class PageSearchIndex {
       .map(match => match.node);
 
     return {
-      matchingNodes,
+      matchingText,
       matchingLinksAndButtons,
-      bestMatchingLinkOrButtonIndex: matchingLinksAndButtons.length > 0 ? 0 : null,
     };
   }
 
@@ -274,5 +316,5 @@ class PageSearchIndex {
   }
 }
 
-export type { SearchOptions, SearchResult };
+export type { SearchOptions, SearchResult, TextMatch };
 export { DEFAULT_RESULT_LIMIT, PageSearchIndex };

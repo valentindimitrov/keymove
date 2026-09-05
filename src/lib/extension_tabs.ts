@@ -1,4 +1,5 @@
 const INJECTABLE_PROTOCOLS = ['http:', 'https:', 'file:'];
+const OPENABLE_LINK_PROTOCOLS = ['http:', 'https:'];
 const CHROME_WEB_STORE_HOSTS = ['chromewebstore.google.com'];
 
 function isInjectableUrl(url: string | undefined): boolean {
@@ -24,4 +25,17 @@ function isInjectableUrl(url: string | undefined): boolean {
   }
 }
 
-export { isInjectableUrl };
+function normalizedOpenableLinkUrl(url: string | undefined): string | null {
+  if (!url) {
+    return null;
+  }
+
+  try {
+    const parsedUrl = new URL(url);
+    return OPENABLE_LINK_PROTOCOLS.includes(parsedUrl.protocol) ? parsedUrl.href : null;
+  } catch {
+    return null;
+  }
+}
+
+export { isInjectableUrl, normalizedOpenableLinkUrl };

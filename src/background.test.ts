@@ -1,40 +1,87 @@
 import { waitFor } from '@testing-library/react';
 import type { Browser } from 'wxt/browser';
-import { handleInstallationEvent } from './background.js';
+import ExtensionMessageTypes from './extension_message_types.js';
+import { EXTENSION_NAME } from './extension_identity.js';
+import { handleExtensionMessage, handleInstallationEvent } from './background.js';
 
 const browserMocks = vi.hoisted(() => ({
-  remove: vi.fn(),
   query: vi.fn(),
+  create: vi.fn(),
 }));
 
 vi.mock('wxt/browser', () => ({
   browser: {
-    storage: { local: { remove: browserMocks.remove } },
-    tabs: { query: browserMocks.query },
+    tabs: { query: browserMocks.query, create: browserMocks.create },
   },
 }));
 
 beforeEach(() => {
-  browserMocks.remove.mockReset().mockResolvedValue(undefined);
   browserMocks.query.mockReset().mockResolvedValue([]);
+  browserMocks.create.mockReset().mockResolvedValue(undefined);
 });
 
-test('reports failure to remove the legacy email setting during an update', async () => {
-  const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => undefined);
-  browserMocks.remove.mockRejectedValueOnce(new Error('storage unavailable'));
-  const details: Browser.runtime.InstalledDetails = {
-    reason: 'update',
-    previousVersion: '1.2.0',
-  };
+const tabSender = { tab: { id: 42 } as Browser.tabs.Tab };
 
-  handleInstallationEvent(details);
-
-  await waitFor(() =>
-    expect(debugSpy).toHaveBeenCalledWith(
-      'YipYip could not remove the legacy email setting: storage unavailable',
-    ),
+test.each([
+  { active: true, description: 'foreground' },
+  { active: false, description: 'background' },
+])('opens a validated link in a $description tab', async ({ active }) => {
+  await handleExtensionMessage(
+    {
+      type: ExtensionMessageTypes.OPEN_LINK_IN_NEW_TAB,
+      url: 'https://example.com/path',
+      active,
+    },
+    tabSender,
   );
-  expect(browserMocks.query).not.toHaveBeenCalled();
+
+  expect(browserMocks.create).toHaveBeenCalledWith({
+    url: 'https://example.com/path',
+    active,
+  });
+});
+
+test('rejects malformed or unsafe new-tab messages', async () => {
+  const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => undefined);
+
+  await handleExtensionMessage(
+    {
+      type: ExtensionMessageTypes.OPEN_LINK_IN_NEW_TAB,
+      url: 'javascript:alert(1)',
+      active: false,
+    },
+    tabSender,
+  );
+  await handleExtensionMessage(
+    {
+      type: ExtensionMessageTypes.OPEN_LINK_IN_NEW_TAB,
+      url: 'https://example.com',
+      active: 'yes',
+    },
+    tabSender,
+  );
+
+  expect(browserMocks.create).not.toHaveBeenCalled();
+  expect(debugSpy).toHaveBeenCalledOnce();
+  debugSpy.mockRestore();
+});
+
+test('rejects a new-tab request without a content-script sender tab', async () => {
+  const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => undefined);
+
+  await handleExtensionMessage(
+    {
+      type: ExtensionMessageTypes.OPEN_LINK_IN_NEW_TAB,
+      url: 'https://example.com/path',
+      active: false,
+    },
+    {},
+  );
+
+  expect(browserMocks.create).not.toHaveBeenCalled();
+  expect(debugSpy).toHaveBeenCalledWith(
+    `${EXTENSION_NAME} could not open a link requested outside a content-script tab: missing sender tab`,
+  );
   debugSpy.mockRestore();
 });
 
@@ -47,7 +94,7 @@ test('reports a tab-query failure while installing into existing tabs', async ()
 
   await waitFor(() =>
     expect(debugSpy).toHaveBeenCalledWith(
-      'YipYip could not query tabs during installation: tabs unavailable',
+      `${EXTENSION_NAME} could not query tabs during installation: tabs unavailable`,
     ),
   );
   debugSpy.mockRestore();

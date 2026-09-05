@@ -1,30 +1,60 @@
 import React from 'react';
-import {
-  YIPYIP_CONTAINER_DEFAULT_EDGE_MARGIN,
-  YIPYIP_CONTAINER_HEIGHT,
-  YIPYIP_CONTAINER_WIDTH,
-} from '../../constants.js';
+import { KEYMOVE_CONTAINER_HEIGHT, KEYMOVE_CONTAINER_WIDTH } from '../../constants.js';
+import useWindowSize from '../../hooks/use_window_size.js';
+import type { PopupPosition } from '../../lib/popup_position_schema.js';
 
 import Utils from '../../lib/utils.js';
-
-const RIGHT_VALUE_MIN = 0;
-const BOTTOM_VALUE_MIN = 0;
 
 type DragOffset = { x: number; y: number };
 type DraggableContainerProps = React.PropsWithChildren<{
   searchInputRef: React.RefObject<HTMLInputElement | null>;
   containerRef: React.RefObject<HTMLDivElement | null>;
+  position: PopupPosition;
+  updatePosition: (position: PopupPosition) => void;
 }>;
 
+function pixelPosition(position: PopupPosition, viewportWidth: number, viewportHeight: number) {
+  return {
+    left: Utils.clampNumber(
+      position.x * viewportWidth - KEYMOVE_CONTAINER_WIDTH / 2,
+      0,
+      Math.max(0, viewportWidth - KEYMOVE_CONTAINER_WIDTH),
+    ),
+    top: Utils.clampNumber(
+      position.y * viewportHeight - KEYMOVE_CONTAINER_HEIGHT / 2,
+      0,
+      Math.max(0, viewportHeight - KEYMOVE_CONTAINER_HEIGHT),
+    ),
+  };
+}
+
+function normalizedPosition(
+  left: number,
+  top: number,
+  viewportWidth: number,
+  viewportHeight: number,
+) {
+  const safeViewportWidth = Math.max(viewportWidth, 1);
+  const safeViewportHeight = Math.max(viewportHeight, 1);
+  return {
+    x: Utils.clampNumber((left + KEYMOVE_CONTAINER_WIDTH / 2) / safeViewportWidth, 0, 1),
+    y: Utils.clampNumber((top + KEYMOVE_CONTAINER_HEIGHT / 2) / safeViewportHeight, 0, 1),
+  };
+}
+
 const DraggableContainer = (props: DraggableContainerProps) => {
-  const { children, searchInputRef, containerRef } = props;
+  const { children, searchInputRef, containerRef, position, updatePosition } = props;
+  const windowSize = useWindowSize();
 
   const [isDragging, setIsDragging] = React.useState(false);
   const [dragOffset, setDragOffset] = React.useState<DragOffset | null>(null);
-  const [position, setPosition] = React.useState({
-    bottom: YIPYIP_CONTAINER_DEFAULT_EDGE_MARGIN,
-    right: YIPYIP_CONTAINER_DEFAULT_EDGE_MARGIN,
-  });
+  const [currentPosition, setCurrentPosition] = React.useState(position);
+  const currentPositionRef = React.useRef(position);
+
+  React.useEffect(() => {
+    currentPositionRef.current = position;
+    setCurrentPosition(position);
+  }, [position]);
 
   const onDragStart = React.useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
@@ -37,24 +67,26 @@ const DraggableContainer = (props: DraggableContainerProps) => {
         !event.metaKey
       ) {
         event.preventDefault();
+        const currentPixels = pixelPosition(currentPosition, windowSize.width, windowSize.height);
         setDragOffset({
-          x: window.innerWidth - position.right - event.clientX,
-          y: window.innerHeight - position.bottom - event.clientY,
+          x: event.clientX - currentPixels.left,
+          y: event.clientY - currentPixels.top,
         });
         setIsDragging(true);
       }
     },
-    [position, searchInputRef],
+    [currentPosition, searchInputRef, windowSize],
   );
 
   const onDragEnd = React.useCallback(
     (event: MouseEvent) => {
       setIsDragging(false);
+      updatePosition(currentPositionRef.current);
       if (event.target === searchInputRef.current) {
         searchInputRef.current?.focus();
       }
     },
-    [searchInputRef],
+    [searchInputRef, updatePosition],
   );
 
   const drag = React.useCallback(
@@ -63,22 +95,21 @@ const DraggableContainer = (props: DraggableContainerProps) => {
       if (!dragOffset) {
         return;
       }
-      const newRight = window.innerWidth - event.clientX - dragOffset.x;
-      const newBottom = window.innerHeight - event.clientY - dragOffset.y;
-      setPosition({
-        right: Utils.clampNumber(
-          newRight,
-          RIGHT_VALUE_MIN,
-          window.innerWidth - YIPYIP_CONTAINER_WIDTH,
-        ),
-        bottom: Utils.clampNumber(
-          newBottom,
-          BOTTOM_VALUE_MIN,
-          window.innerHeight - YIPYIP_CONTAINER_HEIGHT,
-        ),
-      });
+      const left = Utils.clampNumber(
+        event.clientX - dragOffset.x,
+        0,
+        Math.max(0, windowSize.width - KEYMOVE_CONTAINER_WIDTH),
+      );
+      const top = Utils.clampNumber(
+        event.clientY - dragOffset.y,
+        0,
+        Math.max(0, windowSize.height - KEYMOVE_CONTAINER_HEIGHT),
+      );
+      const nextPosition = normalizedPosition(left, top, windowSize.width, windowSize.height);
+      currentPositionRef.current = nextPosition;
+      setCurrentPosition(nextPosition);
     },
-    [dragOffset],
+    [dragOffset, windowSize],
   );
 
   React.useEffect(() => {
@@ -96,15 +127,15 @@ const DraggableContainer = (props: DraggableContainerProps) => {
 
   const containerStyle = React.useMemo(() => {
     return {
-      ...position,
-      height: YIPYIP_CONTAINER_HEIGHT,
-      width: YIPYIP_CONTAINER_WIDTH,
+      ...pixelPosition(currentPosition, windowSize.width, windowSize.height),
+      height: KEYMOVE_CONTAINER_HEIGHT,
+      width: KEYMOVE_CONTAINER_WIDTH,
     };
-  }, [position]);
+  }, [currentPosition, windowSize]);
 
   return (
     <div
-      id={'yipyip-container'}
+      id={'keymove-container'}
       style={containerStyle}
       onMouseDown={onDragStart}
       ref={containerRef}
@@ -115,3 +146,4 @@ const DraggableContainer = (props: DraggableContainerProps) => {
 };
 
 export default DraggableContainer;
+export { normalizedPosition, pixelPosition };

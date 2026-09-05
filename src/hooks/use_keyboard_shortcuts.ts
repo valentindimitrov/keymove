@@ -4,11 +4,12 @@ import Utils from '../lib/utils.js';
 import useDocumentEvent from './use_document_event.js';
 import type {
   KeyboardShortcut,
+  KeyboardShortcutName,
   ModifierKey,
   PlatformKeyGroups,
 } from '../lib/static_data_schema.js';
 
-type ShortcutHandler = (shortcutName: string, event: KeyboardEvent) => void;
+type ShortcutHandler = (shortcutName: KeyboardShortcutName, event: KeyboardEvent) => void;
 
 const useKeyboardShortcuts = (handleShortcut: ShortcutHandler) => {
   const isMacOS = React.useMemo(() => Utils.isMacOS(), []);
