@@ -15,9 +15,16 @@ const icons = {
 
 export default defineConfig({
   modules: ['@wxt-dev/module-react'],
-  publicDir: 'assets',
+  publicDir: 'src/icons',
   hooks: {
     'build:publicAssets': (wxt, files) => {
+      // src/icons also holds SVGs that are imported through svgr, so keep them
+      // out of the copied public assets.
+      for (let index = files.length - 1; index >= 0; index -= 1) {
+        if (files[index]!.relativeDest.endsWith('.svg')) {
+          files.splice(index, 1);
+        }
+      }
       files.push({
         absoluteSrc: path.resolve(wxt.config.root, 'LICENSE'),
         relativeDest: 'LICENSE',

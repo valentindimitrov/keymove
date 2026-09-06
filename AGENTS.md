@@ -17,7 +17,6 @@ authentication flow.
 
 ```text
 .
-|-- assets/                  Static extension logo files copied by WXT
 |-- entrypoints/
 |   |-- background.ts        WXT background entrypoint
 |   `-- content.tsx          WXT content-script and React mount
@@ -28,7 +27,7 @@ authentication flow.
 |   |-- components/searchbar React search UI, overlays, help, and settings
 |   |-- data/                 Validated JSON search configuration and shortcuts
 |   |-- hooks/                Browser events, storage, highlights, and navigation state
-|   |-- icons/                UI SVG modules
+|   |-- icons/                UI SVG modules and extension logo files copied by WXT
 |   |-- lib/                  Search index, scoring, schemas, and utilities
 |   |-- content.css           Shadow-root component styling
 |   `-- highlights.css        Page-level CSS Custom Highlight styling
