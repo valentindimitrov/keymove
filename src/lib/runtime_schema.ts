@@ -8,8 +8,12 @@ function fail(path: string, expectation: string): never {
   throw new TypeError(`${path} ${expectation}`);
 }
 
+function isRecord(value: unknown): value is JsonObject {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
 function assertObject(value: unknown, path: string): asserts value is JsonObject {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+  if (!isRecord(value)) {
     fail(path, 'must be an object');
   }
 }
@@ -40,4 +44,4 @@ function assertStringArray(
 }
 
 export type { JsonObject, StringArrayOptions };
-export { assertKnownKeys, assertNonemptyString, assertObject, assertStringArray, fail };
+export { assertKnownKeys, assertNonemptyString, assertObject, assertStringArray, fail, isRecord };

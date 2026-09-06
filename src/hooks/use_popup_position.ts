@@ -2,8 +2,13 @@ import React from 'react';
 import { EXTENSION_NAME } from '../extension_identity.js';
 import { browser, type Browser } from 'wxt/browser';
 import { POPUP_POSITION_STORAGE_KEY } from '../constants.js';
-import { DEFAULT_POPUP_POSITION, validatePopupPosition } from '../lib/popup_position_schema.js';
-import type { PopupPosition } from '../lib/popup_position_schema.js';
+import {
+  DEFAULT_POPUP_POSITION,
+  validatePopupPositionChange,
+  validateStoredPopupPosition,
+} from '../lib/popup_position_schema.js';
+import type { PopupPosition, PopupPositionValidation } from '../lib/popup_position_schema.js';
+import { isRecord } from '../lib/runtime_schema.js';
 
 function reportPositionIssues(issues: string[]) {
   issues.forEach(issue =>
@@ -20,8 +25,7 @@ const usePopupPosition = () => {
   const revision = React.useRef(0);
   const [position, setPosition] = React.useState<PopupPosition>({ ...DEFAULT_POPUP_POSITION });
 
-  const applyStoredPosition = React.useCallback((value: unknown) => {
-    const result = validatePopupPosition(value);
+  const applyStoredPosition = React.useCallback((result: PopupPositionValidation) => {
     reportPositionIssues(result.issues);
     setPosition(result.position);
   }, []);
@@ -45,13 +49,15 @@ const usePopupPosition = () => {
   );
 
   const handleStorageChange = React.useCallback(
-    (
-      changes: Record<string, Browser.storage.StorageChange>,
-      storageNamespace: Browser.storage.AreaName,
-    ) => {
-      if (storageNamespace === 'local' && Object.hasOwn(changes, POPUP_POSITION_STORAGE_KEY)) {
+    (changes: unknown, storageNamespace: Browser.storage.AreaName) => {
+      if (storageNamespace !== 'local') return;
+      if (!isRecord(changes)) {
+        reportPositionIssues(['Storage changes must be an object.']);
+        return;
+      }
+      if (Object.hasOwn(changes, POPUP_POSITION_STORAGE_KEY)) {
         revision.current += 1;
-        applyStoredPosition(changes[POPUP_POSITION_STORAGE_KEY]?.newValue);
+        applyStoredPosition(validatePopupPositionChange(changes[POPUP_POSITION_STORAGE_KEY]));
       }
     },
     [applyStoredPosition],
@@ -65,7 +71,7 @@ const usePopupPosition = () => {
       .get(POPUP_POSITION_STORAGE_KEY)
       .then(data => {
         if (active && revision.current === initialRevision)
-          applyStoredPosition(data[POPUP_POSITION_STORAGE_KEY]);
+          applyStoredPosition(validateStoredPopupPosition(data));
       })
       .catch(error => reportPositionError('read the popup position', error));
     return () => {

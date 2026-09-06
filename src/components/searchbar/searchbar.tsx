@@ -451,10 +451,12 @@ const Searchbar = () => {
     }
   }, [searchText, scheduleSearch]);
 
+  const hasSearchQuery = searchText.trimStart().length >= 2;
+  const refreshSearchOnPageChange = React.useEffectEvent(() => scheduleSearch(true));
   React.useEffect(() => {
-    if (!isInteractive || searchText.trimStart().length < 2) return undefined;
-    return subscribeToPageChanges(() => scheduleSearch(true));
-  }, [isInteractive, searchText, scheduleSearch]);
+    if (!isInteractive || !hasSearchQuery) return undefined;
+    return subscribeToPageChanges(() => refreshSearchOnPageChange());
+  }, [isInteractive, hasSearchQuery]);
 
   React.useEffect(() => {
     if (selectedTextMatch?.node.isConnected) {

@@ -7,6 +7,7 @@ import {
   validateStoredSettings,
 } from '../lib/stored_settings_schema.js';
 import type { StoredSettingKey } from '../lib/stored_settings_schema.js';
+import { isRecord } from '../lib/runtime_schema.js';
 import { browser, type Browser } from 'wxt/browser';
 
 function reportStorageIssues(issues: string[]) {
@@ -103,11 +104,12 @@ const useStoredSettings = () => {
   );
 
   const updateStoredSettings = React.useCallback(
-    (
-      changes: Record<string, Browser.storage.StorageChange>,
-      storageNamespace: Browser.storage.AreaName,
-    ) => {
+    (changes: unknown, storageNamespace: Browser.storage.AreaName) => {
       if (storageNamespace !== 'local') {
+        return;
+      }
+      if (!isRecord(changes)) {
+        reportStorageIssues(['Storage changes must be an object.']);
         return;
       }
 

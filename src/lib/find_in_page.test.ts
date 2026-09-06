@@ -1,4 +1,11 @@
-import FindInPage, { subscribeToPageChanges } from './find_in_page.js';
+import FindInPage, { releasePageSearchIndex, subscribeToPageChanges } from './find_in_page.js';
+import { PageSearchIndex } from './page_search_index.js';
+
+afterEach(() => {
+  releasePageSearchIndex();
+  document.body.innerHTML = '';
+  vi.restoreAllMocks();
+});
 
 beforeAll(() => {
   Object.defineProperty(HTMLElement.prototype, 'offsetWidth', {
@@ -9,6 +16,25 @@ beforeAll(() => {
     configurable: true,
     get: () => 20,
   });
+});
+
+test('does not create an observer for a short query', async () => {
+  const observe = vi.spyOn(MutationObserver.prototype, 'observe');
+  await new FindInPage('a').findMatches();
+  expect(observe).not.toHaveBeenCalled();
+});
+
+test('releases the shared observer after the last search subscriber leaves', async () => {
+  const disconnect = vi.spyOn(PageSearchIndex.prototype, 'disconnect');
+  const unsubscribeFirst = subscribeToPageChanges(vi.fn());
+  const unsubscribeLast = subscribeToPageChanges(vi.fn());
+  document.body.innerHTML = '<button>Save</button>';
+  await new FindInPage('save').findMatches();
+  unsubscribeFirst();
+  expect(disconnect).not.toHaveBeenCalled();
+  unsubscribeLast();
+  expect(disconnect).toHaveBeenCalledOnce();
+  expect((await new FindInPage('save').findMatches()).matchingLinksAndButtons).toHaveLength(1);
 });
 
 test('rebuilds the shared index when the document body is replaced', async () => {

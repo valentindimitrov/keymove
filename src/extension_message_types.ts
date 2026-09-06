@@ -1,3 +1,5 @@
+import { isRecord } from './lib/runtime_schema.js';
+
 const ExtensionMessageTypes = {
   TOOLBAR_ACTION_CLICKED: 'KEYMOVE_TOOLBAR_ACTION_CLICKED',
   CONTENT_SCRIPT_INSTALLED: 'KEYMOVE_CONTENT_SCRIPT_INSTALLED',
@@ -19,12 +21,17 @@ type ExtensionMessage =
   | OpenLinkInNewTabMessage;
 
 function isExtensionMessage(value: unknown): value is ExtensionMessage {
-  if (!value || typeof value !== 'object' || !('type' in value)) {
+  if (!isRecord(value) || !Object.hasOwn(value, 'type')) {
     return false;
   }
   const message = value as Record<string, unknown>;
   if (message['type'] === ExtensionMessageTypes.OPEN_LINK_IN_NEW_TAB) {
-    return typeof message['url'] === 'string' && typeof message['active'] === 'boolean';
+    return (
+      Object.hasOwn(message, 'url') &&
+      Object.hasOwn(message, 'active') &&
+      typeof message['url'] === 'string' &&
+      typeof message['active'] === 'boolean'
+    );
   }
   return (
     message['type'] === ExtensionMessageTypes.TOOLBAR_ACTION_CLICKED ||

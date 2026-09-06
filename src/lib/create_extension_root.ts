@@ -35,13 +35,23 @@ function createExtensionRoot(stylesText: string, browserName?: string): Extensio
 }
 
 function keepExtensionRootConnected(host: HTMLElement) {
+  let observedBody = document.body;
   const reconnect = () => {
+    if (observedBody !== document.body) {
+      observedBody = document.body;
+      observer.disconnect();
+      observeParents();
+    }
     if (!host.isConnected && document.body) {
       document.body.appendChild(host);
     }
   };
   const observer = new MutationObserver(reconnect);
-  observer.observe(document.documentElement, { childList: true, subtree: true });
+  const observeParents = () => {
+    observer.observe(document.documentElement, { childList: true });
+    if (observedBody) observer.observe(observedBody, { childList: true });
+  };
+  observeParents();
   return observer;
 }
 

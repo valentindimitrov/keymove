@@ -12,12 +12,18 @@ export default defineContentScript({
   matches: ['<all_urls>'],
   allFrames: false,
   runAt: 'document_idle',
-  main() {
+  main(ctx) {
     const extensionRoot = createExtensionRoot(contentStyles, import.meta.env.BROWSER);
 
     if (extensionRoot) {
-      keepExtensionRootConnected(extensionRoot.host);
-      createRoot(extensionRoot.app).render(
+      const observer = keepExtensionRootConnected(extensionRoot.host);
+      const root = createRoot(extensionRoot.app);
+      ctx.onInvalidated(() => {
+        observer.disconnect();
+        root.unmount();
+        extensionRoot.host.remove();
+      });
+      root.render(
         <PortalTargetProvider target={extensionRoot.portal}>
           <ExtensionErrorBoundary>
             <Searchbar />

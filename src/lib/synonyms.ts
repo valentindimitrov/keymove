@@ -22,19 +22,14 @@ class Synonyms {
 }
 
 function mutualSynonymSetsToDirected(mutualSynonymSets: string[][]): Record<string, string[]> {
-  return mutualSynonymSets.reduce<Record<string, string[]>>((obj, synonymSet) => {
+  const directed = new Map<string, string[]>();
+  for (const synonymSet of mutualSynonymSets) {
     synonymSet.forEach(word => {
       const otherWordsInSet = synonymSet.filter(otherWordInSet => word !== otherWordInSet);
-      const existingSynonyms = obj[word];
-      if (existingSynonyms) {
-        obj[word] = existingSynonyms.concat(otherWordsInSet);
-      } else {
-        obj[word] = otherWordsInSet;
-      }
+      directed.set(word, [...(directed.get(word) ?? []), ...otherWordsInSet]);
     });
-
-    return obj;
-  }, {});
+  }
+  return Object.fromEntries(directed);
 }
 
 export default Synonyms;

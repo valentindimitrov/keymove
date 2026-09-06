@@ -104,3 +104,21 @@ test('rejects malformed stored position data at runtime', async () => {
   expect(screen.getByTestId('position')).toHaveTextContent(JSON.stringify(DEFAULT_POPUP_POSITION));
   warn.mockRestore();
 });
+
+test('ignores malformed storage event containers and validates change records', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  render(<PopupPositionHarness />);
+  await waitFor(() => expect(storageMocks.get).toHaveBeenCalled());
+  const listener = storageMocks.addListener.mock.calls[0]![0] as (
+    changes: unknown,
+    area: string,
+  ) => void;
+  act(() => {
+    listener(null, 'local');
+    listener([], 'local');
+    listener({ popupPosition: 'malformed' }, 'local');
+  });
+  expect(warn).toHaveBeenCalledTimes(3);
+  expect(currentPosition?.position).toEqual(DEFAULT_POPUP_POSITION);
+  warn.mockRestore();
+});

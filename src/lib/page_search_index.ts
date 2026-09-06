@@ -1,7 +1,7 @@
 import { DO_NOT_SEARCH_NODE_TYPES, KEYMOVE_ROOT_ID } from '../constants.js';
 import NodeScorer from './node_scorer.js';
 import SearchableAttributeSettings from './searchable_attribute_settings.js';
-import { isTextVisible, visibleText } from './visible_text.js';
+import { isTextVisible, iterateVisibleTextNodes } from './visible_text.js';
 import type { StyleCache } from './visible_text.js';
 
 const DEFAULT_RESULT_LIMIT = 50;
@@ -14,7 +14,7 @@ type SearchRecord = {
   attributeValues: string[];
 };
 
-type Match = { node: Element; score: number; innerText: string };
+type ActionMatch = { node: HTMLElement; score: number };
 type TextMatch = { node: Element; action: HTMLElement | null };
 type SearchOptions = { signal?: AbortSignal; limit?: number };
 type SearchResult = {
@@ -28,25 +28,26 @@ function abortError(): Error {
   return error;
 }
 
-function yieldToMainThread(signal?: AbortSignal): Promise<void> {
-  if (signal && signal.aborted) {
+function yieldToMainThread(signal: AbortSignal): Promise<void> {
+  if (signal.aborted) {
     return Promise.reject(abortError());
   }
 
   return new Promise<void>((resolve, reject) => {
-    const resume = () => {
-      if (signal && signal.aborted) {
-        reject(abortError());
-      } else {
-        resolve();
-      }
+    const useIdleCallback = typeof window.requestIdleCallback === 'function';
+    const cancel = () => {
+      if (useIdleCallback) window.cancelIdleCallback(handle);
+      else window.clearTimeout(handle);
+      reject(abortError());
     };
-
-    if (typeof window.requestIdleCallback === 'function') {
-      window.requestIdleCallback(resume, { timeout: 16 });
-    } else {
-      window.setTimeout(resume, 0);
-    }
+    const resume = () => {
+      signal.removeEventListener('abort', cancel);
+      resolve();
+    };
+    const handle = useIdleCallback
+      ? window.requestIdleCallback(resume, { timeout: 16 })
+      : window.setTimeout(resume, 0);
+    signal.addEventListener('abort', cancel, { once: true });
   });
 }
 
@@ -58,6 +59,10 @@ class PageSearchIndex {
   readonly records = new Map<Element, SearchRecord | null>();
   readonly observer: MutationObserver;
   readonly onChange: () => void;
+  private readonly lifetime = new AbortController();
+  private readonly pendingSubtrees = new Map<Element, number>();
+  private subtreeRevision = 0;
+  private needsPruning = false;
 
   constructor(
     searchableAttributeSettings: SearchableAttributeSettings,
@@ -95,15 +100,12 @@ class PageSearchIndex {
   }
 
   hasDirectSearchableText(node: Element) {
-    return [...node.childNodes].some(
-      child => child.nodeType === Node.TEXT_NODE && (child.textContent?.trim().length ?? 0) > 0,
-    );
-  }
-
-  addCandidate(node: Node | null) {
-    if (this.isCandidate(node) && !this.records.has(node)) {
-      this.records.set(node, null);
+    for (const child of node.childNodes) {
+      if (child.nodeType === Node.TEXT_NODE && (child.textContent?.trim().length ?? 0) > 0) {
+        return true;
+      }
     }
+    return false;
   }
 
   addSubtree(root: Node | null) {
@@ -120,8 +122,7 @@ class PageSearchIndex {
       return;
     }
 
-    this.addCandidate(root);
-    root.querySelectorAll('*').forEach(node => this.addCandidate(node));
+    this.pendingSubtrees.set(root, ++this.subtreeRevision);
   }
 
   removeSubtree(root: Node | null) {
@@ -129,8 +130,7 @@ class PageSearchIndex {
       return;
     }
 
-    this.records.delete(root);
-    root.querySelectorAll('*').forEach(node => this.records.delete(node));
+    this.needsPruning = true;
   }
 
   refreshCandidate(node: Node | null) {
@@ -160,13 +160,49 @@ class PageSearchIndex {
       return;
     }
 
-    this.refreshCandidate(root);
-    root.querySelectorAll('*').forEach(node => this.refreshCandidate(node));
+    this.pendingSubtrees.set(root, ++this.subtreeRevision);
+  }
+
+  private async flushPendingSubtrees(signal: AbortSignal) {
+    let processed = 0;
+    if (this.needsPruning) {
+      this.needsPruning = false;
+      try {
+        for (const node of this.records.keys()) {
+          if (!this.root.contains(node)) this.records.delete(node);
+          if (++processed % SEARCH_CHUNK_SIZE === 0) await yieldToMainThread(signal);
+        }
+      } catch (error) {
+        this.needsPruning = true;
+        throw error;
+      }
+    }
+    for (const [root, revision] of this.pendingSubtrees) {
+      if (!this.root.contains(root)) {
+        this.pendingSubtrees.delete(root);
+        continue;
+      }
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT, {
+        acceptNode: node =>
+          node instanceof Element &&
+          (node.id === KEYMOVE_ROOT_ID || DO_NOT_SEARCH_NODE_TYPES.includes(node.nodeName))
+            ? NodeFilter.FILTER_REJECT
+            : NodeFilter.FILTER_ACCEPT,
+      });
+      let node: Node | null = root;
+      do {
+        if (signal.aborted) throw abortError();
+        this.refreshCandidate(node);
+        if (++processed % SEARCH_CHUNK_SIZE === 0) await yieldToMainThread(signal);
+        node = walker.nextNode();
+      } while (node);
+      if (this.pendingSubtrees.get(root) === revision) this.pendingSubtrees.delete(root);
+    }
   }
 
   handleMutations(mutations: MutationRecord[]) {
     // A queued observer callback can outlive its DOM realm during teardown.
-    if (typeof Element === 'undefined') {
+    if (typeof Element === 'undefined' || this.lifetime.signal.aborted) {
       return;
     }
 
@@ -264,89 +300,126 @@ class PageSearchIndex {
     nodeScorer: NodeScorer,
     { signal, limit = DEFAULT_RESULT_LIMIT }: SearchOptions = {},
   ): Promise<SearchResult> {
-    const nodes = [...this.records.keys()];
-    const matches: Match[] = [];
-    const styles: StyleCache = new WeakMap();
+    if (signal?.aborted || this.lifetime.signal.aborted) throw abortError();
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    signal?.addEventListener('abort', abort, { once: true });
+    this.lifetime.signal.addEventListener('abort', abort, { once: true });
+    try {
+      return await this.searchWithSignal(nodeScorer, controller.signal, limit);
+    } finally {
+      signal?.removeEventListener('abort', abort);
+      this.lifetime.signal.removeEventListener('abort', abort);
+    }
+  }
 
-    for (let offset = 0; offset < nodes.length; offset += SEARCH_CHUNK_SIZE) {
-      if (signal && signal.aborted) {
-        throw abortError();
+  private async searchWithSignal(
+    nodeScorer: NodeScorer,
+    searchSignal: AbortSignal,
+    limit: number,
+  ): Promise<SearchResult> {
+    const resultLimit = Number.isFinite(limit)
+      ? Math.max(0, Math.floor(limit))
+      : DEFAULT_RESULT_LIMIT;
+    if (resultLimit === 0) return { matchingText: [], matchingLinksAndButtons: [] };
+    await this.flushPendingSubtrees(searchSignal);
+    const actions: ActionMatch[] = [];
+    const textMatchesByContainer = new Map<Element, TextMatch>();
+    const matchingText: TextMatch[] = [];
+    const styles: StyleCache = new WeakMap();
+    let processed = 0;
+    for (const node of this.records.keys()) {
+      if (searchSignal.aborted) throw abortError();
+      if (++processed % SEARCH_CHUNK_SIZE === 0) await yieldToMainThread(searchSignal);
+      if (searchSignal.aborted) throw abortError();
+      if (!this.root.contains(node)) {
+        this.records.delete(node);
+        continue;
       }
 
-      nodes.slice(offset, offset + SEARCH_CHUNK_SIZE).forEach(node => {
-        if (!node.isConnected) {
-          this.records.delete(node);
-          return;
-        }
+      if (!this.isVisible(node, styles)) {
+        continue;
+      }
 
-        if (!this.isVisible(node, styles)) {
-          return;
-        }
-
-        const record = this.recordForNode(node);
-        // Visibility can change through ancestor styles without changing this node's text.
-        const innerText = visibleText(node, styles)
-          .toLocaleLowerCase()
-          .trim()
-          .replace(NO_BREAK_SPACE_REGEX, ' ');
-        const score = nodeScorer.score(node, innerText, record.attributeValues);
-        if (score > 0) {
-          matches.push({ node, score, innerText });
-        }
-      });
-
-      if (offset + SEARCH_CHUNK_SIZE < nodes.length) {
-        await yieldToMainThread(signal);
+      const record = this.recordForNode(node);
+      // Visibility can change through ancestor styles without changing this node's text.
+      const textParts: string[] = [];
+      for (const text of iterateVisibleTextNodes(node, styles)) {
+        textParts.push(text.data);
+        if (++processed % SEARCH_CHUNK_SIZE === 0) await yieldToMainThread(searchSignal);
+      }
+      const innerText = textParts
+        .join('')
+        .toLocaleLowerCase()
+        .trim()
+        .replace(NO_BREAK_SPACE_REGEX, ' ');
+      const score = nodeScorer.score(node, innerText, record.attributeValues);
+      if (score <= 0) continue;
+      if (
+        node instanceof HTMLElement &&
+        this.searchableAttributeSettings.isLinkOrButtonOrInput(node)
+      ) {
+        const insertion = actions.findIndex(match => match.score < score);
+        if (insertion !== -1) actions.splice(insertion, 0, { node, score });
+        else if (actions.length < resultLimit) actions.push({ node, score });
+        if (actions.length > resultLimit) actions.pop();
+      }
+      if (
+        (!this.hasDirectSearchableText(node) && !node.matches(TEXT_BLOCK_SELECTOR)) ||
+        !nodeScorer.textMatchesWithValue(innerText)
+      )
+        continue;
+      const textContainer = this.textContainerForNode(node);
+      const action = this.actionableAncestorForNode(node);
+      const existingMatch = textMatchesByContainer.get(textContainer);
+      if (existingMatch) {
+        existingMatch.action ??= action;
+        continue;
+      }
+      const insertion = matchingText.findIndex(match =>
+        Boolean(
+          match.node.compareDocumentPosition(textContainer) & Node.DOCUMENT_POSITION_PRECEDING,
+        ),
+      );
+      const match = { node: textContainer, action };
+      if (insertion !== -1) matchingText.splice(insertion, 0, match);
+      else if (matchingText.length < resultLimit) matchingText.push(match);
+      else continue;
+      textMatchesByContainer.set(textContainer, match);
+      if (matchingText.length > resultLimit) {
+        textMatchesByContainer.delete(matchingText.pop()!.node);
       }
     }
-
-    const textMatchesByContainer = new Map<Element, TextMatch>();
-    matches.forEach(match => {
-      if (
-        (!this.hasDirectSearchableText(match.node) && !match.node.matches(TEXT_BLOCK_SELECTOR)) ||
-        !nodeScorer.textMatchesWithValue(match.innerText)
-      ) {
-        return;
+    for (const match of matchingText) {
+      if (match.action) continue;
+      const walker = document.createTreeWalker(match.node, NodeFilter.SHOW_ELEMENT);
+      let node = walker.nextNode();
+      while (node) {
+        if (++processed % SEARCH_CHUNK_SIZE === 0) await yieldToMainThread(searchSignal);
+        if (
+          node instanceof HTMLElement &&
+          node.matches(this.actionableSelector) &&
+          this.isVisible(node, styles)
+        ) {
+          match.action = node;
+          break;
+        }
+        node = walker.nextNode();
       }
-
-      const textContainer = this.textContainerForNode(match.node);
-      const action = this.actionableAncestorForNode(match.node);
-      const existingMatch = textMatchesByContainer.get(textContainer);
-      if (!existingMatch) {
-        textMatchesByContainer.set(textContainer, { node: textContainer, action });
-      } else if (!existingMatch.action && action) {
-        existingMatch.action = action;
-      }
-    });
-    textMatchesByContainer.forEach(match => {
-      match.action ??= [...match.node.querySelectorAll(this.actionableSelector)].find(
-        (node): node is HTMLElement => node instanceof HTMLElement && this.isVisible(node, styles),
-      ) ?? null;
-    });
-    const matchingText = [...textMatchesByContainer.values()]
-      .sort((first, second) =>
-        first.node.compareDocumentPosition(second.node) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1,
-      )
-      .slice(0, limit);
-    const matchingLinksAndButtons = matches
-      .filter(
-        (match): match is Match & { node: HTMLElement } =>
-          match.node instanceof HTMLElement &&
-          this.searchableAttributeSettings.isLinkOrButtonOrInput(match.node),
-      )
-      .sort((first, second) => second.score - first.score)
-      .slice(0, limit)
-      .map(match => match.node);
+    }
+    if (searchSignal.aborted) throw abortError();
 
     return {
       matchingText,
-      matchingLinksAndButtons,
+      matchingLinksAndButtons: actions.map(match => match.node),
     };
   }
 
   disconnect() {
+    this.lifetime.abort();
     this.observer.disconnect();
     this.records.clear();
+    this.pendingSubtrees.clear();
   }
 }
 

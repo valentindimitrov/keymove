@@ -22,13 +22,16 @@ const InfoPanel = ({ onDismiss, ...settings }: SettingsControls & { onDismiss?: 
   );
 
   return (
-    <div id={'keymove-info-panel'} onKeyDown={event => {
-      if (event.key === 'Escape' && onDismiss) {
-        event.preventDefault();
-        event.stopPropagation();
-        onDismiss();
-      }
-    }}>
+    <div
+      id={'keymove-info-panel'}
+      onKeyDown={event => {
+        if (event.key === 'Escape' && onDismiss) {
+          event.preventDefault();
+          event.stopPropagation();
+          onDismiss();
+        }
+      }}
+    >
       <InfoPanelSectionHeader text={'Keyboard Shortcuts'} />
       <InfoPanelKeyboardShortcuts />
       <InfoPanelSectionHeader marginTop text={'Settings'} />

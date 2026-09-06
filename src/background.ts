@@ -1,10 +1,12 @@
 import ExtensionMessageTypes, { isExtensionMessage } from './extension_message_types.js';
 import { EXTENSION_NAME } from './extension_identity.js';
 import { isInjectableUrl, normalizedOpenableLinkUrl } from './lib/extension_tabs.js';
+import { isRecord } from './lib/runtime_schema.js';
 import { browser, type Browser } from 'wxt/browser';
 
 const CONTENT_SCRIPT_FILE = '/content-scripts/content.js';
 const CONTENT_STYLESHEET_FILE = 'content-scripts/content.css';
+const INSTALLATION_CONCURRENCY = 4;
 
 export default function registerBackground() {
   browser.action.onClicked.addListener(tab => {
@@ -12,8 +14,11 @@ export default function registerBackground() {
   });
 
   browser.runtime.onInstalled.addListener(handleInstallationEvent);
-  browser.runtime.onMessage.addListener((message, sender) => {
-    void handleExtensionMessage(message, sender);
+  browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (!isExtensionMessage(message) || message.type !== ExtensionMessageTypes.OPEN_LINK_IN_NEW_TAB)
+      return undefined;
+    void handleExtensionMessage(message, sender).then(() => sendResponse());
+    return true;
   });
 }
 
@@ -22,10 +27,16 @@ async function handleExtensionMessage(message: unknown, sender: Browser.runtime.
     return;
   }
 
-  if (!sender.tab) {
+  if (
+    !sender.tab ||
+    !Number.isInteger(sender.tab.id) ||
+    (sender.tab.id ?? -1) < 0 ||
+    sender.id !== browser.runtime.id ||
+    sender.frameId !== 0
+  ) {
     reportExtensionApiError(
-      'open a link requested outside a content-script tab',
-      new Error('missing sender tab'),
+      'open a link requested by an invalid sender',
+      new Error('expected this extension in a top-level content-script tab'),
     );
     return;
   }
@@ -64,15 +75,29 @@ async function sendToolbarActionClickedMessageToTab(tab: Browser.tabs.Tab) {
 }
 
 async function injectContentScriptToAllTabs() {
-  const tabs = await browser.tabs.query({});
+  const response: unknown = await browser.tabs.query({});
+  if (!Array.isArray(response)) throw new TypeError('tabs query must return an array');
+  const tabs = response.filter(
+    (tab): tab is { id: number; url: string } =>
+      isRecord(tab) &&
+      typeof tab['id'] === 'number' &&
+      Number.isInteger(tab['id']) &&
+      tab['id'] >= 0 &&
+      typeof tab['url'] === 'string' &&
+      isInjectableUrl(tab['url']),
+  );
+  let nextTab = 0;
   await Promise.all(
-    tabs
-      .filter(tab => tab.id !== undefined && isInjectableUrl(tab.url))
-      .map(tab => injectContentScriptToTab(tab)),
+    Array.from({ length: Math.min(INSTALLATION_CONCURRENCY, tabs.length) }, async () => {
+      while (nextTab < tabs.length) {
+        const tab = tabs[nextTab++]!;
+        await injectContentScriptToTab(tab);
+      }
+    }),
   );
 }
 
-async function injectContentScriptToTab(tab: Browser.tabs.Tab) {
+async function injectContentScriptToTab(tab: { id: number }) {
   if (tab.id === undefined) {
     return;
   }
@@ -92,9 +117,7 @@ async function injectContentScriptToTab(tab: Browser.tabs.Tab) {
 }
 
 function isInstalledResponse(value: unknown): value is { status: 'installed' } {
-  return Boolean(
-    value && typeof value === 'object' && 'status' in value && value.status === 'installed',
-  );
+  return isRecord(value) && Object.hasOwn(value, 'status') && value['status'] === 'installed';
 }
 
 async function injectContentScriptAndStyles(tabId: number) {

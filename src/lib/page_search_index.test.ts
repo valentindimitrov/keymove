@@ -30,6 +30,8 @@ afterEach(() => {
     index = null;
   }
   document.body.innerHTML = '';
+  vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 test('ranks action results by relevance instead of DOM order', async () => {
@@ -144,7 +146,8 @@ test('uses a whole text block while retaining its nested action', async () => {
 });
 
 test('associates the matching nested link before falling back to another block action', async () => {
-  document.body.innerHTML = '<p>Read <a href="/home">home</a> or <a href="/docs">documentation</a>.</p>';
+  document.body.innerHTML =
+    '<p>Read <a href="/home">home</a> or <a href="/docs">documentation</a>.</p>';
   index = new PageSearchIndex(settings);
   expect((await index.search(scorerFor('documentation'))).matchingText).toEqual([
     { node: document.querySelector('p'), action: document.querySelector('a[href="/docs"]') },
@@ -229,4 +232,58 @@ test('cancels obsolete searches', async () => {
   await expect(
     index.search(scorerFor('save'), { signal: controller.signal }),
   ).rejects.toMatchObject({ name: 'AbortError' });
+});
+
+test('defers initial indexing, cancels queued work immediately, and resumes the full scan', async () => {
+  document.body.innerHTML = `${'<p>Save</p>'.repeat(250)}<button>Unique result</button>`;
+  vi.useFakeTimers();
+  index = new PageSearchIndex(settings);
+  expect(index.records.size).toBe(0);
+  const controller = new AbortController();
+  const pending = index.search(scorerFor('unique'), { signal: controller.signal });
+  expect(index.records.size).toBeGreaterThan(0);
+  expect(index.records.size).toBeLessThan(250);
+  expect(vi.getTimerCount()).toBe(1);
+  const rejected = expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+  controller.abort();
+  await rejected;
+  expect(vi.getTimerCount()).toBe(0);
+
+  const resumed = index.search(scorerFor('unique'));
+  await vi.runAllTimersAsync();
+  expect((await resumed).matchingLinksAndButtons).toEqual([document.querySelector('button')]);
+});
+
+test('disconnect cancels pending work and releases indexed DOM nodes', async () => {
+  document.body.innerHTML = '<p>Save</p>'.repeat(250);
+  vi.useFakeTimers();
+  index = new PageSearchIndex(settings);
+  const pending = index.search(scorerFor('save'));
+  const rejected = expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+  index.disconnect();
+  await rejected;
+  expect(index.records.size).toBe(0);
+  expect(vi.getTimerCount()).toBe(0);
+  await expect(index.search(scorerFor('save'))).rejects.toMatchObject({ name: 'AbortError' });
+});
+
+test('defers large inserted subtrees until a cancellable search runs', async () => {
+  index = new PageSearchIndex(settings);
+  await index.search(scorerFor('save'));
+  const refresh = vi.spyOn(index, 'refreshCandidate');
+  document.body.innerHTML = `<main>${'<button>Save</button>'.repeat(250)}</main>`;
+  await waitForMutations();
+  expect(refresh).toHaveBeenCalledTimes(1);
+  expect((await index.search(scorerFor('save'))).matchingLinksAndButtons).toHaveLength(
+    DEFAULT_RESULT_LIMIT,
+  );
+});
+
+test('retains the earliest text blocks and highest ranked actions with a small limit', async () => {
+  document.body.innerHTML = `${'<button>Autosave</button>'.repeat(60)}<button>Save settings</button>`;
+  index = new PageSearchIndex(settings);
+  const firstButton = document.querySelector('button');
+  const result = await index.search(scorerFor('save'), { limit: 1 });
+  expect(result.matchingText).toEqual([{ node: firstButton, action: firstButton }]);
+  expect(result.matchingLinksAndButtons[0]?.textContent).toBe('Save settings');
 });

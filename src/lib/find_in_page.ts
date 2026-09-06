@@ -8,10 +8,17 @@ let sharedIndex: PageSearchIndex | null = null;
 let sharedIndexHost: string | null = null;
 const pageChangeListeners = new Set<() => void>();
 
+function releasePageSearchIndex() {
+  sharedIndex?.disconnect();
+  sharedIndex = null;
+  sharedIndexHost = null;
+}
+
 function subscribeToPageChanges(listener: () => void) {
   pageChangeListeners.add(listener);
   return () => {
     pageChangeListeners.delete(listener);
+    if (pageChangeListeners.size === 0) releasePageSearchIndex();
   };
 }
 
@@ -19,6 +26,7 @@ class FindInPage {
   readonly searchText: string;
   readonly searchableAttributeSettings: SearchableAttributeSettings;
   readonly nodeScorer: NodeScorer;
+  private readonly additionalSelectors: string[];
 
   constructor(searchText: string) {
     this.searchText = searchText.toLocaleLowerCase().trimStart();
@@ -28,6 +36,7 @@ class FindInPage {
     const relevantWords = appSpecificSettings.relevant_words || [];
     const relevantWordToSelectorMappings =
       appSpecificSettings.relevant_word_to_selector_mappings || {};
+    this.additionalSelectors = Object.values(relevantWordToSelectorMappings);
 
     const relevantSelectors = (appSpecificSettings.relevant_selectors || []).map(
       selectorData => selectorData.selector,
@@ -51,19 +60,6 @@ class FindInPage {
       relevantSelectors,
       relevantWordToSelectorMappings,
     );
-
-    if (!sharedIndex || sharedIndexHost !== host || sharedIndex.root !== document.body) {
-      if (sharedIndex) {
-        sharedIndex.disconnect();
-      }
-
-      sharedIndexHost = host;
-      sharedIndex = new PageSearchIndex(
-        this.searchableAttributeSettings,
-        Object.values(relevantWordToSelectorMappings),
-        () => pageChangeListeners.forEach(listener => listener()),
-      );
-    }
   }
 
   findMatches(options: { signal?: AbortSignal; limit?: number } = {}) {
@@ -73,16 +69,25 @@ class FindInPage {
         matchingLinksAndButtons: [],
       });
     }
+    const host = window.location.host;
+    if (!sharedIndex || sharedIndexHost !== host || sharedIndex.root !== document.body) {
+      if (sharedIndex) {
+        sharedIndex.disconnect();
+      }
 
-    return (
-      sharedIndex?.search(this.nodeScorer, options) ??
-      Promise.resolve({
-        matchingText: [],
-        matchingLinksAndButtons: [],
-      })
-    );
+      sharedIndexHost = host;
+      sharedIndex = new PageSearchIndex(
+        this.searchableAttributeSettings,
+        this.additionalSelectors,
+        () => {
+          if (sharedIndex?.root !== document.body) releasePageSearchIndex();
+          pageChangeListeners.forEach(listener => listener());
+        },
+      );
+    }
+    return sharedIndex.search(this.nodeScorer, options);
   }
 }
 
 export default FindInPage;
-export { subscribeToPageChanges };
+export { releasePageSearchIndex, subscribeToPageChanges };

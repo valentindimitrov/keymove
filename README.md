@@ -43,6 +43,10 @@ KeyMove has two independent navigation modes:
 The two modes retain separate positions. Changing the search query clears both positions, so
 KeyMove never preselects a result before you choose a navigation command.
 
+Each mode shows up to 50 results. Visual highlighting is limited to 500 occurrences per query;
+navigation and copying still use complete text blocks. The page index is released when search
+ends, and large indexing jobs yield between chunks so they can be cancelled.
+
 ### Keyboard shortcuts
 
 | Shortcut | Action |
@@ -178,6 +182,9 @@ non-thenable values. It runs automatically through `yarn lint`, `yarn lint:fix`,
 The generated WXT types must be available (`yarn install` runs `wxt prepare`). Strict TypeScript
 checking remains a separate required step.
 
+Run `yarn audit` to check dependency advisories. The `package.json` resolutions keep the development
+tooling dependencies `ansi-regex` and `@babel/runtime` above their known vulnerable versions.
+
 ### Architecture
 
 - [entrypoints/content.tsx](entrypoints/content.tsx) mounts the interface inside an isolated Shadow
@@ -223,4 +230,5 @@ permission to relicense the upstream code under MIT,
 upstream contribution documentation
 
 Functionality:
-Add actions extensibility - dictionary, search, provide,
+Add actions extensibility - dictionary, search, custom pass along
+links only navigation
