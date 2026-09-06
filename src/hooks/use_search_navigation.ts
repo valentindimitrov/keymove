@@ -22,6 +22,7 @@ type SearchNavigationAction =
       type: 'set-results';
       textResults: TextMatch[];
       actionResults: HTMLElement[];
+      preserveSelection?: boolean;
     }
   | { type: 'clear-results' }
   | { type: 'set-mode'; mode: SearchMode }
@@ -53,10 +54,22 @@ function searchNavigationReducer(
           actions: action.actionResults,
         },
         selectedIndices: {
-          text: null,
-          actions: null,
+          text: action.preserveSelection
+            ? retainedIndex(
+                state.results.text.map(match => match.node),
+                action.textResults.map(match => match.node),
+                state.selectedIndices.text,
+              )
+            : null,
+          actions: action.preserveSelection
+            ? retainedIndex(
+                state.results.actions,
+                action.actionResults,
+                state.selectedIndices.actions,
+              )
+            : null,
         },
-        mode: SEARCH_MODES.TEXT,
+        mode: action.preserveSelection ? state.mode : SEARCH_MODES.TEXT,
       };
     case 'clear-results':
       return {
@@ -80,15 +93,24 @@ function searchNavigationReducer(
   }
 }
 
+function retainedIndex(previous: Element[], next: Element[], selectedIndex: number | null) {
+  const node = selectedIndex === null ? undefined : previous[selectedIndex];
+  const index = node ? next.indexOf(node) : -1;
+  return index === -1 ? null : index;
+}
+
 function useSearchNavigation() {
   const [state, dispatch] = React.useReducer(
     searchNavigationReducer,
     INITIAL_SEARCH_NAVIGATION_STATE,
   );
 
-  const setResults = React.useCallback((textResults: TextMatch[], actionResults: HTMLElement[]) => {
-    dispatch({ type: 'set-results', textResults, actionResults });
-  }, []);
+  const setResults = React.useCallback(
+    (textResults: TextMatch[], actionResults: HTMLElement[], preserveSelection = false) => {
+      dispatch({ type: 'set-results', textResults, actionResults, preserveSelection });
+    },
+    [],
+  );
 
   const clearResults = React.useCallback(() => dispatch({ type: 'clear-results' }), []);
 

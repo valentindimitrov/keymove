@@ -46,7 +46,7 @@ class NodeScorer {
 
     innerText = innerText.replace(NO_BREAK_SPACE_REGEX, ' ');
     const innerTextWords = this.getWordsFromText(innerText);
-    if (innerText && innerText.length > 0) {
+    if (innerText) {
       score = this.fieldScore(
         innerText,
         innerTextWords,
@@ -64,7 +64,7 @@ class NodeScorer {
     }
 
     if (score === 0 && this.synonyms.length > 0) {
-      if (innerText && innerText.length > 0) {
+      if (innerText) {
         score = this.getHighestSynonymScore(innerText, innerTextWords);
       }
 
@@ -118,7 +118,7 @@ class NodeScorer {
   ) {
     let score = 0;
 
-    if (!fieldText || fieldText.length === 0) {
+    if (!fieldText) {
       return 0;
     }
 

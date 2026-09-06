@@ -1,3 +1,11 @@
+import {
+  assertKnownKeys,
+  assertNonemptyString,
+  assertObject,
+  assertStringArray,
+  fail,
+} from './runtime_schema.js';
+
 const SHORTCUT_KEYS = new Set(['name', 'eventMatcher', 'displayKeys', 'text']);
 const EVENT_MATCHER_KEYS = new Set(['code', 'flags', 'discludedFlags']);
 const PLATFORM_KEYS = new Set(['default', 'mac']);
@@ -151,10 +159,3 @@ export type {
   ShortcutEventMatcher,
 };
 export { KEYBOARD_SHORTCUT_NAMES, validateKeyboardShortcuts, validateSearchableAttributes };
-import {
-  assertKnownKeys,
-  assertNonemptyString,
-  assertObject,
-  assertStringArray,
-  fail,
-} from './runtime_schema.js';

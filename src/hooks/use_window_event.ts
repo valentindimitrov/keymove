@@ -1,18 +1,18 @@
 import React from 'react';
 
 function useWindowEvent<K extends keyof WindowEventMap>(
-  effect: K,
-  conditional: boolean,
+  eventName: K,
+  enabled: boolean,
   callback: (event: WindowEventMap[K]) => void,
 ) {
-  return React.useEffect(() => {
-    if (!conditional) {
+  React.useEffect(() => {
+    if (!enabled) {
       return undefined;
     }
 
-    window.addEventListener(effect, callback);
-    return () => window.removeEventListener(effect, callback);
-  }, [effect, conditional, callback]);
+    window.addEventListener(eventName, callback);
+    return () => window.removeEventListener(eventName, callback);
+  }, [eventName, enabled, callback]);
 }
 
 export default useWindowEvent;

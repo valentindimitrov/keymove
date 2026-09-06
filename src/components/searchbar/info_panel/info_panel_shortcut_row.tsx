@@ -1,4 +1,3 @@
-import React from 'react';
 import InfoPanelRow from './info_panel_row.js';
 import type { KeyboardShortcut } from '../../../lib/static_data_schema.js';
 
@@ -12,9 +11,7 @@ type InfoPanelShortcutRowProps = { isMacOS: boolean; shortcut: DisplayableKeyboa
 const InfoPanelShortcutRow = (props: InfoPanelShortcutRowProps) => {
   const { isMacOS, shortcut } = props;
 
-  const keys = React.useMemo(() => {
-    return (isMacOS && shortcut.displayKeys.mac) || shortcut.displayKeys.default;
-  }, [shortcut, isMacOS]);
+  const keys = (isMacOS && shortcut.displayKeys.mac) || shortcut.displayKeys.default;
 
   return (
     <InfoPanelRow>

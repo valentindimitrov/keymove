@@ -1,0 +1,5 @@
+# Keep formatter-managed files consistent on Windows and Unix checkouts.
+*.ts text eol=lf
+*.tsx text eol=lf
+*.json text eol=lf
+*.css text eol=lf

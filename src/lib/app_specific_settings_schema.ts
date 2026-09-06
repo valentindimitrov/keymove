@@ -1,3 +1,11 @@
+import {
+  assertKnownKeys,
+  assertNonemptyString,
+  assertObject,
+  assertStringArray,
+  fail,
+} from './runtime_schema.js';
+
 const TOP_LEVEL_KEYS = new Set([
   'host',
   'additional_button_selectors',
@@ -124,10 +132,3 @@ function validateAppSpecificSettings(
 
 export type { AppSettings, SelectorEntry, SynonymSettings, ValidatedAppSettings };
 export { validateAppSpecificSettings };
-import {
-  assertKnownKeys,
-  assertNonemptyString,
-  assertObject,
-  assertStringArray,
-  fail,
-} from './runtime_schema.js';

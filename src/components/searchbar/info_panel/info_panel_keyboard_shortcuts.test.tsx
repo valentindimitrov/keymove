@@ -4,17 +4,22 @@ import InfoPanelKeyboardShortcuts from './info_panel_keyboard_shortcuts.js';
 test('shows both text and action navigation shortcut families', () => {
   render(<InfoPanelKeyboardShortcuts />);
 
-  const previousTextRow = screen.getByText('to select the previous matching text block')
-    .parentElement!;
+  const previousTextRow = screen.getByText(
+    'to select the previous matching text block',
+  ).parentElement!;
   const nextActionRow = screen.getByText('to select the next matching action').parentElement!;
-  const previousActionRow = screen.getByText('to select the previous matching action')
-    .parentElement!;
-  const foregroundTabRow = screen.getByText('to open the selected link in a new tab')
-    .parentElement!;
-  const backgroundTabRow = screen.getByText('to open the selected link in a background tab')
-    .parentElement!;
-  const copyLinkRow = screen.getByText('to copy the selected link (or selected text block)')
-    .parentElement!;
+  const previousActionRow = screen.getByText(
+    'to select the previous matching action',
+  ).parentElement!;
+  const foregroundTabRow = screen.getByText(
+    'to open the selected link in a new tab',
+  ).parentElement!;
+  const backgroundTabRow = screen.getByText(
+    'to open the selected link in a background tab',
+  ).parentElement!;
+  const copyLinkRow = screen.getByText(
+    'to copy the selected link (or selected text block)',
+  ).parentElement!;
   const clearSearchRow = screen.getByText('to clear the searchbar').parentElement!;
 
   expect(within(previousTextRow).getByText('Shift')).toBeInTheDocument();

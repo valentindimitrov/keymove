@@ -25,6 +25,15 @@ function elementIsActive(element: Element | null) {
   return getDeepActiveElement() === element;
 }
 
+function isExtensionElement(element: EventTarget | null) {
+  return (
+    element instanceof Element &&
+    Boolean(
+      element.closest('#keymove-container, #keymove-info-panel, #keymove-root, #keymove-portal'),
+    )
+  );
+}
+
 function clickOrFocusNode(node: HTMLElement) {
   if (INPUT_NODE_TYPES.includes(node.nodeName)) {
     node.focus();
@@ -72,22 +81,8 @@ function keyValidForFocus(key: string) {
   return KEYS_VALID_FOR_FOCUS_REGEX.test(key);
 }
 
-function getTextContentOfNode(node: Node): string {
-  if (typeof node.textContent === 'string') {
-    return node.textContent;
-  }
-  if (node instanceof HTMLElement) {
-    return node.innerText;
-  }
-  return '';
-}
-
 function clampNumber(number: number, min: number, max: number) {
   return Math.min(Math.max(number, min), max);
-}
-
-function compareDescending(a: number, b: number) {
-  return b - a;
 }
 
 function isMacOS() {
@@ -140,13 +135,12 @@ function hostIsGmail() {
 const Utils = {
   differentInputIsActive,
   elementIsActive,
+  isExtensionElement,
   clickOrFocusNode,
   linkUrlForNode,
   openableLinkUrlForNode,
   keyValidForFocus,
-  getTextContentOfNode,
   clampNumber,
-  compareDescending,
   isMacOS,
   nodeIsInViewport,
   scrollToNodeAtIndexInList,

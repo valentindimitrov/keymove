@@ -17,6 +17,7 @@ function reportPositionError(operation: string, error: unknown) {
 }
 
 const usePopupPosition = () => {
+  const revision = React.useRef(0);
   const [position, setPosition] = React.useState<PopupPosition>({ ...DEFAULT_POPUP_POSITION });
 
   const applyStoredPosition = React.useCallback((value: unknown) => {
@@ -27,13 +28,12 @@ const usePopupPosition = () => {
 
   const updatePosition = React.useCallback(
     (newPosition: PopupPosition) => {
+      const writeRevision = ++revision.current;
       const previousPosition = position;
       setPosition(newPosition);
       void browser.storage.local.set({ [POPUP_POSITION_STORAGE_KEY]: newPosition }).catch(error => {
         reportPositionError('save the popup position', error);
-        setPosition(currentPosition =>
-          currentPosition === newPosition ? previousPosition : currentPosition,
-        );
+        if (revision.current === writeRevision) setPosition(previousPosition);
       });
     },
     [position],
@@ -50,6 +50,7 @@ const usePopupPosition = () => {
       storageNamespace: Browser.storage.AreaName,
     ) => {
       if (storageNamespace === 'local' && Object.hasOwn(changes, POPUP_POSITION_STORAGE_KEY)) {
+        revision.current += 1;
         applyStoredPosition(changes[POPUP_POSITION_STORAGE_KEY]?.newValue);
       }
     },
@@ -57,12 +58,20 @@ const usePopupPosition = () => {
   );
 
   React.useEffect(() => {
+    let active = true;
+    const initialRevision = revision.current;
+    browser.storage.onChanged.addListener(handleStorageChange);
     void browser.storage.local
       .get(POPUP_POSITION_STORAGE_KEY)
-      .then(data => applyStoredPosition(data[POPUP_POSITION_STORAGE_KEY]))
+      .then(data => {
+        if (active && revision.current === initialRevision)
+          applyStoredPosition(data[POPUP_POSITION_STORAGE_KEY]);
+      })
       .catch(error => reportPositionError('read the popup position', error));
-    browser.storage.onChanged.addListener(handleStorageChange);
-    return () => browser.storage.onChanged.removeListener(handleStorageChange);
+    return () => {
+      active = false;
+      browser.storage.onChanged.removeListener(handleStorageChange);
+    };
   }, [applyStoredPosition, handleStorageChange]);
 
   return { position, updatePosition, resetPosition };

@@ -1,36 +1,32 @@
 import React from 'react';
-import useWindowEvent from './use_window_event.js';
 
 function getWindowDimensions() {
   return { height: window.innerHeight, width: window.innerWidth };
 }
 
-const useWindowSize = (listen = true, timeoutDuration = 0) => {
-  const [windowSize, setWindowSize] = React.useState(getWindowDimensions());
-  const resizeTimeout = React.useRef<number | undefined>(undefined);
-
-  const resize = React.useCallback(() => {
-    if (resizeTimeout.current) {
-      window.clearTimeout(resizeTimeout.current);
-    }
-
-    if (timeoutDuration === 0) {
-      setWindowSize(getWindowDimensions());
-    } else {
-      resizeTimeout.current = window.setTimeout(
-        () => setWindowSize(getWindowDimensions()),
-        timeoutDuration,
-      );
-    }
-  }, [timeoutDuration]);
+const useWindowSize = (timeoutDuration = 0) => {
+  const [windowSize, setWindowSize] = React.useState(getWindowDimensions);
 
   React.useEffect(() => {
-    if (listen) {
-      setWindowSize(getWindowDimensions());
-    }
-  }, [listen]);
+    let resizeTimeout: number | undefined;
+    const resize = () => {
+      window.clearTimeout(resizeTimeout);
+      if (timeoutDuration === 0) {
+        setWindowSize(getWindowDimensions());
+      } else {
+        resizeTimeout = window.setTimeout(
+          () => setWindowSize(getWindowDimensions()),
+          timeoutDuration,
+        );
+      }
+    };
 
-  useWindowEvent('resize', listen, resize);
+    window.addEventListener('resize', resize);
+    return () => {
+      window.removeEventListener('resize', resize);
+      window.clearTimeout(resizeTimeout);
+    };
+  }, [timeoutDuration]);
 
   return windowSize;
 };

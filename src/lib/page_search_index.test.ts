@@ -32,7 +32,7 @@ afterEach(() => {
   document.body.innerHTML = '';
 });
 
-test('ranks all results by relevance instead of DOM order', async () => {
+test('ranks action results by relevance instead of DOM order', async () => {
   document.body.innerHTML = '<button>Autosave</button><button>Save settings</button>';
   index = new PageSearchIndex(settings);
 
@@ -41,6 +41,64 @@ test('ranks all results by relevance instead of DOM order', async () => {
   expect(result.matchingLinksAndButtons.map(node => node.textContent)).toEqual([
     'Save settings',
     'Autosave',
+  ]);
+});
+
+test('does not match hidden descendant text inside a visible block', async () => {
+  document.body.innerHTML =
+    '<p>Visible text <span hidden>secret</span><span style="opacity: 0">private</span></p>';
+  index = new PageSearchIndex(settings);
+  expect((await index.search(scorerFor('secret'))).matchingText).toEqual([]);
+  expect((await index.search(scorerFor('private'))).matchingText).toEqual([]);
+});
+
+test('rechecks descendant visibility after an ancestor class changes', async () => {
+  document.body.innerHTML =
+    '<style>.concealed span { display: none; }</style><main><p>Visible <span>secret</span></p></main>';
+  index = new PageSearchIndex(settings);
+  expect((await index.search(scorerFor('secret'))).matchingText).toHaveLength(1);
+  document.querySelector('main')!.className = 'concealed';
+  await waitForMutations();
+  expect((await index.search(scorerFor('secret'))).matchingText).toEqual([]);
+});
+
+test('finds a phrase split across inline descendants as one semantic block', async () => {
+  document.body.innerHTML = '<p><span>Save </span><strong>settings</strong></p>';
+  index = new PageSearchIndex(settings);
+  expect((await index.search(scorerFor('save settings'))).matchingText).toEqual([
+    { node: document.querySelector('p'), action: null },
+  ]);
+});
+
+test('keeps text navigation in document order after inserting an earlier result', async () => {
+  document.body.innerHTML = '<p>Save second</p>';
+  index = new PageSearchIndex(settings);
+  document.body.insertAdjacentHTML('afterbegin', '<p>Save first</p>');
+  await waitForMutations();
+  expect(
+    (await index.search(scorerFor('save'))).matchingText.map(match => match.node.textContent),
+  ).toEqual(['Save first', 'Save second']);
+});
+
+test('notifies page changes while ignoring extension host reattachment', async () => {
+  const onChange = vi.fn();
+  index = new PageSearchIndex(settings, [], onChange);
+  document.body.insertAdjacentHTML('beforeend', '<div id="keymove-root"></div>');
+  await waitForMutations();
+  expect(onChange).not.toHaveBeenCalled();
+  document.body.insertAdjacentHTML('beforeend', '<p>Save</p>');
+  await waitForMutations();
+  expect(onChange).toHaveBeenCalledOnce();
+});
+
+test('discovers attribute-only custom actions when an ancestor starts matching', async () => {
+  document.body.innerHTML = '<main><div aria-label="Save"></div></main>';
+  index = new PageSearchIndex(new SearchableAttributeSettings(['.enabled div']));
+  expect((await index.search(scorerFor('save'))).matchingLinksAndButtons).toEqual([]);
+  document.querySelector('main')!.className = 'enabled';
+  await waitForMutations();
+  expect((await index.search(scorerFor('save'))).matchingLinksAndButtons).toEqual([
+    document.querySelector('div'),
   ]);
 });
 
@@ -83,6 +141,14 @@ test('uses a whole text block while retaining its nested action', async () => {
 
   expect(result.matchingText).toEqual([{ node: paragraph, action: link }]);
   expect(result.matchingLinksAndButtons).toEqual([link]);
+});
+
+test('associates the matching nested link before falling back to another block action', async () => {
+  document.body.innerHTML = '<p>Read <a href="/home">home</a> or <a href="/docs">documentation</a>.</p>';
+  index = new PageSearchIndex(settings);
+  expect((await index.search(scorerFor('documentation'))).matchingText).toEqual([
+    { node: document.querySelector('p'), action: document.querySelector('a[href="/docs"]') },
+  ]);
 });
 
 test('refreshes cached records when the page mutates', async () => {

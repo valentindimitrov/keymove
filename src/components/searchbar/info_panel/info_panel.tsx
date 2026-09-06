@@ -6,17 +6,7 @@ import InfoPanelSettings from './info_panel_settings.js';
 import { COMAKE_LANDING_PAGE_LINK } from '../../../constants.js';
 import type { SettingsControls } from '../settings_controls.js';
 
-const InfoPanel = (props: SettingsControls) => {
-  const {
-    autoHide,
-    toggleAutoHide,
-    useOnEveryWebsite,
-    toggleUseOnEveryWebsite,
-    alwaysOn,
-    toggleAlwaysOn,
-    resetPopupPosition,
-  } = props;
-
+const InfoPanel = ({ onDismiss, ...settings }: SettingsControls & { onDismiss?: () => void }) => {
   const madeWithLoveHeader = (
     <>
       Made with ❤️ by{' '}
@@ -32,19 +22,17 @@ const InfoPanel = (props: SettingsControls) => {
   );
 
   return (
-    <div id={'keymove-info-panel'}>
+    <div id={'keymove-info-panel'} onKeyDown={event => {
+      if (event.key === 'Escape' && onDismiss) {
+        event.preventDefault();
+        event.stopPropagation();
+        onDismiss();
+      }
+    }}>
       <InfoPanelSectionHeader text={'Keyboard Shortcuts'} />
       <InfoPanelKeyboardShortcuts />
       <InfoPanelSectionHeader marginTop text={'Settings'} />
-      <InfoPanelSettings
-        autoHide={autoHide}
-        toggleAutoHide={toggleAutoHide}
-        useOnEveryWebsite={useOnEveryWebsite}
-        toggleUseOnEveryWebsite={toggleUseOnEveryWebsite}
-        alwaysOn={alwaysOn}
-        toggleAlwaysOn={toggleAlwaysOn}
-        resetPopupPosition={resetPopupPosition}
-      />
+      <InfoPanelSettings {...settings} />
       <InfoPanelSectionHeader marginTop text={madeWithLoveHeader} />
       <InfoPanelButtons />
     </div>

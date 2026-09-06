@@ -156,12 +156,27 @@ validated before use.
 | `yarn build:vivaldi` | Explicit alias for the Chromium artifact used by Vivaldi. |
 | `yarn build:firefox` | Build the Firefox artifact. |
 | `yarn zip` | Package both browser builds under `.output`. |
-| `yarn format` | Format supported files with Biome. |
-| `yarn lint` | Run Biome lint checks. |
+| `yarn format` | Format supported source and configuration files with Oxfmt. |
+| `yarn format:check` | Check formatting without writing files. |
+| `yarn lint` | Run Oxlint correctness, React Hooks, and type-aware promise checks. |
+| `yarn lint:fix` | Apply Oxlint's safe automatic fixes. |
 | `yarn typecheck` | Run strict TypeScript checks without emitting files. |
 | `yarn test` | Run the Vitest/jsdom test suite. |
 | `yarn verify` | Validate completed manifests and bundles after a build. |
 | `yarn quality` | Run formatting, linting, types, tests, both builds, and artifact validation. |
+
+Formatting preferences live in `.oxfmtrc.json`; lint rules and WXT/Vitest globals live in
+`.oxlintrc.json`. Generated output, coverage, and dependencies are excluded. Markdown and the
+Yarn lockfile remain outside formatting. Formatter-managed source files use LF endings, enforced
+on checkout by `.gitattributes`.
+
+Oxlint uses an explicit ruleset with React Hooks dependency checks at warning severity. Assignment
+checks cover conditions and return values; they do not cover every expression context previously
+checked by Biome. Duplicate parameters and `with` statements are rejected by the module parser.
+Type-aware linting uses `oxlint-tsgolint` to check floating promises, misused promises, and awaiting
+non-thenable values. It runs automatically through `yarn lint`, `yarn lint:fix`, and `yarn quality`.
+The generated WXT types must be available (`yarn install` runs `wxt prepare`). Strict TypeScript
+checking remains a separate required step.
 
 ### Architecture
 
@@ -188,8 +203,6 @@ KeyMove is inspired by and built on the original code of
 [YipYip by Comake, Inc.](https://github.com/comake/yip-yip). Thank you to its original
 developers for creating and sharing the project.
 
-Powered by Comake.
-
 Original KeyMove contributions by Valentin Dimitrov are available under the **MIT License**.
 Inherited and adapted YipYip code retains its **BSD 4-Clause License**, including its copyright,
 attribution, advertising acknowledgement, and disclaimer requirements. Both license texts and
@@ -199,10 +212,15 @@ An MIT-only license for the combined project is pending permission from the upst
 holders. Attribution does not replace that permission. KeyMove is maintained independently;
 this acknowledgement does not imply Comake's endorsement.
 
-## Project status and contact
-
-The functional modernization and KeyMove rebrand are complete. Store listings, publication
-repository metadata, permanent extension IDs, permission to relicense the upstream code under MIT,
-and upstream contribution documentation are being prepared separately.
+## Contact
 
 Questions and feedback: [keymove.impulse550@passmail.com](mailto:keymove.impulse550@passmail.com)
+
+## Project status and TODOs
+Store listings and publication (permanent extension IDs)
+repository metadata
+permission to relicense the upstream code under MIT,
+upstream contribution documentation
+
+Functionality:
+Add actions extensibility - dictionary, search, provide,

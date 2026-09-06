@@ -21,11 +21,11 @@ class SearchableAttributeSettings {
 
   constructor(
     appSpecificAdditionalButtonSelectors: string[] = [],
-    appSecificAdditionalSearchableAttributesByNodeName: Record<string, string[]> = {},
+    appSpecificAdditionalSearchableAttributesByNodeName: Record<string, string[]> = {},
   ) {
     this.additionalButtonSelectors = appSpecificAdditionalButtonSelectors;
     this.additionalSearchableAttributesByNodeName =
-      appSecificAdditionalSearchableAttributesByNodeName;
+      appSpecificAdditionalSearchableAttributesByNodeName;
   }
 
   searchableAttributeSettingsByNodeNameToQuerySelector() {

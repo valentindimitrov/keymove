@@ -4,6 +4,34 @@ import {
   searchNavigationReducer,
 } from './use_search_navigation.js';
 
+test('retains independent cursors by element identity when live results change', () => {
+  const paragraph = document.createElement('p');
+  const link = document.createElement('a');
+  const state = {
+    mode: SEARCH_MODES.ACTIONS,
+    results: { text: [{ node: paragraph, action: link }], actions: [link] },
+    selectedIndices: { text: 0, actions: 0 },
+  };
+  const refreshed = searchNavigationReducer(state, {
+    type: 'set-results',
+    textResults: [
+      { node: document.createElement('p'), action: null },
+      { node: paragraph, action: link },
+    ],
+    actionResults: [document.createElement('button'), link],
+    preserveSelection: true,
+  });
+  expect(refreshed.mode).toBe(SEARCH_MODES.ACTIONS);
+  expect(refreshed.selectedIndices).toEqual({ text: 1, actions: 1 });
+  const removed = searchNavigationReducer(refreshed, {
+    type: 'set-results',
+    textResults: [],
+    actionResults: [],
+    preserveSelection: true,
+  });
+  expect(removed.selectedIndices).toEqual({ text: null, actions: null });
+});
+
 test('keeps text and action results in separate navigation collections', () => {
   const textResult = document.createElement('p');
   const actionResult = document.createElement('button');

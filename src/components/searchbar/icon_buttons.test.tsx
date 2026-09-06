@@ -46,3 +46,13 @@ test('opens and closes help and settings from the keyboard-accessible button', (
   fireEvent.keyDown(button, { key: 'Escape' });
   expect(button).toHaveAttribute('aria-expanded', 'false');
 });
+
+test('Escape inside the settings panel closes it and returns focus to its button', () => {
+  render(<InfoDropdown {...settingsProps} temporarilyEnabled={false} />);
+  const button = screen.getByRole('button', { name: `${EXTENSION_NAME} help and settings` });
+  fireEvent.click(button);
+  const checkbox = screen.getByRole('checkbox', { name: 'Always on' });
+  fireEvent.keyDown(checkbox, { key: 'Escape' });
+  expect(button).toHaveAttribute('aria-expanded', 'false');
+  expect(button).toHaveFocus();
+});

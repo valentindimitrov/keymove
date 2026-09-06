@@ -1,7 +1,8 @@
-import Utils from './utils.js';
 import { DO_NOT_SEARCH_NODE_TYPES, KEYMOVE_ROOT_ID } from '../constants.js';
 import NodeScorer from './node_scorer.js';
 import SearchableAttributeSettings from './searchable_attribute_settings.js';
+import { isTextVisible, visibleText } from './visible_text.js';
+import type { StyleCache } from './visible_text.js';
 
 const DEFAULT_RESULT_LIMIT = 50;
 const SEARCH_CHUNK_SIZE = 100;
@@ -10,12 +11,10 @@ const TEXT_BLOCK_SELECTOR =
   'p, li, blockquote, pre, td, th, dt, dd, figcaption, h1, h2, h3, h4, h5, h6';
 
 type SearchRecord = {
-  node: Element;
-  innerText: string;
   attributeValues: string[];
 };
 
-type Match = { node: Element; score: number };
+type Match = { node: Element; score: number; innerText: string };
 type TextMatch = { node: Element; action: HTMLElement | null };
 type SearchOptions = { signal?: AbortSignal; limit?: number };
 type SearchResult = {
@@ -58,21 +57,24 @@ class PageSearchIndex {
   readonly additionalSelectors: string[];
   readonly records = new Map<Element, SearchRecord | null>();
   readonly observer: MutationObserver;
+  readonly onChange: () => void;
 
   constructor(
     searchableAttributeSettings: SearchableAttributeSettings,
     additionalSelectors: string[] = [],
+    onChange: () => void = () => undefined,
   ) {
     this.root = document.body;
     this.searchableAttributeSettings = searchableAttributeSettings;
     this.actionableSelector =
       searchableAttributeSettings.searchableAttributeSettingsByNodeNameToQuerySelector();
     this.additionalSelectors = additionalSelectors;
+    this.onChange = onChange;
     this.handleMutations = this.handleMutations.bind(this);
 
     this.addSubtree(this.root);
     this.observer = new MutationObserver(this.handleMutations);
-    this.observer.observe(this.root, {
+    this.observer.observe(document.documentElement, {
       attributes: true,
       characterData: true,
       childList: true,
@@ -86,6 +88,7 @@ class PageSearchIndex {
       node.id !== KEYMOVE_ROOT_ID &&
       !DO_NOT_SEARCH_NODE_TYPES.includes(node.nodeName) &&
       (this.hasDirectSearchableText(node) ||
+        node.matches(TEXT_BLOCK_SELECTOR) ||
         node.matches(this.actionableSelector) ||
         this.additionalSelectors.some(selector => node.matches(selector)))
     );
@@ -163,12 +166,31 @@ class PageSearchIndex {
 
   handleMutations(mutations: MutationRecord[]) {
     // A queued observer callback can outlive its DOM realm during teardown.
-    // It is also safer to ignore mutations while a page is replacing its document.
     if (typeof Element === 'undefined') {
       return;
     }
 
-    mutations.forEach(mutation => {
+    const pageMutations = mutations.filter(mutation => {
+      const target =
+        mutation.target instanceof Element ? mutation.target : mutation.target.parentElement;
+      if (target?.closest(`#${KEYMOVE_ROOT_ID}`)) {
+        return false;
+      }
+      return (
+        mutation.type !== 'childList' ||
+        [...mutation.addedNodes, ...mutation.removedNodes].some(
+          node => !(node instanceof Element) || node.id !== KEYMOVE_ROOT_ID,
+        )
+      );
+    });
+    if (pageMutations.length === 0) {
+      return;
+    }
+
+    pageMutations.forEach(mutation => {
+      if (!this.root.contains(mutation.target)) {
+        return;
+      }
       if (mutation.type === 'childList') {
         mutation.removedNodes.forEach(node => this.removeSubtree(node));
         mutation.addedNodes.forEach(node => this.addSubtree(node));
@@ -176,7 +198,10 @@ class PageSearchIndex {
       } else if (mutation.type === 'attributes') {
         // Visibility is evaluated during each search, so ordinary attribute changes only
         // invalidate the changed element. App-specific selectors may depend on ancestors.
-        if (this.additionalSelectors.length > 0) {
+        if (
+          this.additionalSelectors.length > 0 ||
+          this.searchableAttributeSettings.additionalButtonSelectors.length > 0
+        ) {
           this.invalidateSubtree(mutation.target);
         } else {
           this.refreshCandidate(mutation.target);
@@ -187,6 +212,7 @@ class PageSearchIndex {
 
       this.invalidateAncestors(mutation.target);
     });
+    this.onChange();
   }
 
   recordForNode(node: Element): SearchRecord {
@@ -196,18 +222,13 @@ class PageSearchIndex {
     }
 
     const record = {
-      node,
-      innerText: Utils.getTextContentOfNode(node)
-        .toLocaleLowerCase()
-        .trim()
-        .replace(NO_BREAK_SPACE_REGEX, ' '),
       attributeValues: this.searchableAttributeSettings.searchableAttributeValuesForNode(node),
     };
     this.records.set(node, record);
     return record;
   }
 
-  isVisible(node: Element) {
+  isVisible(node: Element, styles: StyleCache = new WeakMap()) {
     if (
       !node.isConnected ||
       !(
@@ -218,8 +239,7 @@ class PageSearchIndex {
       return false;
     }
 
-    const computedStyle = window.getComputedStyle(node);
-    return computedStyle.visibility !== 'hidden' && computedStyle.opacity !== '0';
+    return isTextVisible(node, styles);
   }
 
   textContainerForNode(node: Element) {
@@ -246,6 +266,7 @@ class PageSearchIndex {
   ): Promise<SearchResult> {
     const nodes = [...this.records.keys()];
     const matches: Match[] = [];
+    const styles: StyleCache = new WeakMap();
 
     for (let offset = 0; offset < nodes.length; offset += SEARCH_CHUNK_SIZE) {
       if (signal && signal.aborted) {
@@ -258,14 +279,19 @@ class PageSearchIndex {
           return;
         }
 
-        const record = this.recordForNode(node);
-        if (!this.isVisible(node)) {
+        if (!this.isVisible(node, styles)) {
           return;
         }
 
-        const score = nodeScorer.score(node, record.innerText, record.attributeValues);
+        const record = this.recordForNode(node);
+        // Visibility can change through ancestor styles without changing this node's text.
+        const innerText = visibleText(node, styles)
+          .toLocaleLowerCase()
+          .trim()
+          .replace(NO_BREAK_SPACE_REGEX, ' ');
+        const score = nodeScorer.score(node, innerText, record.attributeValues);
         if (score > 0) {
-          matches.push({ node, score });
+          matches.push({ node, score, innerText });
         }
       });
 
@@ -276,10 +302,9 @@ class PageSearchIndex {
 
     const textMatchesByContainer = new Map<Element, TextMatch>();
     matches.forEach(match => {
-      const record = this.recordForNode(match.node);
       if (
-        !this.hasDirectSearchableText(match.node) ||
-        !nodeScorer.textMatchesWithValue(record.innerText)
+        (!this.hasDirectSearchableText(match.node) && !match.node.matches(TEXT_BLOCK_SELECTOR)) ||
+        !nodeScorer.textMatchesWithValue(match.innerText)
       ) {
         return;
       }
@@ -293,7 +318,16 @@ class PageSearchIndex {
         existingMatch.action = action;
       }
     });
-    const matchingText = [...textMatchesByContainer.values()].slice(0, limit);
+    textMatchesByContainer.forEach(match => {
+      match.action ??= [...match.node.querySelectorAll(this.actionableSelector)].find(
+        (node): node is HTMLElement => node instanceof HTMLElement && this.isVisible(node, styles),
+      ) ?? null;
+    });
+    const matchingText = [...textMatchesByContainer.values()]
+      .sort((first, second) =>
+        first.node.compareDocumentPosition(second.node) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1,
+      )
+      .slice(0, limit);
     const matchingLinksAndButtons = matches
       .filter(
         (match): match is Match & { node: HTMLElement } =>

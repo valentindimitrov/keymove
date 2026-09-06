@@ -6,6 +6,14 @@ import SearchableAttributeSettings from './searchable_attribute_settings.js';
 
 let sharedIndex: PageSearchIndex | null = null;
 let sharedIndexHost: string | null = null;
+const pageChangeListeners = new Set<() => void>();
+
+function subscribeToPageChanges(listener: () => void) {
+  pageChangeListeners.add(listener);
+  return () => {
+    pageChangeListeners.delete(listener);
+  };
+}
 
 class FindInPage {
   readonly searchText: string;
@@ -53,6 +61,7 @@ class FindInPage {
       sharedIndex = new PageSearchIndex(
         this.searchableAttributeSettings,
         Object.values(relevantWordToSelectorMappings),
+        () => pageChangeListeners.forEach(listener => listener()),
       );
     }
   }
@@ -76,3 +85,4 @@ class FindInPage {
 }
 
 export default FindInPage;
+export { subscribeToPageChanges };

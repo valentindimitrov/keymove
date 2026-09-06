@@ -38,6 +38,9 @@ const useKeyboardShortcuts = (handleShortcut: ShortcutHandler) => {
 
   const findShortcutMatchingEvent = React.useCallback(
     (event: KeyboardEvent) => {
+      if (event.isComposing || event.defaultPrevented) {
+        return;
+      }
       return keyboardShortcuts.find(shortcut => shortcutMatchesEvent(shortcut, event));
     },
     [shortcutMatchesEvent],

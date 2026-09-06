@@ -10,35 +10,21 @@ import type { SettingsControls } from './settings_controls.js';
 type InfoDropdownProps = SettingsControls & { temporarilyEnabled: boolean };
 
 const InfoDropdown = (props: InfoDropdownProps) => {
-  const {
-    autoHide,
-    toggleAutoHide,
-    useOnEveryWebsite,
-    toggleUseOnEveryWebsite,
-    temporarilyEnabled,
-    alwaysOn,
-    toggleAlwaysOn,
-    resetPopupPosition,
-  } = props;
+  const { temporarilyEnabled, ...settings } = props;
 
   const containerRef = React.useRef<HTMLButtonElement>(null);
   const [hover, onMouseEnter, onMouseLeave] = useHover();
   const [isOpen, setIsOpen] = React.useState(false);
   const showInfoPanel = hover || isOpen;
+  const dismiss = () => {
+    onMouseLeave();
+    setIsOpen(false);
+    containerRef.current?.focus();
+  };
 
   let tooltipContents: React.ReactNode;
   if (showInfoPanel) {
-    tooltipContents = (
-      <InfoPanel
-        autoHide={autoHide}
-        toggleAutoHide={toggleAutoHide}
-        useOnEveryWebsite={useOnEveryWebsite}
-        toggleUseOnEveryWebsite={toggleUseOnEveryWebsite}
-        alwaysOn={alwaysOn}
-        toggleAlwaysOn={toggleAlwaysOn}
-        resetPopupPosition={resetPopupPosition}
-      />
-    );
+    tooltipContents = <InfoPanel {...settings} onDismiss={dismiss} />;
   } else if (temporarilyEnabled) {
     tooltipContents = <TemporarilyEnabledMessage />;
   }
@@ -56,7 +42,7 @@ const InfoDropdown = (props: InfoDropdownProps) => {
         onKeyDown={event => {
           if (event.key === 'Escape') {
             event.stopPropagation();
-            setIsOpen(false);
+            dismiss();
           }
         }}
         aria-label={`${EXTENSION_NAME} help and settings`}

@@ -5,7 +5,7 @@ const TemporarilyEnabledMessage = () => {
     <div id={'keymove-temporarily-enabled-message'}>
       You have {EXTENSION_NAME} turned off on this page.
       <br />
-      Turn it on here by clicking "Use on every Website".
+      Keep it on by enabling "Use on all websites (Experimental)" in settings.
     </div>
   );
 };

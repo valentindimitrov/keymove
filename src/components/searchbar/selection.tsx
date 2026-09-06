@@ -7,16 +7,14 @@ type SelectionProps = { node: Element; isSelected: boolean };
 const Selection = (props: SelectionProps) => {
   const { node, isSelected } = props;
 
-  const classes = React.useMemo(() => {
-    return ['keymove-selection'].concat(isSelected ? ['keymove-selected-selection'] : []).join(' ');
-  }, [isSelected]);
+  const classes = isSelected ? 'keymove-selection keymove-selected-selection' : 'keymove-selection';
 
   const nodeBounds = React.useMemo(() => node.getBoundingClientRect(), [node]);
 
   const style = React.useMemo(() => {
     const left = nodeBounds.left - SELECTION_MARGIN;
     const top = nodeBounds.top - SELECTION_MARGIN;
-    // Don't allow the selection box to go off top or left of screen
+    // Clamp the selected outline to the viewport without shifting it away from the result.
     const maximizedLeft = isSelected ? Math.max(0, left) : left;
     const maximizedTop = isSelected ? Math.max(0, top) : top;
 
@@ -35,12 +33,12 @@ const Selection = (props: SelectionProps) => {
     return {
       left: maximizedLeft,
       top: maximizedTop,
-      height: height,
-      width: width,
+      height,
+      width,
     };
   }, [nodeBounds, isSelected]);
 
-  return <div className={classes} style={style}></div>;
+  return <div className={classes} style={style} />;
 };
 
 export default Selection;

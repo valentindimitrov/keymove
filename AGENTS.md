@@ -17,10 +17,10 @@ authentication flow.
 
 ```text
 .
+|-- assets/                  Static extension logo files copied by WXT
 |-- entrypoints/
 |   |-- background.ts        WXT background entrypoint
 |   `-- content.tsx          WXT content-script and React mount
-|-- assets/                  Static extension logo files copied by WXT
 |-- scripts/
 |   `-- validate-builds.ts   Manifest and generated-bundle checks
 |-- src/
@@ -34,7 +34,8 @@ authentication flow.
 |   `-- highlights.css        Page-level CSS Custom Highlight styling
 |-- wxt.config.ts            MV3 manifest and build configuration
 |-- tsconfig.json            Strict TypeScript configuration
-|-- biome.json               Formatting and lint rules
+|-- .oxfmtrc.json            Formatting preferences and exclusions
+|-- .oxlintrc.json           Lint rules and environment overrides
 `-- vitest.config.ts         jsdom test configuration
 ```
 
@@ -106,10 +107,10 @@ focused type guard before use. TypeScript types alone are not runtime validation
 
 ## Dependency footprint and Node version
 
-The project declares only two direct runtime packages (`react` and `react-dom`) plus 15 direct
-development packages. The roughly 331 package manifests and 215 MB currently visible under
-`node_modules/` are predominantly transitive dependencies of WXT/Vite, Vitest/jsdom/Testing
-Library, TypeScript, Biome, React tooling, and SVGR. Yarn 1 hoists these transitive packages into the
+The project declares only two direct runtime packages (`react` and `react-dom`) plus 17 direct
+development packages. The packages under `node_modules/` are predominantly transitive dependencies
+of WXT/Vite, Vitest/jsdom/Testing Library, TypeScript, Oxlint/tsgolint, Oxfmt, React tooling, and SVGR.
+Yarn 1 hoists these transitive packages into the
 top-level installation, so their presence does not mean the extension imports or ships all of them.
 
 `node_modules/` is local, ignored development state. WXT tree-shakes and bundles reachable runtime
@@ -137,7 +138,7 @@ blindly replacing it can break selectors, stored preferences, and content/backgr
 
 - Use strict TypeScript and preserve explicit DOM null handling.
 - Source imports intentionally use `.js` extensions so emitted ESM and tooling resolve consistently.
-- WXT provides `defineBackground` and `defineContentScript`; their globals are declared in Biome's
+- WXT provides `defineBackground` and `defineContentScript`; their globals are declared in Oxlint's
   entrypoint override.
 - Use `browser.action` and `browser.scripting`; do not reintroduce MV2 APIs such as `browserAction`,
   `tabs.executeScript`, or `tabs.insertCSS`.
@@ -157,6 +158,6 @@ During focused work, run the relevant Vitest files plus `yarn typecheck`. Before
 yarn quality
 ```
 
-That command checks Biome formatting and linting, strict TypeScript, all tests, both MV3 builds, and
+That command checks Oxfmt formatting, Oxlint linting, strict TypeScript, all tests, both MV3 builds, and
 the generated artifacts. If running steps separately, `yarn verify` requires a completed
 `yarn build` first.

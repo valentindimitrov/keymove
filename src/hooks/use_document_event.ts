@@ -1,19 +1,19 @@
 import React from 'react';
 
 function useDocumentEvent<K extends keyof DocumentEventMap>(
-  effect: K,
-  conditional: boolean,
+  eventName: K,
+  enabled: boolean,
   callback: (event: DocumentEventMap[K]) => void,
   capture = false,
 ) {
-  return React.useEffect(() => {
-    if (!conditional) {
+  React.useEffect(() => {
+    if (!enabled) {
       return undefined;
     }
 
-    document.addEventListener(effect, callback, capture);
-    return () => document.removeEventListener(effect, callback, capture);
-  }, [effect, conditional, callback, capture]);
+    document.addEventListener(eventName, callback, capture);
+    return () => document.removeEventListener(eventName, callback, capture);
+  }, [eventName, enabled, callback, capture]);
 }
 
 export default useDocumentEvent;

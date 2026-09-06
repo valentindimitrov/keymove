@@ -5,14 +5,14 @@ import useDocumentEvent from '../../hooks/use_document_event.js';
 import useHighlights from '../../hooks/use_highlights.js';
 import useKeyboardShortcuts from '../../hooks/use_keyboard_shortcuts.js';
 import useStoredSettings from '../../hooks/use_stored_settings.js';
-import useUrlChangeSubscription from '../../hooks/use_url_change_subscription.js';
 import useExtensionMessaging from '../../hooks/use_extension_messaging.js';
 import useSearchNavigation, { SEARCH_MODES } from '../../hooks/use_search_navigation.js';
 import type { SearchMode } from '../../hooks/use_search_navigation.js';
 import usePopupPosition from '../../hooks/use_popup_position.js';
 
 import Utils from '../../lib/utils.js';
-import FindInPage from '../../lib/find_in_page.js';
+import FindInPage, { subscribeToPageChanges } from '../../lib/find_in_page.js';
+import { isTextVisible, visibleText } from '../../lib/visible_text.js';
 import SearchInput from './search_input.js';
 import Selections from './selections.js';
 import MatchesSummary from './matches_summary.js';
@@ -31,13 +31,11 @@ type ActionActivation = 'current' | 'foreground-tab' | 'background-tab';
 
 const Searchbar = () => {
   const scrollOrResizeUpdateTimeout = React.useRef<number | undefined>(undefined);
-  const selectionUpdateTimeout = React.useRef<number | undefined>(undefined);
+  const searchTimeout = React.useRef<number | undefined>(undefined);
   const searchAbortController = React.useRef<AbortController | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
-
-  const { host } = useUrlChangeSubscription();
-  const previousHost = React.useRef(host);
+  const focusRequested = React.useRef(false);
 
   const {
     autoHide,
@@ -91,7 +89,6 @@ const Searchbar = () => {
         ? null
         : (matchingLinksAndButtons[selectedSelectionIndex] ?? null);
   const selectedActionLinkUrl = Utils.linkUrlForNode(selectedActionNode);
-  const selectedOpenableActionLinkUrl = Utils.openableLinkUrlForNode(selectedActionNode);
   const activeMatchingNodes =
     navigationMode === SEARCH_MODES.TEXT ? matchingTextNodes : matchingLinksAndButtons;
 
@@ -99,9 +96,26 @@ const Searchbar = () => {
     searchInputRef.current?.focus();
   }, []);
 
+  const revealAndFocus = React.useCallback(() => {
+    setIsHidden(false);
+    if (isInteractive) {
+      focusSearchInput();
+    } else {
+      focusRequested.current = true;
+    }
+  }, [isInteractive, focusSearchInput]);
+
+  React.useLayoutEffect(() => {
+    if (isInteractive && focusRequested.current) {
+      focusRequested.current = false;
+      focusSearchInput();
+    }
+  }, [isInteractive, focusSearchInput]);
+
   const cancelPendingSearch = React.useCallback(() => {
-    if (selectionUpdateTimeout.current) {
-      window.clearTimeout(selectionUpdateTimeout.current);
+    if (searchTimeout.current !== undefined) {
+      window.clearTimeout(searchTimeout.current);
+      searchTimeout.current = undefined;
     }
     if (searchAbortController.current) {
       searchAbortController.current.abort();
@@ -127,21 +141,28 @@ const Searchbar = () => {
     resetTemporarilyEnabled();
   }, [resetSearchTextAndMatches, resetTemporarilyEnabled]);
 
-  const handleBlur = React.useCallback(() => {
-    if (autoHide) {
-      setIsHidden(true);
-    }
-    resetSearchTextAndMatches();
-    resetTemporarilyEnabled();
-  }, [autoHide, resetSearchTextAndMatches, resetTemporarilyEnabled]);
+  const handleBlur = React.useCallback(
+    (event: React.FocusEvent<HTMLInputElement>) => {
+      if (Utils.isExtensionElement(event.relatedTarget)) {
+        return;
+      }
+      if (autoHide) {
+        setIsHidden(true);
+      }
+      resetSearchTextAndMatches();
+      resetTemporarilyEnabled();
+    },
+    [autoHide, resetSearchTextAndMatches, resetTemporarilyEnabled],
+  );
 
   const activateSelectedMatchingNodeAndReset = React.useCallback(
     (event: KeyboardEvent, activation: ActionActivation = 'current') => {
-      if (!selectedActionNode) {
+      if (!selectedActionNode?.isConnected || !isTextVisible(selectedActionNode)) {
         return;
       }
 
-      if (activation !== 'current' && !selectedOpenableActionLinkUrl) {
+      const linkUrl = Utils.openableLinkUrlForNode(selectedActionNode);
+      if (activation !== 'current' && !linkUrl) {
         return;
       }
 
@@ -153,7 +174,7 @@ const Searchbar = () => {
         void browser.runtime
           .sendMessage({
             type: ExtensionMessageTypes.OPEN_LINK_IN_NEW_TAB,
-            url: selectedOpenableActionLinkUrl,
+            url: linkUrl,
             active: activation === 'foreground-tab',
           })
           .catch(error => {
@@ -167,29 +188,33 @@ const Searchbar = () => {
       }
       resetSearchTextAndMatches();
     },
-    [selectedActionNode, selectedOpenableActionLinkUrl, autoHide, resetSearchTextAndMatches],
+    [selectedActionNode, autoHide, resetSearchTextAndMatches],
   );
 
-  const updateMatchingNodesAndScrollToSelectedIndex = React.useCallback(async () => {
-    const controller = new AbortController();
-    searchAbortController.current = controller;
+  const runSearch = React.useCallback(
+    async (preserveSelection = false) => {
+      const controller = new AbortController();
+      searchAbortController.current = controller;
 
-    try {
-      const { matchingText, matchingLinksAndButtons } = await new FindInPage(
-        searchText,
-      ).findMatches({ signal: controller.signal });
+      try {
+        const { matchingText, matchingLinksAndButtons } = await new FindInPage(
+          searchText,
+        ).findMatches({ signal: controller.signal });
 
-      if (controller.signal.aborted) {
-        return;
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        setSearchResults(matchingText, matchingLinksAndButtons, preserveSelection);
+        setScrollOrResizeRefresh(refresh => !refresh);
+      } catch (error) {
+        if (!(error instanceof Error) || error.name !== 'AbortError') {
+          console.error(`${EXTENSION_NAME} search failed:`, error);
+        }
       }
-
-      setSearchResults(matchingText, matchingLinksAndButtons);
-    } catch (error) {
-      if (!(error instanceof Error) || error.name !== 'AbortError') {
-        console.error(`${EXTENSION_NAME} search failed:`, error);
-      }
-    }
-  }, [searchText, setSearchResults]);
+    },
+    [searchText, setSearchResults],
+  );
 
   const updateSelectionPositionsAfterTimeout = React.useCallback(() => {
     setHideSelections(true);
@@ -202,14 +227,22 @@ const Searchbar = () => {
     }, SCROLL_OR_RESIZE_UPDATE_TIMEOUT_DURATION);
   }, []);
 
-  const updateSelectionAndScrollToSelectedAfterTimeout = React.useCallback(() => {
-    cancelPendingSearch();
-    clearSearchResults();
+  const scheduleSearch = React.useCallback(
+    (preserveSelection = false) => {
+      cancelPendingSearch();
+      if (!preserveSelection) {
+        clearSearchResults();
+        Utils.clearPageSelection();
+      }
+      if (searchText.trimStart().length < 2) return;
 
-    selectionUpdateTimeout.current = window.setTimeout(() => {
-      updateMatchingNodesAndScrollToSelectedIndex();
-    }, SEARCH_TEXT_UPDATE_TIMEOUT_DURATION);
-  }, [cancelPendingSearch, clearSearchResults, updateMatchingNodesAndScrollToSelectedIndex]);
+      searchTimeout.current = window.setTimeout(() => {
+        searchTimeout.current = undefined;
+        void runSearch(preserveSelection);
+      }, SEARCH_TEXT_UPDATE_TIMEOUT_DURATION);
+    },
+    [cancelPendingSearch, clearSearchResults, runSearch, searchText],
+  );
 
   const selectNextMatchingNode = React.useCallback(
     (event: KeyboardEvent, mode: SearchMode, forward = true) => {
@@ -311,19 +344,19 @@ const Searchbar = () => {
         if (isEnabled) {
           event.preventDefault();
           event.stopPropagation();
-          setIsHidden(false);
-          focusSearchInput();
+          revealAndFocus();
         }
       },
       clear_search_or_hide: event => {
         const differentInputIsActive = Utils.differentInputIsActive(searchInputRef.current);
-        const canClearOrBlur = isInteractive && !differentInputIsActive;
-        if (canClearOrBlur && searchText.length > 0) {
+        if (!isInteractive || differentInputIsActive) return;
+        if (searchText.length > 0) {
           preventDefaultAndClearSearchText(event);
-        } else if (canClearOrBlur && Utils.elementIsActive(searchInputRef.current)) {
-          searchInputRef.current?.blur();
         } else {
-          handleBlur();
+          event.preventDefault();
+          event.stopPropagation();
+          hide();
+          searchInputRef.current?.blur();
         }
       },
     };
@@ -333,14 +366,22 @@ const Searchbar = () => {
     activateSelectedMatchingNodeAndReset,
     preventDefaultAndClearSearchText,
     isEnabled,
-    focusSearchInput,
+    revealAndFocus,
     isInteractive,
     searchText,
-    handleBlur,
+    hide,
   ]);
 
   const handleShortcut = React.useCallback(
     (keyboardShortcutName: KeyboardShortcutName, event: KeyboardEvent) => {
+      const target = event.composedPath()[0] ?? event.target;
+      if (
+        keyboardShortcutName !== 'focus_searchbar' &&
+        (Utils.differentInputIsActive(searchInputRef.current) ||
+          (target !== searchInputRef.current && Utils.isExtensionElement(target)))
+      ) {
+        return;
+      }
       const keyboardEventHandler = keyboardShortcutHandlerMapping[keyboardShortcutName];
       keyboardEventHandler?.(event);
     },
@@ -351,6 +392,9 @@ const Searchbar = () => {
     (event: KeyboardEvent) => {
       const differentInputIsActive = Utils.differentInputIsActive(searchInputRef.current);
       if (
+        !event.isComposing &&
+        !event.defaultPrevented &&
+        !Utils.isExtensionElement(event.composedPath()[0] ?? event.target) &&
         !differentInputIsActive &&
         !Utils.elementIsActive(searchInputRef.current) &&
         Utils.keyValidForFocus(event.key) &&
@@ -360,12 +404,11 @@ const Searchbar = () => {
       ) {
         event.preventDefault();
         event.stopPropagation();
-        setIsHidden(false);
         setSearchText(`${searchText}${event.key}`);
-        focusSearchInput();
+        revealAndFocus();
       }
     },
-    [focusSearchInput, searchText],
+    [revealAndFocus, searchText],
   );
 
   const handleToolbarActionClicked = React.useCallback(() => {
@@ -373,31 +416,53 @@ const Searchbar = () => {
       setTemporarilyEnabled(true);
     }
 
-    setIsHidden(false);
-    focusSearchInput();
-  }, [isDisabled, focusSearchInput]);
+    revealAndFocus();
+  }, [isDisabled, revealAndFocus]);
 
   const handleCopy = React.useCallback(
     (event: ClipboardEvent) => {
-      if (!event.clipboardData) {
+      if (
+        !isInteractive ||
+        !event.clipboardData ||
+        Utils.differentInputIsActive(searchInputRef.current)
+      ) {
         return;
       }
-      const copyText = selectedTextMatch?.node.textContent ?? selectedActionLinkUrl;
+      const target = event.composedPath()[0] ?? event.target;
+      if (target !== searchInputRef.current && Utils.isExtensionElement(target)) return;
+      const copyText = selectedTextMatch?.node.isConnected
+        ? visibleText(selectedTextMatch.node)
+        : selectedActionNode?.isConnected
+          ? Utils.linkUrlForNode(selectedActionNode)
+          : null;
       if (copyText === null) {
         return;
       }
       event.preventDefault();
       event.clipboardData.setData('text/plain', copyText);
     },
-    [selectedTextMatch, selectedActionLinkUrl],
+    [isInteractive, selectedTextMatch, selectedActionNode],
   );
 
   React.useEffect(() => {
     if (searchText !== previousSearchText.current) {
       previousSearchText.current = searchText;
-      updateSelectionAndScrollToSelectedAfterTimeout();
+      scheduleSearch();
     }
-  }, [searchText, updateSelectionAndScrollToSelectedAfterTimeout]);
+  }, [searchText, scheduleSearch]);
+
+  React.useEffect(() => {
+    if (!isInteractive || searchText.trimStart().length < 2) return undefined;
+    return subscribeToPageChanges(() => scheduleSearch(true));
+  }, [isInteractive, searchText, scheduleSearch]);
+
+  React.useEffect(() => {
+    if (selectedTextMatch?.node.isConnected) {
+      Utils.selectNodeContents(selectedTextMatch.node);
+      return () => Utils.clearPageSelection();
+    }
+    return undefined;
+  }, [selectedTextMatch]);
 
   React.useEffect(() => {
     return () => {
@@ -430,19 +495,14 @@ const Searchbar = () => {
       previousUseOnEveryWebsite.current = useOnEveryWebsite;
     }
 
-    const hostChanged = host !== previousHost.current;
-    if (hostChanged) {
-      previousHost.current = host;
-    }
-
-    if (useOnEveryWebsiteChanged || hostChanged) {
+    if (useOnEveryWebsiteChanged) {
       if (isDisabled) {
         resetSearchTextAndMatches();
       } else if (temporarilyEnabled) {
         setTemporarilyEnabled(false);
       }
     }
-  }, [useOnEveryWebsite, resetSearchTextAndMatches, temporarilyEnabled, host, isDisabled]);
+  }, [useOnEveryWebsite, resetSearchTextAndMatches, temporarilyEnabled, isDisabled]);
 
   const hasActiveMatches = activeMatchingNodes.length > 0;
 
@@ -499,17 +559,19 @@ const Searchbar = () => {
           selectedSelectionIndex={selectedSelectionIndex}
           resultCount={activeMatchingNodes.length}
         />
-        <VisibilityButton autoHide={autoHide} toggleAutoHide={toggleAutoHide} />
-        <InfoDropdown
-          temporarilyEnabled={temporarilyEnabled}
-          autoHide={autoHide}
-          toggleAutoHide={toggleAutoHide}
-          useOnEveryWebsite={useOnEveryWebsite}
-          toggleUseOnEveryWebsite={toggleUseOnEveryWebsite}
-          alwaysOn={alwaysOn}
-          toggleAlwaysOn={toggleAlwaysOn}
-          resetPopupPosition={resetPosition}
-        />
+        {isInteractive && <VisibilityButton autoHide={autoHide} toggleAutoHide={toggleAutoHide} />}
+        {isInteractive && (
+          <InfoDropdown
+            temporarilyEnabled={temporarilyEnabled}
+            autoHide={autoHide}
+            toggleAutoHide={toggleAutoHide}
+            useOnEveryWebsite={useOnEveryWebsite}
+            toggleUseOnEveryWebsite={toggleUseOnEveryWebsite}
+            alwaysOn={alwaysOn}
+            toggleAlwaysOn={toggleAlwaysOn}
+            resetPopupPosition={resetPosition}
+          />
+        )}
       </DraggableContainer>
     </div>
   );

@@ -15,7 +15,7 @@ const Tooltip = (props: TooltipProps) => {
   const [hasMounted, setHasMounted] = React.useState(false);
   const panelRef = React.useRef<HTMLDivElement>(null);
 
-  const windowSize = useWindowSize(true, 100);
+  const windowSize = useWindowSize(100);
 
   const style = React.useMemo<{ panel: React.CSSProperties; arrow: React.CSSProperties }>(() => {
     if (!containerRef.current || !panelRef.current || !hasMounted) {
@@ -24,29 +24,27 @@ const Tooltip = (props: TooltipProps) => {
         arrow: { opacity: 0 },
       };
     } else {
-      const countainerBounds = containerRef.current.getBoundingClientRect();
-      const containerDistanceFromBottom = windowSize.height - countainerBounds.bottom;
+      const containerBounds = containerRef.current.getBoundingClientRect();
+      const containerDistanceFromBottom = windowSize.height - containerBounds.bottom;
       const panelBounds = panelRef.current.getBoundingClientRect();
       const totalTooltipHeight = panelBounds.height + ARROW_SIZE;
 
       let panelTop, arrowTop, arrowBorderWidth;
       if (totalTooltipHeight > containerDistanceFromBottom) {
-        // Put tooltip above
-        panelTop = countainerBounds.top - panelBounds.height - ARROW_SIZE;
-        arrowTop = countainerBounds.top - ARROW_SIZE;
+        panelTop = containerBounds.top - panelBounds.height - ARROW_SIZE;
+        arrowTop = containerBounds.top - ARROW_SIZE;
         arrowBorderWidth = `${ARROW_SIZE}px ${ARROW_SIZE}px 0 ${ARROW_SIZE}px`;
       } else {
-        // Put tooltip below
-        panelTop = countainerBounds.bottom + ARROW_SIZE;
-        arrowTop = countainerBounds.bottom;
+        panelTop = containerBounds.bottom + ARROW_SIZE;
+        arrowTop = containerBounds.bottom;
         arrowBorderWidth = `0 ${ARROW_SIZE}px ${ARROW_SIZE}px ${ARROW_SIZE}px`;
       }
 
       const centeredPanelLeft = Math.round(
-        countainerBounds.left + countainerBounds.width / 2 - panelBounds.width / 2,
+        containerBounds.left + containerBounds.width / 2 - panelBounds.width / 2,
       );
       const centeredArrowLeft = Math.round(
-        countainerBounds.left + countainerBounds.width / 2 - ARROW_SIZE,
+        containerBounds.left + containerBounds.width / 2 - ARROW_SIZE,
       );
 
       const maxPanelLeft = windowSize.width - panelBounds.width;
