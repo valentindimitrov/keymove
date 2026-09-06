@@ -9,6 +9,7 @@ const icons = {
   32: 'logo-32.png',
   48: 'logo-48.png',
   64: 'logo-64.png',
+  96: 'logo-96.png',
   128: 'logo-128.png',
   192: 'logo-192.png',
 };
