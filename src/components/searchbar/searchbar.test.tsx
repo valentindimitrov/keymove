@@ -62,6 +62,10 @@ afterEach(() => {
 async function flushSearch() {
   const expectedCalls = searchMocks.findMatches.mock.calls.length + 1;
   await waitFor(() => expect(searchMocks.findMatches).toHaveBeenCalledTimes(expectedCalls));
+  // findMatches having been called does not mean its promise has settled and the
+  // resulting setSearchResults has been applied. Drain the pending microtasks and
+  // the React work they schedule; a search left pending on purpose stays pending.
+  await act(async () => {});
 }
 
 test('refreshes a live query while retaining the selected block and clearing a removed selection', async () => {
