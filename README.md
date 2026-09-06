@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="src/icons/logo-192.png" width="112" height="112" alt="KeyMove logo">
+  <img src="assets/logo-192.png" width="112" height="112" alt="KeyMove logo">
 </p>
 
 # KeyMove
