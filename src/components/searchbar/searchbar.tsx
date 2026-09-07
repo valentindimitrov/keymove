@@ -209,6 +209,9 @@ const Searchbar = () => {
       cancelPendingSearch();
       if (!preserveSelection) {
         clearSearchResults();
+        // Cleared results are not approximate ones. Leaving this set would mark the next
+        // query as approximate before it has even run.
+        setIsFuzzy(false);
         Utils.clearPageSelection();
       }
       if (searchText.trimStart().length === 0) return;
@@ -268,15 +271,16 @@ const Searchbar = () => {
     [isInteractive],
   );
 
+  // 'current' keeps Tab inside whichever mode is active instead of forcing text mode.
   const createNavigationShortcutHandler = React.useCallback(
-    (mode: SearchMode, forward = true): ShortcutHandler =>
+    (mode: SearchMode | 'current', forward = true): ShortcutHandler =>
       guarded(event => {
         const differentInputIsActive = Utils.differentInputIsActive(searchInputRef.current);
         if (Utils.elementIsActive(searchInputRef.current) || !differentInputIsActive) {
-          selectNextMatchingNode(event, mode, forward);
+          selectNextMatchingNode(event, mode === 'current' ? navigationMode : mode, forward);
         }
       }),
-    [guarded, selectNextMatchingNode],
+    [guarded, selectNextMatchingNode, navigationMode],
   );
 
   const toggleAutoHide = React.useCallback(() => {
@@ -291,8 +295,8 @@ const Searchbar = () => {
     Record<KeyboardShortcutName, ShortcutHandler | null>
   >(() => {
     return {
-      next_match: createNavigationShortcutHandler(SEARCH_MODES.TEXT),
-      previous_match: createNavigationShortcutHandler(SEARCH_MODES.TEXT, false),
+      next_match: createNavigationShortcutHandler('current'),
+      previous_match: createNavigationShortcutHandler('current', false),
       next_action_match: createNavigationShortcutHandler(SEARCH_MODES.ACTIONS),
       previous_action_match: createNavigationShortcutHandler(SEARCH_MODES.ACTIONS, false),
       select_match: guarded(event => activateSelectedMatchingNodeAndReset(event)),

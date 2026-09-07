@@ -21,7 +21,7 @@ a background tab.
 - Fall back to approximate matching when a query has no exact match, so typos still find results.
 - Navigate matching paragraphs and other semantic text blocks in either direction.
 - Select the complete text block automatically for quick copying with `Ctrl + C` or `Command + C`.
-- Navigate links, buttons, inputs, and other actionable elements separately from page text.
+- Switch between text and action results with a single shortcut, each keeping its own position.
 - Open selected web links in the current tab, a foreground tab, or a background tab.
 - Copy the URL of a selected link directly from action mode.
 - Keep results current as dynamic pages change without rewriting the page DOM.
@@ -52,8 +52,8 @@ ends, and large indexing jobs yield between chunks so they can be cancelled.
 
 | Shortcut | Action |
 | --- | --- |
-| `Tab` | Select the next matching text block. |
-| `Shift + Tab` | Select the previous matching text block. |
+| `Tab` | Select the next match in the active mode. |
+| `Shift + Tab` | Select the previous match in the active mode. |
 | `Ctrl + Tab` | Select the next matching action. |
 | `Shift + Ctrl + Tab` | Select the previous matching action. |
 | `Alt + S` | Switch between text mode and action mode. Use `Option + S` on macOS. |
@@ -69,17 +69,50 @@ In text mode, `Enter` also activates a link or control associated with the selec
 buttons and inputs, unmodified `Enter` preserves their normal click or focus behavior; modified
 Enter shortcuts never try to open them as new tabs.
 
-Each mode keeps its own selection, so switching back returns to where you left off.
+### Search modes
+
+Every search collects two result sets at once, and the mode decides which one `Tab` walks:
+
+- **Text** matches visible page copy—paragraphs, list items, headings, table cells—and selects the
+  whole semantic block, so it is ready to copy.
+- **Actions** matches links, buttons, inputs, and elements with a link, button, checkbox, or tab
+  role. Matching uses the control's visible label plus its `title`, `aria-label`, `name`,
+  `placeholder`, and similar attributes. Link URLs are not searched, so a link reading *Learn more*
+  is not found by typing `pricing`.
+
+`Alt + S` switches between them. It only re-points `Tab`; it never moves a selection or activates
+anything. Each mode keeps its own cursor, so switching away and back returns you to where you left
+off, and the chosen mode persists while you keep typing.
+
+The searchbar shows the active mode with the position and count for that mode alone, such as
+`Text 3 / 12`. The first match is selected as soon as results arrive, so `Enter` acts on it without
+pressing `Tab` first.
 
 ### Approximate matching
 
-When a query matches nothing on the page, KeyMove searches again for the closest spellings instead
-of reporting nothing. `setings` finds *settings*, and `compsoe` finds a *Compose* button. Queries
-shorter than three characters are matched exactly, since a single edit to a short query brings in
-too much of the page.
+When a query matches nothing on the page, KeyMove searches again for the closest spellings rather
+than reporting nothing. `setings` finds *settings*, `recieve` finds *receive*, and `compsoe` finds a
+*Compose* button. It applies to both modes.
 
-Approximate results are marked with `~` beside the mode in the searchbar, so a count never implies
-the page contains something it does not. Matches are highlighted using the page's own spelling.
+Closeness is measured in single-character edits, counting a swap of neighbouring letters as one
+edit, since that is the most common typing slip. The budget grows with the query so that short
+queries stay strict:
+
+| Query length | Edits allowed |
+| --- | --- |
+| 1–2 characters | none; matched exactly |
+| 3–5 characters | 1 |
+| 6 or more | 2 |
+
+A multi-word query is compared against runs of the same number of words, so `acount setings` finds
+*account settings* as a phrase instead of matching the two words in unrelated places. In action
+mode, nearer spellings rank above more distant ones; text blocks stay in page order, as they do for
+an exact search.
+
+This is strictly a fallback. As long as a query matches anything exactly, only exact results are
+shown—one incidental match will suppress a closer approximate one. Approximate results are marked
+with `~` beside the mode, as in `Text ~ 1 / 3`, so a count never implies the page contains something
+it does not, and matches are highlighted using the page's own spelling rather than what you typed.
 
 > [!NOTE]
 > Chromium-based browsers may reserve `Ctrl + Tab` for browser-tab switching. Action mode works when

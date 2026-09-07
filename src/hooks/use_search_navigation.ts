@@ -41,45 +41,69 @@ function clampIndex(index: number | null, resultCount: number) {
   return Math.min(Math.max(index, 0), resultCount - 1);
 }
 
+// Selecting the first result keeps Enter usable the moment matches arrive, without
+// waiting for a Tab press.
+function selectionForResults(index: number | null, resultCount: number) {
+  if (resultCount === 0) {
+    return null;
+  }
+  return index === null ? 0 : clampIndex(index, resultCount);
+}
+
 function searchNavigationReducer(
   state: SearchNavigationState,
   action: SearchNavigationAction,
 ): SearchNavigationState {
   switch (action.type) {
-    case 'set-results':
+    case 'set-results': {
+      const retainedTextIndex = action.preserveSelection
+        ? retainedIndex(
+            state.results.text.map(match => match.node),
+            action.textResults.map(match => match.node),
+            state.selectedIndices.text,
+          )
+        : null;
+      const retainedActionIndex = action.preserveSelection
+        ? retainedIndex(state.results.actions, action.actionResults, state.selectedIndices.actions)
+        : null;
+      // The mode is a deliberate choice, so results arriving for a new query must not
+      // silently drop the user back into text mode mid-search.
       return {
         ...state,
         results: {
           text: action.textResults,
           actions: action.actionResults,
         },
+        // A live refresh keeps whatever the user was parked on, and clears the cursor when
+        // that node disappears rather than silently moving Enter onto an unrelated match.
         selectedIndices: {
           text: action.preserveSelection
-            ? retainedIndex(
-                state.results.text.map(match => match.node),
-                action.textResults.map(match => match.node),
-                state.selectedIndices.text,
-              )
-            : null,
+            ? retainedTextIndex
+            : selectionForResults(retainedTextIndex, action.textResults.length),
           actions: action.preserveSelection
-            ? retainedIndex(
-                state.results.actions,
-                action.actionResults,
-                state.selectedIndices.actions,
-              )
-            : null,
+            ? retainedActionIndex
+            : selectionForResults(retainedActionIndex, action.actionResults.length),
         },
-        mode: action.preserveSelection ? state.mode : SEARCH_MODES.TEXT,
       };
+    }
     case 'clear-results':
       return {
         ...state,
         results: { text: [], actions: [] },
         selectedIndices: { text: null, actions: null },
-        mode: SEARCH_MODES.TEXT,
       };
     case 'set-mode':
-      return { ...state, mode: action.mode };
+      return {
+        ...state,
+        mode: action.mode,
+        selectedIndices: {
+          ...state.selectedIndices,
+          [action.mode]: selectionForResults(
+            state.selectedIndices[action.mode],
+            state.results[action.mode].length,
+          ),
+        },
+      };
     case 'set-selected-index': {
       const resultCount = state.results[action.mode].length;
       return {

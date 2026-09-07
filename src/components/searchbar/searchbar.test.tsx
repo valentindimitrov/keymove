@@ -160,7 +160,7 @@ test('preserves native block copying and restores query editing after Tab', asyn
     fireEvent.input(input, { target: { value: 'saxve' }, composed: true });
     expect(input).toHaveValue('saxve');
     await flushSearch();
-    expect(within(root.app).getByRole('status')).toHaveTextContent('Text 0 / 1');
+    expect(within(root.app).getByRole('status')).toHaveTextContent('Text 1 / 1');
     fireEvent.keyDown(input, { key: 'Tab', code: 'Tab', composed: true });
     expect(window.getSelection()?.toString()).toBe(paragraph.textContent);
     fireEvent.paste(input, { composed: true });
@@ -242,6 +242,61 @@ test('ignores an obsolete search response and resets both cursors on a new query
   expect(screen.getByRole('status')).toHaveTextContent('Actions 1 / 1');
 });
 
+test('Tab keeps navigating the active mode instead of falling back to text', async () => {
+  const paragraph = document.createElement('p');
+  paragraph.textContent = 'Save';
+  const firstAction = document.createElement('button');
+  firstAction.textContent = 'Save draft';
+  const secondAction = document.createElement('button');
+  secondAction.textContent = 'Save copy';
+  document.body.append(paragraph, firstAction, secondAction);
+  searchMocks.findMatches.mockResolvedValue({
+    matchingText: [{ node: paragraph, action: null }],
+    matchingLinksAndButtons: [firstAction, secondAction],
+  });
+  render(<Searchbar />);
+  const input = screen.getByRole('textbox', { name: 'Search page' });
+  fireEvent.change(input, { target: { value: 'save' } });
+  await flushSearch();
+
+  const status = screen.getByRole('status');
+  fireEvent.keyDown(input, { key: 's', code: 'KeyS', altKey: true });
+  expect(status).toHaveTextContent('Actions 1 / 2');
+
+  fireEvent.keyDown(input, { key: 'Tab', code: 'Tab' });
+  expect(status).toHaveTextContent('Actions 2 / 2');
+  fireEvent.keyDown(input, { key: 'Tab', code: 'Tab', shiftKey: true });
+  expect(status).toHaveTextContent('Actions 1 / 2');
+});
+
+test('selects the first match as soon as results arrive and keeps the mode while typing', async () => {
+  const paragraph = document.createElement('p');
+  paragraph.textContent = 'Save';
+  const action = document.createElement('button');
+  action.textContent = 'Save draft';
+  document.body.append(paragraph, action);
+  searchMocks.findMatches.mockResolvedValue({
+    matchingText: [{ node: paragraph, action: null }],
+    matchingLinksAndButtons: [action],
+  });
+  render(<Searchbar />);
+  const input = screen.getByRole('textbox', { name: 'Search page' });
+  fireEvent.change(input, { target: { value: 'sav' } });
+  await flushSearch();
+
+  const status = screen.getByRole('status');
+  // No Tab press: the first match is already the Enter target.
+  expect(status).toHaveTextContent('Text 1 / 1');
+
+  fireEvent.keyDown(input, { key: 's', code: 'KeyS', altKey: true });
+  expect(status).toHaveTextContent('Actions 1 / 1');
+
+  // Continuing to type must not drop the user back into text mode.
+  fireEvent.change(input, { target: { value: 'save' } });
+  await flushSearch();
+  expect(status).toHaveTextContent('Actions 1 / 1');
+});
+
 test('Alt+S toggles the search mode without moving either selection', async () => {
   const paragraph = document.createElement('p');
   paragraph.textContent = 'Save';
@@ -258,15 +313,14 @@ test('Alt+S toggles the search mode without moving either selection', async () =
   await flushSearch();
 
   const status = screen.getByRole('status');
-  expect(status).toHaveTextContent('Text 0 / 1');
+  expect(status).toHaveTextContent('Text 1 / 1');
 
-  fireEvent.keyDown(input, { key: 'Tab', code: 'Tab', ctrlKey: true });
   fireEvent.keyDown(input, { key: 'Tab', code: 'Tab', ctrlKey: true });
   expect(status).toHaveTextContent('Actions 2 / 2');
 
   // Toggling back and forth restores each mode's own cursor rather than resetting it.
   fireEvent.keyDown(input, { key: 's', code: 'KeyS', altKey: true });
-  expect(status).toHaveTextContent('Text 0 / 1');
+  expect(status).toHaveTextContent('Text 1 / 1');
   fireEvent.keyDown(input, { key: 's', code: 'KeyS', altKey: true });
   expect(status).toHaveTextContent('Actions 2 / 2');
 });
@@ -430,8 +484,9 @@ test('Ctrl+Tab and Shift+Ctrl+Tab navigate only action elements', async () => {
 
   let selections = container.querySelectorAll('.keymove-selection');
   expect(selections).toHaveLength(2);
-  expect(selections[0]).toHaveClass('keymove-selected-selection');
-  expect(selections[1]).not.toHaveClass('keymove-selected-selection');
+  // The first action is already selected when results arrive, so Ctrl+Tab advances to the second.
+  expect(selections[0]).not.toHaveClass('keymove-selected-selection');
+  expect(selections[1]).toHaveClass('keymove-selected-selection');
 
   fireEvent.keyDown(input, {
     bubbles: true,
@@ -443,9 +498,18 @@ test('Ctrl+Tab and Shift+Ctrl+Tab navigate only action elements', async () => {
   });
 
   selections = container.querySelectorAll('.keymove-selection');
-  expect(selections[0]).not.toHaveClass('keymove-selected-selection');
-  expect(selections[1]).toHaveClass('keymove-selected-selection');
+  expect(selections[0]).toHaveClass('keymove-selected-selection');
+  expect(selections[1]).not.toHaveClass('keymove-selected-selection');
   expect(window.getSelection()?.rangeCount).toBe(0);
+
+  // Move back onto the anchor, which is the only action carrying a copyable URL.
+  fireEvent.keyDown(input, {
+    bubbles: true,
+    cancelable: true,
+    code: 'Tab',
+    key: 'Tab',
+    ctrlKey: true,
+  });
 
   const setData = vi.fn();
   const copyEvent = new Event('copy', { bubbles: true, cancelable: true });
@@ -471,7 +535,7 @@ test.each([
   const input = screen.getByRole('textbox', { name: 'Search page' });
   fireEvent.change(input, { target: { value: 'result' } });
   await flushSearch();
-  await screen.findByText('Text 0 / 1');
+  await screen.findByText('Text 1 / 1');
   fireEvent.keyDown(input, {
     bubbles: true,
     cancelable: true,
@@ -494,4 +558,25 @@ test.each([
     url: 'https://example.com/result',
     active,
   });
+});
+
+test('stops marking results as approximate once the query changes', async () => {
+  const paragraph = document.createElement('p');
+  paragraph.textContent = 'Settings';
+  document.body.append(paragraph);
+  searchMocks.findMatches.mockResolvedValueOnce({
+    matchingText: [{ node: paragraph, action: null, term: 'settings' }],
+    matchingLinksAndButtons: [],
+    isFuzzy: true,
+  });
+  render(<Searchbar />);
+  const input = screen.getByRole('textbox', { name: 'Search page' });
+  fireEvent.change(input, { target: { value: 'setings' } });
+  await flushSearch();
+  expect(screen.getByRole('status')).toHaveTextContent('Text ~ 1 / 1');
+
+  // The next query has not resolved yet, so nothing is known to be approximate.
+  searchMocks.findMatches.mockReturnValue(new Promise(() => undefined));
+  fireEvent.change(input, { target: { value: 'setingsx' } });
+  expect(screen.getByRole('status')).toHaveTextContent('Text 0 / 0');
 });

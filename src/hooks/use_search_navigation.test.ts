@@ -45,7 +45,8 @@ test('keeps text and action results in separate navigation collections', () => {
 
   expect(state.results.text).toEqual([textMatch]);
   expect(state.results.actions).toEqual([actionResult]);
-  expect(state.selectedIndices).toEqual({ text: null, actions: null });
+  // A new query selects the first match in each collection so Enter works immediately.
+  expect(state.selectedIndices).toEqual({ text: 0, actions: 0 });
   expect(state.mode).toBe(SEARCH_MODES.TEXT);
 });
 
