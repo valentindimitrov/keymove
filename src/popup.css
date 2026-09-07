@@ -43,6 +43,14 @@ body {
   margin-bottom: var(--keymove-gap-lg, 24px);
 }
 
+/* Sits under the shortcut row it explains, so it is indented past the key caps rather
+   than centred like the heading. */
+.keymove-popup-hint {
+  margin: var(--keymove-gap-sm, 8px) 0 0;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+}
+
 /* Matches the gap above the position heading, so the grid sits evenly between them. */
 .keymove-popup-links {
   margin-top: var(--keymove-gap-lg, 24px);

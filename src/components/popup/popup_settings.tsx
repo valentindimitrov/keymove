@@ -64,6 +64,9 @@ const PopupSettings = () => {
       {focusShortcut && (
         <div className={'keymove-popup-reminder'}>
           <InfoPanelShortcutRow isMacOS={Utils.isMacOS()} shortcut={focusShortcut} />
+          <p className={'keymove-popup-hint'}>
+            {'Hover over the ? in the searchbar to see the navigation shortcuts.'}
+          </p>
         </div>
       )}
       <InfoPanelSettings
