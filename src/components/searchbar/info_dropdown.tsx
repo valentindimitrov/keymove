@@ -4,11 +4,8 @@ import useHover from '../../hooks/use_hover.js';
 import InfoPanel from './info_panel/info_panel.js';
 import Tooltip from './tooltip.js';
 import HelpIcon from '../../icons/help.svg?react';
-import type { SettingsControls } from './settings_controls.js';
 
-const InfoDropdown = (props: SettingsControls) => {
-  const settings = props;
-
+const InfoDropdown = () => {
   const containerRef = React.useRef<HTMLButtonElement>(null);
   const [hover, onMouseEnter, onMouseLeave] = useHover();
   const [isOpen, setIsOpen] = React.useState(false);
@@ -35,7 +32,7 @@ const InfoDropdown = (props: SettingsControls) => {
             dismiss();
           }
         }}
-        aria-label={`${EXTENSION_NAME} help and settings`}
+        aria-label={`${EXTENSION_NAME} keyboard shortcuts`}
         aria-controls="keymove-info-panel"
         aria-expanded={showInfoPanel}
       >
@@ -43,7 +40,7 @@ const InfoDropdown = (props: SettingsControls) => {
       </button>
       {showInfoPanel && (
         <Tooltip containerRef={containerRef}>
-          <InfoPanel {...settings} onDismiss={dismiss} showPinHint={!isOpen} />
+          <InfoPanel onDismiss={dismiss} />
         </Tooltip>
       )}
     </>

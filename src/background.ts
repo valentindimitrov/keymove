@@ -9,10 +9,6 @@ const CONTENT_STYLESHEET_FILE = 'content-scripts/content.css';
 const INSTALLATION_CONCURRENCY = 4;
 
 export default function registerBackground() {
-  browser.action.onClicked.addListener(tab => {
-    void sendToolbarActionClickedMessageToTab(tab);
-  });
-
   browser.runtime.onInstalled.addListener(handleInstallationEvent);
   browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (!isExtensionMessage(message) || message.type !== ExtensionMessageTypes.OPEN_LINK_IN_NEW_TAB)
@@ -59,18 +55,6 @@ function handleInstallationEvent(details: Browser.runtime.InstalledDetails) {
     void injectContentScriptToAllTabs().catch(error =>
       reportExtensionApiError('query tabs during installation', error),
     );
-  }
-}
-
-async function sendToolbarActionClickedMessageToTab(tab: Browser.tabs.Tab) {
-  if (tab.id !== undefined && isInjectableUrl(tab.url)) {
-    try {
-      await browser.tabs.sendMessage(tab.id, {
-        type: ExtensionMessageTypes.TOOLBAR_ACTION_CLICKED,
-      });
-    } catch (error) {
-      reportExtensionApiError('send the toolbar action message', error, tab.id);
-    }
   }
 }
 

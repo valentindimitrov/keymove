@@ -1,0 +1,19 @@
+/* The popup is an ordinary page, so it restates the surface the shadow root provides in
+   the content script. Panel rules themselves are shared with content.css. */
+body {
+  width: 320px;
+  margin: 0;
+  padding: 12px 14px;
+  color: white;
+  font:
+    13px / 1.35 'Helvetica Neue',
+    Helvetica,
+    Arial,
+    sans-serif;
+  letter-spacing: normal;
+  background-color: rgb(28, 28, 28);
+}
+
+#keymove-popup {
+  display: block;
+}

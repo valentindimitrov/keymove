@@ -3,9 +3,7 @@ import ExtensionMessageTypes from '../extension_message_types.js';
 import { isExtensionMessage } from '../extension_message_types.js';
 import { browser, type Browser } from 'wxt/browser';
 
-type ExtensionMessagingOptions = { handleToolbarActionClicked: () => void };
-
-const useExtensionMessaging = ({ handleToolbarActionClicked }: ExtensionMessagingOptions) => {
+const useExtensionMessaging = () => {
   const handleExtensionMessage = React.useCallback(
     (
       message: unknown,
@@ -16,9 +14,6 @@ const useExtensionMessaging = ({ handleToolbarActionClicked }: ExtensionMessagin
         return;
       }
       switch (message.type) {
-        case ExtensionMessageTypes.TOOLBAR_ACTION_CLICKED:
-          handleToolbarActionClicked();
-          break;
         case ExtensionMessageTypes.CONTENT_SCRIPT_INSTALLED:
           sendResponse({ status: 'installed' });
           break;
@@ -26,7 +21,7 @@ const useExtensionMessaging = ({ handleToolbarActionClicked }: ExtensionMessagin
           break;
       }
     },
-    [handleToolbarActionClicked],
+    [],
   );
 
   React.useEffect(() => {

@@ -1,7 +1,6 @@
 import { isRecord } from './lib/runtime_schema.js';
 
 const ExtensionMessageTypes = {
-  TOOLBAR_ACTION_CLICKED: 'KEYMOVE_TOOLBAR_ACTION_CLICKED',
   CONTENT_SCRIPT_INSTALLED: 'KEYMOVE_CONTENT_SCRIPT_INSTALLED',
   OPEN_LINK_IN_NEW_TAB: 'KEYMOVE_OPEN_LINK_IN_NEW_TAB',
 } as const;
@@ -13,11 +12,7 @@ type OpenLinkInNewTabMessage = {
   active: boolean;
 };
 type ExtensionMessage =
-  | {
-      type:
-        | typeof ExtensionMessageTypes.TOOLBAR_ACTION_CLICKED
-        | typeof ExtensionMessageTypes.CONTENT_SCRIPT_INSTALLED;
-    }
+  | { type: typeof ExtensionMessageTypes.CONTENT_SCRIPT_INSTALLED }
   | OpenLinkInNewTabMessage;
 
 function isExtensionMessage(value: unknown): value is ExtensionMessage {
@@ -33,10 +28,7 @@ function isExtensionMessage(value: unknown): value is ExtensionMessage {
       typeof message['active'] === 'boolean'
     );
   }
-  return (
-    message['type'] === ExtensionMessageTypes.TOOLBAR_ACTION_CLICKED ||
-    message['type'] === ExtensionMessageTypes.CONTENT_SCRIPT_INSTALLED
-  );
+  return message['type'] === ExtensionMessageTypes.CONTENT_SCRIPT_INSTALLED;
 }
 
 export type { ExtensionMessage, ExtensionMessageType, OpenLinkInNewTabMessage };
