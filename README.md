@@ -63,13 +63,7 @@ ends, and large indexing jobs yield between chunks so they can be cancelled.
 | `Ctrl + C` | Copy the selected text block or selected link URL. Use `Command + C` on macOS. |
 | `Ctrl + Backspace` | Clear the search. Use `Command + Backspace` on macOS. |
 | `Alt + F` | Focus KeyMove. Use `Option + F` on macOS. |
-| `Alt + -` / `Alt + =` | Narrow or widen the bar by 40px, about its centre. Use `Option` on macOS. |
-| `Alt + Shift + arrows` | Move the bar 40px. Use `Option + Shift` on macOS. |
 | `Escape` | Clear the current search, or hide KeyMove when the search is already empty. |
-
-Size and position are the keyboard equivalents of the drag handles on the bar's edges and of
-dragging the bar itself, and are stored the same way. `-` and `=` rather than the arrow keys,
-because Chromium binds `Alt + Left` and `Alt + Right` to Back and Forward.
 
 In text mode, `Enter` also activates a link or control associated with the selected text block. For
 buttons and inputs, unmodified `Enter` preserves their normal click or focus behavior; modified

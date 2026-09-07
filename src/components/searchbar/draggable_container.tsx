@@ -1,6 +1,10 @@
 import React from 'react';
-import { KEYMOVE_CONTAINER_HEIGHT, KEYMOVE_CONTAINER_WIDTH } from '../../constants.js';
-import { widthAboutCenter } from '../../lib/popup_width_schema.js';
+import {
+  KEYMOVE_CONTAINER_HEIGHT,
+  KEYMOVE_CONTAINER_WIDTH,
+  MIN_CONTAINER_WIDTH,
+} from '../../constants.js';
+import { clampWidth } from '../../lib/popup_width_schema.js';
 import useWindowSize from '../../hooks/use_window_size.js';
 import type { PopupPosition } from '../../lib/popup_position_schema.js';
 
@@ -179,10 +183,10 @@ const DraggableContainer = (props: DraggableContainerProps) => {
       if (!resizeOrigin) return;
       event.preventDefault();
       const travel = (event.clientX - resizeOrigin.pointerX) * resizeOrigin.edge;
-      const nextWidth = widthAboutCenter(
-        resizeOrigin.width + travel * 2,
-        resizeOrigin.center,
-        windowSize.width,
+      // Growing symmetrically means the nearer viewport edge is what runs out first.
+      const room = 2 * Math.min(resizeOrigin.center, windowSize.width - resizeOrigin.center);
+      const nextWidth = clampWidth(
+        Math.min(resizeOrigin.width + travel * 2, Math.max(MIN_CONTAINER_WIDTH, room)),
       );
       currentWidthRef.current = nextWidth;
       setCurrentWidth(nextWidth);

@@ -507,54 +507,6 @@ test('falls back to text when action mode is empty, and retries actions on the n
   expect(status).toHaveTextContent('Actions 1 / 1');
 });
 
-// The keyboard route to the same width and position the drag handles produce.
-test('Alt+- and Alt+= resize the bar about its centre', async () => {
-  searchMocks.findMatches.mockResolvedValue(makeSearchResult());
-  render(<Searchbar />);
-  const input = screen.getByRole('combobox', { name: 'Search page' });
-  act(() => {
-    input.focus();
-  });
-
-  fireEvent.keyDown(input, { key: '=', code: 'Equal', altKey: true });
-  expect(searchMocks.updatePopupWidth).toHaveBeenCalledWith(460);
-
-  fireEvent.keyDown(input, { key: '-', code: 'Minus', altKey: true });
-  expect(searchMocks.updatePopupWidth).toHaveBeenLastCalledWith(380);
-});
-
-test('Alt+Shift+arrows move the bar, and stop at the viewport edge', async () => {
-  searchMocks.findMatches.mockResolvedValue(makeSearchResult());
-  render(<Searchbar />);
-  const input = screen.getByRole('combobox', { name: 'Search page' });
-  act(() => {
-    input.focus();
-  });
-
-  fireEvent.keyDown(input, { key: 'ArrowUp', code: 'ArrowUp', altKey: true, shiftKey: true });
-  const movedUp = searchMocks.updatePopupPosition.mock.lastCall![0];
-  expect(movedUp.y).toBeLessThan(0.75);
-  expect(movedUp.x).toBe(0.5);
-
-  fireEvent.keyDown(input, { key: 'ArrowLeft', code: 'ArrowLeft', altKey: true, shiftKey: true });
-  expect(searchMocks.updatePopupPosition.mock.lastCall![0].x).toBeLessThan(0.5);
-});
-
-test('does not resize the bar when it is hidden', async () => {
-  searchMocks.findMatches.mockResolvedValue(makeSearchResult());
-  const { container } = render(<Searchbar />);
-  const input = screen.getByRole('combobox', { name: 'Search page' });
-  act(() => {
-    input.focus();
-  });
-  fireEvent.keyDown(input, { key: 'Escape', code: 'Escape' });
-  fireEvent.keyDown(input, { key: 'Escape', code: 'Escape' });
-  expect(container.firstElementChild).toHaveClass('keymove-hidden');
-
-  fireEvent.keyDown(document.body, { key: '=', code: 'Equal', altKey: true });
-  expect(searchMocks.updatePopupWidth).not.toHaveBeenCalled();
-});
-
 test('Escape clears the query, then hides the bar with Autohide off, and Alt+F restores focus', async () => {
   searchMocks.findMatches.mockResolvedValue(makeSearchResult());
   const { container } = render(<Searchbar />);

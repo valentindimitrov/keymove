@@ -23,12 +23,6 @@ const KEYBOARD_SHORTCUT_NAMES = [
   'clear_searchbar',
   'focus_searchbar',
   'clear_search_or_hide',
-  'narrow_searchbar',
-  'widen_searchbar',
-  'move_searchbar_left',
-  'move_searchbar_right',
-  'move_searchbar_up',
-  'move_searchbar_down',
 ] as const;
 const KEYBOARD_SHORTCUT_NAME_SET: ReadonlySet<string> = new Set(KEYBOARD_SHORTCUT_NAMES);
 
