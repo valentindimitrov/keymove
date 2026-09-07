@@ -4,14 +4,14 @@
    element. */
 :root {
   --keymove-gap-sm: 8px;
-  --keymove-gap-md: 14px;
-  --keymove-gap-lg: 22px;
+  --keymove-gap-md: 16px;
+  --keymove-gap-lg: 24px;
 }
 
 body {
   width: 420px;
   margin: 0;
-  padding: var(--keymove-gap-md) 18px var(--keymove-gap-lg);
+  padding: var(--keymove-gap-md, 16px) 18px var(--keymove-gap-lg, 24px);
   color: white;
   font:
     13px / 1.35 'Helvetica Neue',
@@ -28,44 +28,44 @@ body {
 
 /* Scoped to the popup so the in-page shortcuts panel keeps its own smaller heading. */
 #keymove-popup .keymove-info-panel-section-header {
-  margin-bottom: var(--keymove-gap-md);
+  margin-bottom: var(--keymove-gap-md, 16px);
   color: white;
   font-size: 15px;
   text-align: center;
 }
 
 #keymove-popup .keymove-info-panel-margin-top-section-header {
-  margin-top: var(--keymove-gap-lg);
+  margin-top: var(--keymove-gap-lg, 24px);
 }
 
 /* The shortcut reminder is a caption for the heading, not one of the settings. */
 #keymove-popup > .keymove-info-panel-row:first-of-type {
-  margin-bottom: var(--keymove-gap-lg);
+  margin-bottom: var(--keymove-gap-lg, 24px);
 }
 
 #keymove-popup .keymove-info-panel-setting-row {
-  padding: var(--keymove-gap-sm) 0;
+  padding: 6px 0;
 }
 
 /* Aligned with the setting labels so it reads as an action on the colour rows above, and
    given a visible surface rather than sitting as bare text on the panel. */
 #keymove-popup .keymove-info-panel-reset-position-button {
-  margin: var(--keymove-gap-lg) 0 0 28px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  margin: var(--keymove-gap-md, 16px) 0 0 28px;
+  border: 1px solid white;
   background-color: rgba(255, 255, 255, 0.1);
   color: white;
 }
 
 #keymove-popup .keymove-info-panel-reset-position-button:hover,
 #keymove-popup .keymove-info-panel-reset-position-button:focus-visible {
-  border-color: rgba(255, 255, 255, 0.55);
-  background-color: rgba(255, 255, 255, 0.2);
+  border-color: white;
+  background-color: rgba(255, 255, 255, 0.24);
 }
 
 .keymove-position-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: var(--keymove-gap-sm);
+  gap: var(--keymove-gap-sm, 8px);
   width: 150px;
   margin: 0 auto;
 }
@@ -73,28 +73,26 @@ body {
 .keymove-position-cell {
   height: 32px;
   padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  border: 1px solid white;
   border-radius: 5px;
   background-color: rgba(255, 255, 255, 0.06);
   cursor: pointer;
 }
 
 .keymove-position-cell:hover {
-  border-color: rgba(255, 255, 255, 0.55);
-  background-color: rgba(255, 255, 255, 0.14);
+  background-color: rgba(255, 255, 255, 0.2);
 }
 
 .keymove-position-cell-selected,
 .keymove-position-cell-selected:hover {
-  border-color: rgba(255, 255, 255, 0.9);
-  background-color: rgba(255, 255, 255, 0.32);
+  background-color: rgba(255, 255, 255, 0.55);
 }
 
 /* Each link gets its own row so the repository sits above the contact link. */
 #keymove-popup .keymove-info-panel-button-row {
-  margin: var(--keymove-gap-sm) 0 0;
+  margin: var(--keymove-gap-sm, 8px) 0 0;
 }
 
 #keymove-popup .keymove-info-panel-button-row:first-of-type {
-  margin-top: var(--keymove-gap-lg);
+  margin-top: var(--keymove-gap-lg, 24px);
 }
