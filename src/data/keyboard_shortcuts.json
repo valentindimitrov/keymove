@@ -61,6 +61,23 @@
     "text": "to select the previous matching action"
   },
   {
+    "name": "toggle_search_mode",
+    "eventMatcher": {
+      "code": "KeyS",
+      "flags": {
+        "default": ["altKey"]
+      },
+      "discludedFlags": {
+        "default": ["ctrlKey", "metaKey", "shiftKey"]
+      }
+    },
+    "displayKeys": {
+      "default": ["Alt", "S"],
+      "mac": ["Option", "S"]
+    },
+    "text": "to switch between matching text and matching actions"
+  },
+  {
     "name": "select_match",
     "eventMatcher": {
       "code": "Enter",

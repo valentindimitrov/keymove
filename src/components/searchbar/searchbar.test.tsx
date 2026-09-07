@@ -242,6 +242,52 @@ test('ignores an obsolete search response and resets both cursors on a new query
   expect(screen.getByRole('status')).toHaveTextContent('Actions 1 / 1');
 });
 
+test('Alt+S toggles the search mode without moving either selection', async () => {
+  const paragraph = document.createElement('p');
+  paragraph.textContent = 'Save';
+  const firstAction = document.createElement('button');
+  const secondAction = document.createElement('button');
+  document.body.append(paragraph, firstAction, secondAction);
+  searchMocks.findMatches.mockResolvedValue({
+    matchingText: [{ node: paragraph, action: null }],
+    matchingLinksAndButtons: [firstAction, secondAction],
+  });
+  render(<Searchbar />);
+  const input = screen.getByRole('textbox', { name: 'Search page' });
+  fireEvent.change(input, { target: { value: 'save' } });
+  await flushSearch();
+
+  const status = screen.getByRole('status');
+  expect(status).toHaveTextContent('Text 0 / 1');
+
+  fireEvent.keyDown(input, { key: 'Tab', code: 'Tab', ctrlKey: true });
+  fireEvent.keyDown(input, { key: 'Tab', code: 'Tab', ctrlKey: true });
+  expect(status).toHaveTextContent('Actions 2 / 2');
+
+  // Toggling back and forth restores each mode's own cursor rather than resetting it.
+  fireEvent.keyDown(input, { key: 's', code: 'KeyS', altKey: true });
+  expect(status).toHaveTextContent('Text 0 / 1');
+  fireEvent.keyDown(input, { key: 's', code: 'KeyS', altKey: true });
+  expect(status).toHaveTextContent('Actions 2 / 2');
+});
+
+test('Alt+S keeps the mode label visible when the active mode has no matches', async () => {
+  const paragraph = document.createElement('p');
+  paragraph.textContent = 'Save';
+  document.body.append(paragraph);
+  searchMocks.findMatches.mockResolvedValue({
+    matchingText: [{ node: paragraph, action: null }],
+    matchingLinksAndButtons: [],
+  });
+  render(<Searchbar />);
+  const input = screen.getByRole('textbox', { name: 'Search page' });
+  fireEvent.change(input, { target: { value: 'save' } });
+  await flushSearch();
+
+  fireEvent.keyDown(input, { key: 's', code: 'KeyS', altKey: true });
+  expect(screen.getByRole('status')).toHaveTextContent('Actions 0 / 0');
+});
+
 test('Escape clears the query, then hides the bar with Autohide off, and Alt+F restores focus', async () => {
   searchMocks.findMatches.mockResolvedValue({ matchingText: [], matchingLinksAndButtons: [] });
   const { container } = render(<Searchbar />);

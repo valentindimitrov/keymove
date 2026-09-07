@@ -55,6 +55,7 @@ ends, and large indexing jobs yield between chunks so they can be cancelled.
 | `Shift + Tab` | Select the previous matching text block. |
 | `Ctrl + Tab` | Select the next matching action. |
 | `Shift + Ctrl + Tab` | Select the previous matching action. |
+| `Alt + S` | Switch between text mode and action mode. Use `Option + S` on macOS. |
 | `Enter` | Activate the selected action in the current tab. |
 | `Shift + Enter` | Open the selected `http` or `https` link in a new foreground tab. |
 | `Ctrl + Enter` | Open the selected `http` or `https` link in a new background tab. |
@@ -67,10 +68,13 @@ In text mode, `Enter` also activates a link or control associated with the selec
 buttons and inputs, unmodified `Enter` preserves their normal click or focus behavior; modified
 Enter shortcuts never try to open them as new tabs.
 
+Each mode keeps its own selection, so switching back returns to where you left off.
+
 > [!NOTE]
 > Chromium-based browsers may reserve `Ctrl + Tab` for browser-tab switching. Action mode works when
 > the browser delivers the shortcut to the page, but a content script cannot override a
-> browser-level reservation.
+> browser-level reservation. `Alt + S` is unaffected: switch to action mode once, then use plain
+> `Tab` and `Shift + Tab` to move through actions.
 
 ## Settings
 

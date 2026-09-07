@@ -35,10 +35,41 @@ test('associates a setting checkbox with its visible label and description', () 
 });
 
 test('announces match count and selection changes as an atomic status', () => {
-  render(<MatchesSummary mode={SEARCH_MODES.TEXT} selectedSelectionIndex={2} resultCount={12} />);
+  render(
+    <MatchesSummary
+      mode={SEARCH_MODES.TEXT}
+      hasSearchQuery
+      selectedSelectionIndex={2}
+      resultCount={12}
+    />,
+  );
 
   const status = screen.getByRole('status');
   expect(status).toHaveTextContent('Text 3 / 12');
   expect(status).toHaveAttribute('aria-live', 'polite');
   expect(status).toHaveAttribute('aria-atomic', 'true');
+});
+
+test('keeps the mode label visible when a query has no matches', () => {
+  const { rerender } = render(
+    <MatchesSummary
+      mode={SEARCH_MODES.ACTIONS}
+      hasSearchQuery
+      selectedSelectionIndex={null}
+      resultCount={0}
+    />,
+  );
+
+  expect(screen.getByRole('status')).toHaveTextContent('Actions 0 / 0');
+
+  rerender(
+    <MatchesSummary
+      mode={SEARCH_MODES.ACTIONS}
+      hasSearchQuery={false}
+      selectedSelectionIndex={null}
+      resultCount={0}
+    />,
+  );
+
+  expect(screen.getByRole('status')).toBeEmptyDOMElement();
 });

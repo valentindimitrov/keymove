@@ -300,6 +300,11 @@ const Searchbar = () => {
       open_match_in_background_tab: guarded(event =>
         activateSelectedMatchingNodeAndReset(event, 'background-tab'),
       ),
+      toggle_search_mode: guarded(event => {
+        event.preventDefault();
+        event.stopPropagation();
+        setMode(navigationMode === SEARCH_MODES.TEXT ? SEARCH_MODES.ACTIONS : SEARCH_MODES.TEXT);
+      }),
       // The browser's native copy command emits the document copy event handled by handleCopy.
       copy_selected_link: null,
       clear_searchbar: guarded(event => {
@@ -328,6 +333,8 @@ const Searchbar = () => {
   }, [
     createNavigationShortcutHandler,
     guarded,
+    navigationMode,
+    setMode,
     activateSelectedMatchingNodeAndReset,
     preventDefaultAndClearSearchText,
     revealAndFocus,
@@ -500,6 +507,7 @@ const Searchbar = () => {
         />
         <MatchesSummary
           mode={navigationMode}
+          hasSearchQuery={hasSearchQuery}
           selectedSelectionIndex={selectedSelectionIndex}
           resultCount={activeMatchingNodes.length}
         />
