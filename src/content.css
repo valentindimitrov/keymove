@@ -386,6 +386,13 @@
   border-radius: 10px;
   background-color: rgba(35, 35, 35, 0.75);
   backdrop-filter: blur(16px);
+  /* `all: initial` on the host leaves anything that does not set a family in the default
+     serif at the default size, so the panel establishes both for its whole subtree. */
+  font-family: 'Helvetica Neue', Helvetica, Arial, 'Lucida Grande', sans-serif;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.35em;
+  letter-spacing: normal;
   cursor: default;
 }
 
@@ -413,9 +420,6 @@
   padding: 7px 8px;
   border-radius: 6px;
   color: white;
-  font-size: 13px;
-  letter-spacing: normal;
-  line-height: 1.35em;
 }
 
 .keymove-suggestion-selected {
