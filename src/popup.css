@@ -17,3 +17,42 @@ body {
 #keymove-popup {
   display: block;
 }
+
+/* Scoped to the popup so the in-page shortcuts panel keeps its own smaller heading. */
+#keymove-popup .keymove-info-panel-section-header {
+  font-size: 15px;
+  text-align: center;
+}
+
+.keymove-position-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  width: 108px;
+  margin: 0 auto;
+}
+
+.keymove-position-cell {
+  height: 26px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 5px;
+  background-color: rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+}
+
+.keymove-position-cell:hover {
+  border-color: rgba(255, 255, 255, 0.55);
+  background-color: rgba(255, 255, 255, 0.14);
+}
+
+.keymove-position-cell-selected,
+.keymove-position-cell-selected:hover {
+  border-color: rgba(255, 255, 255, 0.9);
+  background-color: rgba(255, 255, 255, 0.32);
+}
+
+/* Each link gets its own row so the repository sits above the contact link. */
+#keymove-popup .keymove-info-panel-button-row {
+  margin: 8px 0 0;
+}

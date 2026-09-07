@@ -1,8 +1,12 @@
 import React from 'react';
 import useStoredSettings from '../../hooks/use_stored_settings.js';
 import useHighlightColors from '../../hooks/use_highlight_colors.js';
-import usePopupPosition from '../../hooks/use_popup_position.js';
 import InfoPanelSectionHeader from '../searchbar/info_panel/info_panel_section_header.js';
+import InfoPanelShortcutRow from '../searchbar/info_panel/info_panel_shortcut_row.js';
+import PopupPositionGrid from './popup_position_grid.js';
+import { keyboardShortcuts } from '../../lib/static_data.js';
+import Utils from '../../lib/utils.js';
+import type { DisplayableKeyboardShortcut } from '../searchbar/info_panel/info_panel_shortcut_row.js';
 import InfoPanelSettings from '../searchbar/info_panel/info_panel_settings.js';
 import InfoPanelButtons from '../searchbar/info_panel/info_panel_buttons.js';
 
@@ -27,7 +31,6 @@ const PopupSettings = () => {
     updateColor: updateHighlightColor,
     resetColors: resetHighlightColors,
   } = useHighlightColors();
-  const { resetPosition: resetPopupPosition } = usePopupPosition();
 
   const toggleAutoHide = React.useCallback(
     () => updateAutoHide(!autoHide),
@@ -50,9 +53,15 @@ const PopupSettings = () => {
     [showAutohideButton, updateShowAutohideButton],
   );
 
+  const focusShortcut = keyboardShortcuts.find(
+    (shortcut): shortcut is DisplayableKeyboardShortcut =>
+      shortcut.name === 'focus_searchbar' && Boolean(shortcut.text && shortcut.displayKeys),
+  );
+
   return (
     <div id={'keymove-popup'}>
       <InfoPanelSectionHeader text={'Settings'} />
+      {focusShortcut && <InfoPanelShortcutRow isMacOS={Utils.isMacOS()} shortcut={focusShortcut} />}
       <InfoPanelSettings
         autoHide={autoHide}
         toggleAutoHide={toggleAutoHide}
@@ -67,8 +76,9 @@ const PopupSettings = () => {
         highlightColors={highlightColors}
         updateHighlightColor={updateHighlightColor}
         resetHighlightColors={resetHighlightColors}
-        resetPopupPosition={resetPopupPosition}
       />
+      <InfoPanelSectionHeader marginTop text={'Searchbar position'} />
+      <PopupPositionGrid />
       <InfoPanelButtons />
     </div>
   );

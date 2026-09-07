@@ -9,6 +9,7 @@ const EXTENSION_IDENTITY = {
   artifactName: 'keymove',
   contactEmail: CONTACT_EMAIL,
   contactUrl: `mailto:${CONTACT_EMAIL}`,
+  sourceUrl: 'https://github.com/valentindimitrov/keymove',
 } as const;
 
 export { CONTACT_EMAIL, EXTENSION_NAME };

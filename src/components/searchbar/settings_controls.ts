@@ -15,7 +15,6 @@ type SettingsControls = {
   highlightColors: HighlightColors;
   updateHighlightColor: (mode: SearchMode, color: string) => void;
   resetHighlightColors: () => void;
-  resetPopupPosition: () => void;
 };
 
 export type { SettingsControls };

@@ -29,7 +29,33 @@ test('shows the settings the searchbar panel no longer carries', async () => {
   expect(screen.getByRole('checkbox', { name: 'Start in action mode' })).toBeInTheDocument();
   expect(screen.getByRole('checkbox', { name: 'Show autohide button' })).toBeInTheDocument();
   expect(screen.getByLabelText('Action highlight colour')).toHaveValue('#a78bfa');
-  expect(screen.getByRole('link', { name: /Contact/ })).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'KeyMove on GitHub' })).toHaveAttribute(
+    'href',
+    'https://github.com/valentindimitrov/keymove',
+  );
+  expect(screen.getByRole('link', { name: 'Contact KeyMove Developer' })).toBeInTheDocument();
+});
+
+test('opens with a reminder of the shortcut that summons the searchbar', async () => {
+  render(<PopupSettings />);
+  await waitFor(() => expect(storage.get).toHaveBeenCalled());
+
+  expect(screen.getByText(/focus the searchbar/)).toBeInTheDocument();
+  expect(screen.getByText('Alt')).toBeInTheDocument();
+});
+
+test('offers nine standard positions and marks the stored one', async () => {
+  storage.get.mockResolvedValue({ popupPosition: { x: 0.5, y: 0.75 } });
+  render(<PopupSettings />);
+
+  const cells = await screen.findAllByRole('button', { name: /^(Top|Middle|Bottom) / });
+  expect(cells).toHaveLength(9);
+
+  const bottomCentre = screen.getByRole('button', { name: 'Bottom centre' });
+  await waitFor(() => expect(bottomCentre).toHaveAttribute('aria-pressed', 'true'));
+
+  fireEvent.click(screen.getByRole('button', { name: 'Top left' }));
+  expect(storage.set).toHaveBeenCalledWith({ popupPosition: { x: 0.25, y: 0.25 } });
 });
 
 test('writes a toggle straight to storage, which every open tab already watches', async () => {

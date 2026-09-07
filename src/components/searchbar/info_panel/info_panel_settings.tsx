@@ -19,7 +19,6 @@ const InfoPanelSettings = (props: SettingsControls) => {
     highlightColors,
     updateHighlightColor,
     resetHighlightColors,
-    resetPopupPosition,
   } = props;
 
   const settings = [
@@ -78,13 +77,6 @@ const InfoPanelSettings = (props: SettingsControls) => {
         onClick={resetHighlightColors}
       >
         Reset highlight colours
-      </button>
-      <button
-        type="button"
-        className="keymove-info-panel-reset-position-button"
-        onClick={resetPopupPosition}
-      >
-        Reset popup position
       </button>
     </>
   );
