@@ -7,6 +7,7 @@ export const KEYMOVE_APP_ID = 'keymove-app';
 export const KEYMOVE_PORTAL_ID = 'keymove-portal';
 export const KEYMOVE_INPUT_ID = 'keymove-input';
 export const KEYMOVE_HIGHLIGHT_NAME = 'keymove-search-results';
+export const KEYMOVE_CURRENT_HIGHLIGHT_NAME = 'keymove-search-current';
 
 export const KEYMOVE_CONTAINER_HEIGHT = 50;
 export const KEYMOVE_CONTAINER_WIDTH = 300;
@@ -34,4 +35,5 @@ export const SETTINGS_KEYS = {
   AUTO_HIDE: 'autoHide',
   ALWAYS_ON: 'alwaysOn',
   START_IN_ACTION_MODE: 'startInActionMode',
+  HIGHLIGHT_MATCHES: 'highlightMatches',
 } as const;

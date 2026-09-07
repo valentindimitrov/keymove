@@ -42,6 +42,8 @@ const Searchbar = () => {
     updateAlwaysOn,
     startInActionMode,
     updateStartInActionMode,
+    highlightMatches,
+    updateHighlightMatches,
   } = useStoredSettings();
   const defaultSearchMode = startInActionMode ? SEARCH_MODES.ACTIONS : SEARCH_MODES.TEXT;
   // Seeded with the reducer's initial mode, not the first computed default, so a stored
@@ -307,6 +309,10 @@ const Searchbar = () => {
     updateStartInActionMode(!startInActionMode);
   }, [startInActionMode, updateStartInActionMode]);
 
+  const toggleHighlightMatches = React.useCallback(() => {
+    updateHighlightMatches(!highlightMatches);
+  }, [highlightMatches, updateHighlightMatches]);
+
   const keyboardShortcutHandlerMapping = React.useMemo<
     Record<KeyboardShortcutName, ShortcutHandler | null>
   >(() => {
@@ -501,11 +507,22 @@ const Searchbar = () => {
     true,
   );
   useKeyboardShortcuts(handleShortcut);
-  useHighlights({ matches: matchingText });
+  useHighlights({
+    matches: matchingText,
+    selectedMatch: selectedTextMatch,
+    enabled: highlightMatches,
+  });
   useExtensionMessaging({ handleToolbarActionClicked });
 
   return (
-    <div className={!isInteractive ? 'keymove-hidden' : ''}>
+    <div
+      className={[
+        navigationMode === SEARCH_MODES.TEXT ? 'keymove-mode-text' : 'keymove-mode-actions',
+        isInteractive ? '' : 'keymove-hidden',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
       {!hideSelections && (
         <Selections
           refresh={scrollOrResizeRefresh}
@@ -552,6 +569,8 @@ const Searchbar = () => {
             toggleAlwaysOn={toggleAlwaysOn}
             startInActionMode={startInActionMode}
             toggleStartInActionMode={toggleStartInActionMode}
+            highlightMatches={highlightMatches}
+            toggleHighlightMatches={toggleHighlightMatches}
             resetPopupPosition={resetPosition}
           />
         )}

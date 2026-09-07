@@ -131,6 +131,7 @@ Open the **KeyMove help and settings** button inside the search interface to con
 
 - **Always on:** begin searching whenever you type while another input is not focused.
 - **Start in action mode:** begin each search in action mode instead of text mode.
+- **Highlight matches:** tint matching text on the page, and mark the current one.
 - **Autohide:** hide the interface when it is not being used.
 - **Reset popup position:** return the interface to its default location—horizontally centered with
   its center 75% down the viewport.

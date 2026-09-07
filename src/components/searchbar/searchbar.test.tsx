@@ -26,7 +26,7 @@ vi.mock('../../lib/find_in_page.js', () => ({
 
 vi.mock('../../hooks/use_highlights.js', () => ({ default: searchMocks.useHighlights }));
 vi.mock('../../hooks/use_extension_messaging.js', () => ({ default: vi.fn() }));
-const settingsMocks = vi.hoisted(() => ({ startInActionMode: false }));
+const settingsMocks = vi.hoisted(() => ({ startInActionMode: false, highlightMatches: true }));
 vi.mock('../../hooks/use_stored_settings.js', () => ({
   default: () => ({
     autoHide: false,
@@ -35,6 +35,8 @@ vi.mock('../../hooks/use_stored_settings.js', () => ({
     updateAlwaysOn: vi.fn(),
     startInActionMode: settingsMocks.startInActionMode,
     updateStartInActionMode: vi.fn(),
+    highlightMatches: settingsMocks.highlightMatches,
+    updateHighlightMatches: vi.fn(),
   }),
 }));
 vi.mock('../../hooks/use_popup_position.js', () => ({
@@ -53,6 +55,7 @@ beforeEach(() => {
   searchMocks.sendMessage.mockReset().mockResolvedValue(undefined);
   searchMocks.subscribeToPageChanges.mockReset().mockReturnValue(() => undefined);
   settingsMocks.startInActionMode = false;
+  settingsMocks.highlightMatches = true;
   Element.prototype.scrollIntoView = vi.fn();
 });
 
@@ -293,6 +296,34 @@ test('returns to the default mode once the search is over, but not while typing'
   expect(status).toHaveTextContent('Text 1 / 1');
 });
 
+test('colours the overlay by mode and respects the highlight setting', async () => {
+  settingsMocks.highlightMatches = false;
+  const paragraph = document.createElement('p');
+  paragraph.textContent = 'Save';
+  const action = document.createElement('button');
+  action.textContent = 'Save draft';
+  document.body.append(paragraph, action);
+  searchMocks.findMatches.mockResolvedValue({
+    matchingText: [{ node: paragraph, action: null }],
+    matchingLinksAndButtons: [action],
+  });
+  const { container } = render(<Searchbar />);
+  const input = screen.getByRole('textbox', { name: 'Search page' });
+  fireEvent.change(input, { target: { value: 'save' } });
+  await flushSearch();
+
+  expect(container.querySelector('.keymove-mode-text')).not.toBeNull();
+  expect(container.querySelector('.keymove-mode-actions')).toBeNull();
+
+  fireEvent.keyDown(input, { key: 's', code: 'KeyS', altKey: true });
+  expect(container.querySelector('.keymove-mode-actions')).not.toBeNull();
+  expect(container.querySelector('.keymove-mode-text')).toBeNull();
+
+  expect(searchMocks.useHighlights).toHaveBeenLastCalledWith(
+    expect.objectContaining({ enabled: false }),
+  );
+});
+
 test('Tab keeps navigating the active mode instead of falling back to text', async () => {
   const paragraph = document.createElement('p');
   paragraph.textContent = 'Save';
@@ -484,7 +515,11 @@ test('Tab selects and copies a whole text block, and Enter opens its nested acti
 
   await flushSearch();
   await waitFor(() =>
-    expect(searchMocks.useHighlights).toHaveBeenLastCalledWith({ matches: [textMatch] }),
+    expect(searchMocks.useHighlights).toHaveBeenLastCalledWith({
+      matches: [textMatch],
+      selectedMatch: textMatch,
+      enabled: true,
+    }),
   );
 
   fireEvent.keyDown(input, { bubbles: true, cancelable: true, code: 'Tab', key: 'Tab' });

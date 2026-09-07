@@ -10,6 +10,8 @@ const InfoPanelSettings = (props: SettingsControls) => {
     toggleAlwaysOn,
     startInActionMode,
     toggleStartInActionMode,
+    highlightMatches,
+    toggleHighlightMatches,
     resetPopupPosition,
   } = props;
 
@@ -25,6 +27,12 @@ const InfoPanelSettings = (props: SettingsControls) => {
       description: 'Begin each search in action mode instead of text mode.',
       value: startInActionMode,
       onChange: toggleStartInActionMode,
+    },
+    {
+      label: 'Highlight matches',
+      description: 'Tint matching text on the page, and mark the current one.',
+      value: highlightMatches,
+      onChange: toggleHighlightMatches,
     },
     {
       label: 'Autohide',

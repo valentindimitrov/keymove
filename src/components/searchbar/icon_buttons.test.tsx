@@ -15,6 +15,8 @@ const settingsProps = {
   toggleAlwaysOn: vi.fn(),
   startInActionMode: false,
   toggleStartInActionMode: vi.fn(),
+  highlightMatches: true,
+  toggleHighlightMatches: vi.fn(),
   resetPopupPosition: vi.fn(),
 };
 

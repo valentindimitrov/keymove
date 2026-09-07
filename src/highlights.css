@@ -1,4 +1,10 @@
+/* Other matches keep the page's own text colour so they stay legible on any background. */
 ::highlight(keymove-search-results) {
-  background-color: yellow;
-  color: black;
+  background-color: rgb(245 158 11 / 0.28);
+}
+
+/* The current match is opaque, so it sets both colours and reads as the one to act on. */
+::highlight(keymove-search-current) {
+  background-color: rgb(245 158 11);
+  color: rgb(65 36 2);
 }

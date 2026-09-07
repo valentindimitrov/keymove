@@ -1,4 +1,6 @@
-import {
+import { renderHook } from '@testing-library/react';
+import { KEYMOVE_CURRENT_HIGHLIGHT_NAME, KEYMOVE_HIGHLIGHT_NAME } from '../constants.js';
+import useHighlights, {
   highlightRangesForMatches,
   highlightRangesForNodes,
   rangesForTextNode,
@@ -84,4 +86,51 @@ test('highlights each match by its own matched term, not by the query', () => {
   ]);
 
   expect(ranges.map(range => range.toString())).toEqual(['settings', 'setings']);
+});
+
+test('paints the current match with its own higher-priority highlight', () => {
+  document.body.innerHTML = '<p>Save one</p><p>Save two</p>';
+  const [first, second] = [...document.querySelectorAll('p')];
+  const registry = new Map<string, { priority?: number }>();
+  const highlights: Range[][] = [];
+  class FakeHighlight {
+    priority = 0;
+    constructor(...ranges: Range[]) {
+      highlights.push(ranges);
+    }
+  }
+  vi.stubGlobal('CSS', { highlights: registry });
+  vi.stubGlobal('Highlight', FakeHighlight);
+
+  const matches = [
+    { node: first!, action: null, term: 'save' },
+    { node: second!, action: null, term: 'save' },
+  ];
+  const { unmount } = renderHook(() =>
+    useHighlights({ matches, selectedMatch: matches[1]!, enabled: true }),
+  );
+
+  expect(registry.has(KEYMOVE_HIGHLIGHT_NAME)).toBe(true);
+  expect(registry.get(KEYMOVE_CURRENT_HIGHLIGHT_NAME)?.priority).toBe(1);
+  // The broad highlight covers both blocks; the current one covers only the selected block.
+  expect(highlights[0]).toHaveLength(2);
+  expect(highlights[1]).toHaveLength(1);
+
+  unmount();
+  expect(registry.size).toBe(0);
+  vi.unstubAllGlobals();
+});
+
+test('paints nothing when match highlighting is turned off', () => {
+  document.body.innerHTML = '<p>Save one</p>';
+  const paragraph = document.querySelector('p')!;
+  const registry = new Map<string, unknown>();
+  vi.stubGlobal('CSS', { highlights: registry });
+  vi.stubGlobal('Highlight', class {});
+
+  const matches = [{ node: paragraph, action: null, term: 'save' }];
+  renderHook(() => useHighlights({ matches, selectedMatch: matches[0]!, enabled: false }));
+
+  expect(registry.size).toBe(0);
+  vi.unstubAllGlobals();
 });

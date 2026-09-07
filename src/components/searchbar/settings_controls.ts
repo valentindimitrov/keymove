@@ -5,6 +5,8 @@ type SettingsControls = {
   toggleAlwaysOn: () => void;
   startInActionMode: boolean;
   toggleStartInActionMode: () => void;
+  highlightMatches: boolean;
+  toggleHighlightMatches: () => void;
   resetPopupPosition: () => void;
 };
 

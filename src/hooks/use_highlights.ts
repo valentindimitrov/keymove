@@ -1,5 +1,5 @@
 import React from 'react';
-import { KEYMOVE_HIGHLIGHT_NAME } from '../constants.js';
+import { KEYMOVE_CURRENT_HIGHLIGHT_NAME, KEYMOVE_HIGHLIGHT_NAME } from '../constants.js';
 import { visibleTextNodes } from '../lib/visible_text.js';
 import type { TextMatch } from '../lib/page_search_index.js';
 
@@ -99,23 +99,41 @@ function highlightRangesForNodes(nodes: Element[], query: string): Range[] {
   return highlightRangesForMatches(nodes.map(node => ({ node, action: null, term: query })));
 }
 
-type HighlightOptions = { matches: TextMatch[] };
+type HighlightOptions = {
+  matches: TextMatch[];
+  selectedMatch?: TextMatch | null;
+  enabled?: boolean;
+};
 
-const useHighlights = ({ matches }: HighlightOptions) => {
+const useHighlights = ({ matches, selectedMatch = null, enabled = true }: HighlightOptions) => {
   React.useEffect(() => {
     const highlightRegistry = typeof CSS !== 'undefined' ? CSS.highlights : null;
 
-    if (!highlightRegistry || typeof window.Highlight === 'undefined' || matches.length === 0) {
+    if (
+      !highlightRegistry ||
+      typeof window.Highlight === 'undefined' ||
+      !enabled ||
+      matches.length === 0
+    ) {
       return undefined;
     }
 
     const ranges = highlightRangesForMatches(matches);
     highlightRegistry.set(KEYMOVE_HIGHLIGHT_NAME, new window.Highlight(...ranges));
 
+    // The current match is painted by its own highlight so it reads differently from the
+    // rest. Both cover the same text, so priority decides which one wins.
+    if (selectedMatch) {
+      const currentHighlight = new window.Highlight(...highlightRangesForMatches([selectedMatch]));
+      currentHighlight.priority = 1;
+      highlightRegistry.set(KEYMOVE_CURRENT_HIGHLIGHT_NAME, currentHighlight);
+    }
+
     return () => {
       highlightRegistry.delete(KEYMOVE_HIGHLIGHT_NAME);
+      highlightRegistry.delete(KEYMOVE_CURRENT_HIGHLIGHT_NAME);
     };
-  }, [matches]);
+  }, [matches, selectedMatch, enabled]);
 };
 
 export {

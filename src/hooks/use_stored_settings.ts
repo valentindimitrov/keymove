@@ -35,7 +35,12 @@ function persistBooleanSetting(
 }
 
 const useStoredSettings = () => {
-  const revisions = React.useRef({ autoHide: 0, alwaysOn: 0, startInActionMode: 0 });
+  const revisions = React.useRef({
+    autoHide: 0,
+    alwaysOn: 0,
+    startInActionMode: 0,
+    highlightMatches: 0,
+  });
   const [autoHide, setAutoHide] = React.useState<boolean>(
     DEFAULT_STORED_SETTINGS[SETTINGS_KEYS.AUTO_HIDE],
   );
@@ -77,6 +82,25 @@ const useStoredSettings = () => {
     [startInActionMode],
   );
 
+  const [highlightMatches, setHighlightMatches] = React.useState<boolean>(
+    DEFAULT_STORED_SETTINGS[SETTINGS_KEYS.HIGHLIGHT_MATCHES],
+  );
+
+  const updateHighlightMatches = React.useCallback(
+    (newHighlightMatches: boolean) => {
+      const revision = ++revisions.current.highlightMatches;
+      setHighlightMatches(newHighlightMatches);
+      persistBooleanSetting(
+        SETTINGS_KEYS.HIGHLIGHT_MATCHES,
+        newHighlightMatches,
+        highlightMatches,
+        setHighlightMatches,
+        () => revisions.current.highlightMatches === revision,
+      );
+    },
+    [highlightMatches],
+  );
+
   const updateAlwaysOn = React.useCallback(
     (newAlwaysOn: boolean) => {
       const revision = ++revisions.current.alwaysOn;
@@ -100,6 +124,8 @@ const useStoredSettings = () => {
       if (revisions.current.alwaysOn === initialRevisions.alwaysOn) setAlwaysOn(settings.alwaysOn);
       if (revisions.current.startInActionMode === initialRevisions.startInActionMode)
         setStartInActionMode(settings.startInActionMode);
+      if (revisions.current.highlightMatches === initialRevisions.highlightMatches)
+        setHighlightMatches(settings.highlightMatches);
     },
     [],
   );
@@ -130,6 +156,7 @@ const useStoredSettings = () => {
       applyChange(SETTINGS_KEYS.AUTO_HIDE, setAutoHide);
       applyChange(SETTINGS_KEYS.ALWAYS_ON, setAlwaysOn);
       applyChange(SETTINGS_KEYS.START_IN_ACTION_MODE, setStartInActionMode);
+      applyChange(SETTINGS_KEYS.HIGHLIGHT_MATCHES, setHighlightMatches);
     },
     [],
   );
@@ -157,6 +184,8 @@ const useStoredSettings = () => {
     updateAlwaysOn,
     startInActionMode,
     updateStartInActionMode,
+    highlightMatches,
+    updateHighlightMatches,
   };
 };
 

@@ -115,18 +115,45 @@
   opacity: 1;
 }
 
+/* Amber marks text, violet marks actions. Warm against cool reads as a change of kind
+   rather than a change of shade, and the pair survives the common colour-vision
+   deficiencies that collapse blue into violet. */
+.keymove-mode-text {
+  --keymove-accent: 245 158 11;
+}
+
+.keymove-mode-actions {
+  --keymove-accent: 139 92 246;
+}
+
+/* Alpha lives in the colours rather than in opacity, so an unselected outline stays a
+   crisp thin line instead of a faded thick one. */
 .keymove-selection {
   position: fixed;
   z-index: 2147483003;
   display: block;
-  border: 3px solid blue;
-  border-radius: 9px;
-  opacity: 0.3;
+  border: 2px solid rgb(var(--keymove-accent) / 0.38);
+  border-radius: 6px;
   pointer-events: none;
 }
 
 .keymove-selection.keymove-selected-selection {
-  opacity: 1;
+  border-color: rgb(var(--keymove-accent) / 0.95);
+  background-color: rgb(var(--keymove-accent) / 0.12);
+  box-shadow: 0 0 0 5px rgb(var(--keymove-accent) / 0.18);
+  animation: keymove-selection-settle 160ms ease-out;
+}
+
+@keyframes keymove-selection-settle {
+  from {
+    box-shadow: 0 0 0 10px rgb(var(--keymove-accent) / 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .keymove-selection.keymove-selected-selection {
+    animation: none;
+  }
 }
 
 .keymove-icon-button {
