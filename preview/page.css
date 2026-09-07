@@ -1,0 +1,55 @@
+/* Styles the host page only. Nothing here reaches the shadow root under test. */
+body {
+  margin: 0;
+  background: #0d1117;
+  color: #c9d1d9;
+  font:
+    14px/1.6 system-ui,
+    sans-serif;
+}
+
+h1 {
+  font-size: 20px;
+  font-weight: 500;
+}
+
+#preview-page > h1,
+#preview-page > p,
+#preview-page > ul {
+  max-width: 46rem;
+  margin: 1rem auto;
+  padding: 0 1.5rem;
+}
+
+li {
+  margin-bottom: 0.5rem;
+}
+
+a {
+  color: #79c0ff;
+}
+
+code {
+  font-family: ui-monospace, monospace;
+}
+
+.preview-note {
+  color: #8b949e;
+}
+
+.preview-filler p {
+  margin: 0;
+  padding: 11px 16px;
+  border-bottom: 1px solid #21262d;
+}
+
+.preview-filler p:nth-child(odd) {
+  background: #161b22;
+}
+
+.preview-back {
+  position: fixed;
+  right: 12px;
+  bottom: 8px;
+  margin: 0;
+}

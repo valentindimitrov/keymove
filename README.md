@@ -229,6 +229,24 @@ validated before use.
 
 ## Development
 
+### Checking the interface
+
+`yarn preview:ui` serves the searchbar on `http://localhost:5174` in the shadow root it really
+uses, with the real stylesheet and the real components. Each state is its own URL, so a screenshot
+is reproducible and a diff is obvious:
+
+```
+http://localhost:5174/?scenario=slate-approximate
+http://localhost:5174/?scenario=slate-above&browser=firefox
+```
+
+Open the root for the list of scenarios. Nothing is mocked but the data, so what renders is what
+ships.
+
+This exists because appearance is the one thing the test suite cannot see. A wrong font, a
+mismatched transparency, or text wrapping in the wrong place changes no structure, role or class,
+so every assertion still passes. Add a scenario when a state is worth looking at again.
+
 | Command | Purpose |
 | --- | --- |
 | `yarn dev` | Start the Chromium MV3 development build. |
@@ -236,6 +254,7 @@ validated before use.
 | `yarn preview` | Rebuild and open the repository with the extension in the first installed browser: Vivaldi, Chrome, Firefox. |
 | `yarn preview:vivaldi` / `yarn preview:chrome` / `yarn preview:firefox` | Rebuild and preview in a specific browser. |
 | `yarn browser:open` | Open an already-built extension with the same automatic browser selection. |
+| `yarn preview:ui` | Serve the interface on `localhost:5174` for a visual check, without a browser extension install. |
 | `yarn build` | Build both production targets. |
 | `yarn build:chromium` | Build the Chromium/Vivaldi artifact. |
 | `yarn build:vivaldi` | Explicit alias for the Chromium artifact used by Vivaldi. |
@@ -252,8 +271,9 @@ validated before use.
 
 Preview commands use `web-ext` to load the extension in a fresh temporary browser profile, leaving
 your regular profile untouched. Vivaldi's welcome screen and exit confirmation are skipped in the test profile.
-The build files are shared: rebuilding also updates the files used by any other profile that has
-already loaded the same `.output/chrome-mv3` directory.
+Each preview installs a separate temporary copy of the build, removed when the preview exits.
+Use a new preview after changes: a page hard refresh does not reload the extension itself.
+Production builds still update `.output/chrome-mv3`, which may also be loaded in a regular profile.
 They stay running until you close the test browser or press Ctrl+C.
 After meaningful implementation changes, use `yarn preview`; after `yarn quality`, use
 `yarn browser:open` to reuse the verified build. For custom browser locations, set

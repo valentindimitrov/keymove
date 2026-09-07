@@ -1,3 +1,4 @@
+import { makeTextMatch } from '../test_support/factories.js';
 import {
   INITIAL_SEARCH_NAVIGATION_STATE,
   SEARCH_MODES,
@@ -10,7 +11,7 @@ test('retains independent cursors by element identity when live results change',
   const state = {
     mode: SEARCH_MODES.ACTIONS,
     results: {
-      text: [{ node: paragraph, action: link, term: 'save', score: 1, distance: null }],
+      text: [makeTextMatch({ node: paragraph, action: link, term: 'save', score: 1 })],
       actions: [link],
     },
     selectedIndices: { text: 0, actions: 0 },
@@ -18,8 +19,8 @@ test('retains independent cursors by element identity when live results change',
   const refreshed = searchNavigationReducer(state, {
     type: 'set-results',
     textResults: [
-      { node: document.createElement('p'), action: null, term: 'save', score: 1, distance: null },
-      { node: paragraph, action: link, term: 'save', score: 1, distance: null },
+      makeTextMatch({ node: document.createElement('p'), action: null, term: 'save', score: 1 }),
+      makeTextMatch({ node: paragraph, action: link, term: 'save', score: 1 }),
     ],
     actionResults: [document.createElement('button'), link],
     preserveSelection: true,
@@ -38,7 +39,7 @@ test('retains independent cursors by element identity when live results change',
 test('keeps text and action results in separate navigation collections', () => {
   const textResult = document.createElement('p');
   const actionResult = document.createElement('button');
-  const textMatch = { node: textResult, action: null, term: 'save', score: 1, distance: null };
+  const textMatch = makeTextMatch({ node: textResult, action: null, term: 'save', score: 1 });
 
   const state = searchNavigationReducer(INITIAL_SEARCH_NAVIGATION_STATE, {
     type: 'set-results',
@@ -55,8 +56,8 @@ test('keeps text and action results in separate navigation collections', () => {
 
 test('tracks independent selected indices for each mode', () => {
   const textResults = [
-    { node: document.createElement('p'), action: null, term: 'save', score: 1, distance: null },
-    { node: document.createElement('p'), action: null, term: 'save', score: 1, distance: null },
+    makeTextMatch({ node: document.createElement('p'), action: null, term: 'save', score: 1 }),
+    makeTextMatch({ node: document.createElement('p'), action: null, term: 'save', score: 1 }),
   ];
   const actionResults = [document.createElement('button'), document.createElement('a')];
   let state = searchNavigationReducer(INITIAL_SEARCH_NAVIGATION_STATE, {

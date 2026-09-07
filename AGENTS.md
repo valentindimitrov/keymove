@@ -21,6 +21,7 @@ authentication flow.
 |-- entrypoints/
 |   |-- background.ts        WXT background entrypoint
 |   `-- content.tsx          WXT content-script and React mount
+|-- preview/                 Shadow-root harness for visual checks, served by `yarn preview:ui`
 |-- scripts/
 |   `-- validate-builds.ts   Manifest and generated-bundle checks
 |-- src/
@@ -30,6 +31,7 @@ authentication flow.
 |   |-- hooks/                Browser events, storage, highlights, and navigation state
 |   |-- icons/                UI SVG modules
 |   |-- lib/                  Search index, scoring, schemas, and utilities
+|   |-- test_support/        Builders for test fixtures, never imported by shipped code
 |   |-- content.css           Shadow-root component styling
 |   `-- highlights.css        Page-level CSS Custom Highlight styling
 |-- wxt.config.ts            MV3 manifest and build configuration
@@ -187,6 +189,16 @@ blindly replacing it can break selectors, stored preferences, and content/backgr
 - Use `browser.action` and `browser.scripting`; do not reintroduce MV2 APIs such as `browserAction`,
   `tabs.executeScript`, or `tabs.insertCSS`.
 - Keep the content bundle free of CommonJS `require()` calls.
+- Appearance is invisible to the test suite: a wrong font, a mismatched transparency or a bad
+  wrap changes no structure, role or class, so every assertion still passes. Check anything
+  visual through `yarn preview:ui`, which renders the real components in the real shadow root,
+  and add a scenario for a state worth looking at again.
+- `:host` sets `all: initial`, so anything that does not declare a font inherits the browser
+  default, a serif at 16px. `#keymove-app` and `#keymove-portal` declare the interface type for
+  everything below them; a new subtree outside both has to declare its own.
+- Build search-result fixtures with `src/test_support/factories.ts` rather than object literals.
+  Those types have gained a field four times, and each literal is a place that has to be found
+  and corrected by hand.
 - Preserve the Shadow DOM boundary. Page-wide visual search marks belong in `highlights.css`; UI
   styles belong in `content.css`.
 - Search work must remain cancellable and chunked to avoid blocking large pages. The fuzzy pass
@@ -203,19 +215,22 @@ blindly replacing it can break selectors, stored preferences, and content/backgr
 After every meaningful implementation change, run `yarn preview`. It rebuilds the production MV3
 extension, selects the first installed browser in this order: Vivaldi, Chrome, Firefox, and opens
 `https://github.com/valentindimitrov/keymove` with the extension loaded in a fresh temporary test
-profile. This launch is authorized as part of the development workflow; do not ask again each time.
+profile, using a separate temporary copy of the build for each launch. This launch is authorized
+as part of the development workflow; do not ask again each time.
 The launcher marks Vivaldi's welcome screen and all setup pages as read, and disables its exit
 confirmation in that temporary profile. Keep `vivaldi.welcome.read_pages` as an array passed through
 the web-ext JavaScript API; the CLI preference parser would turn it into a string.
 For Chromium browsers the launcher opens and focuses the repository after extension installation,
 verifies its tab title and URL, then closes only Vivaldi's welcome tab in that test instance.
 Do not rely on Vivaldi's startup URL: first-run initialization can replace it with the welcome page.
-Keep the user's regular browser profiles untouched. Close the previous test window when finished
-with it. Profile settings are separate, but the unpacked build directory is shared: rebuilding
-`.output/chrome-mv3` also changes the files used by any regular profile that already loaded that
-directory. Do not claim that a rebuild affects only the temporary profile. Do not terminate
-unrelated browser processes. The preview command stays running until the
-test browser closes or it is stopped with Ctrl+C.
+Use the dedicated preview profile for browser checks. Each preview installs its own snapshot of
+the build and opens the page after installation; a page hard refresh (`Ctrl+Shift+R`) is not a
+substitute for reloading the extension and its in-page code. Start a new preview after changes.
+Keep the user's regular browser profiles untouched. The production build still updates
+`.output/chrome-mv3`, which may be registered in a regular profile, but previews load their own
+temporary copy. Close the previous test window when finished with it; do not terminate unrelated
+browser processes. The command stays running until the test browser closes or Ctrl+C stops it,
+then removes its temporary build copy.
 
 - `yarn preview`: rebuild and open the preferred installed browser.
 - `yarn preview:vivaldi`, `yarn preview:chrome`, `yarn preview:firefox`: rebuild and open that browser.
