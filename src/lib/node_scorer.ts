@@ -1,15 +1,29 @@
-import { FIELD_BOOSTS, STARTS_WITH_BOOST, IS_VISIBLE_BOOST } from '../constants.js';
+import {
+  FIELD_BOOSTS,
+  STARTS_WITH_BOOST,
+  IS_VISIBLE_BOOST,
+  FUZZY_DISTANCE_PENALTY,
+} from '../constants.js';
 
 import Utils from './utils.js';
+import { fuzzyMatchInText, maxDistanceForQuery } from './fuzzy_match.js';
 
 const WHITESPACE_SPLIT_REGEX = /[\s.,/\u200B-\u200D\uFEFF\u200E\u200F-]+/;
 const NO_BREAK_SPACE_REGEX = /\u00a0/g;
 
+type ScoredMatch = { score: number; textTerm: string | null };
+
 class NodeScorer {
   readonly queryText: string;
+  readonly maxFuzzyDistance: number;
 
   constructor(searchText: string) {
     this.queryText = searchText;
+    this.maxFuzzyDistance = maxDistanceForQuery(searchText);
+  }
+
+  supportsFuzzy() {
+    return this.maxFuzzyDistance > 0;
   }
 
   textMatchesWithValue(innerText: string) {
@@ -63,6 +77,38 @@ class NodeScorer {
     return score;
   }
 
+  /**
+   * Scores a node by closeness rather than containment, for use only when an exact pass
+   * found nothing. Each edit costs a constant factor, so nearer spellings outrank further
+   * ones and every fuzzy result still ranks below any exact one.
+   */
+  fuzzyScore(node: Element, innerText: string, attributeValues: string[]): ScoredMatch {
+    const textMatch = innerText
+      ? fuzzyMatchInText(innerText, this.queryText, this.maxFuzzyDistance)
+      : null;
+    let score = textMatch
+      ? FIELD_BOOSTS.innerText * FUZZY_DISTANCE_PENALTY ** textMatch.distance
+      : 0;
+
+    for (const attributeValue of attributeValues) {
+      const attributeMatch = fuzzyMatchInText(
+        attributeValue,
+        this.queryText,
+        this.maxFuzzyDistance,
+      );
+      if (!attributeMatch) continue;
+      const attributeScore =
+        FIELD_BOOSTS.attribute * FUZZY_DISTANCE_PENALTY ** attributeMatch.distance;
+      if (attributeScore > score) score = attributeScore;
+    }
+
+    if (score > 0 && Utils.nodeIsInViewport(node)) {
+      score = score * IS_VISIBLE_BOOST;
+    }
+
+    return { score, textTerm: textMatch?.term ?? null };
+  }
+
   getWordsFromText(text: string) {
     return text.split(WHITESPACE_SPLIT_REGEX);
   }
@@ -84,4 +130,5 @@ class NodeScorer {
   }
 }
 
+export type { ScoredMatch };
 export default NodeScorer;

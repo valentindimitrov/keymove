@@ -20,11 +20,21 @@ type SearchRecord = {
 };
 
 type ActionMatch = { node: HTMLElement; score: number };
-type TextMatch = { node: Element; action: HTMLElement | null };
+// `term` is the literal slice of the node's text that matched, so highlighting can find it
+// again. For an exact search it is the query; for a fuzzy one it is the near-miss spelling.
+type TextMatch = { node: Element; action: HTMLElement | null; term: string };
+type ScannedNode = { node: Element; innerText: string; attributeValues: string[] };
+type MatchCollector = {
+  actions: ActionMatch[];
+  matchingText: TextMatch[];
+  textMatchesByContainer: Map<Element, TextMatch>;
+  resultLimit: number;
+};
 type SearchOptions = { signal?: AbortSignal; limit?: number };
 type SearchResult = {
   matchingText: TextMatch[];
   matchingLinksAndButtons: HTMLElement[];
+  isFuzzy: boolean;
 };
 
 function abortError(): Error {
@@ -316,13 +326,20 @@ class PageSearchIndex {
     const resultLimit = Number.isFinite(limit)
       ? Math.max(0, Math.floor(limit))
       : DEFAULT_RESULT_LIMIT;
-    if (resultLimit === 0) return { matchingText: [], matchingLinksAndButtons: [] };
+    if (resultLimit === 0) return { matchingText: [], matchingLinksAndButtons: [], isFuzzy: false };
     const budget = new SearchWorkBudget();
     await this.flushPendingSubtrees(searchSignal, budget);
-    const actions: ActionMatch[] = [];
-    const textMatchesByContainer = new Map<Element, TextMatch>();
-    const matchingText: TextMatch[] = [];
+    const collector: MatchCollector = {
+      actions: [],
+      matchingText: [],
+      textMatchesByContainer: new Map(),
+      resultLimit,
+    };
     const styles: StyleCache = new WeakMap();
+    // Only retained when a fuzzy pass could follow, since it holds the visible text of the
+    // whole page. Re-deriving that text is the expensive half of a search, not comparing it.
+    const rescorable = nodeScorer.supportsFuzzy();
+    const scanned: ScannedNode[] = [];
     for (const node of this.records.keys()) {
       if (searchSignal.aborted) throw abortError();
       const pause = budget.checkpoint(searchSignal);
@@ -350,40 +367,21 @@ class PageSearchIndex {
         .toLocaleLowerCase()
         .trim()
         .replace(NO_BREAK_SPACE_REGEX, ' ');
+      if (rescorable && (innerText.length > 0 || record.attributeValues.length > 0)) {
+        scanned.push({ node, innerText, attributeValues: record.attributeValues });
+      }
       const score = nodeScorer.score(node, innerText, record.attributeValues);
-      if (score <= 0) continue;
-      if (node instanceof HTMLElement && isLinkOrButtonOrInput(node)) {
-        const insertion = actions.findIndex(match => match.score < score);
-        if (insertion !== -1) actions.splice(insertion, 0, { node, score });
-        else if (actions.length < resultLimit) actions.push({ node, score });
-        if (actions.length > resultLimit) actions.pop();
-      }
-      if (
-        (!this.hasDirectSearchableText(node) && !node.matches(TEXT_BLOCK_SELECTOR)) ||
-        !nodeScorer.textMatchesWithValue(innerText)
-      )
-        continue;
-      const textContainer = this.textContainerForNode(node);
-      const action = this.actionableAncestorForNode(node);
-      const existingMatch = textMatchesByContainer.get(textContainer);
-      if (existingMatch) {
-        existingMatch.action ??= action;
-        continue;
-      }
-      const insertion = matchingText.findIndex(match =>
-        Boolean(
-          match.node.compareDocumentPosition(textContainer) & Node.DOCUMENT_POSITION_PRECEDING,
-        ),
-      );
-      const match = { node: textContainer, action };
-      if (insertion !== -1) matchingText.splice(insertion, 0, match);
-      else if (matchingText.length < resultLimit) matchingText.push(match);
-      else continue;
-      textMatchesByContainer.set(textContainer, match);
-      if (matchingText.length > resultLimit) {
-        textMatchesByContainer.delete(matchingText.pop()!.node);
-      }
+      const textTerm =
+        score > 0 && nodeScorer.textMatchesWithValue(innerText) ? nodeScorer.queryText : null;
+      this.collectScoredNode(node, score, textTerm, collector);
     }
+
+    const isFuzzy =
+      rescorable && collector.matchingText.length === 0 && collector.actions.length === 0;
+    if (isFuzzy) {
+      await this.rescoreFuzzily(scanned, nodeScorer, collector, searchSignal, budget);
+    }
+    const { actions, matchingText } = collector;
     for (const match of matchingText) {
       if (match.action) continue;
       const walker = document.createTreeWalker(match.node, NodeFilter.SHOW_ELEMENT);
@@ -407,7 +405,70 @@ class PageSearchIndex {
     return {
       matchingText,
       matchingLinksAndButtons: actions.map(match => match.node),
+      isFuzzy,
     };
+  }
+
+  /**
+   * Second scoring pass over the text already gathered, run only when the exact pass found
+   * nothing at all. Exact matching is a native substring scan; approximate matching costs
+   * far more per node, so it is never paid for a search that already has results to show.
+   */
+  private async rescoreFuzzily(
+    scanned: ScannedNode[],
+    nodeScorer: NodeScorer,
+    collector: MatchCollector,
+    searchSignal: AbortSignal,
+    budget: SearchWorkBudget,
+  ) {
+    for (const entry of scanned) {
+      if (searchSignal.aborted) throw abortError();
+      const pause = budget.checkpoint(searchSignal);
+      if (pause) await pause;
+      if (!this.root.contains(entry.node)) continue;
+      const { score, textTerm } = nodeScorer.fuzzyScore(
+        entry.node,
+        entry.innerText,
+        entry.attributeValues,
+      );
+      this.collectScoredNode(entry.node, score, textTerm, collector);
+    }
+  }
+
+  private collectScoredNode(
+    node: Element,
+    score: number,
+    textTerm: string | null,
+    collector: MatchCollector,
+  ) {
+    if (score <= 0) return;
+    const { actions, matchingText, textMatchesByContainer, resultLimit } = collector;
+    if (node instanceof HTMLElement && isLinkOrButtonOrInput(node)) {
+      const insertion = actions.findIndex(match => match.score < score);
+      if (insertion !== -1) actions.splice(insertion, 0, { node, score });
+      else if (actions.length < resultLimit) actions.push({ node, score });
+      if (actions.length > resultLimit) actions.pop();
+    }
+    if (textTerm === null) return;
+    if (!this.hasDirectSearchableText(node) && !node.matches(TEXT_BLOCK_SELECTOR)) return;
+    const textContainer = this.textContainerForNode(node);
+    const action = this.actionableAncestorForNode(node);
+    const existingMatch = textMatchesByContainer.get(textContainer);
+    if (existingMatch) {
+      existingMatch.action ??= action;
+      return;
+    }
+    const insertion = matchingText.findIndex(match =>
+      Boolean(match.node.compareDocumentPosition(textContainer) & Node.DOCUMENT_POSITION_PRECEDING),
+    );
+    const match = { node: textContainer, action, term: textTerm };
+    if (insertion !== -1) matchingText.splice(insertion, 0, match);
+    else if (matchingText.length < resultLimit) matchingText.push(match);
+    else return;
+    textMatchesByContainer.set(textContainer, match);
+    if (matchingText.length > resultLimit) {
+      textMatchesByContainer.delete(matchingText.pop()!.node);
+    }
   }
 
   disconnect() {

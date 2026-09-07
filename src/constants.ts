@@ -25,6 +25,11 @@ export const FIELD_BOOSTS = {
 export const IS_VISIBLE_BOOST = 1.1;
 export const STARTS_WITH_BOOST = 1.5;
 
+export const MIN_FUZZY_QUERY_LENGTH = 3;
+export const SHORT_FUZZY_QUERY_LENGTH = 6;
+export const MAX_FUZZY_DISTANCE = 2;
+export const FUZZY_DISTANCE_PENALTY = 0.6;
+
 export const SETTINGS_KEYS = {
   AUTO_HIDE: 'autoHide',
   ALWAYS_ON: 'alwaysOn',

@@ -66,7 +66,7 @@ test('finds a phrase split across inline descendants as one semantic block', asy
   document.body.innerHTML = '<p><span>Save </span><strong>settings</strong></p>';
   index = new PageSearchIndex();
   expect((await index.search(scorerFor('save settings'))).matchingText).toEqual([
-    { node: document.querySelector('p'), action: null },
+    { node: document.querySelector('p'), action: null, term: 'save settings' },
   ]);
 });
 
@@ -102,7 +102,7 @@ test('keeps attribute-only action matches out of text navigation', async () => {
 
   const result = await index.search(scorerFor('key'));
 
-  expect(result.matchingText).toEqual([{ node: paragraph, action: null }]);
+  expect(result.matchingText).toEqual([{ node: paragraph, action: null, term: 'key' }]);
   expect(result.matchingLinksAndButtons).toEqual([button]);
 });
 
@@ -115,7 +115,7 @@ test('uses a whole text block while retaining its nested action', async () => {
 
   const result = await index.search(scorerFor('documentation'));
 
-  expect(result.matchingText).toEqual([{ node: paragraph, action: link }]);
+  expect(result.matchingText).toEqual([{ node: paragraph, action: link, term: 'documentation' }]);
   expect(result.matchingLinksAndButtons).toEqual([link]);
 });
 
@@ -124,7 +124,11 @@ test('associates the matching nested link before falling back to another block a
     '<p>Read <a href="/home">home</a> or <a href="/docs">documentation</a>.</p>';
   index = new PageSearchIndex();
   expect((await index.search(scorerFor('documentation'))).matchingText).toEqual([
-    { node: document.querySelector('p'), action: document.querySelector('a[href="/docs"]') },
+    {
+      node: document.querySelector('p'),
+      action: document.querySelector('a[href="/docs"]'),
+      term: 'documentation',
+    },
   ]);
 });
 
@@ -272,6 +276,66 @@ test('retains the earliest text blocks and highest ranked actions with a small l
   index = new PageSearchIndex();
   const firstButton = document.querySelector('button');
   const result = await index.search(scorerFor('save'), { limit: 1 });
-  expect(result.matchingText).toEqual([{ node: firstButton, action: firstButton }]);
+  expect(result.matchingText).toEqual([{ node: firstButton, action: firstButton, term: 'save' }]);
   expect(result.matchingLinksAndButtons[0]?.textContent).toBe('Save settings');
+});
+
+test('falls back to approximate matching only when nothing matched exactly', async () => {
+  document.body.innerHTML = '<p>Open the settings panel</p>';
+  index = new PageSearchIndex();
+
+  const exact = await index.search(scorerFor('settings'));
+  expect(exact.isFuzzy).toBe(false);
+  expect(exact.matchingText).toHaveLength(1);
+  expect(exact.matchingText[0]!.term).toBe('settings');
+
+  const fuzzy = await index.search(scorerFor('setings'));
+  expect(fuzzy.isFuzzy).toBe(true);
+  expect(fuzzy.matchingText.map(match => match.node)).toEqual([document.querySelector('p')]);
+  // The term is the page's spelling, not the query, so highlighting can locate it.
+  expect(fuzzy.matchingText[0]!.term).toBe('settings');
+});
+
+test('leaves an exact match unaccompanied by near misses elsewhere on the page', async () => {
+  document.body.innerHTML = '<p>Save now</p><p>Sace later</p>';
+  index = new PageSearchIndex();
+
+  const result = await index.search(scorerFor('save'));
+
+  expect(result.isFuzzy).toBe(false);
+  expect(result.matchingText.map(match => match.node.textContent)).toEqual(['Save now']);
+});
+
+test('matches actions approximately by their label', async () => {
+  document.body.innerHTML = '<button>Compose</button><button>Archive</button>';
+  index = new PageSearchIndex();
+
+  const result = await index.search(scorerFor('compsoe'));
+
+  expect(result.isFuzzy).toBe(true);
+  expect(result.matchingLinksAndButtons.map(node => node.textContent)).toEqual(['Compose']);
+});
+
+test('ranks a closer spelling above a more distant one', async () => {
+  document.body.innerHTML = '<button>Setting</button><button>Sitings</button>';
+  index = new PageSearchIndex();
+
+  const result = await index.search(scorerFor('settings'));
+
+  expect(result.isFuzzy).toBe(true);
+  expect(result.matchingLinksAndButtons.map(node => node.textContent)).toEqual([
+    'Setting',
+    'Sitings',
+  ]);
+});
+
+test('never matches approximately for a query too short to be distinctive', async () => {
+  document.body.innerHTML = '<p>Save</p>';
+  index = new PageSearchIndex();
+
+  // "sv" is one edit from "save", but too short to fuzzy match without dragging in noise.
+  const result = await index.search(scorerFor('sv'));
+
+  expect(result.isFuzzy).toBe(false);
+  expect(result.matchingText).toEqual([]);
 });

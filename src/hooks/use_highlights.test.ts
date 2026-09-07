@@ -1,4 +1,5 @@
 import {
+  highlightRangesForMatches,
   highlightRangesForNodes,
   rangesForTextNode,
   MAX_HIGHLIGHT_RANGES,
@@ -70,4 +71,17 @@ test('maps expanded and supplementary characters across adjacent text nodes', ()
   expect(
     highlightRangesForNodes([document.querySelector('p')!], 'save').map(range => range.toString()),
   ).toEqual(['Save', 'Save']);
+});
+
+test('highlights each match by its own matched term, not by the query', () => {
+  document.body.innerHTML = '<p>Open the settings panel</p><p>Change your setings</p>';
+  const [first, second] = [...document.querySelectorAll('p')];
+
+  // A fuzzy search for "setings" matches each block through that block's own spelling.
+  const ranges = highlightRangesForMatches([
+    { node: first!, action: null, term: 'settings' },
+    { node: second!, action: null, term: 'setings' },
+  ]);
+
+  expect(ranges.map(range => range.toString())).toEqual(['settings', 'setings']);
 });

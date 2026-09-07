@@ -138,7 +138,7 @@ test('preserves native block copying and restores query editing after Tab', asyn
   paragraph.textContent = 'Save the whole block';
   document.body.append(paragraph);
   searchMocks.findMatches.mockResolvedValue({
-    matchingText: [{ node: paragraph, action: null }],
+    matchingText: [{ node: paragraph, action: null, term: 'save' }],
     matchingLinksAndButtons: [],
   });
   const root = createExtensionRoot('')!;
@@ -176,7 +176,7 @@ test('refreshes a live query while retaining the selected block and clearing a r
   paragraph.textContent = 'Save second';
   document.body.append(paragraph);
   searchMocks.findMatches.mockResolvedValue({
-    matchingText: [{ node: paragraph, action: null }],
+    matchingText: [{ node: paragraph, action: null, term: 'save' }],
     matchingLinksAndButtons: [],
   });
   render(<Searchbar />);
@@ -204,7 +204,7 @@ test('refreshes a live query while retaining the selected block and clearing a r
 
   paragraph.remove();
   searchMocks.findMatches.mockResolvedValue({
-    matchingText: [{ node: earlier, action: null }],
+    matchingText: [{ node: earlier, action: null, term: 'save' }],
     matchingLinksAndButtons: [],
   });
   act(notify);
@@ -249,7 +249,7 @@ test('Alt+S toggles the search mode without moving either selection', async () =
   const secondAction = document.createElement('button');
   document.body.append(paragraph, firstAction, secondAction);
   searchMocks.findMatches.mockResolvedValue({
-    matchingText: [{ node: paragraph, action: null }],
+    matchingText: [{ node: paragraph, action: null, term: 'save' }],
     matchingLinksAndButtons: [firstAction, secondAction],
   });
   render(<Searchbar />);
@@ -276,7 +276,7 @@ test('Alt+S keeps the mode label visible when the active mode has no matches', a
   paragraph.textContent = 'Save';
   document.body.append(paragraph);
   searchMocks.findMatches.mockResolvedValue({
-    matchingText: [{ node: paragraph, action: null }],
+    matchingText: [{ node: paragraph, action: null, term: 'save' }],
     matchingLinksAndButtons: [],
   });
   render(<Searchbar />);
@@ -367,8 +367,9 @@ test('Tab selects and copies a whole text block, and Enter opens its nested acti
   paragraph.append(link, ' before continuing.');
   document.body.append(paragraph);
   const click = vi.spyOn(link, 'click');
+  const textMatch = { node: paragraph, action: link, term: 'documentation' };
   searchMocks.findMatches.mockResolvedValue({
-    matchingText: [{ node: paragraph, action: link }],
+    matchingText: [textMatch],
     matchingLinksAndButtons: [link],
   });
 
@@ -378,10 +379,7 @@ test('Tab selects and copies a whole text block, and Enter opens its nested acti
 
   await flushSearch();
   await waitFor(() =>
-    expect(searchMocks.useHighlights).toHaveBeenLastCalledWith({
-      searchText: 'documentation',
-      matchingNodes: [paragraph],
-    }),
+    expect(searchMocks.useHighlights).toHaveBeenLastCalledWith({ matches: [textMatch] }),
   );
 
   fireEvent.keyDown(input, { bubbles: true, cancelable: true, code: 'Tab', key: 'Tab' });
@@ -411,7 +409,7 @@ test('Ctrl+Tab and Shift+Ctrl+Tab navigate only action elements', async () => {
   secondAction.href = 'https://example.com/publish';
   document.body.append(paragraph, firstAction, secondAction);
   searchMocks.findMatches.mockResolvedValue({
-    matchingText: [{ node: paragraph, action: null }],
+    matchingText: [{ node: paragraph, action: null, term: 'save' }],
     matchingLinksAndButtons: [firstAction, secondAction],
   });
 
@@ -465,7 +463,7 @@ test.each([
   link.textContent = 'Open result';
   document.body.append(link);
   searchMocks.findMatches.mockResolvedValue({
-    matchingText: [{ node: link, action: link }],
+    matchingText: [{ node: link, action: link, term: 'save' }],
     matchingLinksAndButtons: [link],
   });
 

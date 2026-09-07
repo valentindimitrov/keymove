@@ -33,6 +33,7 @@ class FindInPage {
       return Promise.resolve({
         matchingText: [],
         matchingLinksAndButtons: [],
+        isFuzzy: false,
       });
     }
     const host = window.location.host;

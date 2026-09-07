@@ -73,3 +73,17 @@ test('keeps the mode label visible when a query has no matches', () => {
 
   expect(screen.getByRole('status')).toBeEmptyDOMElement();
 });
+
+test('marks approximate results so the count does not overstate what is on the page', () => {
+  render(
+    <MatchesSummary
+      mode={SEARCH_MODES.TEXT}
+      hasSearchQuery
+      isFuzzy
+      selectedSelectionIndex={0}
+      resultCount={2}
+    />,
+  );
+
+  expect(screen.getByRole('status')).toHaveTextContent('Text ~ 1 / 2');
+});

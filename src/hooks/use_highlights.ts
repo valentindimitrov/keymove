@@ -1,6 +1,7 @@
 import React from 'react';
 import { KEYMOVE_HIGHLIGHT_NAME } from '../constants.js';
 import { visibleTextNodes } from '../lib/visible_text.js';
+import type { TextMatch } from '../lib/page_search_index.js';
 
 const MAX_HIGHLIGHT_RANGES = 500;
 
@@ -68,43 +69,59 @@ function rangesForTextNodes(
   return ranges;
 }
 
-function highlightRangesForNodes(nodes: Element[], query: string): Range[] {
-  const roots = [...new Set(nodes)].filter(
-    node => !nodes.some(other => other !== node && other.contains(node)),
+/**
+ * Each match carries the term that matched it, which is a verbatim slice of that node's own
+ * text. A fuzzy result does not contain the query, so highlighting the query would mark
+ * nothing and leave the match invisible on the page.
+ */
+function highlightRangesForMatches(matches: TextMatch[]): Range[] {
+  const nodes = matches.map(match => match.node);
+  const roots = matches.filter(
+    (match, index) =>
+      nodes.indexOf(match.node) === index &&
+      !nodes.some(other => other !== match.node && other.contains(match.node)),
   );
   const ranges: Range[] = [];
-  for (const node of roots) {
+  for (const match of roots) {
     if (ranges.length === MAX_HIGHLIGHT_RANGES) break;
     ranges.push(
-      ...rangesForTextNodes(visibleTextNodes(node), query, MAX_HIGHLIGHT_RANGES - ranges.length),
+      ...rangesForTextNodes(
+        visibleTextNodes(match.node),
+        match.term,
+        MAX_HIGHLIGHT_RANGES - ranges.length,
+      ),
     );
   }
   return ranges;
 }
 
-type HighlightOptions = { searchText: string; matchingNodes: Element[] };
+function highlightRangesForNodes(nodes: Element[], query: string): Range[] {
+  return highlightRangesForMatches(nodes.map(node => ({ node, action: null, term: query })));
+}
 
-const useHighlights = ({ searchText, matchingNodes }: HighlightOptions) => {
+type HighlightOptions = { matches: TextMatch[] };
+
+const useHighlights = ({ matches }: HighlightOptions) => {
   React.useEffect(() => {
     const highlightRegistry = typeof CSS !== 'undefined' ? CSS.highlights : null;
-    const normalizedQuery = searchText.toLocaleLowerCase().trimStart();
 
-    if (
-      !highlightRegistry ||
-      typeof window.Highlight === 'undefined' ||
-      normalizedQuery.length === 0
-    ) {
+    if (!highlightRegistry || typeof window.Highlight === 'undefined' || matches.length === 0) {
       return undefined;
     }
 
-    const ranges = highlightRangesForNodes(matchingNodes, normalizedQuery);
+    const ranges = highlightRangesForMatches(matches);
     highlightRegistry.set(KEYMOVE_HIGHLIGHT_NAME, new window.Highlight(...ranges));
 
     return () => {
       highlightRegistry.delete(KEYMOVE_HIGHLIGHT_NAME);
     };
-  }, [matchingNodes, searchText]);
+  }, [matches]);
 };
 
-export { highlightRangesForNodes, rangesForTextNode, MAX_HIGHLIGHT_RANGES };
+export {
+  highlightRangesForMatches,
+  highlightRangesForNodes,
+  rangesForTextNode,
+  MAX_HIGHLIGHT_RANGES,
+};
 export default useHighlights;

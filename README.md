@@ -18,6 +18,7 @@ a background tab.
 ## Features
 
 - Start typing on a page to search immediately—no search dialog required.
+- Fall back to approximate matching when a query has no exact match, so typos still find results.
 - Navigate matching paragraphs and other semantic text blocks in either direction.
 - Select the complete text block automatically for quick copying with `Ctrl + C` or `Command + C`.
 - Navigate links, buttons, inputs, and other actionable elements separately from page text.
@@ -69,6 +70,16 @@ buttons and inputs, unmodified `Enter` preserves their normal click or focus beh
 Enter shortcuts never try to open them as new tabs.
 
 Each mode keeps its own selection, so switching back returns to where you left off.
+
+### Approximate matching
+
+When a query matches nothing on the page, KeyMove searches again for the closest spellings instead
+of reporting nothing. `setings` finds *settings*, and `compsoe` finds a *Compose* button. Queries
+shorter than three characters are matched exactly, since a single edit to a short query brings in
+too much of the page.
+
+Approximate results are marked with `~` beside the mode in the searchbar, so a count never implies
+the page contains something it does not. Matches are highlighted using the page's own spelling.
 
 > [!NOTE]
 > Chromium-based browsers may reserve `Ctrl + Tab` for browser-tab switching. Action mode works when

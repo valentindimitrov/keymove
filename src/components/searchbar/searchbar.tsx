@@ -52,6 +52,7 @@ const Searchbar = () => {
 
   const [isHidden, setIsHidden] = React.useState<boolean>(autoHide);
   const [searchText, setSearchText] = React.useState('');
+  const [isFuzzy, setIsFuzzy] = React.useState(false);
   const previousSearchText = React.useRef(searchText);
   const [scrollOrResizeRefresh, setScrollOrResizeRefresh] = React.useState<boolean>(false);
   const [hideSelections, setHideSelections] = React.useState<boolean>(false);
@@ -172,7 +173,7 @@ const Searchbar = () => {
       searchAbortController.current = controller;
 
       try {
-        const { matchingText, matchingLinksAndButtons } = await new FindInPage(
+        const { matchingText, matchingLinksAndButtons, isFuzzy } = await new FindInPage(
           searchText,
         ).findMatches({ signal: controller.signal });
 
@@ -180,6 +181,7 @@ const Searchbar = () => {
           return;
         }
 
+        setIsFuzzy(isFuzzy);
         setSearchResults(matchingText, matchingLinksAndButtons, preserveSelection);
         setScrollOrResizeRefresh(refresh => !refresh);
       } catch (error) {
@@ -470,7 +472,7 @@ const Searchbar = () => {
     true,
   );
   useKeyboardShortcuts(handleShortcut);
-  useHighlights({ searchText, matchingNodes: matchingTextNodes });
+  useHighlights({ matches: matchingText });
   useExtensionMessaging({ handleToolbarActionClicked });
 
   return (
@@ -508,6 +510,7 @@ const Searchbar = () => {
         <MatchesSummary
           mode={navigationMode}
           hasSearchQuery={hasSearchQuery}
+          isFuzzy={isFuzzy}
           selectedSelectionIndex={selectedSelectionIndex}
           resultCount={activeMatchingNodes.length}
         />

@@ -49,11 +49,14 @@ artifacts are `.output/chrome-mv3` and `.output/firefox-mv3`.
    supplied by context, and an error boundary offers an in-page retry for unexpected render errors.
 2. `Searchbar` accepts type-to-search input and schedules cancellable searches.
 3. `PageSearchIndex` keeps candidate DOM records current with a `MutationObserver`.
-4. `NodeScorer` evaluates visible text and configured searchable attributes.
-5. Results are split into text blocks and actionable elements.
-6. `useSearchNavigation` retains an independent cursor for each mode.
-7. `useHighlights` uses the CSS Custom Highlight API without rewriting host-page DOM.
-8. The MV3 background responds to toolbar clicks and injects the content assets into eligible tabs
+4. `NodeScorer` evaluates visible text and searchable attributes.
+5. If that pass matched nothing, a second pass rescores the same text with `fuzzy_match`,
+   using bounded edit distance. Approximate matching never runs for a search that already
+   has results, and each match carries the page's own spelling so highlighting can find it.
+6. Results are split into text blocks and actionable elements.
+7. `useSearchNavigation` retains an independent cursor for each mode.
+8. `useHighlights` uses the CSS Custom Highlight API without rewriting host-page DOM.
+9. The MV3 background responds to toolbar clicks and injects the content assets into eligible tabs
    that were already open at installation time.
 
 ## Navigation invariants
@@ -144,7 +147,11 @@ blindly replacing it can break selectors, stored preferences, and content/backgr
 - Keep the content bundle free of CommonJS `require()` calls.
 - Preserve the Shadow DOM boundary. Page-wide visual search marks belong in `highlights.css`; UI
   styles belong in `content.css`.
-- Search work must remain cancellable and chunked to avoid blocking large pages.
+- Search work must remain cancellable and chunked to avoid blocking large pages. The fuzzy pass
+  is part of that budget; it reuses the text gathered by the exact pass rather than walking the
+  DOM again, because deriving visible text costs far more than comparing it.
+- A `TextMatch` carries the literal slice of its node that matched. Highlighting locates that
+  slice, so it must stay a verbatim substring of the node's visible text.
 - Add or update tests for navigation shortcuts, DOM indexing, storage validation, and build-shape
   changes.
 - Preserve unrelated user changes and leave generated build output untracked.
