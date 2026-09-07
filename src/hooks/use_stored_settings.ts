@@ -35,12 +35,9 @@ function persistBooleanSetting(
 }
 
 const useStoredSettings = () => {
-  const revisions = React.useRef({ autoHide: 0, useOnEveryWebsite: 0, alwaysOn: 0 });
+  const revisions = React.useRef({ autoHide: 0, alwaysOn: 0 });
   const [autoHide, setAutoHide] = React.useState<boolean>(
     DEFAULT_STORED_SETTINGS[SETTINGS_KEYS.AUTO_HIDE],
-  );
-  const [useOnEveryWebsite, setUseOnEveryWebsite] = React.useState<boolean>(
-    DEFAULT_STORED_SETTINGS[SETTINGS_KEYS.USE_ON_EVERY_WEBSITE],
   );
   const [alwaysOn, setAlwaysOn] = React.useState<boolean>(
     DEFAULT_STORED_SETTINGS[SETTINGS_KEYS.ALWAYS_ON],
@@ -59,21 +56,6 @@ const useStoredSettings = () => {
       );
     },
     [autoHide],
-  );
-
-  const updateUseOnEveryWebsite = React.useCallback(
-    (newUseOnEveryWebsite: boolean) => {
-      const revision = ++revisions.current.useOnEveryWebsite;
-      setUseOnEveryWebsite(newUseOnEveryWebsite);
-      persistBooleanSetting(
-        SETTINGS_KEYS.USE_ON_EVERY_WEBSITE,
-        newUseOnEveryWebsite,
-        useOnEveryWebsite,
-        setUseOnEveryWebsite,
-        () => revisions.current.useOnEveryWebsite === revision,
-      );
-    },
-    [useOnEveryWebsite],
   );
 
   const updateAlwaysOn = React.useCallback(
@@ -96,8 +78,6 @@ const useStoredSettings = () => {
       const { settings, issues } = validateStoredSettings(data);
       reportStorageIssues(issues);
       if (revisions.current.autoHide === initialRevisions.autoHide) setAutoHide(settings.autoHide);
-      if (revisions.current.useOnEveryWebsite === initialRevisions.useOnEveryWebsite)
-        setUseOnEveryWebsite(settings.useOnEveryWebsite);
       if (revisions.current.alwaysOn === initialRevisions.alwaysOn) setAlwaysOn(settings.alwaysOn);
     },
     [],
@@ -127,7 +107,6 @@ const useStoredSettings = () => {
       };
 
       applyChange(SETTINGS_KEYS.AUTO_HIDE, setAutoHide);
-      applyChange(SETTINGS_KEYS.USE_ON_EVERY_WEBSITE, setUseOnEveryWebsite);
       applyChange(SETTINGS_KEYS.ALWAYS_ON, setAlwaysOn);
     },
     [],
@@ -152,8 +131,6 @@ const useStoredSettings = () => {
   return {
     autoHide,
     updateAutoHide,
-    useOnEveryWebsite,
-    updateUseOnEveryWebsite,
     alwaysOn,
     updateAlwaysOn,
   };

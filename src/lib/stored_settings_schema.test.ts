@@ -8,14 +8,12 @@ import {
 test('accepts boolean values returned by extension storage', () => {
   const result = validateStoredSettings({
     [SETTINGS_KEYS.AUTO_HIDE]: true,
-    [SETTINGS_KEYS.USE_ON_EVERY_WEBSITE]: false,
     [SETTINGS_KEYS.ALWAYS_ON]: false,
   });
 
   expect(result).toEqual({
     settings: {
       [SETTINGS_KEYS.AUTO_HIDE]: true,
-      [SETTINGS_KEYS.USE_ON_EVERY_WEBSITE]: false,
       [SETTINGS_KEYS.ALWAYS_ON]: false,
     },
     issues: [],
@@ -25,12 +23,11 @@ test('accepts boolean values returned by extension storage', () => {
 test('replaces malformed stored values with safe defaults', () => {
   const result = validateStoredSettings({
     [SETTINGS_KEYS.AUTO_HIDE]: 'false',
-    [SETTINGS_KEYS.USE_ON_EVERY_WEBSITE]: 0,
     [SETTINGS_KEYS.ALWAYS_ON]: null,
   });
 
   expect(result.settings).toEqual(DEFAULT_STORED_SETTINGS);
-  expect(result.issues).toHaveLength(3);
+  expect(result.issues).toHaveLength(2);
   expect(result.issues[0]).toContain('must be a boolean');
 });
 

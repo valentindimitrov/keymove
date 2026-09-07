@@ -76,8 +76,6 @@ Enter shortcuts never try to open them as new tabs.
 
 Open the **KeyMove help and settings** button inside the search interface to configure:
 
-- **Use on all websites (Experimental):** make KeyMove available beyond its optimized site
-  profiles.
 - **Always on:** begin searching whenever you type while another input is not focused.
 - **Autohide:** hide the interface when it is not being used.
 - **Reset popup position:** return the interface to its default location—horizontally centered with
@@ -200,9 +198,8 @@ tooling dependencies `ansi-regex` and `@babel/runtime` above their known vulnera
 - [src/background.ts](src/background.ts) handles toolbar actions, safe MV3 injection, and validated
   new-tab requests.
 
-Host-specific scoring and synonyms live in `src/data/app_specific_settings`. Shared search attributes
-and keyboard shortcuts live in `src/data`. Repository conventions and implementation invariants are
-documented in [AGENTS.md](AGENTS.md).
+Shared search attributes and keyboard shortcuts live in `src/data`. Repository conventions and
+implementation invariants are documented in [AGENTS.md](AGENTS.md).
 
 ## License and acknowledgements
 

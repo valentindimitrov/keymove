@@ -277,12 +277,6 @@ function validateTarget(target: BuildTarget, packageVersion: string) {
       `${target.name}: legacy MV2 API "${legacyApi}" is still bundled`,
     );
   });
-  ['api.comake.io', 'verify_login_email'].forEach(authToken => {
-    requireCondition(
-      !bundledSource.includes(authToken),
-      `${target.name}: removed authentication token "${authToken}" is still bundled`,
-    );
-  });
 
   ['login.html', 'login.js', 'login.css'].forEach(removedFile => {
     requireCondition(

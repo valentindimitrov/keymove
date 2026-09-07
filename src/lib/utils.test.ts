@@ -1,6 +1,8 @@
 import Utils from './utils.js';
 
 afterEach(() => {
+  Utils.clearPageSelection();
+  window.getSelection()?.removeAllRanges();
   document.body.innerHTML = '';
 });
 
@@ -37,6 +39,45 @@ test('selects and clears all contents of a text block', () => {
 
   Utils.clearPageSelection();
   expect(window.getSelection()?.rangeCount).toBe(0);
+});
+
+test('restores the original query caret after selecting multiple page blocks', () => {
+  const host = document.createElement('div');
+  const shadow = host.attachShadow({ mode: 'open' });
+  const input = document.createElement('input');
+  input.value = 'save';
+  shadow.append(input);
+  const first = document.createElement('p');
+  first.textContent = 'Save first';
+  const second = document.createElement('p');
+  second.textContent = 'Save second';
+  document.body.append(host, first, second);
+  input.focus();
+  input.setSelectionRange(2, 2);
+  Utils.selectNodeContents(first);
+  // jsdom does not model the browser moving the input's internal caret during page selection.
+  input.setSelectionRange(0, 0);
+  Utils.selectNodeContents(second);
+  expect(window.getSelection()?.toString()).toBe('Save second');
+  Utils.restoreInputSelection(input);
+  expect([input.selectionStart, input.selectionEnd]).toEqual([2, 2]);
+  expect(window.getSelection()?.rangeCount).toBe(0);
+});
+
+test('leaves a user-created selection alone when clearing search selection', () => {
+  const first = document.createElement('p');
+  first.textContent = 'Search result';
+  const second = document.createElement('p');
+  second.textContent = 'User selection';
+  document.body.append(first, second);
+  Utils.selectNodeContents(first);
+  const userRange = document.createRange();
+  userRange.selectNodeContents(second);
+  const selection = window.getSelection()!;
+  selection.removeAllRanges();
+  selection.addRange(userRange);
+  Utils.clearPageSelection();
+  expect(selection.toString()).toBe('User selection');
 });
 
 test('resolves safe anchor destinations for link actions', () => {

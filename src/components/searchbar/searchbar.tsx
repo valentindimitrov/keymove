@@ -25,28 +25,18 @@ import type { KeyboardShortcutName } from '../../lib/static_data_schema.js';
 import { EXTENSION_NAME } from '../../extension_identity.js';
 
 const SCROLL_OR_RESIZE_UPDATE_TIMEOUT_DURATION = 100;
-const SEARCH_TEXT_UPDATE_TIMEOUT_DURATION = 150;
 type ShortcutHandler = (event: KeyboardEvent) => void;
 type ActionActivation = 'current' | 'foreground-tab' | 'background-tab';
 
 const Searchbar = () => {
   const scrollOrResizeUpdateTimeout = React.useRef<number | undefined>(undefined);
-  const searchTimeout = React.useRef<number | undefined>(undefined);
   const searchAbortController = React.useRef<AbortController | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
   const focusRequested = React.useRef(false);
 
-  const {
-    autoHide,
-    updateAutoHide,
-    useOnEveryWebsite,
-    updateUseOnEveryWebsite,
-    alwaysOn,
-    updateAlwaysOn,
-  } = useStoredSettings();
+  const { autoHide, updateAutoHide, alwaysOn, updateAlwaysOn } = useStoredSettings();
   const previousAutoHide = React.useRef(autoHide);
-  const previousUseOnEveryWebsite = React.useRef(useOnEveryWebsite);
   const {
     state: searchNavigation,
     setResults: setSearchResults,
@@ -61,14 +51,11 @@ const Searchbar = () => {
   } = usePopupPosition();
 
   const [isHidden, setIsHidden] = React.useState<boolean>(autoHide);
-  const [temporarilyEnabled, setTemporarilyEnabled] = React.useState<boolean>(false);
   const [searchText, setSearchText] = React.useState('');
   const previousSearchText = React.useRef(searchText);
   const [scrollOrResizeRefresh, setScrollOrResizeRefresh] = React.useState<boolean>(false);
   const [hideSelections, setHideSelections] = React.useState<boolean>(false);
-  const isDisabled = !useOnEveryWebsite && !Utils.hostIsGmail();
-  const isEnabled = !isDisabled || temporarilyEnabled;
-  const isInteractive = isEnabled && !isHidden;
+  const isInteractive = !isHidden;
 
   const matchingText = searchNavigation.results.text;
   const matchingLinksAndButtons = searchNavigation.results.actions;
@@ -113,10 +100,6 @@ const Searchbar = () => {
   }, [isInteractive, focusSearchInput]);
 
   const cancelPendingSearch = React.useCallback(() => {
-    if (searchTimeout.current !== undefined) {
-      window.clearTimeout(searchTimeout.current);
-      searchTimeout.current = undefined;
-    }
     if (searchAbortController.current) {
       searchAbortController.current.abort();
     }
@@ -129,17 +112,10 @@ const Searchbar = () => {
     Utils.clearPageSelection();
   }, [cancelPendingSearch, clearSearchResults]);
 
-  const resetTemporarilyEnabled = React.useCallback(() => {
-    if (isDisabled && temporarilyEnabled) {
-      setTemporarilyEnabled(false);
-    }
-  }, [isDisabled, temporarilyEnabled]);
-
   const hide = React.useCallback(() => {
     setIsHidden(true);
     resetSearchTextAndMatches();
-    resetTemporarilyEnabled();
-  }, [resetSearchTextAndMatches, resetTemporarilyEnabled]);
+  }, [resetSearchTextAndMatches]);
 
   const handleBlur = React.useCallback(
     (event: React.FocusEvent<HTMLInputElement>) => {
@@ -150,9 +126,8 @@ const Searchbar = () => {
         setIsHidden(true);
       }
       resetSearchTextAndMatches();
-      resetTemporarilyEnabled();
     },
-    [autoHide, resetSearchTextAndMatches, resetTemporarilyEnabled],
+    [autoHide, resetSearchTextAndMatches],
   );
 
   const activateSelectedMatchingNodeAndReset = React.useCallback(
@@ -234,12 +209,8 @@ const Searchbar = () => {
         clearSearchResults();
         Utils.clearPageSelection();
       }
-      if (searchText.trimStart().length < 2) return;
-
-      searchTimeout.current = window.setTimeout(() => {
-        searchTimeout.current = undefined;
-        void runSearch(preserveSelection);
-      }, SEARCH_TEXT_UPDATE_TIMEOUT_DURATION);
+      if (searchText.trimStart().length === 0) return;
+      void runSearch(preserveSelection);
     },
     [cancelPendingSearch, clearSearchResults, runSearch, searchText],
   );
@@ -306,10 +277,6 @@ const Searchbar = () => {
     [guarded, selectNextMatchingNode],
   );
 
-  const toggleUseOnEveryWebsite = React.useCallback(() => {
-    updateUseOnEveryWebsite(!useOnEveryWebsite);
-  }, [useOnEveryWebsite, updateUseOnEveryWebsite]);
-
   const toggleAutoHide = React.useCallback(() => {
     updateAutoHide(!autoHide);
   }, [autoHide, updateAutoHide]);
@@ -341,11 +308,9 @@ const Searchbar = () => {
         }
       }),
       focus_searchbar: event => {
-        if (isEnabled) {
-          event.preventDefault();
-          event.stopPropagation();
-          revealAndFocus();
-        }
+        event.preventDefault();
+        event.stopPropagation();
+        revealAndFocus();
       },
       clear_search_or_hide: event => {
         const differentInputIsActive = Utils.differentInputIsActive(searchInputRef.current);
@@ -365,7 +330,6 @@ const Searchbar = () => {
     guarded,
     activateSelectedMatchingNodeAndReset,
     preventDefaultAndClearSearchText,
-    isEnabled,
     revealAndFocus,
     isInteractive,
     searchText,
@@ -412,12 +376,8 @@ const Searchbar = () => {
   );
 
   const handleToolbarActionClicked = React.useCallback(() => {
-    if (isDisabled) {
-      setTemporarilyEnabled(true);
-    }
-
     revealAndFocus();
-  }, [isDisabled, revealAndFocus]);
+  }, [revealAndFocus]);
 
   const handleCopy = React.useCallback(
     (event: ClipboardEvent) => {
@@ -451,7 +411,7 @@ const Searchbar = () => {
     }
   }, [searchText, scheduleSearch]);
 
-  const hasSearchQuery = searchText.trimStart().length >= 2;
+  const hasSearchQuery = searchText.trimStart().length > 0;
   const refreshSearchOnPageChange = React.useEffectEvent(() => scheduleSearch(true));
   React.useEffect(() => {
     if (!isInteractive || !hasSearchQuery) return undefined;
@@ -483,28 +443,10 @@ const Searchbar = () => {
         hide();
       } else {
         setIsHidden(false);
-
-        if (isEnabled) {
-          focusSearchInput();
-        }
+        focusSearchInput();
       }
     }
-  }, [autoHide, hide, focusSearchInput, isEnabled]);
-
-  React.useEffect(() => {
-    const useOnEveryWebsiteChanged = useOnEveryWebsite !== previousUseOnEveryWebsite.current;
-    if (useOnEveryWebsiteChanged) {
-      previousUseOnEveryWebsite.current = useOnEveryWebsite;
-    }
-
-    if (useOnEveryWebsiteChanged) {
-      if (isDisabled) {
-        resetSearchTextAndMatches();
-      } else if (temporarilyEnabled) {
-        setTemporarilyEnabled(false);
-      }
-    }
-  }, [useOnEveryWebsite, resetSearchTextAndMatches, temporarilyEnabled, isDisabled]);
+  }, [autoHide, hide, focusSearchInput]);
 
   const hasActiveMatches = activeMatchingNodes.length > 0;
 
@@ -513,7 +455,7 @@ const Searchbar = () => {
   useWindowEvent('scroll', shouldBindEvents, updateSelectionPositionsAfterTimeout);
   useWindowEvent('wheel', shouldBindEvents, updateSelectionPositionsAfterTimeout);
   useWindowEvent('resize', shouldBindEvents, updateSelectionPositionsAfterTimeout);
-  useDocumentEvent('keydown', isEnabled && alwaysOn, handleKeydown, true);
+  useDocumentEvent('keydown', alwaysOn, handleKeydown, true);
   useDocumentEvent(
     'copy',
     selectedTextMatch !== null || selectedActionLinkUrl !== null,
@@ -564,11 +506,8 @@ const Searchbar = () => {
         {isInteractive && <VisibilityButton autoHide={autoHide} toggleAutoHide={toggleAutoHide} />}
         {isInteractive && (
           <InfoDropdown
-            temporarilyEnabled={temporarilyEnabled}
             autoHide={autoHide}
             toggleAutoHide={toggleAutoHide}
-            useOnEveryWebsite={useOnEveryWebsite}
-            toggleUseOnEveryWebsite={toggleUseOnEveryWebsite}
             alwaysOn={alwaysOn}
             toggleAlwaysOn={toggleAlwaysOn}
             resetPopupPosition={resetPosition}

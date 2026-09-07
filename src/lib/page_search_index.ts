@@ -1,11 +1,16 @@
 import { DO_NOT_SEARCH_NODE_TYPES, KEYMOVE_ROOT_ID } from '../constants.js';
 import NodeScorer from './node_scorer.js';
-import SearchableAttributeSettings from './searchable_attribute_settings.js';
+import {
+  ACTIONABLE_SELECTOR,
+  isLinkOrButtonOrInput,
+  searchableAttributeValuesForNode,
+} from './searchable_attributes.js';
 import { isTextVisible, iterateVisibleTextNodes } from './visible_text.js';
 import type { StyleCache } from './visible_text.js';
 
 const DEFAULT_RESULT_LIMIT = 50;
 const SEARCH_CHUNK_SIZE = 100;
+const SEARCH_WORK_BUDGET_MS = 8;
 const NO_BREAK_SPACE_REGEX = /\u00a0/g;
 const TEXT_BLOCK_SELECTOR =
   'p, li, blockquote, pre, td, th, dt, dd, figcaption, h1, h2, h3, h4, h5, h6';
@@ -34,28 +39,35 @@ function yieldToMainThread(signal: AbortSignal): Promise<void> {
   }
 
   return new Promise<void>((resolve, reject) => {
-    const useIdleCallback = typeof window.requestIdleCallback === 'function';
     const cancel = () => {
-      if (useIdleCallback) window.cancelIdleCallback(handle);
-      else window.clearTimeout(handle);
+      window.clearTimeout(handle);
       reject(abortError());
     };
     const resume = () => {
       signal.removeEventListener('abort', cancel);
       resolve();
     };
-    const handle = useIdleCallback
-      ? window.requestIdleCallback(resume, { timeout: 16 })
-      : window.setTimeout(resume, 0);
+    const handle = window.setTimeout(resume, 0);
     signal.addEventListener('abort', cancel, { once: true });
   });
 }
 
+class SearchWorkBudget {
+  private deadline = performance.now() + SEARCH_WORK_BUDGET_MS;
+  private processed = 0;
+
+  checkpoint(signal: AbortSignal): Promise<void> | undefined {
+    if (++this.processed % SEARCH_CHUNK_SIZE !== 0 || performance.now() < this.deadline)
+      return undefined;
+    return yieldToMainThread(signal).then(() => {
+      this.deadline = performance.now() + SEARCH_WORK_BUDGET_MS;
+    });
+  }
+}
+
 class PageSearchIndex {
   readonly root: HTMLElement;
-  readonly searchableAttributeSettings: SearchableAttributeSettings;
   readonly actionableSelector: string;
-  readonly additionalSelectors: string[];
   readonly records = new Map<Element, SearchRecord | null>();
   readonly observer: MutationObserver;
   readonly onChange: () => void;
@@ -64,16 +76,9 @@ class PageSearchIndex {
   private subtreeRevision = 0;
   private needsPruning = false;
 
-  constructor(
-    searchableAttributeSettings: SearchableAttributeSettings,
-    additionalSelectors: string[] = [],
-    onChange: () => void = () => undefined,
-  ) {
+  constructor(onChange: () => void = () => undefined) {
     this.root = document.body;
-    this.searchableAttributeSettings = searchableAttributeSettings;
-    this.actionableSelector =
-      searchableAttributeSettings.searchableAttributeSettingsByNodeNameToQuerySelector();
-    this.additionalSelectors = additionalSelectors;
+    this.actionableSelector = ACTIONABLE_SELECTOR;
     this.onChange = onChange;
     this.handleMutations = this.handleMutations.bind(this);
 
@@ -94,8 +99,7 @@ class PageSearchIndex {
       !DO_NOT_SEARCH_NODE_TYPES.includes(node.nodeName) &&
       (this.hasDirectSearchableText(node) ||
         node.matches(TEXT_BLOCK_SELECTOR) ||
-        node.matches(this.actionableSelector) ||
-        this.additionalSelectors.some(selector => node.matches(selector)))
+        node.matches(this.actionableSelector))
     );
   }
 
@@ -163,14 +167,14 @@ class PageSearchIndex {
     this.pendingSubtrees.set(root, ++this.subtreeRevision);
   }
 
-  private async flushPendingSubtrees(signal: AbortSignal) {
-    let processed = 0;
+  private async flushPendingSubtrees(signal: AbortSignal, budget: SearchWorkBudget) {
     if (this.needsPruning) {
       this.needsPruning = false;
       try {
         for (const node of this.records.keys()) {
           if (!this.root.contains(node)) this.records.delete(node);
-          if (++processed % SEARCH_CHUNK_SIZE === 0) await yieldToMainThread(signal);
+          const pause = budget.checkpoint(signal);
+          if (pause) await pause;
         }
       } catch (error) {
         this.needsPruning = true;
@@ -193,7 +197,8 @@ class PageSearchIndex {
       do {
         if (signal.aborted) throw abortError();
         this.refreshCandidate(node);
-        if (++processed % SEARCH_CHUNK_SIZE === 0) await yieldToMainThread(signal);
+        const pause = budget.checkpoint(signal);
+        if (pause) await pause;
         node = walker.nextNode();
       } while (node);
       if (this.pendingSubtrees.get(root) === revision) this.pendingSubtrees.delete(root);
@@ -232,16 +237,9 @@ class PageSearchIndex {
         mutation.addedNodes.forEach(node => this.addSubtree(node));
         this.refreshCandidate(mutation.target);
       } else if (mutation.type === 'attributes') {
-        // Visibility is evaluated during each search, so ordinary attribute changes only
-        // invalidate the changed element. App-specific selectors may depend on ancestors.
-        if (
-          this.additionalSelectors.length > 0 ||
-          this.searchableAttributeSettings.additionalButtonSelectors.length > 0
-        ) {
-          this.invalidateSubtree(mutation.target);
-        } else {
-          this.refreshCandidate(mutation.target);
-        }
+        // Visibility is evaluated during each search, so attribute changes only invalidate
+        // the changed element.
+        this.refreshCandidate(mutation.target);
       } else if (mutation.type === 'characterData') {
         this.refreshCandidate(mutation.target.parentElement);
       }
@@ -258,7 +256,7 @@ class PageSearchIndex {
     }
 
     const record = {
-      attributeValues: this.searchableAttributeSettings.searchableAttributeValuesForNode(node),
+      attributeValues: searchableAttributeValuesForNode(node),
     };
     this.records.set(node, record);
     return record;
@@ -285,10 +283,7 @@ class PageSearchIndex {
   actionableAncestorForNode(node: Element): HTMLElement | null {
     let candidate: Element | null = node;
     while (candidate && candidate !== document.body) {
-      if (
-        candidate instanceof HTMLElement &&
-        this.searchableAttributeSettings.isLinkOrButtonOrInput(candidate)
-      ) {
+      if (candidate instanceof HTMLElement && isLinkOrButtonOrInput(candidate)) {
         return candidate;
       }
       candidate = candidate.parentElement;
@@ -322,15 +317,16 @@ class PageSearchIndex {
       ? Math.max(0, Math.floor(limit))
       : DEFAULT_RESULT_LIMIT;
     if (resultLimit === 0) return { matchingText: [], matchingLinksAndButtons: [] };
-    await this.flushPendingSubtrees(searchSignal);
+    const budget = new SearchWorkBudget();
+    await this.flushPendingSubtrees(searchSignal, budget);
     const actions: ActionMatch[] = [];
     const textMatchesByContainer = new Map<Element, TextMatch>();
     const matchingText: TextMatch[] = [];
     const styles: StyleCache = new WeakMap();
-    let processed = 0;
     for (const node of this.records.keys()) {
       if (searchSignal.aborted) throw abortError();
-      if (++processed % SEARCH_CHUNK_SIZE === 0) await yieldToMainThread(searchSignal);
+      const pause = budget.checkpoint(searchSignal);
+      if (pause) await pause;
       if (searchSignal.aborted) throw abortError();
       if (!this.root.contains(node)) {
         this.records.delete(node);
@@ -346,7 +342,8 @@ class PageSearchIndex {
       const textParts: string[] = [];
       for (const text of iterateVisibleTextNodes(node, styles)) {
         textParts.push(text.data);
-        if (++processed % SEARCH_CHUNK_SIZE === 0) await yieldToMainThread(searchSignal);
+        const pause = budget.checkpoint(searchSignal);
+        if (pause) await pause;
       }
       const innerText = textParts
         .join('')
@@ -355,10 +352,7 @@ class PageSearchIndex {
         .replace(NO_BREAK_SPACE_REGEX, ' ');
       const score = nodeScorer.score(node, innerText, record.attributeValues);
       if (score <= 0) continue;
-      if (
-        node instanceof HTMLElement &&
-        this.searchableAttributeSettings.isLinkOrButtonOrInput(node)
-      ) {
+      if (node instanceof HTMLElement && isLinkOrButtonOrInput(node)) {
         const insertion = actions.findIndex(match => match.score < score);
         if (insertion !== -1) actions.splice(insertion, 0, { node, score });
         else if (actions.length < resultLimit) actions.push({ node, score });
@@ -395,7 +389,8 @@ class PageSearchIndex {
       const walker = document.createTreeWalker(match.node, NodeFilter.SHOW_ELEMENT);
       let node = walker.nextNode();
       while (node) {
-        if (++processed % SEARCH_CHUNK_SIZE === 0) await yieldToMainThread(searchSignal);
+        const pause = budget.checkpoint(searchSignal);
+        if (pause) await pause;
         if (
           node instanceof HTMLElement &&
           node.matches(this.actionableSelector) &&

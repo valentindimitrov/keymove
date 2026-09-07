@@ -1,6 +1,14 @@
 import { INPUT_NODE_TYPES, KEYS_VALID_FOR_FOCUS_REGEX, MAC_OS_PLATFORMS } from '../constants.js';
 import { normalizedOpenableLinkUrl } from './extension_tabs.js';
 
+let selectedPageRange: Range | null = null;
+let savedInputSelection: {
+  input: HTMLInputElement;
+  start: number;
+  end: number;
+  direction: 'forward' | 'backward' | 'none';
+} | null = null;
+
 function differentInputIsActive(inputElement: Element | null) {
   const activeElement = getDeepActiveElement();
   return activeElement && activeElement !== inputElement && elementIsEditable(activeElement);
@@ -118,18 +126,44 @@ function selectNodeContents(node: Element) {
   if (!selection) {
     return;
   }
+  if (
+    !selectedPageRange ||
+    selection.rangeCount === 0 ||
+    selection.getRangeAt(0) !== selectedPageRange
+  ) {
+    const input = getDeepActiveElement();
+    savedInputSelection =
+      input instanceof HTMLInputElement && input.selectionStart !== null
+        ? {
+            input,
+            start: input.selectionStart,
+            end: input.selectionEnd ?? input.selectionStart,
+            direction: input.selectionDirection ?? 'none',
+          }
+        : null;
+  }
   const range = document.createRange();
   range.selectNodeContents(node);
   selection.removeAllRanges();
   selection.addRange(range);
+  selectedPageRange = range;
 }
 
 function clearPageSelection() {
-  window.getSelection()?.removeAllRanges();
+  const selection = window.getSelection();
+  if (selection && selection.rangeCount > 0 && selection.getRangeAt(0) === selectedPageRange) {
+    selection.removeAllRanges();
+    if (savedInputSelection && elementIsActive(savedInputSelection.input)) {
+      const { input, start, end, direction } = savedInputSelection;
+      input.setSelectionRange(start, end, direction);
+    }
+  }
+  selectedPageRange = null;
+  savedInputSelection = null;
 }
 
-function hostIsGmail() {
-  return window.location.host === 'mail.google.com';
+function restoreInputSelection(input: HTMLInputElement) {
+  if (savedInputSelection?.input === input) clearPageSelection();
 }
 
 const Utils = {
@@ -146,7 +180,7 @@ const Utils = {
   scrollToNodeAtIndexInList,
   selectNodeContents,
   clearPageSelection,
-  hostIsGmail,
+  restoreInputSelection,
 };
 
 export default Utils;

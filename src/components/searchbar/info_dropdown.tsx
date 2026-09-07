@@ -4,13 +4,10 @@ import useHover from '../../hooks/use_hover.js';
 import InfoPanel from './info_panel/info_panel.js';
 import Tooltip from './tooltip.js';
 import HelpIcon from '../../icons/help.svg?react';
-import TemporarilyEnabledMessage from './temporarily_enabled_message.js';
 import type { SettingsControls } from './settings_controls.js';
 
-type InfoDropdownProps = SettingsControls & { temporarilyEnabled: boolean };
-
-const InfoDropdown = (props: InfoDropdownProps) => {
-  const { temporarilyEnabled, ...settings } = props;
+const InfoDropdown = (props: SettingsControls) => {
+  const settings = props;
 
   const containerRef = React.useRef<HTMLButtonElement>(null);
   const [hover, onMouseEnter, onMouseLeave] = useHover();
@@ -21,13 +18,6 @@ const InfoDropdown = (props: InfoDropdownProps) => {
     setIsOpen(false);
     containerRef.current?.focus();
   };
-
-  let tooltipContents: React.ReactNode;
-  if (showInfoPanel) {
-    tooltipContents = <InfoPanel {...settings} onDismiss={dismiss} />;
-  } else if (temporarilyEnabled) {
-    tooltipContents = <TemporarilyEnabledMessage />;
-  }
 
   return (
     <>
@@ -51,12 +41,9 @@ const InfoDropdown = (props: InfoDropdownProps) => {
       >
         <HelpIcon />
       </button>
-      {tooltipContents && (
-        <Tooltip
-          containerRef={containerRef}
-          key={showInfoPanel ? 'info-panel' : 'temporarily-enabled'}
-        >
-          {tooltipContents}
+      {showInfoPanel && (
+        <Tooltip containerRef={containerRef}>
+          <InfoPanel {...settings} onDismiss={dismiss} />
         </Tooltip>
       )}
     </>

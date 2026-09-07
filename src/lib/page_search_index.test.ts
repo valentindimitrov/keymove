@@ -1,12 +1,10 @@
 import NodeScorer from './node_scorer.js';
 import { DEFAULT_RESULT_LIMIT, PageSearchIndex } from './page_search_index.js';
-import SearchableAttributeSettings from './searchable_attribute_settings.js';
 
 let index: PageSearchIndex | null = null;
-const settings = new SearchableAttributeSettings();
 
 function scorerFor(query: string) {
-  return new NodeScorer(query, {}, [], [], {});
+  return new NodeScorer(query);
 }
 
 function waitForMutations() {
@@ -36,7 +34,7 @@ afterEach(() => {
 
 test('ranks action results by relevance instead of DOM order', async () => {
   document.body.innerHTML = '<button>Autosave</button><button>Save settings</button>';
-  index = new PageSearchIndex(settings);
+  index = new PageSearchIndex();
 
   const result = await index.search(scorerFor('save'));
 
@@ -49,7 +47,7 @@ test('ranks action results by relevance instead of DOM order', async () => {
 test('does not match hidden descendant text inside a visible block', async () => {
   document.body.innerHTML =
     '<p>Visible text <span hidden>secret</span><span style="opacity: 0">private</span></p>';
-  index = new PageSearchIndex(settings);
+  index = new PageSearchIndex();
   expect((await index.search(scorerFor('secret'))).matchingText).toEqual([]);
   expect((await index.search(scorerFor('private'))).matchingText).toEqual([]);
 });
@@ -57,7 +55,7 @@ test('does not match hidden descendant text inside a visible block', async () =>
 test('rechecks descendant visibility after an ancestor class changes', async () => {
   document.body.innerHTML =
     '<style>.concealed span { display: none; }</style><main><p>Visible <span>secret</span></p></main>';
-  index = new PageSearchIndex(settings);
+  index = new PageSearchIndex();
   expect((await index.search(scorerFor('secret'))).matchingText).toHaveLength(1);
   document.querySelector('main')!.className = 'concealed';
   await waitForMutations();
@@ -66,7 +64,7 @@ test('rechecks descendant visibility after an ancestor class changes', async () 
 
 test('finds a phrase split across inline descendants as one semantic block', async () => {
   document.body.innerHTML = '<p><span>Save </span><strong>settings</strong></p>';
-  index = new PageSearchIndex(settings);
+  index = new PageSearchIndex();
   expect((await index.search(scorerFor('save settings'))).matchingText).toEqual([
     { node: document.querySelector('p'), action: null },
   ]);
@@ -74,7 +72,7 @@ test('finds a phrase split across inline descendants as one semantic block', asy
 
 test('keeps text navigation in document order after inserting an earlier result', async () => {
   document.body.innerHTML = '<p>Save second</p>';
-  index = new PageSearchIndex(settings);
+  index = new PageSearchIndex();
   document.body.insertAdjacentHTML('afterbegin', '<p>Save first</p>');
   await waitForMutations();
   expect(
@@ -84,7 +82,7 @@ test('keeps text navigation in document order after inserting an earlier result'
 
 test('notifies page changes while ignoring extension host reattachment', async () => {
   const onChange = vi.fn();
-  index = new PageSearchIndex(settings, [], onChange);
+  index = new PageSearchIndex(onChange);
   document.body.insertAdjacentHTML('beforeend', '<div id="keymove-root"></div>');
   await waitForMutations();
   expect(onChange).not.toHaveBeenCalled();
@@ -93,38 +91,14 @@ test('notifies page changes while ignoring extension host reattachment', async (
   expect(onChange).toHaveBeenCalledOnce();
 });
 
-test('discovers attribute-only custom actions when an ancestor starts matching', async () => {
-  document.body.innerHTML = '<main><div aria-label="Save"></div></main>';
-  index = new PageSearchIndex(new SearchableAttributeSettings(['.enabled div']));
-  expect((await index.search(scorerFor('save'))).matchingLinksAndButtons).toEqual([]);
-  document.querySelector('main')!.className = 'enabled';
-  await waitForMutations();
-  expect((await index.search(scorerFor('save'))).matchingLinksAndButtons).toEqual([
-    document.querySelector('div'),
-  ]);
-});
-
-test('does not treat a shared URL path as matching link text', async () => {
-  document.body.innerHTML = `
-    <a href="/comake/keymove/issues">Issues</a>
-    <a href="/comake/keymove/pulls">Pull requests</a>
-    <a href="/comake/keymove">keymove</a>
-  `;
-  index = new PageSearchIndex(settings);
-
-  const result = await index.search(scorerFor('key'));
-
-  expect(result.matchingLinksAndButtons.map(node => node.textContent)).toEqual(['keymove']);
-});
-
 test('keeps attribute-only action matches out of text navigation', async () => {
   document.body.innerHTML = `
-    <button aria-label="Watch comake/keymove">Watch</button>
+    <button aria-label="Watch keymove">Watch</button>
     <article><p>KeyMove is an always-on search assistant.</p></article>
   `;
   const button = document.querySelector('button')!;
   const paragraph = document.querySelector('p')!;
-  index = new PageSearchIndex(settings);
+  index = new PageSearchIndex();
 
   const result = await index.search(scorerFor('key'));
 
@@ -137,7 +111,7 @@ test('uses a whole text block while retaining its nested action', async () => {
     '<article><p>Read the <a href="/docs">documentation</a> now.</p></article>';
   const paragraph = document.querySelector('p')!;
   const link = document.querySelector('a')!;
-  index = new PageSearchIndex(settings);
+  index = new PageSearchIndex();
 
   const result = await index.search(scorerFor('documentation'));
 
@@ -148,7 +122,7 @@ test('uses a whole text block while retaining its nested action', async () => {
 test('associates the matching nested link before falling back to another block action', async () => {
   document.body.innerHTML =
     '<p>Read <a href="/home">home</a> or <a href="/docs">documentation</a>.</p>';
-  index = new PageSearchIndex(settings);
+  index = new PageSearchIndex();
   expect((await index.search(scorerFor('documentation'))).matchingText).toEqual([
     { node: document.querySelector('p'), action: document.querySelector('a[href="/docs"]') },
   ]);
@@ -157,7 +131,7 @@ test('associates the matching nested link before falling back to another block a
 test('refreshes cached records when the page mutates', async () => {
   document.body.innerHTML = '<button>Save</button>';
   const button = document.querySelector('button')!;
-  index = new PageSearchIndex(settings);
+  index = new PageSearchIndex();
 
   expect((await index.search(scorerFor('publish'))).matchingLinksAndButtons).toHaveLength(0);
 
@@ -170,7 +144,7 @@ test('refreshes cached records when the page mutates', async () => {
 test('adds and removes candidates when their role changes', async () => {
   document.body.innerHTML = '<div>Archive</div>';
   const candidate = document.querySelector('div')!;
-  index = new PageSearchIndex(settings);
+  index = new PageSearchIndex();
 
   expect((await index.search(scorerFor('archive'))).matchingLinksAndButtons).toHaveLength(0);
 
@@ -189,7 +163,7 @@ test('does not re-index an entire default subtree after an attribute change', as
     (_, itemIndex) => `<button>Item ${itemIndex}</button>`,
   ).join('')}</main>`;
   const container = document.querySelector('main')!;
-  index = new PageSearchIndex(settings);
+  index = new PageSearchIndex();
   const refreshCandidate = vi.spyOn(index, 'refreshCandidate');
 
   container.classList.add('updated');
@@ -202,7 +176,7 @@ test('does not re-index an entire default subtree after an attribute change', as
 test('re-evaluates visibility without rebuilding cached search records', async () => {
   document.body.innerHTML = '<button>Publish</button>';
   const button = document.querySelector('button')!;
-  index = new PageSearchIndex(settings);
+  index = new PageSearchIndex();
 
   expect((await index.search(scorerFor('publish'))).matchingLinksAndButtons).toEqual([button]);
 
@@ -216,7 +190,7 @@ test('limits the rendered result set', async () => {
     { length: DEFAULT_RESULT_LIMIT + 10 },
     (_, index) => `<button>Save ${index}</button>`,
   ).join('');
-  index = new PageSearchIndex(settings);
+  index = new PageSearchIndex();
 
   const result = await index.search(scorerFor('save'));
 
@@ -225,7 +199,7 @@ test('limits the rendered result set', async () => {
 
 test('cancels obsolete searches', async () => {
   document.body.innerHTML = '<button>Save</button>';
-  index = new PageSearchIndex(settings);
+  index = new PageSearchIndex();
   const controller = new AbortController();
   controller.abort();
 
@@ -237,7 +211,12 @@ test('cancels obsolete searches', async () => {
 test('defers initial indexing, cancels queued work immediately, and resumes the full scan', async () => {
   document.body.innerHTML = `${'<p>Save</p>'.repeat(250)}<button>Unique result</button>`;
   vi.useFakeTimers();
-  index = new PageSearchIndex(settings);
+  let elapsed = 0;
+  vi.spyOn(performance, 'now').mockImplementation(() => {
+    elapsed += 8;
+    return elapsed;
+  });
+  index = new PageSearchIndex();
   expect(index.records.size).toBe(0);
   const controller = new AbortController();
   const pending = index.search(scorerFor('unique'), { signal: controller.signal });
@@ -254,10 +233,19 @@ test('defers initial indexing, cancels queued work immediately, and resumes the 
   expect((await resumed).matchingLinksAndButtons).toEqual([document.querySelector('button')]);
 });
 
+test('does not add timer or idle waits when index work fits within its time budget', async () => {
+  document.body.innerHTML = '<p>Save settings</p>'.repeat(250);
+  vi.spyOn(performance, 'now').mockReturnValue(0);
+  const timer = vi.spyOn(window, 'setTimeout');
+  index = new PageSearchIndex();
+  expect((await index.search(scorerFor('save'))).matchingText).toHaveLength(DEFAULT_RESULT_LIMIT);
+  expect(timer).not.toHaveBeenCalled();
+});
+
 test('disconnect cancels pending work and releases indexed DOM nodes', async () => {
   document.body.innerHTML = '<p>Save</p>'.repeat(250);
   vi.useFakeTimers();
-  index = new PageSearchIndex(settings);
+  index = new PageSearchIndex();
   const pending = index.search(scorerFor('save'));
   const rejected = expect(pending).rejects.toMatchObject({ name: 'AbortError' });
   index.disconnect();
@@ -268,7 +256,7 @@ test('disconnect cancels pending work and releases indexed DOM nodes', async () 
 });
 
 test('defers large inserted subtrees until a cancellable search runs', async () => {
-  index = new PageSearchIndex(settings);
+  index = new PageSearchIndex();
   await index.search(scorerFor('save'));
   const refresh = vi.spyOn(index, 'refreshCandidate');
   document.body.innerHTML = `<main>${'<button>Save</button>'.repeat(250)}</main>`;
@@ -281,7 +269,7 @@ test('defers large inserted subtrees until a cancellable search runs', async () 
 
 test('retains the earliest text blocks and highest ranked actions with a small limit', async () => {
   document.body.innerHTML = `${'<button>Autosave</button>'.repeat(60)}<button>Save settings</button>`;
-  index = new PageSearchIndex(settings);
+  index = new PageSearchIndex();
   const firstButton = document.querySelector('button');
   const result = await index.search(scorerFor('save'), { limit: 1 });
   expect(result.matchingText).toEqual([{ node: firstButton, action: firstButton }]);

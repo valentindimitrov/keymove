@@ -18,10 +18,19 @@ beforeAll(() => {
   });
 });
 
-test('does not create an observer for a short query', async () => {
+test('does not create an observer for an empty query', async () => {
   const observe = vi.spyOn(MutationObserver.prototype, 'observe');
-  await new FindInPage('a').findMatches();
+  await new FindInPage(' ').findMatches();
   expect(observe).not.toHaveBeenCalled();
+});
+
+test('searches from the first character and reuses the index on subsequent keystrokes', async () => {
+  document.body.innerHTML = '<p>Save settings</p>';
+  const observe = vi.spyOn(MutationObserver.prototype, 'observe');
+  for (const query of ['s', 'sa', 'sav', 'save']) {
+    expect((await new FindInPage(query).findMatches()).matchingText).toHaveLength(1);
+  }
+  expect(observe).toHaveBeenCalledOnce();
 });
 
 test('releases the shared observer after the last search subscriber leaves', async () => {

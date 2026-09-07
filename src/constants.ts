@@ -7,7 +7,6 @@ export const KEYMOVE_APP_ID = 'keymove-app';
 export const KEYMOVE_PORTAL_ID = 'keymove-portal';
 export const KEYMOVE_INPUT_ID = 'keymove-input';
 export const KEYMOVE_HIGHLIGHT_NAME = 'keymove-search-results';
-export const COMAKE_LANDING_PAGE_LINK = 'https://comake.io';
 
 export const KEYMOVE_CONTAINER_HEIGHT = 50;
 export const KEYMOVE_CONTAINER_WIDTH = 300;
@@ -23,18 +22,10 @@ export const FIELD_BOOSTS = {
   attribute: 0.9,
 };
 
-export const SEARCH_TERM_BOOSTS = {
-  searchText: 1,
-  synonym: 0.9,
-};
-
 export const IS_VISIBLE_BOOST = 1.1;
 export const STARTS_WITH_BOOST = 1.5;
-export const RELEVANT_WORD_BOOST = 1.5;
-export const RELEVANT_SELECTOR_BOOST = 1.6;
 
 export const SETTINGS_KEYS = {
   AUTO_HIDE: 'autoHide',
-  USE_ON_EVERY_WEBSITE: 'useOnEveryWebsite',
   ALWAYS_ON: 'alwaysOn',
 } as const;

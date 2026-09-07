@@ -11,8 +11,6 @@ vi.mock('./tooltip.js', () => ({
 const settingsProps = {
   autoHide: false,
   toggleAutoHide: vi.fn(),
-  useOnEveryWebsite: true,
-  toggleUseOnEveryWebsite: vi.fn(),
   alwaysOn: true,
   toggleAlwaysOn: vi.fn(),
   resetPopupPosition: vi.fn(),
@@ -28,7 +26,7 @@ test('exposes the visibility control as a labelled button', () => {
 });
 
 test('opens and closes help and settings from the keyboard-accessible button', () => {
-  render(<InfoDropdown {...settingsProps} temporarilyEnabled={false} />);
+  render(<InfoDropdown {...settingsProps} />);
   const button = screen.getByRole('button', { name: `${EXTENSION_NAME} help and settings` });
 
   expect(button).toHaveAttribute('aria-expanded', 'false');
@@ -38,8 +36,8 @@ test('opens and closes help and settings from the keyboard-accessible button', (
     'href',
     EXTENSION_IDENTITY.contactUrl,
   );
-  expect(screen.getAllByRole('link')).toHaveLength(2);
-  fireEvent.click(screen.getByRole('checkbox', { name: 'Use on all websites (Experimental)' }));
+  expect(screen.getAllByRole('link')).toHaveLength(1);
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Always on' }));
   expect(button).toHaveAttribute('aria-expanded', 'true');
   fireEvent.click(screen.getByRole('button', { name: 'Reset popup position' }));
   expect(settingsProps.resetPopupPosition).toHaveBeenCalled();
@@ -48,7 +46,7 @@ test('opens and closes help and settings from the keyboard-accessible button', (
 });
 
 test('Escape inside the settings panel closes it and returns focus to its button', () => {
-  render(<InfoDropdown {...settingsProps} temporarilyEnabled={false} />);
+  render(<InfoDropdown {...settingsProps} />);
   const button = screen.getByRole('button', { name: `${EXTENSION_NAME} help and settings` });
   fireEvent.click(button);
   const checkbox = screen.getByRole('checkbox', { name: 'Always on' });

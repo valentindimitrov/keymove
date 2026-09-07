@@ -97,7 +97,6 @@ popup stays on-screen.
 Stored keys:
 
 - `autoHide`: boolean
-- `useOnEveryWebsite`: boolean
 - `alwaysOn`: boolean
 - `popupPosition`: `{ x: number; y: number }`, with both values finite and in `[0, 1]`
 

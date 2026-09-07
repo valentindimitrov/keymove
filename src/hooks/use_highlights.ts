@@ -92,7 +92,7 @@ const useHighlights = ({ searchText, matchingNodes }: HighlightOptions) => {
     if (
       !highlightRegistry ||
       typeof window.Highlight === 'undefined' ||
-      normalizedQuery.length < 2
+      normalizedQuery.length === 0
     ) {
       return undefined;
     }

@@ -2,7 +2,6 @@ import { SETTINGS_KEYS } from '../constants.js';
 
 const DEFAULT_STORED_SETTINGS = Object.freeze({
   [SETTINGS_KEYS.AUTO_HIDE]: false,
-  [SETTINGS_KEYS.USE_ON_EVERY_WEBSITE]: true,
   [SETTINGS_KEYS.ALWAYS_ON]: true,
 });
 
