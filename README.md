@@ -96,6 +96,10 @@ When a query matches nothing on the page, KeyMove searches again for the closest
 than reporting nothing. `setings` finds *settings*, `recieve` finds *receive*, and `compsoe` finds a
 *Compose* button. It applies to both modes.
 
+Approximate matching follows the same rule as exact matching: a match may begin anywhere, not only
+at the start of a word. Typing `contribu` finds *Contributing* exactly, and `contribuu` still finds
+it, one edit from that same prefix.
+
 Closeness is measured in single-character edits, counting a swap of neighbouring letters as one
 edit, since that is the most common typing slip. The budget grows with the query so that short
 queries stay strict:
@@ -106,10 +110,9 @@ queries stay strict:
 | 3–5 characters | 1 |
 | 6 or more | 2 |
 
-A multi-word query is compared against runs of the same number of words, so `acount setings` finds
-*account settings* as a phrase instead of matching the two words in unrelated places. In action
-mode, nearer spellings rank above more distant ones; text blocks stay in page order, as they do for
-an exact search.
+A query spanning several words is matched as one span, so `acount setings` finds *account settings*
+as a phrase rather than the two words in unrelated places. In action mode, nearer spellings rank
+above more distant ones; text blocks stay in page order, as they do for an exact search.
 
 This is strictly a fallback. As long as a query matches anything exactly, only exact results are
 shown—one incidental match will suppress a closer approximate one. Approximate results are marked

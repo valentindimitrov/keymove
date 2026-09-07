@@ -6,10 +6,6 @@ import {
 
 type FuzzyMatch = { term: string; distance: number };
 
-const WORD_REGEX = /[^\s]+/g;
-
-type Word = { start: number; end: number };
-
 /**
  * Longer queries earn a larger error budget. A single edit in a three-character query
  * changes a third of it, so short queries stay strict to avoid matching everything.
@@ -20,9 +16,9 @@ function maxDistanceForQuery(query: string) {
 }
 
 /**
- * Optimal string alignment distance, which counts an adjacent transposition as one edit
- * rather than two. Returns maxDistance + 1 as soon as the result cannot come in under the
- * budget, so most comparisons stop after a row or two.
+ * Optimal string alignment distance between two whole strings, which counts an adjacent
+ * transposition as one edit rather than two. Returns maxDistance + 1 as soon as the result
+ * cannot come in under the budget, so most comparisons stop after a row or two.
  */
 function boundedEditDistance(a: string, b: string, maxDistance: number) {
   const exceeded = maxDistance + 1;
@@ -69,43 +65,89 @@ function boundedEditDistance(a: string, b: string, maxDistance: number) {
   return distance > maxDistance ? exceeded : distance;
 }
 
-function wordsWithOffsets(text: string): Word[] {
-  const words: Word[] = [];
-  WORD_REGEX.lastIndex = 0;
-  let match = WORD_REGEX.exec(text);
-  while (match) {
-    words.push({ start: match.index, end: match.index + match[0].length });
-    match = WORD_REGEX.exec(text);
+/**
+ * Finds where the query best matches, allowing the match to begin anywhere rather than only
+ * at a word boundary. Exact search matches substrings, so "contribu" already finds
+ * "Contributing"; comparing whole words would drop "contribuu" for being three characters
+ * shorter than the word it is one edit from.
+ *
+ * This is the search half of the algorithm: it reports the closest distance and where that
+ * match ends, leaving the matching span to be recovered separately.
+ */
+function bestMatchEnd(text: string, query: string, maxDistance: number) {
+  const queryLength = query.length;
+  let twoRowsBack = new Array<number>(queryLength + 1).fill(0);
+  let previousRow = new Array<number>(queryLength + 1);
+  let currentRow = new Array<number>(queryLength + 1);
+  // Row 0 is left at zero for every column, which is what lets a match start anywhere.
+  for (let i = 0; i <= queryLength; i += 1) previousRow[i] = i;
+  // Rows past this one are already over budget and cannot come back under it.
+  let lastActiveRow = Math.min(queryLength, maxDistance + 1);
+  let bestDistance = maxDistance + 1;
+  let bestEnd = -1;
+
+  for (let column = 0; column < text.length; column += 1) {
+    const character = text[column];
+    const previousCharacter = column > 0 ? text[column - 1] : undefined;
+    currentRow[0] = 0;
+
+    for (let i = 1; i <= lastActiveRow; i += 1) {
+      const substitutionCost = query[i - 1] === character ? 0 : 1;
+      let cost = Math.min(
+        previousRow[i - 1]! + substitutionCost,
+        currentRow[i - 1]! + 1,
+        previousRow[i]! + 1,
+      );
+      if (i > 1 && column > 0 && query[i - 1] === previousCharacter && query[i - 2] === character) {
+        cost = Math.min(cost, twoRowsBack[i - 2]! + 1);
+      }
+      currentRow[i] = cost;
+    }
+    for (let i = lastActiveRow + 1; i <= queryLength; i += 1) currentRow[i] = maxDistance + 1;
+
+    while (lastActiveRow > 0 && currentRow[lastActiveRow]! > maxDistance) lastActiveRow -= 1;
+    if (lastActiveRow === queryLength) {
+      if (currentRow[queryLength]! < bestDistance) {
+        bestDistance = currentRow[queryLength]!;
+        bestEnd = column + 1;
+      }
+    } else {
+      lastActiveRow = Math.min(queryLength, lastActiveRow + 1);
+    }
+
+    const recycled = twoRowsBack;
+    twoRowsBack = previousRow;
+    previousRow = currentRow;
+    currentRow = recycled;
   }
-  return words;
+
+  return { distance: bestDistance, end: bestEnd };
 }
 
 /**
- * Finds the span of text closest to the query, comparing windows of the same word count so
- * that a multi-word query keeps its shape. The returned term is a verbatim slice of the
+ * Finds the span of text closest to the query. The returned term is a verbatim slice of the
  * text, which lets callers locate it again for highlighting without mapping offsets.
  */
 function fuzzyMatchInText(text: string, query: string, maxDistance: number): FuzzyMatch | null {
-  if (maxDistance === 0 || text.length === 0) return null;
+  if (maxDistance === 0 || text.length === 0 || query.length === 0) return null;
 
-  const queryWordCount = query.trim().split(/\s+/).length;
-  const words = wordsWithOffsets(text);
-  if (words.length < queryWordCount) return null;
+  const { distance, end } = bestMatchEnd(text, query, maxDistance);
+  if (end === -1 || distance > maxDistance) return null;
 
-  let best: FuzzyMatch | null = null;
-  for (let index = 0; index + queryWordCount <= words.length; index += 1) {
-    const start = words[index]!.start;
-    const end = words[index + queryWordCount - 1]!.end;
-    const candidate = text.slice(start, end);
-    if (Math.abs(candidate.length - query.length) > maxDistance) continue;
-    const distance = boundedEditDistance(query, candidate, maxDistance);
-    if (distance > maxDistance) continue;
-    if (!best || distance < best.distance) {
-      best = { term: candidate, distance };
-      if (distance === 0) break;
+  // A match of this distance differs from the query by at most maxDistance characters, so its
+  // start is within that of `end - query.length`. Only a handful of offsets need checking,
+  // which keeps the scan above free of the bookkeeping needed to track a span.
+  const idealStart = end - query.length;
+  for (let offset = 0; offset <= maxDistance; offset += 1) {
+    for (const start of offset === 0 ? [idealStart] : [idealStart - offset, idealStart + offset]) {
+      if (start < 0 || start >= end) continue;
+      const candidate = text.slice(start, end);
+      if (boundedEditDistance(query, candidate, maxDistance) === distance) {
+        return { term: candidate, distance };
+      }
     }
   }
-  return best;
+  return null;
 }
 
 export type { FuzzyMatch };

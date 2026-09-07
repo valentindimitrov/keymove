@@ -51,8 +51,10 @@ artifacts are `.output/chrome-mv3` and `.output/firefox-mv3`.
 3. `PageSearchIndex` keeps candidate DOM records current with a `MutationObserver`.
 4. `NodeScorer` evaluates visible text and searchable attributes.
 5. If that pass matched nothing, a second pass rescores the same text with `fuzzy_match`,
-   using bounded edit distance. Approximate matching never runs for a search that already
-   has results, and each match carries the page's own spelling so highlighting can find it.
+   which finds the closest matching span by bounded edit distance. A span may start anywhere,
+   mirroring the substring semantics of exact search, so a typo inside a partly typed word
+   still matches. Approximate matching never runs for a search that already has results, and
+   each match carries the page's own spelling so highlighting can find it.
 6. Results are split into text blocks and actionable elements.
 7. `useSearchNavigation` retains an independent cursor for each mode.
 8. `useHighlights` uses the CSS Custom Highlight API without rewriting host-page DOM.

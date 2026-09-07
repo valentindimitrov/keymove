@@ -339,3 +339,24 @@ test('never matches approximately for a query too short to be distinctive', asyn
   expect(result.isFuzzy).toBe(false);
   expect(result.matchingText).toEqual([]);
 });
+
+test('matches a word the query is only a mistyped prefix of', async () => {
+  document.body.innerHTML = '<p>Contributing</p><a href="/c">Contributing guidelines</a>';
+  index = new PageSearchIndex();
+
+  // Exact search finds this from "contribu"; one typo later must not fall off a cliff.
+  const exact = await index.search(scorerFor('contribu'));
+  const fuzzy = await index.search(scorerFor('contribuu'));
+
+  expect(exact.isFuzzy).toBe(false);
+  expect(fuzzy.isFuzzy).toBe(true);
+  // A typo should not change which parts of the page are found.
+  expect(fuzzy.matchingText.map(match => match.node)).toEqual(
+    exact.matchingText.map(match => match.node),
+  );
+  expect(fuzzy.matchingLinksAndButtons).toEqual(exact.matchingLinksAndButtons);
+  // The term has to be present in the page for the highlight to land on it.
+  for (const match of fuzzy.matchingText) {
+    expect(match.node.textContent!.toLocaleLowerCase()).toContain(match.term);
+  }
+});
