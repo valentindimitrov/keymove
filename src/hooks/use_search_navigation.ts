@@ -25,6 +25,7 @@ type SearchNavigationAction =
       preserveSelection?: boolean;
     }
   | { type: 'clear-results' }
+  | { type: 'reset'; mode: SearchMode }
   | { type: 'set-mode'; mode: SearchMode }
   | { type: 'set-selected-index'; mode: SearchMode; index: number | null };
 
@@ -87,8 +88,16 @@ function searchNavigationReducer(
       };
     }
     case 'clear-results':
+      // Fires on every keystroke, so it must leave the chosen mode alone.
       return {
         ...state,
+        results: { text: [], actions: [] },
+        selectedIndices: { text: null, actions: null },
+      };
+    case 'reset':
+      // Fires when the search is genuinely over, which is where the default mode applies.
+      return {
+        mode: action.mode,
         results: { text: [], actions: [] },
         selectedIndices: { text: null, actions: null },
       };
@@ -138,6 +147,8 @@ function useSearchNavigation() {
 
   const clearResults = React.useCallback(() => dispatch({ type: 'clear-results' }), []);
 
+  const reset = React.useCallback((mode: SearchMode) => dispatch({ type: 'reset', mode }), []);
+
   const setMode = React.useCallback((mode: SearchMode) => dispatch({ type: 'set-mode', mode }), []);
 
   const setSelectedIndex = React.useCallback(
@@ -146,7 +157,7 @@ function useSearchNavigation() {
     [],
   );
 
-  return { state, setResults, clearResults, setMode, setSelectedIndex };
+  return { state, setResults, clearResults, reset, setMode, setSelectedIndex };
 }
 
 export type { SearchMode, SearchNavigationAction, SearchNavigationState };

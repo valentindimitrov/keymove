@@ -13,6 +13,8 @@ const settingsProps = {
   toggleAutoHide: vi.fn(),
   alwaysOn: true,
   toggleAlwaysOn: vi.fn(),
+  startInActionMode: false,
+  toggleStartInActionMode: vi.fn(),
   resetPopupPosition: vi.fn(),
 };
 

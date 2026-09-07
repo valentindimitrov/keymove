@@ -35,7 +35,7 @@ function persistBooleanSetting(
 }
 
 const useStoredSettings = () => {
-  const revisions = React.useRef({ autoHide: 0, alwaysOn: 0 });
+  const revisions = React.useRef({ autoHide: 0, alwaysOn: 0, startInActionMode: 0 });
   const [autoHide, setAutoHide] = React.useState<boolean>(
     DEFAULT_STORED_SETTINGS[SETTINGS_KEYS.AUTO_HIDE],
   );
@@ -56,6 +56,25 @@ const useStoredSettings = () => {
       );
     },
     [autoHide],
+  );
+
+  const [startInActionMode, setStartInActionMode] = React.useState<boolean>(
+    DEFAULT_STORED_SETTINGS[SETTINGS_KEYS.START_IN_ACTION_MODE],
+  );
+
+  const updateStartInActionMode = React.useCallback(
+    (newStartInActionMode: boolean) => {
+      const revision = ++revisions.current.startInActionMode;
+      setStartInActionMode(newStartInActionMode);
+      persistBooleanSetting(
+        SETTINGS_KEYS.START_IN_ACTION_MODE,
+        newStartInActionMode,
+        startInActionMode,
+        setStartInActionMode,
+        () => revisions.current.startInActionMode === revision,
+      );
+    },
+    [startInActionMode],
   );
 
   const updateAlwaysOn = React.useCallback(
@@ -79,6 +98,8 @@ const useStoredSettings = () => {
       reportStorageIssues(issues);
       if (revisions.current.autoHide === initialRevisions.autoHide) setAutoHide(settings.autoHide);
       if (revisions.current.alwaysOn === initialRevisions.alwaysOn) setAlwaysOn(settings.alwaysOn);
+      if (revisions.current.startInActionMode === initialRevisions.startInActionMode)
+        setStartInActionMode(settings.startInActionMode);
     },
     [],
   );
@@ -108,6 +129,7 @@ const useStoredSettings = () => {
 
       applyChange(SETTINGS_KEYS.AUTO_HIDE, setAutoHide);
       applyChange(SETTINGS_KEYS.ALWAYS_ON, setAlwaysOn);
+      applyChange(SETTINGS_KEYS.START_IN_ACTION_MODE, setStartInActionMode);
     },
     [],
   );
@@ -133,6 +155,8 @@ const useStoredSettings = () => {
     updateAutoHide,
     alwaysOn,
     updateAlwaysOn,
+    startInActionMode,
+    updateStartInActionMode,
   };
 };
 

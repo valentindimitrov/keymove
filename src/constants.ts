@@ -33,4 +33,5 @@ export const FUZZY_DISTANCE_PENALTY = 0.6;
 export const SETTINGS_KEYS = {
   AUTO_HIDE: 'autoHide',
   ALWAYS_ON: 'alwaysOn',
+  START_IN_ACTION_MODE: 'startInActionMode',
 } as const;

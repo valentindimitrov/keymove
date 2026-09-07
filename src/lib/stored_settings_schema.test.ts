@@ -9,12 +9,14 @@ test('accepts boolean values returned by extension storage', () => {
   const result = validateStoredSettings({
     [SETTINGS_KEYS.AUTO_HIDE]: true,
     [SETTINGS_KEYS.ALWAYS_ON]: false,
+    [SETTINGS_KEYS.START_IN_ACTION_MODE]: true,
   });
 
   expect(result).toEqual({
     settings: {
       [SETTINGS_KEYS.AUTO_HIDE]: true,
       [SETTINGS_KEYS.ALWAYS_ON]: false,
+      [SETTINGS_KEYS.START_IN_ACTION_MODE]: true,
     },
     issues: [],
   });
@@ -24,10 +26,11 @@ test('replaces malformed stored values with safe defaults', () => {
   const result = validateStoredSettings({
     [SETTINGS_KEYS.AUTO_HIDE]: 'false',
     [SETTINGS_KEYS.ALWAYS_ON]: null,
+    [SETTINGS_KEYS.START_IN_ACTION_MODE]: 1,
   });
 
   expect(result.settings).toEqual(DEFAULT_STORED_SETTINGS);
-  expect(result.issues).toHaveLength(2);
+  expect(result.issues).toHaveLength(3);
   expect(result.issues[0]).toContain('must be a boolean');
 });
 

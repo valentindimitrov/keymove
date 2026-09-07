@@ -26,12 +26,15 @@ vi.mock('../../lib/find_in_page.js', () => ({
 
 vi.mock('../../hooks/use_highlights.js', () => ({ default: searchMocks.useHighlights }));
 vi.mock('../../hooks/use_extension_messaging.js', () => ({ default: vi.fn() }));
+const settingsMocks = vi.hoisted(() => ({ startInActionMode: false }));
 vi.mock('../../hooks/use_stored_settings.js', () => ({
   default: () => ({
     autoHide: false,
     updateAutoHide: vi.fn(),
     alwaysOn: true,
     updateAlwaysOn: vi.fn(),
+    startInActionMode: settingsMocks.startInActionMode,
+    updateStartInActionMode: vi.fn(),
   }),
 }));
 vi.mock('../../hooks/use_popup_position.js', () => ({
@@ -49,6 +52,7 @@ beforeEach(() => {
   searchMocks.resetPopupPosition.mockReset();
   searchMocks.sendMessage.mockReset().mockResolvedValue(undefined);
   searchMocks.subscribeToPageChanges.mockReset().mockReturnValue(() => undefined);
+  settingsMocks.startInActionMode = false;
   Element.prototype.scrollIntoView = vi.fn();
 });
 
@@ -240,6 +244,53 @@ test('ignores an obsolete search response and resets both cursors on a new query
   await flushSearch();
   fireEvent.keyDown(input, { key: 'Tab', code: 'Tab', ctrlKey: true });
   expect(screen.getByRole('status')).toHaveTextContent('Actions 1 / 1');
+});
+
+function renderWithBothKinds() {
+  const paragraph = document.createElement('p');
+  paragraph.textContent = 'Save';
+  const action = document.createElement('button');
+  action.textContent = 'Save draft';
+  document.body.append(paragraph, action);
+  searchMocks.findMatches.mockResolvedValue({
+    matchingText: [{ node: paragraph, action: null }],
+    matchingLinksAndButtons: [action],
+  });
+}
+
+test('starts in action mode when the stored default says so', async () => {
+  settingsMocks.startInActionMode = true;
+  renderWithBothKinds();
+  render(<Searchbar />);
+  const input = screen.getByRole('textbox', { name: 'Search page' });
+  fireEvent.change(input, { target: { value: 'save' } });
+  await flushSearch();
+
+  expect(screen.getByRole('status')).toHaveTextContent('Actions 1 / 1');
+});
+
+test('returns to the default mode once the search is over, but not while typing', async () => {
+  renderWithBothKinds();
+  render(<Searchbar />);
+  const input = screen.getByRole('textbox', { name: 'Search page' });
+  fireEvent.change(input, { target: { value: 'sav' } });
+  await flushSearch();
+
+  const status = screen.getByRole('status');
+  fireEvent.keyDown(input, { key: 's', code: 'KeyS', altKey: true });
+  expect(status).toHaveTextContent('Actions 1 / 1');
+
+  // Still typing: the chosen mode survives.
+  fireEvent.change(input, { target: { value: 'save' } });
+  await flushSearch();
+  expect(status).toHaveTextContent('Actions 1 / 1');
+
+  // Escape clears the query, then a second Escape ends the search and restores the default.
+  fireEvent.keyDown(input, { key: 'Escape', code: 'Escape' });
+  fireEvent.keyDown(input, { key: 'Escape', code: 'Escape' });
+  fireEvent.change(input, { target: { value: 'save' } });
+  await flushSearch();
+  expect(status).toHaveTextContent('Text 1 / 1');
 });
 
 test('Tab keeps navigating the active mode instead of falling back to text', async () => {

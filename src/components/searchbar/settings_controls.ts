@@ -3,6 +3,8 @@ type SettingsControls = {
   toggleAutoHide: () => void;
   alwaysOn: boolean;
   toggleAlwaysOn: () => void;
+  startInActionMode: boolean;
+  toggleStartInActionMode: () => void;
   resetPopupPosition: () => void;
 };
 

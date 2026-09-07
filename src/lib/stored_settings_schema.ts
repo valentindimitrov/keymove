@@ -3,6 +3,7 @@ import { SETTINGS_KEYS } from '../constants.js';
 const DEFAULT_STORED_SETTINGS = Object.freeze({
   [SETTINGS_KEYS.AUTO_HIDE]: false,
   [SETTINGS_KEYS.ALWAYS_ON]: true,
+  [SETTINGS_KEYS.START_IN_ACTION_MODE]: false,
 });
 
 type StoredSettingKey = (typeof SETTINGS_KEYS)[keyof typeof SETTINGS_KEYS];

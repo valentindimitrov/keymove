@@ -82,7 +82,9 @@ Every search collects two result sets at once, and the mode decides which one `T
 
 `Alt + S` switches between them. It only re-points `Tab`; it never moves a selection or activates
 anything. Each mode keeps its own cursor, so switching away and back returns you to where you left
-off, and the chosen mode persists while you keep typing.
+off, and the chosen mode persists while you keep typing. Ending a search returns to the default
+mode, which the **Start in action mode** setting chooses. The mode itself is never shared between
+tabs: each page starts from the stored default.
 
 The searchbar shows the active mode with the position and count for that mode alone, such as
 `Text 3 / 12`. The first match is selected as soon as results arrive, so `Enter` acts on it without
@@ -125,6 +127,7 @@ it does not, and matches are highlighted using the page's own spelling rather th
 Open the **KeyMove help and settings** button inside the search interface to configure:
 
 - **Always on:** begin searching whenever you type while another input is not focused.
+- **Start in action mode:** begin each search in action mode instead of text mode.
 - **Autohide:** hide the interface when it is not being used.
 - **Reset popup position:** return the interface to its default location—horizontally centered with
   its center 75% down the viewport.

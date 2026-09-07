@@ -35,12 +35,24 @@ const Searchbar = () => {
   const searchInputRef = React.useRef<HTMLInputElement>(null);
   const focusRequested = React.useRef(false);
 
-  const { autoHide, updateAutoHide, alwaysOn, updateAlwaysOn } = useStoredSettings();
+  const {
+    autoHide,
+    updateAutoHide,
+    alwaysOn,
+    updateAlwaysOn,
+    startInActionMode,
+    updateStartInActionMode,
+  } = useStoredSettings();
+  const defaultSearchMode = startInActionMode ? SEARCH_MODES.ACTIONS : SEARCH_MODES.TEXT;
+  // Seeded with the reducer's initial mode, not the first computed default, so a stored
+  // default that is already loaded on the first render still gets adopted.
+  const previousDefaultSearchMode = React.useRef<SearchMode>(SEARCH_MODES.TEXT);
   const previousAutoHide = React.useRef(autoHide);
   const {
     state: searchNavigation,
     setResults: setSearchResults,
     clearResults: clearSearchResults,
+    reset: resetSearchNavigation,
     setMode,
     setSelectedIndex,
   } = useSearchNavigation();
@@ -109,9 +121,9 @@ const Searchbar = () => {
   const resetSearchTextAndMatches = React.useCallback(() => {
     cancelPendingSearch();
     setSearchText('');
-    clearSearchResults();
+    resetSearchNavigation(defaultSearchMode);
     Utils.clearPageSelection();
-  }, [cancelPendingSearch, clearSearchResults]);
+  }, [cancelPendingSearch, resetSearchNavigation, defaultSearchMode]);
 
   const hide = React.useCallback(() => {
     setIsHidden(true);
@@ -291,6 +303,10 @@ const Searchbar = () => {
     updateAlwaysOn(!alwaysOn);
   }, [alwaysOn, updateAlwaysOn]);
 
+  const toggleStartInActionMode = React.useCallback(() => {
+    updateStartInActionMode(!startInActionMode);
+  }, [startInActionMode, updateStartInActionMode]);
+
   const keyboardShortcutHandlerMapping = React.useMemo<
     Record<KeyboardShortcutName, ShortcutHandler | null>
   >(() => {
@@ -448,6 +464,15 @@ const Searchbar = () => {
     };
   }, [cancelPendingSearch]);
 
+  // The stored default arrives after the first render, and can change from the panel or
+  // another tab, so adopt it whenever it actually changes.
+  React.useEffect(() => {
+    if (defaultSearchMode !== previousDefaultSearchMode.current) {
+      previousDefaultSearchMode.current = defaultSearchMode;
+      setMode(defaultSearchMode);
+    }
+  }, [defaultSearchMode, setMode]);
+
   React.useEffect(() => {
     if (autoHide !== previousAutoHide.current) {
       previousAutoHide.current = autoHide;
@@ -525,6 +550,8 @@ const Searchbar = () => {
             toggleAutoHide={toggleAutoHide}
             alwaysOn={alwaysOn}
             toggleAlwaysOn={toggleAlwaysOn}
+            startInActionMode={startInActionMode}
+            toggleStartInActionMode={toggleStartInActionMode}
             resetPopupPosition={resetPosition}
           />
         )}
