@@ -61,7 +61,11 @@ const PopupSettings = () => {
   return (
     <div id={'keymove-popup'}>
       <InfoPanelSectionHeader text={'Settings'} />
-      {focusShortcut && <InfoPanelShortcutRow isMacOS={Utils.isMacOS()} shortcut={focusShortcut} />}
+      {focusShortcut && (
+        <div className={'keymove-popup-reminder'}>
+          <InfoPanelShortcutRow isMacOS={Utils.isMacOS()} shortcut={focusShortcut} />
+        </div>
+      )}
       <InfoPanelSettings
         autoHide={autoHide}
         toggleAutoHide={toggleAutoHide}
@@ -79,7 +83,9 @@ const PopupSettings = () => {
       />
       <InfoPanelSectionHeader marginTop text={'Searchbar position'} />
       <PopupPositionGrid />
-      <InfoPanelButtons />
+      <div className={'keymove-popup-links'}>
+        <InfoPanelButtons />
+      </div>
     </div>
   );
 };

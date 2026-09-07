@@ -39,8 +39,13 @@ body {
 }
 
 /* The shortcut reminder is a caption for the heading, not one of the settings. */
-#keymove-popup > .keymove-info-panel-row:first-of-type {
+.keymove-popup-reminder {
   margin-bottom: var(--keymove-gap-lg, 24px);
+}
+
+/* Matches the gap above the position heading, so the grid sits evenly between them. */
+.keymove-popup-links {
+  margin-top: var(--keymove-gap-lg, 24px);
 }
 
 #keymove-popup .keymove-info-panel-setting-row {
@@ -75,17 +80,17 @@ body {
   padding: 0;
   border: 1px solid white;
   border-radius: 5px;
-  background-color: rgba(255, 255, 255, 0.06);
+  background-color: transparent;
   cursor: pointer;
 }
 
 .keymove-position-cell:hover {
-  background-color: rgba(255, 255, 255, 0.2);
+  background-color: rgba(255, 255, 255, 0.3);
 }
 
 .keymove-position-cell-selected,
 .keymove-position-cell-selected:hover {
-  background-color: rgba(255, 255, 255, 0.55);
+  background-color: white;
 }
 
 /* Each link gets its own row so the repository sits above the contact link. */
@@ -93,6 +98,6 @@ body {
   margin: var(--keymove-gap-sm, 8px) 0 0;
 }
 
-#keymove-popup .keymove-info-panel-button-row:first-of-type {
-  margin-top: var(--keymove-gap-lg, 24px);
+.keymove-popup-links .keymove-info-panel-button-row:first-child {
+  margin-top: 0;
 }
