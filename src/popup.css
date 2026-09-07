@@ -67,6 +67,31 @@ body {
   background-color: rgba(255, 255, 255, 0.24);
 }
 
+/* Lives here rather than in content.css: the swatch only appears in the popup, and
+   ::-webkit-color-swatch is the only way to reach the colour area, which the shadow
+   stylesheet's no-vendor-prefix rule forbids. Without zeroing the wrapper's asymmetric
+   default padding the swatch renders as a rectangle inside a square control. */
+.keymove-info-panel-setting-color {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin: 2px 12px 0 0;
+  padding: 0;
+  border: 1px solid white;
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+}
+
+.keymove-info-panel-setting-color::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.keymove-info-panel-setting-color::-webkit-color-swatch {
+  border: none;
+  border-radius: 3px;
+}
+
 .keymove-position-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
