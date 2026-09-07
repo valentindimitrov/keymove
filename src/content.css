@@ -244,13 +244,13 @@
   height: 22px;
   margin-right: 5px;
   margin-left: 0;
-  padding: 0 5px;
-  border: 1px solid white;
+  padding: 0 4px;
+  border: 2px solid white;
   border-radius: 4px;
   color: white;
   font-size: 12px;
   font-weight: 500;
-  line-height: 22px;
+  line-height: 18px;
   text-align: center;
   white-space: nowrap;
 }
@@ -395,12 +395,13 @@
 
 .keymove-suggestions {
   position: absolute;
-  width: 420px;
-  max-width: 92vw;
+  left: 0;
+  /* Shares the bar's width and sits flush against it, so the two read as one panel. */
+  width: 100%;
   padding: 5px;
   border: 1px solid rgba(180, 180, 180, 0.2);
-  border-radius: 10px;
-  background-color: rgba(35, 35, 35, 0.75);
+  border-radius: 12px;
+  background-color: rgba(35, 35, 35, 0.6);
   backdrop-filter: blur(16px);
   /* `all: initial` on the host leaves anything that does not set a family in the default
      serif at the default size, so the panel establishes both for its whole subtree. */
@@ -413,20 +414,27 @@
 }
 
 .keymove-suggestions-below {
-  top: calc(100% + 8px);
+  top: 100%;
+  border-top: none;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+#keymove-container:has(.keymove-suggestions-below) {
+  border-bottom-right-radius: 0;
+  border-bottom-left-radius: 0;
 }
 
 .keymove-suggestions-above {
-  bottom: calc(100% + 8px);
+  bottom: 100%;
+  border-bottom: none;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
 }
 
-/* The panel is wider than the bar, so it hangs off whichever side has room for it. */
-.keymove-suggestions-start {
-  left: 0;
-}
-
-.keymove-suggestions-end {
-  right: 0;
+#keymove-container:has(.keymove-suggestions-above) {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
 }
 
 .keymove-suggestion {
