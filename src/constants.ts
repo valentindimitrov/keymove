@@ -17,6 +17,9 @@ export const POPUP_WIDTH_STORAGE_KEY = 'popupWidth';
 // Narrow enough to stay out of the way, wide enough for a result row to stay on one line.
 export const MIN_CONTAINER_WIDTH = 260;
 export const MAX_CONTAINER_WIDTH = 900;
+// Big enough that one press is visible, small enough to land on a chosen size or spot.
+export const KEYBOARD_RESIZE_STEP = 40;
+export const KEYBOARD_MOVE_STEP = 40;
 export const HIGHLIGHT_COLORS_STORAGE_KEY = 'highlightColors';
 
 export const INPUT_NODE_TYPES = ['INPUT', 'TEXTAREA', 'SELECT'];

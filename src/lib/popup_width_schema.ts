@@ -14,6 +14,13 @@ function clampWidth(width: number) {
   return Math.min(Math.max(Math.round(width), MIN_CONTAINER_WIDTH), MAX_CONTAINER_WIDTH);
 }
 
+// Resizing is symmetric about the bar's centre, so the nearer viewport edge is what runs
+// out of room first. Shared by the drag handles and the keyboard shortcuts.
+function widthAboutCenter(width: number, center: number, viewportWidth: number) {
+  const room = 2 * Math.min(center, viewportWidth - center);
+  return clampWidth(Math.min(width, Math.max(MIN_CONTAINER_WIDTH, room)));
+}
+
 function validatePopupWidth(value: unknown): PopupWidthValidation {
   if (value === undefined) {
     return { width: DEFAULT_POPUP_WIDTH, issues: [] };
@@ -42,6 +49,7 @@ export type { PopupWidthValidation };
 export {
   DEFAULT_POPUP_WIDTH,
   clampWidth,
+  widthAboutCenter,
   validatePopupWidth,
   validateStoredPopupWidth,
   validatePopupWidthChange,

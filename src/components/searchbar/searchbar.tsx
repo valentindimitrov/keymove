@@ -25,14 +25,17 @@ import SearchInput from './search_input.js';
 import Selections from './selections.js';
 import MatchesSummary from './matches_summary.js';
 import ResultsPanel from './results_panel.js';
-import DraggableContainer from './draggable_container.js';
+import DraggableContainer, { normalizedPosition, pixelPosition } from './draggable_container.js';
 import InfoDropdown from './info_dropdown.js';
 import VisibilityButton from './visibility_button.js';
 import Logo from '../../icons/logo-without-color.svg?react';
 import ExtensionMessageTypes from '../../extension_message_types.js';
 import type { KeyboardShortcutName } from '../../lib/static_data_schema.js';
 import { EXTENSION_NAME } from '../../extension_identity.js';
+import { widthAboutCenter } from '../../lib/popup_width_schema.js';
 import {
+  KEYBOARD_MOVE_STEP,
+  KEYBOARD_RESIZE_STEP,
   KEYMOVE_CONTAINER_HEIGHT,
   SUGGESTION_PANEL_PADDING,
   SUGGESTION_ROW_HEIGHT,
@@ -313,6 +316,48 @@ const Searchbar = () => {
     [guarded, selectNextMatchingNode, navigationMode],
   );
 
+  // The keyboard equivalents of the drag handles and of dragging the bar itself. Both work
+  // from where the bar is actually drawn, which is not the stored position once it has been
+  // clamped against a viewport edge.
+  const containerPixels = React.useCallback(
+    () => pixelPosition(popupPosition, windowSize.width, windowSize.height, popupWidth),
+    [popupPosition, windowSize, popupWidth],
+  );
+
+  const resizeSearchbar = React.useCallback(
+    (delta: number): ShortcutHandler =>
+      guarded(event => {
+        event.preventDefault();
+        event.stopPropagation();
+        const center = containerPixels().left + popupWidth / 2;
+        updatePopupWidth(widthAboutCenter(popupWidth + delta, center, windowSize.width));
+      }),
+    [guarded, containerPixels, popupWidth, updatePopupWidth, windowSize],
+  );
+
+  const moveSearchbar = React.useCallback(
+    (stepX: number, stepY: number): ShortcutHandler =>
+      guarded(event => {
+        event.preventDefault();
+        event.stopPropagation();
+        const pixels = containerPixels();
+        updatePopupPosition(
+          normalizedPosition(
+            Utils.clampNumber(pixels.left + stepX, 0, Math.max(0, windowSize.width - popupWidth)),
+            Utils.clampNumber(
+              pixels.top + stepY,
+              0,
+              Math.max(0, windowSize.height - KEYMOVE_CONTAINER_HEIGHT),
+            ),
+            windowSize.width,
+            windowSize.height,
+            popupWidth,
+          ),
+        );
+      }),
+    [guarded, containerPixels, popupWidth, updatePopupPosition, windowSize],
+  );
+
   const toggleAutoHide = React.useCallback(() => {
     updateAutoHide(!autoHide);
   }, [autoHide, updateAutoHide]);
@@ -349,6 +394,12 @@ const Searchbar = () => {
         event.stopPropagation();
         revealAndFocus();
       },
+      narrow_searchbar: resizeSearchbar(-KEYBOARD_RESIZE_STEP),
+      widen_searchbar: resizeSearchbar(KEYBOARD_RESIZE_STEP),
+      move_searchbar_left: moveSearchbar(-KEYBOARD_MOVE_STEP, 0),
+      move_searchbar_right: moveSearchbar(KEYBOARD_MOVE_STEP, 0),
+      move_searchbar_up: moveSearchbar(0, -KEYBOARD_MOVE_STEP),
+      move_searchbar_down: moveSearchbar(0, KEYBOARD_MOVE_STEP),
       clear_search_or_hide: event => {
         const differentInputIsActive = Utils.differentInputIsActive(searchInputRef.current);
         if (!isInteractive || differentInputIsActive) return;
@@ -365,6 +416,8 @@ const Searchbar = () => {
   }, [
     createNavigationShortcutHandler,
     guarded,
+    resizeSearchbar,
+    moveSearchbar,
     chosenMode,
     setMode,
     activateSelectedMatchingNodeAndReset,

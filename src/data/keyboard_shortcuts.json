@@ -171,6 +171,93 @@
     "text": "to focus the searchbar (or just start typing)"
   },
   {
+    "name": "narrow_searchbar",
+    "eventMatcher": {
+      "code": "Minus",
+      "flags": {
+        "default": ["altKey"]
+      },
+      "discludedFlags": {
+        "default": ["ctrlKey", "metaKey", "shiftKey"]
+      }
+    },
+    "displayKeys": {
+      "default": ["Alt", "-"],
+      "mac": ["Option", "-"]
+    },
+    "text": "to narrow the searchbar"
+  },
+  {
+    "name": "widen_searchbar",
+    "eventMatcher": {
+      "code": "Equal",
+      "flags": {
+        "default": ["altKey"]
+      },
+      "discludedFlags": {
+        "default": ["ctrlKey", "metaKey", "shiftKey"]
+      }
+    },
+    "displayKeys": {
+      "default": ["Alt", "="],
+      "mac": ["Option", "="]
+    },
+    "text": "to widen the searchbar"
+  },
+  {
+    "name": "move_searchbar_left",
+    "eventMatcher": {
+      "code": "ArrowLeft",
+      "flags": {
+        "default": ["altKey", "shiftKey"]
+      },
+      "discludedFlags": {
+        "default": ["ctrlKey", "metaKey"]
+      }
+    },
+    "displayKeys": {
+      "default": ["Alt", "Shift", "Arrows"],
+      "mac": ["Option", "Shift", "Arrows"]
+    },
+    "text": "to move the searchbar"
+  },
+  {
+    "name": "move_searchbar_right",
+    "eventMatcher": {
+      "code": "ArrowRight",
+      "flags": {
+        "default": ["altKey", "shiftKey"]
+      },
+      "discludedFlags": {
+        "default": ["ctrlKey", "metaKey"]
+      }
+    }
+  },
+  {
+    "name": "move_searchbar_up",
+    "eventMatcher": {
+      "code": "ArrowUp",
+      "flags": {
+        "default": ["altKey", "shiftKey"]
+      },
+      "discludedFlags": {
+        "default": ["ctrlKey", "metaKey"]
+      }
+    }
+  },
+  {
+    "name": "move_searchbar_down",
+    "eventMatcher": {
+      "code": "ArrowDown",
+      "flags": {
+        "default": ["altKey", "shiftKey"]
+      },
+      "discludedFlags": {
+        "default": ["ctrlKey", "metaKey"]
+      }
+    }
+  },
+  {
     "name": "clear_search_or_hide",
     "eventMatcher": {
       "code": "Escape",
