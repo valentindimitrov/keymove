@@ -92,6 +92,22 @@ The searchbar shows the active mode with the position and count for that mode al
 `Text 3 / 12`. The first match is selected as soon as results arrive, so `Enter` acts on it without
 pressing `Tab` first.
 
+### Ranked results
+
+Once a query is at least three characters long, the three strongest results appear under the
+searchbar. Each row names what activating it would do and where on the page it lives, so a control
+buried in a sidebar is distinguishable from one with the same label in the main content. The part
+of the row that matched is marked.
+
+Actions rank ahead of text on near-ties, since a search is more often a way to reach a control than
+to read, but the last place is given up so the slate is never entirely one kind. The panel is a
+second view of the same selection, not a separate one: a row is highlighted only when `Tab` has
+landed on it, and no row is highlighted once the cursor moves past the three.
+
+Below three characters almost everything matches and the order churns on every keystroke, so
+nothing is shown. Above it, a result keeps its place unless another clearly outranks it, so rows
+stay where you last saw them.
+
 ### Approximate matching
 
 When a query matches nothing on the page, KeyMove searches again for the closest spellings rather

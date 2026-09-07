@@ -1,10 +1,12 @@
 import React from 'react';
 import { EXTENSION_NAME } from '../../extension_identity.js';
-import { KEYMOVE_INPUT_ID } from '../../constants.js';
+import { KEYMOVE_INPUT_ID, KEYMOVE_SUGGESTIONS_ID } from '../../constants.js';
 import Utils from '../../lib/utils.js';
 
 type SearchInputProps = {
   searchText: string;
+  suggestionCount: number;
+  activeSuggestionIndex: number | null;
   updateSearchText: (value: string) => void;
   inputRef: React.RefObject<HTMLInputElement | null>;
   onBlur: React.FocusEventHandler<HTMLInputElement>;
@@ -37,7 +39,8 @@ function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
 }
 
 const SearchInput = (props: SearchInputProps) => {
-  const { searchText, updateSearchText, inputRef, onBlur } = props;
+  const { searchText, updateSearchText, inputRef, onBlur, suggestionCount, activeSuggestionIndex } =
+    props;
 
   const onSearchTextChange = React.useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => updateSearchText(event.target.value),
@@ -51,6 +54,12 @@ const SearchInput = (props: SearchInputProps) => {
         id={KEYMOVE_INPUT_ID}
         type="text"
         aria-label="Search page"
+        role="combobox"
+        aria-expanded={suggestionCount > 0}
+        aria-controls={KEYMOVE_SUGGESTIONS_ID}
+        aria-activedescendant={
+          activeSuggestionIndex === null ? undefined : `keymove-suggestion-${activeSuggestionIndex}`
+        }
         placeholder={`${EXTENSION_NAME}!`}
         value={searchText}
         onChange={onSearchTextChange}

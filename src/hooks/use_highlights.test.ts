@@ -81,8 +81,8 @@ test('highlights each match by its own matched term, not by the query', () => {
 
   // A fuzzy search for "setings" matches each block through that block's own spelling.
   const ranges = highlightRangesForMatches([
-    { node: first!, action: null, term: 'settings' },
-    { node: second!, action: null, term: 'setings' },
+    { node: first!, term: 'settings' },
+    { node: second!, term: 'setings' },
   ]);
 
   expect(ranges.map(range => range.toString())).toEqual(['settings', 'setings']);
@@ -103,8 +103,8 @@ test('paints the current match with its own higher-priority highlight', () => {
   vi.stubGlobal('Highlight', FakeHighlight);
 
   const matches = [
-    { node: first!, action: null, term: 'save' },
-    { node: second!, action: null, term: 'save' },
+    { node: first!, term: 'save' },
+    { node: second!, term: 'save' },
   ];
   const { unmount } = renderHook(() =>
     useHighlights({ matches, selectedMatch: matches[1]!, enabled: true }),
@@ -128,7 +128,7 @@ test('paints nothing when match highlighting is turned off', () => {
   vi.stubGlobal('CSS', { highlights: registry });
   vi.stubGlobal('Highlight', class {});
 
-  const matches = [{ node: paragraph, action: null, term: 'save' }];
+  const matches = [{ node: paragraph, term: 'save' }];
   renderHook(() => useHighlights({ matches, selectedMatch: matches[0]!, enabled: false }));
 
   expect(registry.size).toBe(0);

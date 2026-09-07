@@ -6,7 +6,8 @@ import {
   rgbaForHexColor,
 } from '../lib/highlight_colors_schema.js';
 import { visibleTextNodes } from '../lib/visible_text.js';
-import type { TextMatch } from '../lib/page_search_index.js';
+// Highlighting needs only the node and the slice that matched, not the rest of a result.
+type HighlightTarget = { node: Element; term: string };
 
 const MAX_HIGHLIGHT_RANGES = 500;
 
@@ -79,7 +80,7 @@ function rangesForTextNodes(
  * text. A fuzzy result does not contain the query, so highlighting the query would mark
  * nothing and leave the match invisible on the page.
  */
-function highlightRangesForMatches(matches: TextMatch[]): Range[] {
+function highlightRangesForMatches(matches: readonly HighlightTarget[]): Range[] {
   const nodes = matches.map(match => match.node);
   const roots = matches.filter(
     (match, index) =>
@@ -101,12 +102,12 @@ function highlightRangesForMatches(matches: TextMatch[]): Range[] {
 }
 
 function highlightRangesForNodes(nodes: Element[], query: string): Range[] {
-  return highlightRangesForMatches(nodes.map(node => ({ node, action: null, term: query })));
+  return highlightRangesForMatches(nodes.map(node => ({ node, term: query })));
 }
 
 type HighlightOptions = {
-  matches: TextMatch[];
-  selectedMatch?: TextMatch | null;
+  matches: readonly HighlightTarget[];
+  selectedMatch?: HighlightTarget | null;
   enabled?: boolean;
   color?: string;
 };
@@ -161,6 +162,7 @@ const useHighlights = ({
   }, [matches, selectedMatch, enabled]);
 };
 
+export type { HighlightTarget };
 export {
   highlightRangesForMatches,
   highlightRangesForNodes,

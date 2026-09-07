@@ -5,19 +5,37 @@ import InfoPanelSettingRow from './info_panel/info_panel_setting_row.js';
 import MatchesSummary from './matches_summary.js';
 import SearchInput from './search_input.js';
 
-test('gives the page search input a textbox name without a fake combobox popup', () => {
-  render(
+test('reports the suggestion list as a collapsed combobox until there is something in it', () => {
+  const { rerender } = render(
     <SearchInput
       searchText=""
       updateSearchText={vi.fn()}
       inputRef={React.createRef<HTMLInputElement>()}
       onBlur={vi.fn()}
+      suggestionCount={0}
+      activeSuggestionIndex={null}
     />,
   );
 
-  const input = screen.getByRole('textbox', { name: 'Search page' });
+  const input = screen.getByRole('combobox', { name: 'Search page' });
   expect(input).not.toHaveAttribute('list');
-  expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+  expect(input).toHaveAttribute('aria-expanded', 'false');
+  expect(input).not.toHaveAttribute('aria-activedescendant');
+
+  rerender(
+    <SearchInput
+      searchText="save"
+      updateSearchText={vi.fn()}
+      inputRef={React.createRef<HTMLInputElement>()}
+      onBlur={vi.fn()}
+      suggestionCount={3}
+      activeSuggestionIndex={1}
+    />,
+  );
+
+  expect(input).toHaveAttribute('aria-expanded', 'true');
+  expect(input).toHaveAttribute('aria-controls', 'keymove-suggestions');
+  expect(input).toHaveAttribute('aria-activedescendant', 'keymove-suggestion-1');
 });
 
 test('associates a setting checkbox with its visible label and description', () => {

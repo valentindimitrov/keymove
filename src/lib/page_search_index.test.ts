@@ -65,7 +65,7 @@ test('rechecks descendant visibility after an ancestor class changes', async () 
 test('finds a phrase split across inline descendants as one semantic block', async () => {
   document.body.innerHTML = '<p><span>Save </span><strong>settings</strong></p>';
   index = new PageSearchIndex();
-  expect((await index.search(scorerFor('save settings'))).matchingText).toEqual([
+  expect((await index.search(scorerFor('save settings'))).matchingText).toMatchObject([
     { node: document.querySelector('p'), action: null, term: 'save settings' },
   ]);
 });
@@ -102,7 +102,7 @@ test('keeps attribute-only action matches out of text navigation', async () => {
 
   const result = await index.search(scorerFor('key'));
 
-  expect(result.matchingText).toEqual([{ node: paragraph, action: null, term: 'key' }]);
+  expect(result.matchingText).toMatchObject([{ node: paragraph, action: null, term: 'key' }]);
   expect(result.matchingLinksAndButtons).toEqual([button]);
 });
 
@@ -115,7 +115,9 @@ test('uses a whole text block while retaining its nested action', async () => {
 
   const result = await index.search(scorerFor('documentation'));
 
-  expect(result.matchingText).toEqual([{ node: paragraph, action: link, term: 'documentation' }]);
+  expect(result.matchingText).toMatchObject([
+    { node: paragraph, action: link, term: 'documentation' },
+  ]);
   expect(result.matchingLinksAndButtons).toEqual([link]);
 });
 
@@ -123,7 +125,7 @@ test('associates the matching nested link before falling back to another block a
   document.body.innerHTML =
     '<p>Read <a href="/home">home</a> or <a href="/docs">documentation</a>.</p>';
   index = new PageSearchIndex();
-  expect((await index.search(scorerFor('documentation'))).matchingText).toEqual([
+  expect((await index.search(scorerFor('documentation'))).matchingText).toMatchObject([
     {
       node: document.querySelector('p'),
       action: document.querySelector('a[href="/docs"]'),
@@ -276,7 +278,9 @@ test('retains the earliest text blocks and highest ranked actions with a small l
   index = new PageSearchIndex();
   const firstButton = document.querySelector('button');
   const result = await index.search(scorerFor('save'), { limit: 1 });
-  expect(result.matchingText).toEqual([{ node: firstButton, action: firstButton, term: 'save' }]);
+  expect(result.matchingText).toMatchObject([
+    { node: firstButton, action: firstButton, term: 'save' },
+  ]);
   expect(result.matchingLinksAndButtons[0]?.textContent).toBe('Save settings');
 });
 
@@ -359,4 +363,63 @@ test('matches a word the query is only a mistyped prefix of', async () => {
   for (const match of fuzzy.matchingText) {
     expect(match.node.textContent!.toLocaleLowerCase()).toContain(match.term);
   }
+});
+
+test('ranks a short slate with actions ahead of text', async () => {
+  document.body.innerHTML = `
+    <p>Save your work before leaving</p>
+    <button>Save</button>
+    <a href="/s">Save settings</a>`;
+  index = new PageSearchIndex();
+
+  const { suggestions } = await index.search(scorerFor('save'));
+
+  expect(suggestions).toHaveLength(3);
+  expect(suggestions[0]!.kind).toBe('action');
+  expect(suggestions.map(entry => entry.node.textContent)).toContain(
+    'Save your work before leaving',
+  );
+});
+
+test('gives up the last place so a slate is never all of one kind', async () => {
+  document.body.innerHTML = `
+    <button>Save</button><button>Save all</button><button>Save as</button>
+    <p>Save your work before leaving</p>`;
+  index = new PageSearchIndex();
+
+  const { suggestions } = await index.search(scorerFor('save'));
+
+  expect(suggestions.map(entry => entry.kind)).toEqual(['action', 'action', 'text']);
+});
+
+test('leaves a slate alone when only one kind of result exists', async () => {
+  // Labelled with attributes only, so these are actions without also being text blocks.
+  document.body.innerHTML =
+    '<input aria-label="Save" /><input aria-label="Save all" /><input aria-label="Save as" />';
+  index = new PageSearchIndex();
+
+  const { suggestions } = await index.search(scorerFor('save'));
+
+  expect(suggestions.map(entry => entry.kind)).toEqual(['action', 'action', 'action']);
+});
+
+test('ranks text for the slate by score, not by position on the page', async () => {
+  // The strong match sits past the result limit, where page-ordered truncation would drop it.
+  // The filler only matches mid-word, so it never earns the boost for starting with the query.
+  document.body.innerHTML = `${'<p>unsaved drafts</p>'.repeat(60)}<p>Save</p>`;
+  index = new PageSearchIndex();
+
+  const { suggestions } = await index.search(scorerFor('save'), { limit: 50 });
+
+  expect(suggestions[0]!.node.textContent).toBe('Save');
+});
+
+test('never gives one node two places in the slate', async () => {
+  document.body.innerHTML = '<button>Save</button><p>Nothing else matches here</p>';
+  index = new PageSearchIndex();
+
+  const { suggestions } = await index.search(scorerFor('save'));
+
+  const button = document.querySelector('button');
+  expect(suggestions.filter(entry => entry.node === button)).toHaveLength(1);
 });

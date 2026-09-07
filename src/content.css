@@ -376,3 +376,105 @@
 :host(.keymove-firefox) .keymove-tooltip-arrow {
   border-color: rgba(35, 35, 35, 0.9) transparent;
 }
+
+.keymove-suggestions {
+  position: absolute;
+  width: 420px;
+  max-width: 92vw;
+  padding: 5px;
+  border: 1px solid rgba(180, 180, 180, 0.2);
+  border-radius: 10px;
+  background-color: rgba(35, 35, 35, 0.75);
+  backdrop-filter: blur(16px);
+  cursor: default;
+}
+
+.keymove-suggestions-below {
+  top: calc(100% + 8px);
+}
+
+.keymove-suggestions-above {
+  bottom: calc(100% + 8px);
+}
+
+/* The panel is wider than the bar, so it hangs off whichever side has room for it. */
+.keymove-suggestions-start {
+  left: 0;
+}
+
+.keymove-suggestions-end {
+  right: 0;
+}
+
+.keymove-suggestion {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  padding: 7px 8px;
+  border-radius: 6px;
+  color: white;
+  font-size: 13px;
+  letter-spacing: normal;
+  line-height: 1.35em;
+}
+
+.keymove-suggestion-selected {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+.keymove-suggestion-position {
+  margin-top: 1px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background-color: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 11px;
+}
+
+.keymove-suggestion-kind {
+  margin-top: 2px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 10px;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+}
+
+.keymove-suggestion-kind-action {
+  background-color: rgba(29, 79, 60, 0.9);
+  color: rgb(143, 224, 189);
+}
+
+.keymove-suggestion-kind-text {
+  background-color: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.keymove-suggestion-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.keymove-suggestion-label {
+  display: block;
+  overflow: hidden;
+  color: white;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.keymove-suggestion-match {
+  padding: 0;
+  background-color: rgba(122, 98, 18, 0.9);
+  color: rgb(255, 233, 163);
+}
+
+.keymove-suggestion-context {
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -12,14 +12,17 @@ import useSearchNavigation, {
 } from '../../hooks/use_search_navigation.js';
 import type { SearchMode } from '../../hooks/use_search_navigation.js';
 import usePopupPosition from '../../hooks/use_popup_position.js';
+import useSuggestions from '../../hooks/use_suggestions.js';
 import useHighlightColors from '../../hooks/use_highlight_colors.js';
 
 import Utils from '../../lib/utils.js';
 import FindInPage, { subscribeToPageChanges } from '../../lib/find_in_page.js';
+import type { RankedMatch } from '../../lib/page_search_index.js';
 import { isTextVisible, visibleText } from '../../lib/visible_text.js';
 import SearchInput from './search_input.js';
 import Selections from './selections.js';
 import MatchesSummary from './matches_summary.js';
+import ResultsPanel from './results_panel.js';
 import DraggableContainer from './draggable_container.js';
 import InfoDropdown from './info_dropdown.js';
 import VisibilityButton from './visibility_button.js';
@@ -43,13 +46,9 @@ const Searchbar = () => {
     autoHide,
     updateAutoHide,
     alwaysOn,
-    updateAlwaysOn,
     startInActionMode,
-    updateStartInActionMode,
     highlightMatches,
-    updateHighlightMatches,
     showAutohideButton,
-    updateShowAutohideButton,
   } = useStoredSettings();
   const defaultSearchMode = startInActionMode ? SEARCH_MODES.ACTIONS : SEARCH_MODES.TEXT;
   // Seeded with the reducer's initial mode, not the first computed default, so a stored
@@ -64,20 +63,13 @@ const Searchbar = () => {
     setMode,
     setSelectedIndex,
   } = useSearchNavigation();
-  const {
-    colors: highlightColors,
-    updateColor: updateHighlightColor,
-    resetColors: resetHighlightColors,
-  } = useHighlightColors();
-  const {
-    position: popupPosition,
-    updatePosition: updatePopupPosition,
-    resetPosition,
-  } = usePopupPosition();
+  const { colors: highlightColors } = useHighlightColors();
+  const { position: popupPosition, updatePosition: updatePopupPosition } = usePopupPosition();
 
   const [isHidden, setIsHidden] = React.useState<boolean>(autoHide);
   const [searchText, setSearchText] = React.useState('');
   const [isFuzzy, setIsFuzzy] = React.useState(false);
+  const [rankedMatches, setRankedMatches] = React.useState<RankedMatch[]>([]);
   const previousSearchText = React.useRef(searchText);
   const [scrollOrResizeRefresh, setScrollOrResizeRefresh] = React.useState<boolean>(false);
   const [hideSelections, setHideSelections] = React.useState<boolean>(false);
@@ -201,15 +193,15 @@ const Searchbar = () => {
       searchAbortController.current = controller;
 
       try {
-        const { matchingText, matchingLinksAndButtons, isFuzzy } = await new FindInPage(
-          searchText,
-        ).findMatches({ signal: controller.signal });
+        const { matchingText, matchingLinksAndButtons, suggestions, isFuzzy } =
+          await new FindInPage(searchText).findMatches({ signal: controller.signal });
 
         if (controller.signal.aborted) {
           return;
         }
 
         setIsFuzzy(isFuzzy);
+        setRankedMatches(suggestions);
         setSearchResults(matchingText, matchingLinksAndButtons, preserveSelection);
         setScrollOrResizeRefresh(refresh => !refresh);
       } catch (error) {
@@ -240,6 +232,7 @@ const Searchbar = () => {
         // Cleared results are not approximate ones. Leaving this set would mark the next
         // query as approximate before it has even run.
         setIsFuzzy(false);
+        setRankedMatches([]);
         Utils.clearPageSelection();
       }
       if (searchText.trimStart().length === 0) return;
@@ -314,22 +307,6 @@ const Searchbar = () => {
   const toggleAutoHide = React.useCallback(() => {
     updateAutoHide(!autoHide);
   }, [autoHide, updateAutoHide]);
-
-  const toggleAlwaysOn = React.useCallback(() => {
-    updateAlwaysOn(!alwaysOn);
-  }, [alwaysOn, updateAlwaysOn]);
-
-  const toggleStartInActionMode = React.useCallback(() => {
-    updateStartInActionMode(!startInActionMode);
-  }, [startInActionMode, updateStartInActionMode]);
-
-  const toggleHighlightMatches = React.useCallback(() => {
-    updateHighlightMatches(!highlightMatches);
-  }, [highlightMatches, updateHighlightMatches]);
-
-  const toggleShowAutohideButton = React.useCallback(() => {
-    updateShowAutohideButton(!showAutohideButton);
-  }, [showAutohideButton, updateShowAutohideButton]);
 
   const keyboardShortcutHandlerMapping = React.useMemo<
     Record<KeyboardShortcutName, ShortcutHandler | null>
@@ -428,10 +405,6 @@ const Searchbar = () => {
     [revealAndFocus, searchText],
   );
 
-  const handleToolbarActionClicked = React.useCallback(() => {
-    revealAndFocus();
-  }, [revealAndFocus]);
-
   const handleCopy = React.useCallback(
     (event: ClipboardEvent) => {
       if (
@@ -510,6 +483,23 @@ const Searchbar = () => {
     }
   }, [autoHide, hide, focusSearchInput]);
 
+  const suggestions = useSuggestions({ suggestions: rankedMatches, searchText, isFuzzy });
+  // The panel is a second view of the one cursor, not a cursor of its own, so a row is
+  // highlighted only when Tab has actually landed on it.
+  const selectedSuggestionNode =
+    (navigationMode === SEARCH_MODES.TEXT
+      ? (selectedTextMatch?.node ?? null)
+      : selectedActionNode) ?? null;
+  // The panel is larger than the bar it hangs from, so it opens towards whichever side of
+  // the viewport has room. The default position sits low, where below would run off-screen.
+  const suggestionsAbove = popupPosition.y > 0.5;
+  const suggestionsAlignEnd = popupPosition.x > 0.5;
+  const activeSuggestionIndex = React.useMemo(() => {
+    if (!selectedSuggestionNode) return null;
+    const index = suggestions.findIndex(item => item.node === selectedSuggestionNode);
+    return index === -1 ? null : index;
+  }, [suggestions, selectedSuggestionNode]);
+
   const hasActiveMatches = activeMatchingNodes.length > 0;
 
   const shouldBindEvents = isInteractive && hasActiveMatches;
@@ -531,7 +521,7 @@ const Searchbar = () => {
     enabled: highlightMatches,
     color: highlightColors[SEARCH_MODES.TEXT],
   });
-  useExtensionMessaging({ handleToolbarActionClicked });
+  useExtensionMessaging();
 
   return (
     <div className={isInteractive ? '' : 'keymove-hidden'}>
@@ -563,6 +553,8 @@ const Searchbar = () => {
         <SearchInput
           inputRef={searchInputRef}
           searchText={searchText}
+          suggestionCount={suggestions.length}
+          activeSuggestionIndex={activeSuggestionIndex}
           onBlur={handleBlur}
           updateSearchText={setSearchText}
         />
@@ -576,22 +568,13 @@ const Searchbar = () => {
         {isInteractive && showAutohideButton && (
           <VisibilityButton autoHide={autoHide} toggleAutoHide={toggleAutoHide} />
         )}
+        {isInteractive && <InfoDropdown />}
         {isInteractive && (
-          <InfoDropdown
-            autoHide={autoHide}
-            toggleAutoHide={toggleAutoHide}
-            alwaysOn={alwaysOn}
-            toggleAlwaysOn={toggleAlwaysOn}
-            startInActionMode={startInActionMode}
-            toggleStartInActionMode={toggleStartInActionMode}
-            highlightMatches={highlightMatches}
-            toggleHighlightMatches={toggleHighlightMatches}
-            showAutohideButton={showAutohideButton}
-            toggleShowAutohideButton={toggleShowAutohideButton}
-            highlightColors={highlightColors}
-            updateHighlightColor={updateHighlightColor}
-            resetHighlightColors={resetHighlightColors}
-            resetPopupPosition={resetPosition}
+          <ResultsPanel
+            suggestions={suggestions}
+            selectedNode={selectedSuggestionNode}
+            above={suggestionsAbove}
+            alignEnd={suggestionsAlignEnd}
           />
         )}
       </DraggableContainer>

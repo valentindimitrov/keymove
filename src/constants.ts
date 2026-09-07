@@ -6,6 +6,7 @@ export const KEYMOVE_ROOT_ID = 'keymove-root';
 export const KEYMOVE_APP_ID = 'keymove-app';
 export const KEYMOVE_PORTAL_ID = 'keymove-portal';
 export const KEYMOVE_INPUT_ID = 'keymove-input';
+export const KEYMOVE_SUGGESTIONS_ID = 'keymove-suggestions';
 export const KEYMOVE_HIGHLIGHT_NAME = 'keymove-search-results';
 export const KEYMOVE_CURRENT_HIGHLIGHT_NAME = 'keymove-search-current';
 
@@ -31,6 +32,15 @@ export const MIN_FUZZY_QUERY_LENGTH = 3;
 export const SHORT_FUZZY_QUERY_LENGTH = 6;
 export const MAX_FUZZY_DISTANCE = 2;
 export const FUZZY_DISTANCE_PENALTY = 0.6;
+
+// A search is more often a way to reach a control than to read, so actions win near-ties.
+export const ACTION_PRIORITY_BOOST = 1.25;
+export const SUGGESTION_LIMIT = 3;
+export const SUGGESTION_CANDIDATE_LIMIT = 8;
+export const MIN_SUGGESTION_QUERY_LENGTH = 3;
+// A challenger must beat the result already holding a place by this margin before they swap,
+// so results that score almost identically stop trading places on every keystroke.
+export const SUGGESTION_SWAP_MARGIN = 1.15;
 
 export const SETTINGS_KEYS = {
   AUTO_HIDE: 'autoHide',

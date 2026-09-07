@@ -1,4 +1,10 @@
-import { DO_NOT_SEARCH_NODE_TYPES, KEYMOVE_ROOT_ID } from '../constants.js';
+import {
+  ACTION_PRIORITY_BOOST,
+  DO_NOT_SEARCH_NODE_TYPES,
+  KEYMOVE_ROOT_ID,
+  SUGGESTION_CANDIDATE_LIMIT,
+  SUGGESTION_LIMIT,
+} from '../constants.js';
 import NodeScorer from './node_scorer.js';
 import {
   ACTIONABLE_SELECTOR,
@@ -19,14 +25,18 @@ type SearchRecord = {
   attributeValues: string[];
 };
 
-type ActionMatch = { node: HTMLElement; score: number };
+type ActionMatch = { node: HTMLElement; score: number; term: string | null };
 // `term` is the literal slice of the node's text that matched, so highlighting can find it
 // again. For an exact search it is the query; for a fuzzy one it is the near-miss spelling.
-type TextMatch = { node: Element; action: HTMLElement | null; term: string };
+type TextMatch = { node: Element; action: HTMLElement | null; term: string; score: number };
 type ScannedNode = { node: Element; innerText: string; attributeValues: string[] };
+type RankedMatch = { kind: 'action' | 'text'; node: Element; score: number; term: string | null };
 type MatchCollector = {
   actions: ActionMatch[];
   matchingText: TextMatch[];
+  // Text results are held in page order and truncated there, so the strongest match on a long
+  // page can fall off the end. Ranking needs its own set.
+  rankedText: TextMatch[];
   textMatchesByContainer: Map<Element, TextMatch>;
   resultLimit: number;
 };
@@ -34,8 +44,59 @@ type SearchOptions = { signal?: AbortSignal; limit?: number };
 type SearchResult = {
   matchingText: TextMatch[];
   matchingLinksAndButtons: HTMLElement[];
+  suggestions: RankedMatch[];
   isFuzzy: boolean;
 };
+
+function insertByScore<T extends { score: number }>(list: T[], entry: T, limit: number) {
+  const insertion = list.findIndex(existing => existing.score < entry.score);
+  if (insertion !== -1) list.splice(insertion, 0, entry);
+  else if (list.length < limit) list.push(entry);
+  if (list.length > limit) list.pop();
+}
+
+/**
+ * Blends the two result sets into one short slate. Actions carry a bias because a search is
+ * more often a way to reach a control than to read, but a slate of only one kind hides the
+ * other entirely, so the last place is given up when both kinds are available.
+ */
+function rankSuggestions(collector: MatchCollector, limit: number): RankedMatch[] {
+  const candidates: RankedMatch[] = [
+    ...collector.actions.map(match => ({
+      kind: 'action' as const,
+      node: match.node as Element,
+      score: match.score * ACTION_PRIORITY_BOOST,
+      term: match.term,
+    })),
+    ...collector.rankedText.map(match => ({
+      kind: 'text' as const,
+      node: match.node,
+      score: match.score,
+      term: match.term,
+    })),
+  ].sort((left, right) => right.score - left.score);
+
+  // A control with a label is both an action and a text block, so the same node can arrive
+  // twice. Showing one node on two rows would waste a place people are meant to aim at.
+  const seen = new Set<Element>();
+  const distinct = candidates.filter(match => {
+    if (seen.has(match.node)) return false;
+    seen.add(match.node);
+    return true;
+  });
+
+  const slate = distinct.slice(0, limit);
+  if (slate.length < limit || limit === 0) return slate;
+  const missingKind = slate.every(match => match.kind === 'action')
+    ? 'text'
+    : slate.every(match => match.kind === 'text')
+      ? 'action'
+      : null;
+  if (!missingKind) return slate;
+  const best = distinct.find(match => match.kind === missingKind);
+  if (best) slate[slate.length - 1] = best;
+  return slate;
+}
 
 function abortError(): Error {
   const error = new Error('Search cancelled');
@@ -326,12 +387,14 @@ class PageSearchIndex {
     const resultLimit = Number.isFinite(limit)
       ? Math.max(0, Math.floor(limit))
       : DEFAULT_RESULT_LIMIT;
-    if (resultLimit === 0) return { matchingText: [], matchingLinksAndButtons: [], isFuzzy: false };
+    if (resultLimit === 0)
+      return { matchingText: [], matchingLinksAndButtons: [], suggestions: [], isFuzzy: false };
     const budget = new SearchWorkBudget();
     await this.flushPendingSubtrees(searchSignal, budget);
     const collector: MatchCollector = {
       actions: [],
       matchingText: [],
+      rankedText: [],
       textMatchesByContainer: new Map(),
       resultLimit,
     };
@@ -405,6 +468,7 @@ class PageSearchIndex {
     return {
       matchingText,
       matchingLinksAndButtons: actions.map(match => match.node),
+      suggestions: rankSuggestions(collector, SUGGESTION_LIMIT),
       isFuzzy,
     };
   }
@@ -442,12 +506,9 @@ class PageSearchIndex {
     collector: MatchCollector,
   ) {
     if (score <= 0) return;
-    const { actions, matchingText, textMatchesByContainer, resultLimit } = collector;
+    const { actions, matchingText, rankedText, textMatchesByContainer, resultLimit } = collector;
     if (node instanceof HTMLElement && isLinkOrButtonOrInput(node)) {
-      const insertion = actions.findIndex(match => match.score < score);
-      if (insertion !== -1) actions.splice(insertion, 0, { node, score });
-      else if (actions.length < resultLimit) actions.push({ node, score });
-      if (actions.length > resultLimit) actions.pop();
+      insertByScore(actions, { node, score, term: textTerm }, resultLimit);
     }
     if (textTerm === null) return;
     if (!this.hasDirectSearchableText(node) && !node.matches(TEXT_BLOCK_SELECTOR)) return;
@@ -461,7 +522,8 @@ class PageSearchIndex {
     const insertion = matchingText.findIndex(match =>
       Boolean(match.node.compareDocumentPosition(textContainer) & Node.DOCUMENT_POSITION_PRECEDING),
     );
-    const match = { node: textContainer, action, term: textTerm };
+    const match = { node: textContainer, action, term: textTerm, score };
+    insertByScore(rankedText, match, SUGGESTION_CANDIDATE_LIMIT);
     if (insertion !== -1) matchingText.splice(insertion, 0, match);
     else if (matchingText.length < resultLimit) matchingText.push(match);
     else return;
@@ -479,5 +541,5 @@ class PageSearchIndex {
   }
 }
 
-export type { SearchOptions, SearchResult, TextMatch };
+export type { RankedMatch, SearchOptions, SearchResult, TextMatch };
 export { DEFAULT_RESULT_LIMIT, PageSearchIndex };
