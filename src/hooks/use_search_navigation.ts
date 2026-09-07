@@ -35,6 +35,20 @@ const INITIAL_SEARCH_NAVIGATION_STATE: SearchNavigationState = {
   selectedIndices: { text: null, actions: null },
 };
 
+// Action mode with nothing in it is a dead end, so navigation falls back to the text
+// results. This is derived rather than stored: the chosen mode is left alone, so the next
+// query tries actions again instead of stranding the user in text mode.
+function effectiveSearchMode(state: SearchNavigationState): SearchMode {
+  if (
+    state.mode === SEARCH_MODES.ACTIONS &&
+    state.results.actions.length === 0 &&
+    state.results.text.length > 0
+  ) {
+    return SEARCH_MODES.TEXT;
+  }
+  return state.mode;
+}
+
 function clampIndex(index: number | null, resultCount: number) {
   if (index === null || resultCount === 0) {
     return null;
@@ -161,5 +175,10 @@ function useSearchNavigation() {
 }
 
 export type { SearchMode, SearchNavigationAction, SearchNavigationState };
-export { INITIAL_SEARCH_NAVIGATION_STATE, SEARCH_MODES, searchNavigationReducer };
+export {
+  INITIAL_SEARCH_NAVIGATION_STATE,
+  SEARCH_MODES,
+  effectiveSearchMode,
+  searchNavigationReducer,
+};
 export default useSearchNavigation;

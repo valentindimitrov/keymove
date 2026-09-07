@@ -425,21 +425,46 @@ test('Alt+S toggles the search mode without moving either selection', async () =
   expect(status).toHaveTextContent('Actions 2 / 2');
 });
 
-test('Alt+S keeps the mode label visible when the active mode has no matches', async () => {
-  const paragraph = document.createElement('p');
-  paragraph.textContent = 'Save';
-  document.body.append(paragraph);
-  searchMocks.findMatches.mockResolvedValue({
-    matchingText: [{ node: paragraph, action: null, term: 'save' }],
-    matchingLinksAndButtons: [],
-  });
+test('Alt+S keeps the mode label visible when nothing matches at all', async () => {
+  searchMocks.findMatches.mockResolvedValue({ matchingText: [], matchingLinksAndButtons: [] });
   render(<Searchbar />);
   const input = screen.getByRole('textbox', { name: 'Search page' });
   fireEvent.change(input, { target: { value: 'save' } });
   await flushSearch();
 
+  // With no text results either there is nothing to fall back to, so the mode stands.
   fireEvent.keyDown(input, { key: 's', code: 'KeyS', altKey: true });
   expect(screen.getByRole('status')).toHaveTextContent('Actions 0 / 0');
+});
+
+test('falls back to text when action mode is empty, and retries actions on the next query', async () => {
+  const paragraph = document.createElement('p');
+  paragraph.textContent = 'How it works';
+  const action = document.createElement('button');
+  action.textContent = 'Show how';
+  document.body.append(paragraph, action);
+  searchMocks.findMatches.mockResolvedValue({
+    matchingText: [{ node: paragraph, action: null, term: 'how' }],
+    matchingLinksAndButtons: [],
+  });
+  render(<Searchbar />);
+  const input = screen.getByRole('textbox', { name: 'Search page' });
+  fireEvent.change(input, { target: { value: 'how' } });
+  await flushSearch();
+
+  const status = screen.getByRole('status');
+  fireEvent.keyDown(input, { key: 's', code: 'KeyS', altKey: true });
+  // Action mode was chosen but is empty, so navigation shows the text results instead.
+  expect(status).toHaveTextContent('Text 1 / 1');
+
+  // The choice was not rewritten, so the next query goes through actions again.
+  searchMocks.findMatches.mockResolvedValue({
+    matchingText: [{ node: paragraph, action: null, term: 'how' }],
+    matchingLinksAndButtons: [action],
+  });
+  fireEvent.change(input, { target: { value: 'how t' } });
+  await flushSearch();
+  expect(status).toHaveTextContent('Actions 1 / 1');
 });
 
 test('Escape clears the query, then hides the bar with Autohide off, and Alt+F restores focus', async () => {

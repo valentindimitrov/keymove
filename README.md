@@ -83,7 +83,9 @@ Every search collects two result sets at once, and the mode decides which one `T
 `Alt + S` switches between them. It only re-points `Tab`; it never moves a selection or activates
 anything. Each mode keeps its own cursor, so switching away and back returns you to where you left
 off, and the chosen mode persists while you keep typing. Ending a search returns to the default
-mode, which the **Start in action mode** setting chooses. The mode itself is never shared between
+mode, which the **Start in action mode** setting chooses. When action mode has no matches
+but text does, navigation falls back to the text results rather than presenting an empty list. The
+fallback does not change the chosen mode, so editing the query tries actions again. The mode itself is never shared between
 tabs: each page starts from the stored default.
 
 The searchbar shows the active mode with the position and count for that mode alone, such as

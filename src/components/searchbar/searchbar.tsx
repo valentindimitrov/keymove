@@ -6,7 +6,10 @@ import useHighlights from '../../hooks/use_highlights.js';
 import useKeyboardShortcuts from '../../hooks/use_keyboard_shortcuts.js';
 import useStoredSettings from '../../hooks/use_stored_settings.js';
 import useExtensionMessaging from '../../hooks/use_extension_messaging.js';
-import useSearchNavigation, { SEARCH_MODES } from '../../hooks/use_search_navigation.js';
+import useSearchNavigation, {
+  effectiveSearchMode,
+  SEARCH_MODES,
+} from '../../hooks/use_search_navigation.js';
 import type { SearchMode } from '../../hooks/use_search_navigation.js';
 import usePopupPosition from '../../hooks/use_popup_position.js';
 
@@ -80,7 +83,10 @@ const Searchbar = () => {
     () => matchingText.map(match => match.node),
     [matchingText],
   );
-  const navigationMode = searchNavigation.mode;
+  // Everything the user navigates and sees follows the effective mode; only the Alt+S
+  // toggle acts on the chosen one, so a fallback never silently rewrites their choice.
+  const chosenMode = searchNavigation.mode;
+  const navigationMode = effectiveSearchMode(searchNavigation);
   const selectedSelectionIndex = searchNavigation.selectedIndices[navigationMode];
   const selectedTextMatch =
     navigationMode === SEARCH_MODES.TEXT && selectedSelectionIndex !== null
@@ -337,7 +343,7 @@ const Searchbar = () => {
       toggle_search_mode: guarded(event => {
         event.preventDefault();
         event.stopPropagation();
-        setMode(navigationMode === SEARCH_MODES.TEXT ? SEARCH_MODES.ACTIONS : SEARCH_MODES.TEXT);
+        setMode(chosenMode === SEARCH_MODES.TEXT ? SEARCH_MODES.ACTIONS : SEARCH_MODES.TEXT);
       }),
       // The browser's native copy command emits the document copy event handled by handleCopy.
       copy_selected_link: null,
@@ -367,7 +373,7 @@ const Searchbar = () => {
   }, [
     createNavigationShortcutHandler,
     guarded,
-    navigationMode,
+    chosenMode,
     setMode,
     activateSelectedMatchingNodeAndReset,
     preventDefaultAndClearSearchText,
