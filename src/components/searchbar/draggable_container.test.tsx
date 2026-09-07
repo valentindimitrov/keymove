@@ -12,7 +12,10 @@ test('places the popup center at the stored normalized viewport position', () =>
 });
 
 test('converts dragged pixel coordinates back to normalized center coordinates', () => {
-  expect(normalizedPosition(350, 575, 1000, 800)).toEqual({ x: 0.5, y: 0.75 });
+  const left = 1000 * 0.5 - KEYMOVE_CONTAINER_WIDTH / 2;
+  const top = 800 * 0.75 - KEYMOVE_CONTAINER_HEIGHT / 2;
+
+  expect(normalizedPosition(left, top, 1000, 800)).toEqual({ x: 0.5, y: 0.75 });
 });
 
 test('keeps popup position calculations finite before a viewport is measurable', () => {

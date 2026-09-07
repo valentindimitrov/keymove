@@ -7,6 +7,7 @@ import Utils from '../../lib/utils.js';
 
 type DragOffset = { x: number; y: number };
 type DraggableContainerProps = React.PropsWithChildren<{
+  className?: string | undefined;
   searchInputRef: React.RefObject<HTMLInputElement | null>;
   containerRef: React.RefObject<HTMLDivElement | null>;
   position: PopupPosition;
@@ -43,7 +44,7 @@ function normalizedPosition(
 }
 
 const DraggableContainer = (props: DraggableContainerProps) => {
-  const { children, searchInputRef, containerRef, position, updatePosition } = props;
+  const { children, className, searchInputRef, containerRef, position, updatePosition } = props;
   const windowSize = useWindowSize();
 
   const [isDragging, setIsDragging] = React.useState(false);
@@ -128,7 +129,6 @@ const DraggableContainer = (props: DraggableContainerProps) => {
   const containerStyle = React.useMemo(() => {
     return {
       ...pixelPosition(currentPosition, windowSize.width, windowSize.height),
-      height: KEYMOVE_CONTAINER_HEIGHT,
       width: KEYMOVE_CONTAINER_WIDTH,
     };
   }, [currentPosition, windowSize]);
@@ -136,6 +136,7 @@ const DraggableContainer = (props: DraggableContainerProps) => {
   return (
     <div
       id={'keymove-container'}
+      className={className}
       style={containerStyle}
       onMouseDown={onDragStart}
       ref={containerRef}

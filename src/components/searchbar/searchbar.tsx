@@ -12,6 +12,7 @@ import useSearchNavigation, {
 } from '../../hooks/use_search_navigation.js';
 import type { SearchMode } from '../../hooks/use_search_navigation.js';
 import usePopupPosition from '../../hooks/use_popup_position.js';
+import useWindowSize from '../../hooks/use_window_size.js';
 import useSuggestions from '../../hooks/use_suggestions.js';
 import useHighlightColors from '../../hooks/use_highlight_colors.js';
 
@@ -30,6 +31,11 @@ import Logo from '../../icons/logo-without-color.svg?react';
 import ExtensionMessageTypes from '../../extension_message_types.js';
 import type { KeyboardShortcutName } from '../../lib/static_data_schema.js';
 import { EXTENSION_NAME } from '../../extension_identity.js';
+import {
+  KEYMOVE_CONTAINER_HEIGHT,
+  SUGGESTION_PANEL_PADDING,
+  SUGGESTION_ROW_HEIGHT,
+} from '../../constants.js';
 
 const SCROLL_OR_RESIZE_UPDATE_TIMEOUT_DURATION = 100;
 type ShortcutHandler = (event: KeyboardEvent) => void;
@@ -65,6 +71,7 @@ const Searchbar = () => {
   } = useSearchNavigation();
   const { colors: highlightColors } = useHighlightColors();
   const { position: popupPosition, updatePosition: updatePopupPosition } = usePopupPosition();
+  const windowSize = useWindowSize();
 
   const [isHidden, setIsHidden] = React.useState<boolean>(autoHide);
   const [searchText, setSearchText] = React.useState('');
@@ -490,8 +497,16 @@ const Searchbar = () => {
     (navigationMode === SEARCH_MODES.TEXT
       ? (selectedTextMatch?.node ?? null)
       : selectedActionNode) ?? null;
-  // The default position sits low, where a panel hanging below would run off the screen.
-  const suggestionsAbove = popupPosition.y > 0.5;
+  // Opens downwards whenever the list actually fits there, rather than assuming it will not
+  // just because the bar sits in the lower half of the page. The height is estimated, since
+  // the side has to be chosen before the list has been laid out; erring high only means
+  // opening upwards a little sooner than strictly necessary.
+  const suggestionsAbove = React.useMemo(() => {
+    if (suggestions.length === 0) return false;
+    const barBottom = popupPosition.y * windowSize.height + KEYMOVE_CONTAINER_HEIGHT / 2;
+    const listHeight = suggestions.length * SUGGESTION_ROW_HEIGHT + SUGGESTION_PANEL_PADDING;
+    return windowSize.height - barBottom < listHeight;
+  }, [suggestions.length, popupPosition.y, windowSize.height]);
   const activeSuggestionIndex = React.useMemo(() => {
     if (!selectedSuggestionNode) return null;
     const index = suggestions.findIndex(item => item.node === selectedSuggestionNode);
@@ -542,31 +557,34 @@ const Searchbar = () => {
         />
       )}
       <DraggableContainer
+        className={suggestionsAbove ? 'keymove-container-suggestions-above' : undefined}
         containerRef={containerRef}
         searchInputRef={searchInputRef}
         position={popupPosition}
         updatePosition={updatePopupPosition}
       >
-        <Logo />
-        <SearchInput
-          inputRef={searchInputRef}
-          searchText={searchText}
-          suggestionCount={suggestions.length}
-          activeSuggestionIndex={activeSuggestionIndex}
-          onBlur={handleBlur}
-          updateSearchText={setSearchText}
-        />
-        <MatchesSummary
-          mode={navigationMode}
-          hasSearchQuery={hasSearchQuery}
-          isFuzzy={isFuzzy}
-          selectedSelectionIndex={selectedSelectionIndex}
-          resultCount={activeMatchingNodes.length}
-        />
-        {isInteractive && showAutohideButton && (
-          <VisibilityButton autoHide={autoHide} toggleAutoHide={toggleAutoHide} />
-        )}
-        {isInteractive && <InfoDropdown />}
+        <div id={'keymove-bar'}>
+          <Logo />
+          <SearchInput
+            inputRef={searchInputRef}
+            searchText={searchText}
+            suggestionCount={suggestions.length}
+            activeSuggestionIndex={activeSuggestionIndex}
+            onBlur={handleBlur}
+            updateSearchText={setSearchText}
+          />
+          <MatchesSummary
+            mode={navigationMode}
+            hasSearchQuery={hasSearchQuery}
+            isFuzzy={isFuzzy}
+            selectedSelectionIndex={selectedSelectionIndex}
+            resultCount={activeMatchingNodes.length}
+          />
+          {isInteractive && showAutohideButton && (
+            <VisibilityButton autoHide={autoHide} toggleAutoHide={toggleAutoHide} />
+          )}
+          {isInteractive && <InfoDropdown />}
+        </div>
         {isInteractive && (
           <ResultsPanel
             suggestions={suggestions}

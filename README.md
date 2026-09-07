@@ -95,7 +95,8 @@ pressing `Tab` first.
 ### Ranked results
 
 Once a query is at least three characters long, the three strongest results appear as part of the
-searchbar, flush against it and sharing its width. Each row names what activating it would do and where on the page it lives, so a control
+searchbar itself, opening downwards when there is room below and upwards when there is not. The bar
+stays where you put it either way. Each row names what activating it would do and where on the page it lives, so a control
 buried in a sidebar is distinguishable from one with the same label in the main content. The part
 of the row that matched is marked.
 

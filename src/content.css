@@ -62,9 +62,10 @@
   position: fixed;
   z-index: 2147483003;
   display: flex;
-  flex-direction: row;
-  align-items: center;
-  padding-left: 15px;
+  /* The bar and the result list are rows of one element rather than two stacked panels.
+     A nested backdrop-filter would filter its parent instead of the page, so a separate
+     list could never be given the same transparency as the bar. */
+  flex-direction: column;
   border: 1px solid rgba(180, 180, 180, 0.2);
   border-radius: 12px;
   background-color: rgba(35, 35, 35, 0.6);
@@ -74,7 +75,21 @@
   pointer-events: all;
 }
 
-#keymove-container > svg {
+/* Lifts the element so the bar itself stays where it was put, and the list grows upwards. */
+#keymove-container.keymove-container-suggestions-above {
+  transform: translateY(calc(-100% + 50px));
+}
+
+#keymove-bar {
+  display: flex;
+  flex: none;
+  flex-direction: row;
+  align-items: center;
+  height: 50px;
+  padding-left: 15px;
+}
+
+#keymove-bar > svg {
   width: 18px;
   min-width: 18px;
   height: 18px;
@@ -382,15 +397,9 @@
 }
 
 .keymove-suggestions {
-  position: absolute;
-  left: 0;
-  /* Shares the bar's width and sits flush against it, so the two read as one panel. */
-  width: 100%;
   padding: 5px;
-  border: 1px solid rgba(180, 180, 180, 0.2);
-  border-radius: 12px;
-  background-color: rgba(35, 35, 35, 0.6);
-  backdrop-filter: blur(16px);
+  /* No background of its own: it sits inside the bar's, which is what keeps them identical. */
+  border-top: 1px solid rgba(180, 180, 180, 0.2);
   /* `all: initial` on the host leaves anything that does not set a family in the default
      serif at the default size, so the panel establishes both for its whole subtree. */
   font-family: 'Helvetica Neue', Helvetica, Arial, 'Lucida Grande', sans-serif;
@@ -401,28 +410,10 @@
   cursor: default;
 }
 
-.keymove-suggestions-below {
-  top: 100%;
-  border-top: none;
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
-}
-
-#keymove-container:has(.keymove-suggestions-below) {
-  border-bottom-right-radius: 0;
-  border-bottom-left-radius: 0;
-}
-
 .keymove-suggestions-above {
-  bottom: 100%;
-  border-bottom: none;
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
-}
-
-#keymove-container:has(.keymove-suggestions-above) {
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
+  order: -1;
+  border-top: none;
+  border-bottom: 1px solid rgba(180, 180, 180, 0.2);
 }
 
 .keymove-suggestion {

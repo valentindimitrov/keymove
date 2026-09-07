@@ -11,7 +11,7 @@ export const KEYMOVE_HIGHLIGHT_NAME = 'keymove-search-results';
 export const KEYMOVE_CURRENT_HIGHLIGHT_NAME = 'keymove-search-current';
 
 export const KEYMOVE_CONTAINER_HEIGHT = 50;
-export const KEYMOVE_CONTAINER_WIDTH = 300;
+export const KEYMOVE_CONTAINER_WIDTH = 420;
 export const POPUP_POSITION_STORAGE_KEY = 'popupPosition';
 export const HIGHLIGHT_COLORS_STORAGE_KEY = 'highlightColors';
 
@@ -41,6 +41,9 @@ export const MIN_SUGGESTION_QUERY_LENGTH = 3;
 // A challenger must beat the result already holding a place by this margin before they swap,
 // so results that score almost identically stop trading places on every keystroke.
 export const SUGGESTION_SWAP_MARGIN = 1.15;
+// Enough to decide which side of the bar the list fits on before it has been laid out.
+export const SUGGESTION_ROW_HEIGHT = 46;
+export const SUGGESTION_PANEL_PADDING = 12;
 
 export const SETTINGS_KEYS = {
   AUTO_HIDE: 'autoHide',

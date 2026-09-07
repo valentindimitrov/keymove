@@ -9,6 +9,7 @@ const searchMocks = vi.hoisted(() => ({
   resetPopupPosition: vi.fn(),
   sendMessage: vi.fn(),
   subscribeToPageChanges: vi.fn(),
+  popupPosition: { x: 0.5, y: 0.75 },
 }));
 
 vi.mock('wxt/browser', () => ({
@@ -54,7 +55,7 @@ vi.mock('../../hooks/use_highlight_colors.js', () => ({
 }));
 vi.mock('../../hooks/use_popup_position.js', () => ({
   default: () => ({
-    position: { x: 0.5, y: 0.75 },
+    position: searchMocks.popupPosition,
     updatePosition: searchMocks.updatePopupPosition,
     resetPosition: searchMocks.resetPopupPosition,
   }),
@@ -67,6 +68,7 @@ beforeEach(() => {
   searchMocks.resetPopupPosition.mockReset();
   searchMocks.sendMessage.mockReset().mockResolvedValue(undefined);
   searchMocks.subscribeToPageChanges.mockReset().mockReturnValue(() => undefined);
+  searchMocks.popupPosition = { x: 0.5, y: 0.75 };
   settingsMocks.startInActionMode = false;
   settingsMocks.highlightMatches = true;
   settingsMocks.showAutohideButton = false;
@@ -808,4 +810,37 @@ test('drops the slate when the query is cleared', async () => {
 
   fireEvent.change(input, { target: { value: '' } });
   expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+});
+
+test('opens the slate downwards when there is room, and upwards when there is not', async () => {
+  const action = document.createElement('button');
+  action.textContent = 'Save';
+  document.body.append(action);
+  searchMocks.findMatches.mockResolvedValue({
+    matchingText: [],
+    matchingLinksAndButtons: [action],
+    suggestions: [{ kind: 'action', node: action, score: 2, term: 'save', distance: null }],
+    isFuzzy: false,
+  });
+
+  // The default position sits at three quarters down, which still leaves room for one row.
+  const { container, unmount } = render(<Searchbar />);
+  fireEvent.change(screen.getByRole('combobox', { name: 'Search page' }), {
+    target: { value: 'save' },
+  });
+  await flushSearch();
+  expect(container.querySelector('#keymove-container')).not.toHaveClass(
+    'keymove-container-suggestions-above',
+  );
+  unmount();
+
+  searchMocks.popupPosition = { x: 0.5, y: 0.99 };
+  const second = render(<Searchbar />);
+  fireEvent.change(screen.getByRole('combobox', { name: 'Search page' }), {
+    target: { value: 'save' },
+  });
+  await flushSearch();
+  expect(second.container.querySelector('#keymove-container')).toHaveClass(
+    'keymove-container-suggestions-above',
+  );
 });
