@@ -28,6 +28,8 @@ test('shows both text and action navigation shortcut families', () => {
   expect(within(nextActionRow).getByText('Tab')).toBeInTheDocument();
   expect(within(previousActionRow).getByText('Shift')).toBeInTheDocument();
   expect(within(previousActionRow).getByText('Control')).toBeInTheDocument();
+  // Multi-key shortcuts show a separator between each key, single-key ones do not.
+  expect(within(previousActionRow).getAllByText('+')).toHaveLength(2);
   expect(within(previousActionRow).getByText('Tab')).toBeInTheDocument();
   expect(within(foregroundTabRow).getByText('Shift')).toBeInTheDocument();
   expect(within(foregroundTabRow).getByText('Enter')).toBeInTheDocument();

@@ -259,6 +259,13 @@
   margin-left: 3px;
 }
 
+.keymove-info-panel-shortcut-separator {
+  margin-right: 5px;
+  color: var(--keymove-text-tertiary, rgba(255, 255, 255, 0.65));
+  font-size: 12px;
+  line-height: 22px;
+}
+
 .keymove-info-panel-setting-text {
   flex: 1;
 }
@@ -286,8 +293,9 @@
 
 .keymove-info-panel-setting-color {
   flex-shrink: 0;
-  width: 22px;
-  height: 22px;
+  width: 16px;
+  height: 16px;
+  margin: 2px 12px 0 0;
   padding: 0;
   border: 1px solid rgba(255, 255, 255, 0.35);
   border-radius: 5px;

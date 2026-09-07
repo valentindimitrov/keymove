@@ -9,7 +9,7 @@
 }
 
 body {
-  width: 372px;
+  width: 420px;
   margin: 0;
   padding: var(--keymove-gap-md) 18px var(--keymove-gap-lg);
   color: white;
@@ -47,8 +47,19 @@ body {
   padding: var(--keymove-gap-sm) 0;
 }
 
+/* Aligned with the setting labels so it reads as an action on the colour rows above, and
+   given a visible surface rather than sitting as bare text on the panel. */
 #keymove-popup .keymove-info-panel-reset-position-button {
-  margin-top: var(--keymove-gap-md);
+  margin: var(--keymove-gap-lg) 0 0 28px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background-color: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+#keymove-popup .keymove-info-panel-reset-position-button:hover,
+#keymove-popup .keymove-info-panel-reset-position-button:focus-visible {
+  border-color: rgba(255, 255, 255, 0.55);
+  background-color: rgba(255, 255, 255, 0.2);
 }
 
 .keymove-position-grid {

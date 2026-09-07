@@ -15,12 +15,26 @@ const InfoPanelShortcutRow = (props: InfoPanelShortcutRowProps) => {
 
   return (
     <InfoPanelRow>
-      {keys.map(key => {
-        return (
+      {keys.flatMap((key, index) => {
+        const keyElement = (
           <div key={key} className={'keymove-info-panel-shortcut-key'}>
             {key}
           </div>
         );
+        if (index === 0) {
+          return [keyElement];
+        }
+        // Separators are decorative: assistive technology reads the keys in sequence.
+        return [
+          <div
+            key={`separator-${key}`}
+            className={'keymove-info-panel-shortcut-separator'}
+            aria-hidden="true"
+          >
+            +
+          </div>,
+          keyElement,
+        ];
       })}
       <div className={'keymove-info-panel-shortcut-text'}>{shortcut.text}</div>
     </InfoPanelRow>
