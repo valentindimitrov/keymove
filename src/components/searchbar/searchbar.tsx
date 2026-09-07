@@ -250,6 +250,26 @@ const Searchbar = () => {
     [cancelPendingSearch, clearSearchResults, runSearch, searchText],
   );
 
+  const suggestions = useSuggestions({ suggestions: rankedMatches, searchText, isFuzzy });
+
+  // Shared by stepping through matches and by jumping straight to a numbered row, so both
+  // routes leave the same mode, selection, scroll position and page selection behind.
+  const selectMatchAtIndex = React.useCallback(
+    (mode: SearchMode, index: number) => {
+      const matches = mode === SEARCH_MODES.TEXT ? matchingTextNodes : matchingLinksAndButtons;
+      setMode(mode);
+      setSelectedIndex(mode, index);
+      Utils.scrollToNodeAtIndexInList(matches, index);
+      if (mode === SEARCH_MODES.TEXT) {
+        Utils.selectNodeContents(matches[index]!);
+      } else {
+        Utils.clearPageSelection();
+      }
+      setScrollOrResizeRefresh(refresh => !refresh);
+    },
+    [matchingTextNodes, matchingLinksAndButtons, setMode, setSelectedIndex],
+  );
+
   const selectNextMatchingNode = React.useCallback(
     (event: KeyboardEvent, mode: SearchMode, forward = true) => {
       const matches = mode === SEARCH_MODES.TEXT ? matchingTextNodes : matchingLinksAndButtons;
@@ -260,28 +280,20 @@ const Searchbar = () => {
       event.preventDefault();
       event.stopPropagation();
       const currentIndex = searchNavigation.selectedIndices[mode];
-      const newSelectedSelectionIndex =
+      selectMatchAtIndex(
+        mode,
         currentIndex === null
           ? forward
             ? 0
             : matches.length - 1
-          : (currentIndex + (forward ? 1 : matches.length - 1)) % matches.length;
-      setMode(mode);
-      setSelectedIndex(mode, newSelectedSelectionIndex);
-      Utils.scrollToNodeAtIndexInList(matches, newSelectedSelectionIndex);
-      if (mode === SEARCH_MODES.TEXT) {
-        Utils.selectNodeContents(matches[newSelectedSelectionIndex]!);
-      } else {
-        Utils.clearPageSelection();
-      }
-      setScrollOrResizeRefresh(refresh => !refresh);
+          : (currentIndex + (forward ? 1 : matches.length - 1)) % matches.length,
+      );
     },
     [
       matchingTextNodes,
       matchingLinksAndButtons,
       searchNavigation.selectedIndices,
-      setMode,
-      setSelectedIndex,
+      selectMatchAtIndex,
     ],
   );
 
@@ -311,6 +323,25 @@ const Searchbar = () => {
         }
       }),
     [guarded, selectNextMatchingNode, navigationMode],
+  );
+
+  // Jumps straight to a row of the results panel. The row carries its own kind, so a number
+  // can land on an action while the bar is in text mode, and the mode follows it.
+  const selectListedMatch = React.useCallback(
+    (position: number): ShortcutHandler =>
+      guarded(event => {
+        const suggestion = suggestions[position];
+        if (!suggestion) return;
+        const mode = suggestion.kind === 'action' ? SEARCH_MODES.ACTIONS : SEARCH_MODES.TEXT;
+        const matches = mode === SEARCH_MODES.TEXT ? matchingTextNodes : matchingLinksAndButtons;
+        const index = matches.indexOf(suggestion.node);
+        // A listed node that is no longer among the matches has nothing to select.
+        if (index === -1) return;
+        event.preventDefault();
+        event.stopPropagation();
+        selectMatchAtIndex(mode, index);
+      }),
+    [guarded, suggestions, matchingTextNodes, matchingLinksAndButtons, selectMatchAtIndex],
   );
 
   const toggleAutoHide = React.useCallback(() => {
@@ -349,6 +380,9 @@ const Searchbar = () => {
         event.stopPropagation();
         revealAndFocus();
       },
+      select_listed_match_1: selectListedMatch(0),
+      select_listed_match_2: selectListedMatch(1),
+      select_listed_match_3: selectListedMatch(2),
       clear_search_or_hide: event => {
         const differentInputIsActive = Utils.differentInputIsActive(searchInputRef.current);
         if (!isInteractive || differentInputIsActive) return;
@@ -365,6 +399,7 @@ const Searchbar = () => {
   }, [
     createNavigationShortcutHandler,
     guarded,
+    selectListedMatch,
     chosenMode,
     setMode,
     activateSelectedMatchingNodeAndReset,
@@ -492,7 +527,6 @@ const Searchbar = () => {
     }
   }, [autoHide, hide, focusSearchInput]);
 
-  const suggestions = useSuggestions({ suggestions: rankedMatches, searchText, isFuzzy });
   // The panel is a second view of the one cursor, not a cursor of its own, so a row is
   // highlighted only when Tab has actually landed on it.
   const selectedSuggestionNode =

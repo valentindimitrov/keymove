@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import Searchbar from './searchbar.js';
 import createExtensionRoot from '../../lib/create_extension_root.js';
-import { makeSearchResult, makeTextMatch } from '../../test_support/factories.js';
+import { makeRankedMatch, makeSearchResult, makeTextMatch } from '../../test_support/factories.js';
 import type { SearchResult } from '../../lib/page_search_index.js';
 
 const searchMocks = vi.hoisted(() => ({
@@ -429,6 +429,64 @@ test('selects the first match as soon as results arrive and keeps the mode while
   fireEvent.change(input, { target: { value: 'save' } });
   await flushSearch();
   expect(status).toHaveTextContent('Actions 1 / 1');
+});
+
+// The numbered rows of the results panel are the shortlist Alt+1 to Alt+3 aim at.
+test('Alt+1 and Alt+2 jump to the numbered result, taking its mode with them', async () => {
+  const firstParagraph = document.createElement('p');
+  firstParagraph.textContent = 'Save now';
+  const secondParagraph = document.createElement('p');
+  secondParagraph.textContent = 'Saved items';
+  const action = document.createElement('button');
+  action.textContent = 'Save draft';
+  document.body.append(firstParagraph, secondParagraph, action);
+  searchMocks.findMatches.mockResolvedValue(
+    makeSearchResult({
+      matchingText: [
+        makeTextMatch({ node: firstParagraph, action: null }),
+        makeTextMatch({ node: secondParagraph, action: null }),
+      ],
+      matchingLinksAndButtons: [action],
+      suggestions: [
+        makeRankedMatch({ kind: 'action', node: action }),
+        makeRankedMatch({ kind: 'text', node: secondParagraph }),
+      ],
+    }),
+  );
+  render(<Searchbar />);
+  const input = screen.getByRole('combobox', { name: 'Search page' });
+  fireEvent.change(input, { target: { value: 'sav' } });
+  await flushSearch();
+
+  const status = screen.getByRole('status');
+  expect(status).toHaveTextContent('Text 1 / 2');
+
+  // Row 1 is an action while the bar is in text mode, so the mode follows the row.
+  fireEvent.keyDown(input, { key: '1', code: 'Digit1', altKey: true });
+  expect(status).toHaveTextContent('Actions 1 / 1');
+
+  fireEvent.keyDown(input, { key: '2', code: 'Digit2', altKey: true });
+  expect(status).toHaveTextContent('Text 2 / 2');
+});
+
+test('Alt+3 does nothing when the list is shorter than three rows', async () => {
+  const paragraph = document.createElement('p');
+  paragraph.textContent = 'Save now';
+  document.body.append(paragraph);
+  searchMocks.findMatches.mockResolvedValue(
+    makeSearchResult({
+      matchingText: [makeTextMatch({ node: paragraph, action: null })],
+      suggestions: [makeRankedMatch({ kind: 'text', node: paragraph })],
+    }),
+  );
+  render(<Searchbar />);
+  const input = screen.getByRole('combobox', { name: 'Search page' });
+  fireEvent.change(input, { target: { value: 'sav' } });
+  await flushSearch();
+
+  const status = screen.getByRole('status');
+  fireEvent.keyDown(input, { key: '3', code: 'Digit3', altKey: true });
+  expect(status).toHaveTextContent('Text 1 / 1');
 });
 
 test('Alt+S toggles the search mode without moving either selection', async () => {

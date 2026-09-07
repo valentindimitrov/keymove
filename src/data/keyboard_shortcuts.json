@@ -171,6 +171,47 @@
     "text": "to focus the searchbar (or just start typing)"
   },
   {
+    "name": "select_listed_match_1",
+    "eventMatcher": {
+      "code": "Digit1",
+      "flags": {
+        "default": ["altKey"]
+      },
+      "discludedFlags": {
+        "default": ["ctrlKey", "metaKey", "shiftKey"]
+      }
+    },
+    "displayKeys": {
+      "default": ["Alt", "1-3"],
+      "mac": ["Option", "1-3"]
+    },
+    "text": "to select the numbered result and scroll to it"
+  },
+  {
+    "name": "select_listed_match_2",
+    "eventMatcher": {
+      "code": "Digit2",
+      "flags": {
+        "default": ["altKey"]
+      },
+      "discludedFlags": {
+        "default": ["ctrlKey", "metaKey", "shiftKey"]
+      }
+    }
+  },
+  {
+    "name": "select_listed_match_3",
+    "eventMatcher": {
+      "code": "Digit3",
+      "flags": {
+        "default": ["altKey"]
+      },
+      "discludedFlags": {
+        "default": ["ctrlKey", "metaKey", "shiftKey"]
+      }
+    }
+  },
+  {
     "name": "clear_search_or_hide",
     "eventMatcher": {
       "code": "Escape",
