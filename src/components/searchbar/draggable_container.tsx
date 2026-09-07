@@ -11,7 +11,8 @@ import type { PopupPosition } from '../../lib/popup_position_schema.js';
 import Utils from '../../lib/utils.js';
 
 type DragOffset = { x: number; y: number };
-type ResizeOrigin = { pointerX: number; width: number; left: number };
+type ResizeEdge = -1 | 1;
+type ResizeOrigin = { pointerX: number; width: number; center: number; edge: ResizeEdge };
 
 type DraggableContainerProps = React.PropsWithChildren<{
   className?: string | undefined;
@@ -149,11 +150,12 @@ const DraggableContainer = (props: DraggableContainerProps) => {
     [dragOffset, windowSize, width],
   );
 
-  // Resizing keeps the left edge still and moves the centre, which is what the stored
-  // position actually records. Both are committed once on release rather than on every
-  // pixel of the drag, the same way moving the bar does.
+  // Resizing pins the centre and moves both edges, so either handle grows the bar the same
+  // way and the bar stays where it was put. The pointer therefore travels half of what the
+  // width gains, which is why the distance dragged is doubled below. The size is committed
+  // once on release rather than on every pixel of the drag, the same way moving the bar does.
   const startResize = React.useCallback(
-    (event: React.MouseEvent) => {
+    (edge: ResizeEdge) => (event: React.MouseEvent) => {
       event.preventDefault();
       event.stopPropagation();
       const left = pixelPosition(
@@ -162,7 +164,16 @@ const DraggableContainer = (props: DraggableContainerProps) => {
         windowSize.height,
         currentWidth,
       ).left;
-      setResizeOrigin({ pointerX: event.clientX, width: currentWidth, left });
+      // The rendered centre, not the stored one: a bar against a viewport edge is clamped,
+      // and anchoring to the stored value would slide it as the width changed.
+      const center = left + currentWidth / 2;
+      const anchored = {
+        x: Utils.clampNumber(center / Math.max(windowSize.width, 1), 0, 1),
+        y: currentPositionRef.current.y,
+      };
+      currentPositionRef.current = anchored;
+      setCurrentPosition(anchored);
+      setResizeOrigin({ pointerX: event.clientX, width: currentWidth, center, edge });
     },
     [windowSize, currentWidth],
   );
@@ -171,24 +182,14 @@ const DraggableContainer = (props: DraggableContainerProps) => {
     (event: MouseEvent) => {
       if (!resizeOrigin) return;
       event.preventDefault();
+      const travel = (event.clientX - resizeOrigin.pointerX) * resizeOrigin.edge;
+      // Growing symmetrically means the nearer viewport edge is what runs out first.
+      const room = 2 * Math.min(resizeOrigin.center, windowSize.width - resizeOrigin.center);
       const nextWidth = clampWidth(
-        Math.min(
-          resizeOrigin.width + (event.clientX - resizeOrigin.pointerX),
-          Math.max(MIN_CONTAINER_WIDTH, windowSize.width - resizeOrigin.left),
-        ),
+        Math.min(resizeOrigin.width + travel * 2, Math.max(MIN_CONTAINER_WIDTH, room)),
       );
       currentWidthRef.current = nextWidth;
       setCurrentWidth(nextWidth);
-      const nextPosition = normalizedPosition(
-        resizeOrigin.left,
-        pixelPosition(currentPositionRef.current, windowSize.width, windowSize.height, nextWidth)
-          .top,
-        windowSize.width,
-        windowSize.height,
-        nextWidth,
-      );
-      currentPositionRef.current = nextPosition;
-      setCurrentPosition(nextPosition);
     },
     [resizeOrigin, windowSize],
   );
@@ -241,11 +242,18 @@ const DraggableContainer = (props: DraggableContainerProps) => {
     >
       {children}
       <div
-        className={'keymove-resize-handle'}
+        className={'keymove-resize-handle keymove-resize-handle-left'}
         role="separator"
         aria-orientation="vertical"
-        aria-label={'Resize KeyMove'}
-        onMouseDown={startResize}
+        aria-label={'Resize KeyMove from the left'}
+        onMouseDown={startResize(-1)}
+      />
+      <div
+        className={'keymove-resize-handle keymove-resize-handle-right'}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label={'Resize KeyMove from the right'}
+        onMouseDown={startResize(1)}
       />
     </div>
   );

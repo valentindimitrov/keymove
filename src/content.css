@@ -88,27 +88,45 @@
   pointer-events: all;
 }
 
+/* One handle per edge. Both resize about the centre, so the side grabbed changes nothing
+   but which way the pointer travels. */
 .keymove-resize-handle {
   position: absolute;
   top: 0;
-  right: 0;
   width: 10px;
   height: 100%;
+  cursor: ew-resize;
+}
+
+.keymove-resize-handle-left {
+  left: 0;
+  border-top-left-radius: 12px;
+  border-bottom-left-radius: 12px;
+}
+
+.keymove-resize-handle-right {
+  right: 0;
   border-top-right-radius: 12px;
   border-bottom-right-radius: 12px;
-  cursor: ew-resize;
 }
 
 .keymove-resize-handle::after {
   position: absolute;
   top: 50%;
-  right: 3px;
   width: 2px;
   height: 18px;
   border-radius: 1px;
   background-color: rgba(255, 255, 255, 0.25);
   content: '';
   transform: translateY(-50%);
+}
+
+.keymove-resize-handle-left::after {
+  left: 3px;
+}
+
+.keymove-resize-handle-right::after {
+  right: 3px;
 }
 
 .keymove-resize-handle:hover::after {
