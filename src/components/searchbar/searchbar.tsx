@@ -490,10 +490,8 @@ const Searchbar = () => {
     (navigationMode === SEARCH_MODES.TEXT
       ? (selectedTextMatch?.node ?? null)
       : selectedActionNode) ?? null;
-  // The panel is larger than the bar it hangs from, so it opens towards whichever side of
-  // the viewport has room. The default position sits low, where below would run off-screen.
+  // The default position sits low, where a panel hanging below would run off the screen.
   const suggestionsAbove = popupPosition.y > 0.5;
-  const suggestionsAlignEnd = popupPosition.x > 0.5;
   const activeSuggestionIndex = React.useMemo(() => {
     if (!selectedSuggestionNode) return null;
     const index = suggestions.findIndex(item => item.node === selectedSuggestionNode);
@@ -574,7 +572,6 @@ const Searchbar = () => {
             suggestions={suggestions}
             selectedNode={selectedSuggestionNode}
             above={suggestionsAbove}
-            alignEnd={suggestionsAlignEnd}
           />
         )}
       </DraggableContainer>

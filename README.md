@@ -94,8 +94,8 @@ pressing `Tab` first.
 
 ### Ranked results
 
-Once a query is at least three characters long, the three strongest results appear under the
-searchbar. Each row names what activating it would do and where on the page it lives, so a control
+Once a query is at least three characters long, the three strongest results appear as part of the
+searchbar, flush against it and sharing its width. Each row names what activating it would do and where on the page it lives, so a control
 buried in a sidebar is distinguishable from one with the same label in the main content. The part
 of the row that matched is marked.
 
@@ -230,6 +230,9 @@ validated before use.
 | --- | --- |
 | `yarn dev` | Start the Chromium MV3 development build. |
 | `yarn dev:firefox` | Start the Firefox MV3 development build. |
+| `yarn preview` | Rebuild and open the repository with the extension in the first installed browser: Vivaldi, Chrome, Firefox. |
+| `yarn preview:vivaldi` / `yarn preview:chrome` / `yarn preview:firefox` | Rebuild and preview in a specific browser. |
+| `yarn browser:open` | Open an already-built extension with the same automatic browser selection. |
 | `yarn build` | Build both production targets. |
 | `yarn build:chromium` | Build the Chromium/Vivaldi artifact. |
 | `yarn build:vivaldi` | Explicit alias for the Chromium artifact used by Vivaldi. |
@@ -243,6 +246,16 @@ validated before use.
 | `yarn test` | Run the Vitest/jsdom test suite. |
 | `yarn verify` | Validate completed manifests and bundles after a build. |
 | `yarn quality` | Run formatting, linting, types, tests, both builds, and artifact validation. |
+
+Preview commands use `web-ext` to load the extension in a fresh temporary browser profile, leaving
+your regular profile untouched. Vivaldi's welcome screen and exit confirmation are skipped in the test profile.
+The build files are shared: rebuilding also updates the files used by any other profile that has
+already loaded the same `.output/chrome-mv3` directory.
+They stay running until you close the test browser or press Ctrl+C.
+After meaningful implementation changes, use `yarn preview`; after `yarn quality`, use
+`yarn browser:open` to reuse the verified build. For custom browser locations, set
+`KEYMOVE_VIVALDI_BINARY`, `KEYMOVE_CHROME_BINARY`, or `KEYMOVE_FIREFOX_BINARY` to the absolute
+executable path. The browser opens `https://github.com/valentindimitrov/keymove` for testing.
 
 Formatting preferences live in `.oxfmtrc.json`; lint rules and WXT/Vitest globals live in
 `.oxlintrc.json`. Generated output, coverage, and dependencies are excluded. Markdown and the

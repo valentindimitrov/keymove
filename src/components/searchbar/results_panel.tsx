@@ -5,7 +5,6 @@ type ResultsPanelProps = {
   suggestions: Suggestion[];
   selectedNode: Element | null;
   above: boolean;
-  alignEnd: boolean;
 };
 
 /** Marks the matched slice inside a row so the reason a result is listed is visible. */
@@ -21,7 +20,7 @@ function labelParts(label: string, term: string | null) {
 }
 
 const ResultsPanel = (props: ResultsPanelProps) => {
-  const { suggestions, selectedNode, above, alignEnd } = props;
+  const { suggestions, selectedNode, above } = props;
 
   if (suggestions.length === 0) {
     return null;
@@ -30,7 +29,7 @@ const ResultsPanel = (props: ResultsPanelProps) => {
   return (
     <div
       id={KEYMOVE_SUGGESTIONS_ID}
-      className={`keymove-suggestions keymove-suggestions-${above ? 'above' : 'below'} keymove-suggestions-${alignEnd ? 'end' : 'start'}`}
+      className={`keymove-suggestions keymove-suggestions-${above ? 'above' : 'below'}`}
       role="listbox"
     >
       {suggestions.map((suggestion, index) => {
