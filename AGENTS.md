@@ -105,6 +105,7 @@ Stored keys:
 - `alwaysOn`: boolean
 - `startInActionMode`: boolean
 - `highlightMatches`: boolean
+- `showAutohideButton`: boolean
 - `popupPosition`: `{ x: number; y: number }`, with both values finite and in `[0, 1]`
 
 Treat JSON imports, extension storage, storage change events, extension messages, and browser API

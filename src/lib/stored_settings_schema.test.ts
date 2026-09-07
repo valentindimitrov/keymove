@@ -11,6 +11,7 @@ test('accepts boolean values returned by extension storage', () => {
     [SETTINGS_KEYS.ALWAYS_ON]: false,
     [SETTINGS_KEYS.START_IN_ACTION_MODE]: true,
     [SETTINGS_KEYS.HIGHLIGHT_MATCHES]: false,
+    [SETTINGS_KEYS.SHOW_AUTOHIDE_BUTTON]: true,
   });
 
   expect(result).toEqual({
@@ -19,6 +20,7 @@ test('accepts boolean values returned by extension storage', () => {
       [SETTINGS_KEYS.ALWAYS_ON]: false,
       [SETTINGS_KEYS.START_IN_ACTION_MODE]: true,
       [SETTINGS_KEYS.HIGHLIGHT_MATCHES]: false,
+      [SETTINGS_KEYS.SHOW_AUTOHIDE_BUTTON]: true,
     },
     issues: [],
   });
@@ -30,10 +32,11 @@ test('replaces malformed stored values with safe defaults', () => {
     [SETTINGS_KEYS.ALWAYS_ON]: null,
     [SETTINGS_KEYS.START_IN_ACTION_MODE]: 1,
     [SETTINGS_KEYS.HIGHLIGHT_MATCHES]: [],
+    [SETTINGS_KEYS.SHOW_AUTOHIDE_BUTTON]: 'yes',
   });
 
   expect(result.settings).toEqual(DEFAULT_STORED_SETTINGS);
-  expect(result.issues).toHaveLength(4);
+  expect(result.issues).toHaveLength(5);
   expect(result.issues[0]).toContain('must be a boolean');
 });
 

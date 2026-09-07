@@ -12,6 +12,8 @@ const InfoPanelSettings = (props: SettingsControls) => {
     toggleStartInActionMode,
     highlightMatches,
     toggleHighlightMatches,
+    showAutohideButton,
+    toggleShowAutohideButton,
     resetPopupPosition,
   } = props;
 
@@ -33,6 +35,12 @@ const InfoPanelSettings = (props: SettingsControls) => {
       description: 'Tint matching text on the page, and mark the current one.',
       value: highlightMatches,
       onChange: toggleHighlightMatches,
+    },
+    {
+      label: 'Show autohide button',
+      description: 'Show the eye icon that turns Autohide on and off from the searchbar.',
+      value: showAutohideButton,
+      onChange: toggleShowAutohideButton,
     },
     {
       label: 'Autohide',

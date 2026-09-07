@@ -7,6 +7,8 @@ type SettingsControls = {
   toggleStartInActionMode: () => void;
   highlightMatches: boolean;
   toggleHighlightMatches: () => void;
+  showAutohideButton: boolean;
+  toggleShowAutohideButton: () => void;
   resetPopupPosition: () => void;
 };
 

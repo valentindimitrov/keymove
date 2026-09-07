@@ -36,4 +36,5 @@ export const SETTINGS_KEYS = {
   ALWAYS_ON: 'alwaysOn',
   START_IN_ACTION_MODE: 'startInActionMode',
   HIGHLIGHT_MATCHES: 'highlightMatches',
+  SHOW_AUTOHIDE_BUTTON: 'showAutohideButton',
 } as const;

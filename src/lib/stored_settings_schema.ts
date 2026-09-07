@@ -5,6 +5,7 @@ const DEFAULT_STORED_SETTINGS = Object.freeze({
   [SETTINGS_KEYS.ALWAYS_ON]: true,
   [SETTINGS_KEYS.START_IN_ACTION_MODE]: false,
   [SETTINGS_KEYS.HIGHLIGHT_MATCHES]: true,
+  [SETTINGS_KEYS.SHOW_AUTOHIDE_BUTTON]: false,
 });
 
 type StoredSettingKey = (typeof SETTINGS_KEYS)[keyof typeof SETTINGS_KEYS];

@@ -44,6 +44,8 @@ const Searchbar = () => {
     updateStartInActionMode,
     highlightMatches,
     updateHighlightMatches,
+    showAutohideButton,
+    updateShowAutohideButton,
   } = useStoredSettings();
   const defaultSearchMode = startInActionMode ? SEARCH_MODES.ACTIONS : SEARCH_MODES.TEXT;
   // Seeded with the reducer's initial mode, not the first computed default, so a stored
@@ -313,6 +315,10 @@ const Searchbar = () => {
     updateHighlightMatches(!highlightMatches);
   }, [highlightMatches, updateHighlightMatches]);
 
+  const toggleShowAutohideButton = React.useCallback(() => {
+    updateShowAutohideButton(!showAutohideButton);
+  }, [showAutohideButton, updateShowAutohideButton]);
+
   const keyboardShortcutHandlerMapping = React.useMemo<
     Record<KeyboardShortcutName, ShortcutHandler | null>
   >(() => {
@@ -560,7 +566,9 @@ const Searchbar = () => {
           selectedSelectionIndex={selectedSelectionIndex}
           resultCount={activeMatchingNodes.length}
         />
-        {isInteractive && <VisibilityButton autoHide={autoHide} toggleAutoHide={toggleAutoHide} />}
+        {isInteractive && showAutohideButton && (
+          <VisibilityButton autoHide={autoHide} toggleAutoHide={toggleAutoHide} />
+        )}
         {isInteractive && (
           <InfoDropdown
             autoHide={autoHide}
@@ -571,6 +579,8 @@ const Searchbar = () => {
             toggleStartInActionMode={toggleStartInActionMode}
             highlightMatches={highlightMatches}
             toggleHighlightMatches={toggleHighlightMatches}
+            showAutohideButton={showAutohideButton}
+            toggleShowAutohideButton={toggleShowAutohideButton}
             resetPopupPosition={resetPosition}
           />
         )}

@@ -26,7 +26,11 @@ vi.mock('../../lib/find_in_page.js', () => ({
 
 vi.mock('../../hooks/use_highlights.js', () => ({ default: searchMocks.useHighlights }));
 vi.mock('../../hooks/use_extension_messaging.js', () => ({ default: vi.fn() }));
-const settingsMocks = vi.hoisted(() => ({ startInActionMode: false, highlightMatches: true }));
+const settingsMocks = vi.hoisted(() => ({
+  startInActionMode: false,
+  highlightMatches: true,
+  showAutohideButton: false,
+}));
 vi.mock('../../hooks/use_stored_settings.js', () => ({
   default: () => ({
     autoHide: false,
@@ -37,6 +41,8 @@ vi.mock('../../hooks/use_stored_settings.js', () => ({
     updateStartInActionMode: vi.fn(),
     highlightMatches: settingsMocks.highlightMatches,
     updateHighlightMatches: vi.fn(),
+    showAutohideButton: settingsMocks.showAutohideButton,
+    updateShowAutohideButton: vi.fn(),
   }),
 }));
 vi.mock('../../hooks/use_popup_position.js', () => ({
@@ -56,6 +62,7 @@ beforeEach(() => {
   searchMocks.subscribeToPageChanges.mockReset().mockReturnValue(() => undefined);
   settingsMocks.startInActionMode = false;
   settingsMocks.highlightMatches = true;
+  settingsMocks.showAutohideButton = false;
   Element.prototype.scrollIntoView = vi.fn();
 });
 
@@ -322,6 +329,17 @@ test('colours the overlay by mode and respects the highlight setting', async () 
   expect(searchMocks.useHighlights).toHaveBeenLastCalledWith(
     expect.objectContaining({ enabled: false }),
   );
+});
+
+test('hides the autohide button by default and shows it when the setting is on', async () => {
+  searchMocks.findMatches.mockResolvedValue({ matchingText: [], matchingLinksAndButtons: [] });
+  const { unmount } = render(<Searchbar />);
+  expect(screen.queryByRole('button', { name: /Turn Autohide/ })).toBeNull();
+  unmount();
+
+  settingsMocks.showAutohideButton = true;
+  render(<Searchbar />);
+  expect(screen.getByRole('button', { name: 'Turn Autohide on' })).toBeInTheDocument();
 });
 
 test('Tab keeps navigating the active mode instead of falling back to text', async () => {

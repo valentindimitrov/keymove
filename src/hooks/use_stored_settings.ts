@@ -35,7 +35,7 @@ function persistBooleanSetting(
 }
 
 const useStoredSettings = () => {
-  const revisions = React.useRef({
+  const revisions = React.useRef({ showAutohideButton: 0,
     autoHide: 0,
     alwaysOn: 0,
     startInActionMode: 0,
@@ -101,6 +101,25 @@ const useStoredSettings = () => {
     [highlightMatches],
   );
 
+  const [showAutohideButton, setShowAutohideButton] = React.useState<boolean>(
+    DEFAULT_STORED_SETTINGS[SETTINGS_KEYS.SHOW_AUTOHIDE_BUTTON],
+  );
+
+  const updateShowAutohideButton = React.useCallback(
+    (newShowAutohideButton: boolean) => {
+      const revision = ++revisions.current.showAutohideButton;
+      setShowAutohideButton(newShowAutohideButton);
+      persistBooleanSetting(
+        SETTINGS_KEYS.SHOW_AUTOHIDE_BUTTON,
+        newShowAutohideButton,
+        showAutohideButton,
+        setShowAutohideButton,
+        () => revisions.current.showAutohideButton === revision,
+      );
+    },
+    [showAutohideButton],
+  );
+
   const updateAlwaysOn = React.useCallback(
     (newAlwaysOn: boolean) => {
       const revision = ++revisions.current.alwaysOn;
@@ -126,6 +145,8 @@ const useStoredSettings = () => {
         setStartInActionMode(settings.startInActionMode);
       if (revisions.current.highlightMatches === initialRevisions.highlightMatches)
         setHighlightMatches(settings.highlightMatches);
+      if (revisions.current.showAutohideButton === initialRevisions.showAutohideButton)
+        setShowAutohideButton(settings.showAutohideButton);
     },
     [],
   );
@@ -157,6 +178,7 @@ const useStoredSettings = () => {
       applyChange(SETTINGS_KEYS.ALWAYS_ON, setAlwaysOn);
       applyChange(SETTINGS_KEYS.START_IN_ACTION_MODE, setStartInActionMode);
       applyChange(SETTINGS_KEYS.HIGHLIGHT_MATCHES, setHighlightMatches);
+      applyChange(SETTINGS_KEYS.SHOW_AUTOHIDE_BUTTON, setShowAutohideButton);
     },
     [],
   );
@@ -186,6 +208,8 @@ const useStoredSettings = () => {
     updateStartInActionMode,
     highlightMatches,
     updateHighlightMatches,
+    showAutohideButton,
+    updateShowAutohideButton,
   };
 };
 
