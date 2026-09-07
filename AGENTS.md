@@ -95,6 +95,36 @@ artifacts are `.output/chrome-mv3` and `.output/firefox-mv3`.
 - Match-position changes are an atomic polite live status so screen readers announce navigation.
 - Error recovery UI must be keyboard reachable and announced without depending on host-page CSS.
 
+## Styling invariants
+
+Shadow DOM styles are injected as a string through `content.css?inline`, the page-level
+highlight rules ship as a manifest stylesheet, and the toolbar popup loads both `content.css`
+and `popup.css` as ordinary documents. Rules shared between those contexts live in
+`content.css`; anything that applies to one of them is scoped, such as `#keymove-popup`.
+
+Never read a custom property without a fallback. An unresolved `var()` is invalid at
+computed-value time, which resets the whole declaration it appears in. Inside a shorthand
+that resets every longhand it controls, so `border: 2px solid rgb(var(--accent))` becomes
+`border-style: none` and the element disappears rather than rendering in the wrong colour.
+Whether custom properties resolve under `:host { all: initial }` has not been established
+here, so `src/content_css.test.ts` rejects any `var()` in the shadow styles that has no
+fallback.
+
+Selection overlay colours are computed to concrete `rgba()` strings and applied as inline
+styles rather than through CSS. `::highlight()` cannot take inline styles, so it reads
+custom properties set on the page root, using longhands with literal fallbacks.
+
+## Settings and the toolbar popup
+
+Every setting is stored in `browser.storage.local`, and the content script subscribes to
+`browser.storage.onChanged`. The popup therefore needs no messaging: writing a setting there
+reaches every open tab on its own. Add settings by extending the stored settings schema and
+the hook, never by sending messages between the popup and content scripts.
+
+Setting `default_popup` means `browser.action.onClicked` never fires. The toolbar icon opens
+the settings popup and cannot also summon the searchbar; `Alt + F` and always-on typing are
+the ways in.
+
 ## Popup position and storage
 
 The default popup center is `{ x: 0.5, y: 0.75 }`, expressed as normalized viewport coordinates.
@@ -118,9 +148,10 @@ focused type guard before use. TypeScript types alone are not runtime validation
 
 ## Dependency footprint and Node version
 
-The project declares only two direct runtime packages (`react` and `react-dom`) plus 17 direct
+The project declares only two direct runtime packages (`react` and `react-dom`) plus 18 direct
 development packages. The packages under `node_modules/` are predominantly transitive dependencies
-of WXT/Vite, Vitest/jsdom/Testing Library, TypeScript, Oxlint/tsgolint, Oxfmt, React tooling, and SVGR.
+of WXT/Vite, web-ext (the development browser launcher), Vitest/jsdom/Testing Library, TypeScript,
+Oxlint/tsgolint, Oxfmt, React tooling, and SVGR.
 Yarn 1 hoists these transitive packages into the
 top-level installation, so their presence does not mean the extension imports or ships all of them.
 
@@ -166,6 +197,31 @@ blindly replacing it can break selectors, stored preferences, and content/backgr
 - Preserve unrelated user changes and leave generated build output untracked.
 
 ## Verification
+
+After every meaningful implementation change, run `yarn preview`. It rebuilds the production MV3
+extension, selects the first installed browser in this order: Vivaldi, Chrome, Firefox, and opens
+`https://github.com/valentindimitrov/keymove` with the extension loaded in a fresh temporary test
+profile. This launch is authorized as part of the development workflow; do not ask again each time.
+The launcher marks Vivaldi's welcome screen and all setup pages as read, and disables its exit
+confirmation in that temporary profile. Keep `vivaldi.welcome.read_pages` as an array passed through
+the web-ext JavaScript API; the CLI preference parser would turn it into a string.
+For Chromium browsers the launcher opens and focuses the repository after extension installation,
+verifies its tab title and URL, then closes only Vivaldi's welcome tab in that test instance.
+Do not rely on Vivaldi's startup URL: first-run initialization can replace it with the welcome page.
+Keep the user's regular browser profiles untouched. Close the previous test window when finished
+with it; do not terminate unrelated browser processes. The preview command stays running until the
+test browser closes or it is stopped with Ctrl+C.
+
+- `yarn preview`: rebuild and open the preferred installed browser.
+- `yarn preview:vivaldi`, `yarn preview:chrome`, `yarn preview:firefox`: rebuild and open that browser.
+- `yarn browser:open`: open the existing production build after `yarn quality` or `yarn build`,
+  avoiding a redundant rebuild. It uses the same browser preference order.
+
+Detection covers standard Windows/macOS installation locations and executable directories on PATH.
+For a custom installation, set `KEYMOVE_VIVALDI_BINARY`, `KEYMOVE_CHROME_BINARY`, or
+`KEYMOVE_FIREFOX_BINARY` to its absolute executable path. If no supported browser is installed or
+loading fails, report the actual blocker; do not claim an installed-browser test from a mocked page.
+Opening the browser alone is not a behavioral test: report separately what was actually checked.
 
 During focused work, run the relevant Vitest files plus `yarn typecheck`. Before handoff, run:
 

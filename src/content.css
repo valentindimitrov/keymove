@@ -4,6 +4,14 @@
   text-transform: none;
 }
 
+/* Secondary text tones, which repeat across the searchbar, the panel and the icons. Every
+   read of these carries a fallback: whether a custom property resolves inside this shadow
+   root has burned us before, and a fallback keeps the declaration valid either way. */
+:host {
+  --keymove-text-secondary: rgba(255, 255, 255, 0.75);
+  --keymove-text-tertiary: rgba(255, 255, 255, 0.65);
+}
+
 *,
 *::before,
 *::after {
@@ -70,7 +78,7 @@
   width: 18px;
   min-width: 18px;
   height: 18px;
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--keymove-text-secondary, rgba(255, 255, 255, 0.75));
 }
 
 #keymove-input-container {
@@ -111,7 +119,7 @@
 }
 
 #keymove-input::placeholder {
-  color: rgba(255, 255, 255, 0.65);
+  color: var(--keymove-text-tertiary, rgba(255, 255, 255, 0.65));
   opacity: 1;
 }
 
@@ -154,7 +162,7 @@
   border: none;
   border-radius: 7px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.65);
+  color: var(--keymove-text-tertiary, rgba(255, 255, 255, 0.65));
   cursor: pointer;
   font: inherit;
 }
@@ -196,7 +204,7 @@
 
 .keymove-info-panel-section-header {
   margin-bottom: 10px;
-  color: rgba(255, 255, 255, 0.65);
+  color: var(--keymove-text-tertiary, rgba(255, 255, 255, 0.65));
   font-size: 13px;
   font-weight: 500;
 }
@@ -207,7 +215,7 @@
 
 .keymove-info-panel-section-header a,
 .keymove-info-panel-section-header a:hover {
-  color: rgba(255, 255, 255, 0.65);
+  color: var(--keymove-text-tertiary, rgba(255, 255, 255, 0.65));
   text-decoration: underline;
 }
 
@@ -349,7 +357,7 @@
 
 .keymove-info-panel-button svg,
 .keymove-icon-button svg {
-  fill: rgba(255, 255, 255, 0.75);
+  fill: var(--keymove-text-secondary, rgba(255, 255, 255, 0.75));
 }
 
 .keymove-info-panel-button:hover svg,
@@ -451,7 +459,7 @@
 
 .keymove-suggestion-kind-text {
   background-color: rgba(255, 255, 255, 0.14);
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--keymove-text-secondary, rgba(255, 255, 255, 0.75));
 }
 
 .keymove-suggestion-body {

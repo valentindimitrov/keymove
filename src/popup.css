@@ -1,9 +1,17 @@
 /* The popup is an ordinary page, so it restates the surface the shadow root provides in
    the content script. Panel rules themselves are shared with content.css. */
+/* One spacing scale keeps the pane's rhythm consistent without hand-picking a value per
+   element. */
+:root {
+  --keymove-gap-sm: 8px;
+  --keymove-gap-md: 14px;
+  --keymove-gap-lg: 22px;
+}
+
 body {
-  width: 320px;
+  width: 372px;
   margin: 0;
-  padding: 12px 14px;
+  padding: var(--keymove-gap-md) 18px var(--keymove-gap-lg);
   color: white;
   font:
     13px / 1.35 'Helvetica Neue',
@@ -20,20 +28,39 @@ body {
 
 /* Scoped to the popup so the in-page shortcuts panel keeps its own smaller heading. */
 #keymove-popup .keymove-info-panel-section-header {
+  margin-bottom: var(--keymove-gap-md);
+  color: white;
   font-size: 15px;
   text-align: center;
+}
+
+#keymove-popup .keymove-info-panel-margin-top-section-header {
+  margin-top: var(--keymove-gap-lg);
+}
+
+/* The shortcut reminder is a caption for the heading, not one of the settings. */
+#keymove-popup > .keymove-info-panel-row:first-of-type {
+  margin-bottom: var(--keymove-gap-lg);
+}
+
+#keymove-popup .keymove-info-panel-setting-row {
+  padding: var(--keymove-gap-sm) 0;
+}
+
+#keymove-popup .keymove-info-panel-reset-position-button {
+  margin-top: var(--keymove-gap-md);
 }
 
 .keymove-position-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
-  width: 108px;
+  gap: var(--keymove-gap-sm);
+  width: 150px;
   margin: 0 auto;
 }
 
 .keymove-position-cell {
-  height: 26px;
+  height: 32px;
   padding: 0;
   border: 1px solid rgba(255, 255, 255, 0.25);
   border-radius: 5px;
@@ -54,5 +81,9 @@ body {
 
 /* Each link gets its own row so the repository sits above the contact link. */
 #keymove-popup .keymove-info-panel-button-row {
-  margin: 8px 0 0;
+  margin: var(--keymove-gap-sm) 0 0;
+}
+
+#keymove-popup .keymove-info-panel-button-row:first-of-type {
+  margin-top: var(--keymove-gap-lg);
 }
