@@ -21,3 +21,15 @@ test('converts dragged pixel coordinates back to normalized center coordinates',
 test('keeps popup position calculations finite before a viewport is measurable', () => {
   expect(normalizedPosition(0, 0, 0, 0)).toEqual({ x: 1, y: 1 });
 });
+
+test('positions and clamps against the width in use, not the default one', () => {
+  const wide = 800;
+
+  expect(pixelPosition({ x: 0.5, y: 0.75 }, 1000, 800, wide)).toEqual({
+    left: 1000 * 0.5 - wide / 2,
+    top: 800 * 0.75 - KEYMOVE_CONTAINER_HEIGHT / 2,
+  });
+  // A bar too wide to centre is pulled back on-screen rather than hanging off the right.
+  expect(pixelPosition({ x: 0.95, y: 0.5 }, 1000, 800, wide).left).toBe(200);
+  expect(normalizedPosition(1000 * 0.5 - wide / 2, 0, 1000, 800, wide).x).toBe(0.5);
+});

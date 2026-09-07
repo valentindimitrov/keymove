@@ -1,6 +1,8 @@
 import React from 'react';
 import useStoredSettings from '../../hooks/use_stored_settings.js';
 import useHighlightColors from '../../hooks/use_highlight_colors.js';
+import usePopupPosition from '../../hooks/use_popup_position.js';
+import usePopupWidth from '../../hooks/use_popup_width.js';
 import InfoPanelSectionHeader from '../searchbar/info_panel/info_panel_section_header.js';
 import InfoPanelShortcutRow from '../searchbar/info_panel/info_panel_shortcut_row.js';
 import PopupPositionGrid from './popup_position_grid.js';
@@ -26,6 +28,8 @@ const PopupSettings = () => {
     showAutohideButton,
     updateShowAutohideButton,
   } = useStoredSettings();
+  const { resetPosition } = usePopupPosition();
+  const { width: popupWidth, resetWidth } = usePopupWidth();
   const {
     colors: highlightColors,
     updateColor: updateHighlightColor,
@@ -84,8 +88,21 @@ const PopupSettings = () => {
         updateHighlightColor={updateHighlightColor}
         resetHighlightColors={resetHighlightColors}
       />
-      <InfoPanelSectionHeader marginTop text={'Searchbar position'} />
+      <InfoPanelSectionHeader marginTop text={'Searchbar position and size'} />
       <PopupPositionGrid />
+      <p className={'keymove-popup-hint'}>
+        {`Drag the right edge of the searchbar to resize it. Currently ${popupWidth} pixels wide.`}
+      </p>
+      <button
+        type="button"
+        className={'keymove-info-panel-reset-position-button'}
+        onClick={() => {
+          resetPosition();
+          resetWidth();
+        }}
+      >
+        {'Reset position and size'}
+      </button>
       <div className={'keymove-popup-links'}>
         <InfoPanelButtons />
       </div>

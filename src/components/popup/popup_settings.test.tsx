@@ -79,3 +79,16 @@ test('writes a chosen highlight colour to storage', async () => {
     highlightColors: { text: '#22d3ee', actions: '#a78bfa' },
   });
 });
+
+test('resets the searchbar position and size together', async () => {
+  storage.get.mockResolvedValue({ popupPosition: { x: 0.25, y: 0.25 }, popupWidth: 700 });
+  render(<PopupSettings />);
+
+  await waitFor(() => expect(screen.getByText(/700 pixels wide/)).toBeInTheDocument());
+  fireEvent.click(screen.getByRole('button', { name: 'Reset position and size' }));
+
+  await waitFor(() => {
+    expect(storage.set).toHaveBeenCalledWith({ popupPosition: { x: 0.5, y: 0.75 } });
+    expect(storage.set).toHaveBeenCalledWith({ popupWidth: 420 });
+  });
+});

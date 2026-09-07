@@ -13,6 +13,10 @@ export const KEYMOVE_CURRENT_HIGHLIGHT_NAME = 'keymove-search-current';
 export const KEYMOVE_CONTAINER_HEIGHT = 50;
 export const KEYMOVE_CONTAINER_WIDTH = 420;
 export const POPUP_POSITION_STORAGE_KEY = 'popupPosition';
+export const POPUP_WIDTH_STORAGE_KEY = 'popupWidth';
+// Narrow enough to stay out of the way, wide enough for a result row to stay on one line.
+export const MIN_CONTAINER_WIDTH = 260;
+export const MAX_CONTAINER_WIDTH = 900;
 export const HIGHLIGHT_COLORS_STORAGE_KEY = 'highlightColors';
 
 export const INPUT_NODE_TYPES = ['INPUT', 'TEXTAREA', 'SELECT'];

@@ -140,6 +140,8 @@ Stored keys:
 - `highlightMatches`: boolean
 - `showAutohideButton`: boolean
 - `popupPosition`: `{ x: number; y: number }`, with both values finite and in `[0, 1]`
+- `popupWidth`: number of pixels, clamped into the usable range rather than rejected, so a
+  window that shrank between sessions does not discard a deliberate choice
 - `highlightColors`: `{ text: string; actions: string }`, each a `#rrggbb` string
 
 Treat JSON imports, extension storage, storage change events, extension messages, and browser API
@@ -209,7 +211,10 @@ For Chromium browsers the launcher opens and focuses the repository after extens
 verifies its tab title and URL, then closes only Vivaldi's welcome tab in that test instance.
 Do not rely on Vivaldi's startup URL: first-run initialization can replace it with the welcome page.
 Keep the user's regular browser profiles untouched. Close the previous test window when finished
-with it; do not terminate unrelated browser processes. The preview command stays running until the
+with it. Profile settings are separate, but the unpacked build directory is shared: rebuilding
+`.output/chrome-mv3` also changes the files used by any regular profile that already loaded that
+directory. Do not claim that a rebuild affects only the temporary profile. Do not terminate
+unrelated browser processes. The preview command stays running until the
 test browser closes or it is stopped with Ctrl+C.
 
 - `yarn preview`: rebuild and open the preferred installed browser.

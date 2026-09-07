@@ -13,6 +13,7 @@ import useSearchNavigation, {
 import type { SearchMode } from '../../hooks/use_search_navigation.js';
 import usePopupPosition from '../../hooks/use_popup_position.js';
 import useWindowSize from '../../hooks/use_window_size.js';
+import usePopupWidth from '../../hooks/use_popup_width.js';
 import useSuggestions from '../../hooks/use_suggestions.js';
 import useHighlightColors from '../../hooks/use_highlight_colors.js';
 
@@ -71,6 +72,7 @@ const Searchbar = () => {
   } = useSearchNavigation();
   const { colors: highlightColors } = useHighlightColors();
   const { position: popupPosition, updatePosition: updatePopupPosition } = usePopupPosition();
+  const { width: popupWidth, updateWidth: updatePopupWidth } = usePopupWidth();
   const windowSize = useWindowSize();
 
   const [isHidden, setIsHidden] = React.useState<boolean>(autoHide);
@@ -558,6 +560,8 @@ const Searchbar = () => {
       )}
       <DraggableContainer
         className={suggestionsAbove ? 'keymove-container-suggestions-above' : undefined}
+        width={popupWidth}
+        updateWidth={updatePopupWidth}
         containerRef={containerRef}
         searchInputRef={searchInputRef}
         position={popupPosition}

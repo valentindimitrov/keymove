@@ -160,7 +160,9 @@ Open the **KeyMove help and settings** button inside the search interface to con
   its center 75% down the viewport.
 
 Dragging the interface saves normalized screen coordinates in extension-local storage. This keeps
-the chosen position useful across different window sizes.
+the chosen position useful across different window sizes. Dragging its right edge resizes it, which
+is worth doing on a page with long link labels: a wider bar keeps a result and its context on one
+line. The toolbar popup can put both the position and the size back to their defaults.
 
 ## Browser support
 
@@ -320,3 +322,27 @@ upstream contribution documentation
 Functionality:
 Add actions extensibility - dictionary, search, custom pass along
 links only navigation
+
+lower transparency of searchbar
+
+make the searchbar + shortlist menu resizeable and add reset button in the browser extension pane
+
+
+
+Start in action mode -> Use action mode 
+
+as highlight
+
+actions to text switch to not right
+https://blip.net not working
+
+packages and releases on github
+integration with chrome extension store
+
+update readme - limit of 50
+
+contributor guidance - describe the idea
+
+license and acknowledgement - name original developers and current developer
+
+product hunt and youtube launch

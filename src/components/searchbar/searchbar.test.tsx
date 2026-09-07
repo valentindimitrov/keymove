@@ -10,6 +10,8 @@ const searchMocks = vi.hoisted(() => ({
   sendMessage: vi.fn(),
   subscribeToPageChanges: vi.fn(),
   popupPosition: { x: 0.5, y: 0.75 },
+  popupWidth: 420,
+  updatePopupWidth: vi.fn(),
 }));
 
 vi.mock('wxt/browser', () => ({
@@ -53,6 +55,13 @@ vi.mock('../../hooks/use_highlight_colors.js', () => ({
     resetColors: vi.fn(),
   }),
 }));
+vi.mock('../../hooks/use_popup_width.js', () => ({
+  default: () => ({
+    width: searchMocks.popupWidth,
+    updateWidth: searchMocks.updatePopupWidth,
+    resetWidth: vi.fn(),
+  }),
+}));
 vi.mock('../../hooks/use_popup_position.js', () => ({
   default: () => ({
     position: searchMocks.popupPosition,
@@ -69,6 +78,8 @@ beforeEach(() => {
   searchMocks.sendMessage.mockReset().mockResolvedValue(undefined);
   searchMocks.subscribeToPageChanges.mockReset().mockReturnValue(() => undefined);
   searchMocks.popupPosition = { x: 0.5, y: 0.75 };
+  searchMocks.popupWidth = 420;
+  searchMocks.updatePopupWidth.mockReset();
   settingsMocks.startInActionMode = false;
   settingsMocks.highlightMatches = true;
   settingsMocks.showAutohideButton = false;
