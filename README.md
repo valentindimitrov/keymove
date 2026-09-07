@@ -134,6 +134,8 @@ Open the **KeyMove help and settings** button inside the search interface to con
 - **Always on:** begin searching whenever you type while another input is not focused.
 - **Start in action mode:** begin each search in action mode instead of text mode.
 - **Highlight matches:** tint matching text on the page, and mark the current one.
+- **Text highlight colour** and **Action highlight colour:** pick the colour used for each mode.
+  **Reset highlight colours** restores amber and violet.
 - **Show autohide button:** show the eye icon that turns Autohide on and off from the searchbar.
   Off by default; Autohide itself stays available in this panel.
 - **Autohide:** hide the interface when it is not being used.

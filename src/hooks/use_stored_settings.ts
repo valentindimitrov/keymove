@@ -35,7 +35,8 @@ function persistBooleanSetting(
 }
 
 const useStoredSettings = () => {
-  const revisions = React.useRef({ showAutohideButton: 0,
+  const revisions = React.useRef({
+    showAutohideButton: 0,
     autoHide: 0,
     alwaysOn: 0,
     startInActionMode: 0,

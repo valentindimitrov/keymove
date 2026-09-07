@@ -115,38 +115,27 @@
   opacity: 1;
 }
 
-/* Amber marks text, violet marks actions. Warm against cool reads as a change of kind
-   rather than a change of shade, and the pair survives the common colour-vision
-   deficiencies that collapse blue into violet. */
-.keymove-mode-text {
-  --keymove-accent: 245 158 11;
-}
-
-.keymove-mode-actions {
-  --keymove-accent: 139 92 246;
-}
-
-/* Alpha lives in the colours rather than in opacity, so an unselected outline stays a
-   crisp thin line instead of a faded thick one. */
+/* Every overlay colour is derived from this, so it is defined here as well as on the
+   mode classes. An unresolved var() would invalidate the whole border shorthand and
+   silently erase the outline rather than fall back to a visible one. */
+/* Colours arrive as inline styles from the chosen highlight colours, so nothing here can
+   invalidate them. Only the geometry lives in CSS. */
 .keymove-selection {
   position: fixed;
   z-index: 2147483003;
   display: block;
-  border: 2px solid rgb(var(--keymove-accent) / 0.38);
+  border: 2px solid transparent;
   border-radius: 6px;
   pointer-events: none;
 }
 
 .keymove-selection.keymove-selected-selection {
-  border-color: rgb(var(--keymove-accent) / 0.95);
-  background-color: rgb(var(--keymove-accent) / 0.12);
-  box-shadow: 0 0 0 5px rgb(var(--keymove-accent) / 0.18);
   animation: keymove-selection-settle 160ms ease-out;
 }
 
 @keyframes keymove-selection-settle {
   from {
-    box-shadow: 0 0 0 10px rgb(var(--keymove-accent) / 0);
+    box-shadow: none;
   }
 }
 
@@ -156,131 +145,22 @@
   }
 }
 
-.keymove-icon-button {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  min-width: 36px;
-  height: 36px;
-  padding: 0;
-  border: none;
-  border-radius: 7px;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.65);
-  cursor: pointer;
-  font: inherit;
-}
-
-.keymove-icon-button:hover,
-.keymove-icon-button:focus-visible {
-  background-color: rgba(45, 45, 45, 0.25);
-}
-
-.keymove-icon-button:focus-visible {
-  outline: 2px solid rgba(255, 255, 255, 0.85);
-  outline-offset: 1px;
-}
-
-#keymove-info-dropdown-button {
-  margin-right: 6px;
-}
-
-.keymove-tooltip-panel {
-  position: fixed;
-  z-index: 2147483004;
-  border-radius: 12px;
-  background-color: rgba(35, 35, 35, 0.6);
-  backdrop-filter: blur(16px);
-}
-
-.keymove-tooltip-arrow {
-  position: fixed;
-  z-index: 2147483004;
-  border-style: solid;
-  border-color: rgba(35, 35, 35, 0.6) transparent;
-}
-
-#keymove-info-panel {
-  width: 545px;
-  min-width: 545px;
-  padding: 20px;
-}
-
-.keymove-info-panel-section-header {
-  margin-bottom: 10px;
-  color: rgba(255, 255, 255, 0.65);
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.keymove-info-panel-margin-top-section-header {
-  margin-top: 15px;
-}
-
-.keymove-info-panel-section-header a,
-.keymove-info-panel-section-header a:hover {
-  color: rgba(255, 255, 255, 0.65);
-  text-decoration: underline;
-}
-
-.keymove-info-panel-row {
-  padding: 4px 0;
-  color: white;
-  font-size: 13px;
-  font-weight: 400;
-  letter-spacing: normal;
-  line-height: 1.35em;
-}
-
-.keymove-info-panel-row {
-  display: flex;
-  align-items: center;
-  padding-left: 15px;
-}
-
-.keymove-info-panel-setting-row {
-  align-items: flex-start;
-}
-
-.keymove-info-panel-shortcut-key {
-  display: inline-block;
-  min-width: 16px;
-  height: 22px;
-  margin-right: 5px;
-  margin-left: 0;
-  padding: 0 5px;
-  border: 1px solid rgba(255, 255, 255, 0.27);
-  border-radius: 4px;
-  color: white;
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 22px;
+.keymove-info-panel-pin-hint {
+  padding: 8px 4px 0;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 11px;
   text-align: center;
-  white-space: nowrap;
 }
 
-.keymove-info-panel-shortcut-text {
-  margin-left: 3px;
-}
-
-.keymove-info-panel-setting-text {
-  flex: 1;
-}
-
-.keymove-info-panel-setting-description {
-  margin-top: 5px;
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 12px;
-}
-
-.keymove-info-panel-setting-checkbox {
-  width: 16px;
-  height: 16px;
-  margin: 2px 12px 0 0;
-  appearance: auto;
+.keymove-info-panel-setting-color {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 5px;
+  background: none;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .keymove-info-panel-reset-position-button {

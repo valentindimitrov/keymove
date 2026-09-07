@@ -107,6 +107,7 @@ Stored keys:
 - `highlightMatches`: boolean
 - `showAutohideButton`: boolean
 - `popupPosition`: `{ x: number; y: number }`, with both values finite and in `[0, 1]`
+- `highlightColors`: `{ text: string; actions: string }`, each a `#rrggbb` string
 
 Treat JSON imports, extension storage, storage change events, extension messages, and browser API
 responses as runtime-untrusted. Validate them through the matching `src/lib/*_schema.ts` module or a

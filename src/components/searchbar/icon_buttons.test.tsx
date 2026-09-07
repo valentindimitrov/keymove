@@ -19,6 +19,9 @@ const settingsProps = {
   toggleHighlightMatches: vi.fn(),
   showAutohideButton: false,
   toggleShowAutohideButton: vi.fn(),
+  highlightColors: { text: '#f59e0b', actions: '#a78bfa' },
+  updateHighlightColor: vi.fn(),
+  resetHighlightColors: vi.fn(),
   resetPopupPosition: vi.fn(),
 };
 
@@ -59,4 +62,26 @@ test('Escape inside the settings panel closes it and returns focus to its button
   fireEvent.keyDown(checkbox, { key: 'Escape' });
   expect(button).toHaveAttribute('aria-expanded', 'false');
   expect(button).toHaveFocus();
+});
+
+test('offers a colour picker per mode and reports the chosen colour', () => {
+  render(<InfoDropdown {...settingsProps} />);
+  fireEvent.click(screen.getByRole('button', { name: `${EXTENSION_NAME} help and settings` }));
+
+  const actionPicker = screen.getByLabelText('Action highlight colour');
+  expect(actionPicker).toHaveValue('#a78bfa');
+  fireEvent.change(actionPicker, { target: { value: '#22d3ee' } });
+
+  expect(settingsProps.updateHighlightColor).toHaveBeenCalledWith('actions', '#22d3ee');
+});
+
+test('tells the user how to pin the panel only until they pin it', () => {
+  render(<InfoDropdown {...settingsProps} />);
+  const button = screen.getByRole('button', { name: `${EXTENSION_NAME} help and settings` });
+
+  fireEvent.mouseEnter(button);
+  expect(screen.getByText(/keep this open/)).toBeInTheDocument();
+
+  fireEvent.click(button);
+  expect(screen.queryByText(/keep this open/)).toBeNull();
 });

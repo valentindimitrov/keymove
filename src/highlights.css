@@ -1,10 +1,10 @@
-/* Other matches keep the page's own text colour so they stay legible on any background. */
+/* Longhand properties only, each with a literal fallback. A var() that fails to resolve
+   invalidates just the one declaration here, instead of taking a shorthand down with it. */
 ::highlight(keymove-search-results) {
-  background-color: rgb(245 158 11 / 0.28);
+  background-color: var(--keymove-text-wash, rgba(245, 158, 11, 0.28));
 }
 
-/* The current match is opaque, so it sets both colours and reads as the one to act on. */
 ::highlight(keymove-search-current) {
-  background-color: rgb(245 158 11);
-  color: rgb(65 36 2);
+  background-color: var(--keymove-text-accent, #f59e0b);
+  color: var(--keymove-text-ink, #1a1a1a);
 }

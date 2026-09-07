@@ -1,5 +1,10 @@
 import React from 'react';
 import { KEYMOVE_CURRENT_HIGHLIGHT_NAME, KEYMOVE_HIGHLIGHT_NAME } from '../constants.js';
+import {
+  DEFAULT_HIGHLIGHT_COLORS,
+  inkForHexColor,
+  rgbaForHexColor,
+} from '../lib/highlight_colors_schema.js';
 import { visibleTextNodes } from '../lib/visible_text.js';
 import type { TextMatch } from '../lib/page_search_index.js';
 
@@ -103,9 +108,29 @@ type HighlightOptions = {
   matches: TextMatch[];
   selectedMatch?: TextMatch | null;
   enabled?: boolean;
+  color?: string;
 };
 
-const useHighlights = ({ matches, selectedMatch = null, enabled = true }: HighlightOptions) => {
+const useHighlights = ({
+  matches,
+  selectedMatch = null,
+  enabled = true,
+  color = DEFAULT_HIGHLIGHT_COLORS.text,
+}: HighlightOptions) => {
+  // ::highlight() cannot be styled per element, so the chosen colour reaches it through
+  // custom properties on the page root.
+  React.useEffect(() => {
+    const style = document.documentElement.style;
+    style.setProperty('--keymove-text-accent', color);
+    style.setProperty('--keymove-text-wash', rgbaForHexColor(color, 0.28));
+    style.setProperty('--keymove-text-ink', inkForHexColor(color));
+    return () => {
+      style.removeProperty('--keymove-text-accent');
+      style.removeProperty('--keymove-text-wash');
+      style.removeProperty('--keymove-text-ink');
+    };
+  }, [color]);
+
   React.useEffect(() => {
     const highlightRegistry = typeof CSS !== 'undefined' ? CSS.highlights : null;
 

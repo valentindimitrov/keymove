@@ -1,11 +1,23 @@
 import React from 'react';
+import { rgbaForHexColor } from '../../lib/highlight_colors_schema.js';
 
 const SELECTION_MARGIN = 7;
 
-type SelectionProps = { node: Element; isSelected: boolean };
+// A dark hairline just outside the border and a light ring outside the glow. Whichever of
+// the two contrasts with the page carries the outline, so the accent is free to signal
+// which mode is active instead of having to be legible against every background.
+function outlineShadow(color: string) {
+  return [
+    '0 0 0 1px rgba(0, 0, 0, 0.5)',
+    `0 0 0 5px ${rgbaForHexColor(color, 0.26)}`,
+    '0 0 0 6px rgba(255, 255, 255, 0.4)',
+  ].join(', ');
+}
+
+type SelectionProps = { node: Element; isSelected: boolean; color: string };
 
 const Selection = (props: SelectionProps) => {
-  const { node, isSelected } = props;
+  const { node, isSelected, color } = props;
 
   const classes = isSelected ? 'keymove-selection keymove-selected-selection' : 'keymove-selection';
 
@@ -35,8 +47,15 @@ const Selection = (props: SelectionProps) => {
       top: maximizedTop,
       height,
       width,
+      borderColor: isSelected ? color : rgbaForHexColor(color, 0.4),
+      ...(isSelected
+        ? {
+            backgroundColor: rgbaForHexColor(color, 0.16),
+            boxShadow: outlineShadow(color),
+          }
+        : {}),
     };
-  }, [nodeBounds, isSelected]);
+  }, [nodeBounds, isSelected, color]);
 
   return <div className={classes} style={style} />;
 };

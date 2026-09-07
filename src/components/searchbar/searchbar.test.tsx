@@ -45,6 +45,13 @@ vi.mock('../../hooks/use_stored_settings.js', () => ({
     updateShowAutohideButton: vi.fn(),
   }),
 }));
+vi.mock('../../hooks/use_highlight_colors.js', () => ({
+  default: () => ({
+    colors: { text: '#f59e0b', actions: '#a78bfa' },
+    updateColor: vi.fn(),
+    resetColors: vi.fn(),
+  }),
+}));
 vi.mock('../../hooks/use_popup_position.js', () => ({
   default: () => ({
     position: { x: 0.5, y: 0.75 },
@@ -303,7 +310,7 @@ test('returns to the default mode once the search is over, but not while typing'
   expect(status).toHaveTextContent('Text 1 / 1');
 });
 
-test('colours the overlay by mode and respects the highlight setting', async () => {
+test('colours the overlay from the chosen mode and respects the highlight setting', async () => {
   settingsMocks.highlightMatches = false;
   const paragraph = document.createElement('p');
   paragraph.textContent = 'Save';
@@ -319,12 +326,14 @@ test('colours the overlay by mode and respects the highlight setting', async () 
   fireEvent.change(input, { target: { value: 'save' } });
   await flushSearch();
 
-  expect(container.querySelector('.keymove-mode-text')).not.toBeNull();
-  expect(container.querySelector('.keymove-mode-actions')).toBeNull();
+  // Colours are inline so an unresolvable custom property can never blank the outline.
+  const textOutline = container.querySelector<HTMLElement>('.keymove-selection');
+  expect(textOutline?.style.borderColor).toBe('rgb(245, 158, 11)');
 
   fireEvent.keyDown(input, { key: 's', code: 'KeyS', altKey: true });
-  expect(container.querySelector('.keymove-mode-actions')).not.toBeNull();
-  expect(container.querySelector('.keymove-mode-text')).toBeNull();
+  const actionOutline = container.querySelector<HTMLElement>('.keymove-selection');
+  expect(actionOutline?.style.borderColor).toBe('rgb(167, 139, 250)');
+  expect(actionOutline?.style.boxShadow).toContain('rgba(167, 139, 250, 0.26)');
 
   expect(searchMocks.useHighlights).toHaveBeenLastCalledWith(
     expect.objectContaining({ enabled: false }),
@@ -562,6 +571,7 @@ test('Tab selects and copies a whole text block, and Enter opens its nested acti
       matches: [textMatch],
       selectedMatch: textMatch,
       enabled: true,
+      color: '#f59e0b',
     }),
   );
 

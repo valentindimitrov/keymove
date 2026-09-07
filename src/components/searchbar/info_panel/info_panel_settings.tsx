@@ -1,4 +1,6 @@
 import InfoPanelSettingRow from './info_panel_setting_row.js';
+import InfoPanelColorRow from './info_panel_color_row.js';
+import { SEARCH_MODES } from '../../../hooks/use_search_navigation.js';
 import { EXTENSION_NAME } from '../../../extension_identity.js';
 import type { SettingsControls } from '../settings_controls.js';
 
@@ -14,6 +16,9 @@ const InfoPanelSettings = (props: SettingsControls) => {
     toggleHighlightMatches,
     showAutohideButton,
     toggleShowAutohideButton,
+    highlightColors,
+    updateHighlightColor,
+    resetHighlightColors,
     resetPopupPosition,
   } = props;
 
@@ -55,6 +60,25 @@ const InfoPanelSettings = (props: SettingsControls) => {
       {settings.map(setting => {
         return <InfoPanelSettingRow key={setting.label} {...setting} />;
       })}
+      <InfoPanelColorRow
+        label={'Text highlight colour'}
+        description={'Colour for matching text and its outline.'}
+        value={highlightColors[SEARCH_MODES.TEXT]}
+        onChange={color => updateHighlightColor(SEARCH_MODES.TEXT, color)}
+      />
+      <InfoPanelColorRow
+        label={'Action highlight colour'}
+        description={'Colour for the outline around matching buttons and links.'}
+        value={highlightColors[SEARCH_MODES.ACTIONS]}
+        onChange={color => updateHighlightColor(SEARCH_MODES.ACTIONS, color)}
+      />
+      <button
+        type="button"
+        className="keymove-info-panel-reset-position-button"
+        onClick={resetHighlightColors}
+      >
+        Reset highlight colours
+      </button>
       <button
         type="button"
         className="keymove-info-panel-reset-position-button"

@@ -12,6 +12,7 @@ import useSearchNavigation, {
 } from '../../hooks/use_search_navigation.js';
 import type { SearchMode } from '../../hooks/use_search_navigation.js';
 import usePopupPosition from '../../hooks/use_popup_position.js';
+import useHighlightColors from '../../hooks/use_highlight_colors.js';
 
 import Utils from '../../lib/utils.js';
 import FindInPage, { subscribeToPageChanges } from '../../lib/find_in_page.js';
@@ -63,6 +64,11 @@ const Searchbar = () => {
     setMode,
     setSelectedIndex,
   } = useSearchNavigation();
+  const {
+    colors: highlightColors,
+    updateColor: updateHighlightColor,
+    resetColors: resetHighlightColors,
+  } = useHighlightColors();
   const {
     position: popupPosition,
     updatePosition: updatePopupPosition,
@@ -523,20 +529,15 @@ const Searchbar = () => {
     matches: matchingText,
     selectedMatch: selectedTextMatch,
     enabled: highlightMatches,
+    color: highlightColors[SEARCH_MODES.TEXT],
   });
   useExtensionMessaging({ handleToolbarActionClicked });
 
   return (
-    <div
-      className={[
-        navigationMode === SEARCH_MODES.TEXT ? 'keymove-mode-text' : 'keymove-mode-actions',
-        isInteractive ? '' : 'keymove-hidden',
-      ]
-        .filter(Boolean)
-        .join(' ')}
-    >
+    <div className={isInteractive ? '' : 'keymove-hidden'}>
       {!hideSelections && (
         <Selections
+          color={highlightColors[navigationMode]}
           refresh={scrollOrResizeRefresh}
           selectedSelectionIndex={
             navigationMode === SEARCH_MODES.TEXT && selectedSelectionIndex !== null
@@ -587,6 +588,9 @@ const Searchbar = () => {
             toggleHighlightMatches={toggleHighlightMatches}
             showAutohideButton={showAutohideButton}
             toggleShowAutohideButton={toggleShowAutohideButton}
+            highlightColors={highlightColors}
+            updateHighlightColor={updateHighlightColor}
+            resetHighlightColors={resetHighlightColors}
             resetPopupPosition={resetPosition}
           />
         )}

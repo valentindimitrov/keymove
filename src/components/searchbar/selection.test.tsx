@@ -16,7 +16,7 @@ test('keeps the selected outline inside the viewport on every edge', () => {
       toJSON: () => ({}),
     }) satisfies DOMRect;
 
-  const { container } = render(<Selection node={node} isSelected={true} />);
+  const { container } = render(<Selection node={node} isSelected={true} color={'#a78bfa'} />);
   const outline = container.firstElementChild;
   expect(outline).toHaveStyle({
     left: `${window.innerWidth - 12}px`,

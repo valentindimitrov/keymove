@@ -43,7 +43,7 @@ const InfoDropdown = (props: SettingsControls) => {
       </button>
       {showInfoPanel && (
         <Tooltip containerRef={containerRef}>
-          <InfoPanel {...settings} onDismiss={dismiss} />
+          <InfoPanel {...settings} onDismiss={dismiss} showPinHint={!isOpen} />
         </Tooltip>
       )}
     </>
