@@ -9,14 +9,17 @@ test('retains independent cursors by element identity when live results change',
   const link = document.createElement('a');
   const state = {
     mode: SEARCH_MODES.ACTIONS,
-    results: { text: [{ node: paragraph, action: link, term: 'save', score: 1 }], actions: [link] },
+    results: {
+      text: [{ node: paragraph, action: link, term: 'save', score: 1, distance: null }],
+      actions: [link],
+    },
     selectedIndices: { text: 0, actions: 0 },
   };
   const refreshed = searchNavigationReducer(state, {
     type: 'set-results',
     textResults: [
-      { node: document.createElement('p'), action: null, term: 'save', score: 1 },
-      { node: paragraph, action: link, term: 'save', score: 1 },
+      { node: document.createElement('p'), action: null, term: 'save', score: 1, distance: null },
+      { node: paragraph, action: link, term: 'save', score: 1, distance: null },
     ],
     actionResults: [document.createElement('button'), link],
     preserveSelection: true,
@@ -35,7 +38,7 @@ test('retains independent cursors by element identity when live results change',
 test('keeps text and action results in separate navigation collections', () => {
   const textResult = document.createElement('p');
   const actionResult = document.createElement('button');
-  const textMatch = { node: textResult, action: null, term: 'save', score: 1 };
+  const textMatch = { node: textResult, action: null, term: 'save', score: 1, distance: null };
 
   const state = searchNavigationReducer(INITIAL_SEARCH_NAVIGATION_STATE, {
     type: 'set-results',
@@ -52,8 +55,8 @@ test('keeps text and action results in separate navigation collections', () => {
 
 test('tracks independent selected indices for each mode', () => {
   const textResults = [
-    { node: document.createElement('p'), action: null, term: 'save', score: 1 },
-    { node: document.createElement('p'), action: null, term: 'save', score: 1 },
+    { node: document.createElement('p'), action: null, term: 'save', score: 1, distance: null },
+    { node: document.createElement('p'), action: null, term: 'save', score: 1, distance: null },
   ];
   const actionResults = [document.createElement('button'), document.createElement('a')];
   let state = searchNavigationReducer(INITIAL_SEARCH_NAVIGATION_STATE, {

@@ -55,9 +55,12 @@ function describe(match: RankedMatch, isFuzzy: boolean): Suggestion {
   const label = labelForNode(match.node, match.kind);
   const { excerpt } = excerptAround(label, match.term);
   const parts = [kindLabelForNode(match.node, match.kind)];
+  // How far off an approximate result is says more than the fact that it is approximate.
+  if (isFuzzy && match.distance !== null) {
+    parts.push(`${match.distance} edit${match.distance === 1 ? '' : 's'} away`);
+  }
   const landmark = landmarkForNode(match.node);
   if (landmark) parts.push(`in ${landmark}`);
-  if (isFuzzy && match.term) parts.push('approximate');
   return {
     kind: match.kind,
     node: match.node,
@@ -65,6 +68,10 @@ function describe(match: RankedMatch, isFuzzy: boolean): Suggestion {
     label: excerpt,
     context: parts.join(' · '),
   };
+}
+
+function describeAll(matches: RankedMatch[], isFuzzy: boolean) {
+  return matches.map(match => describe(match, isFuzzy));
 }
 
 const useSuggestions = ({ suggestions, searchText, isFuzzy }: SuggestionOptions) => {
@@ -85,5 +92,5 @@ const useSuggestions = ({ suggestions, searchText, isFuzzy }: SuggestionOptions)
 };
 
 export type { Suggestion };
-export { applyHysteresis };
+export { applyHysteresis, describeAll };
 export default useSuggestions;

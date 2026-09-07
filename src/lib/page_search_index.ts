@@ -25,12 +25,31 @@ type SearchRecord = {
   attributeValues: string[];
 };
 
-type ActionMatch = { node: HTMLElement; score: number; term: string | null };
+type ActionMatch = {
+  node: HTMLElement;
+  score: number;
+  term: string | null;
+  distance: number | null;
+};
 // `term` is the literal slice of the node's text that matched, so highlighting can find it
 // again. For an exact search it is the query; for a fuzzy one it is the near-miss spelling.
-type TextMatch = { node: Element; action: HTMLElement | null; term: string; score: number };
+type TextMatch = {
+  node: Element;
+  action: HTMLElement | null;
+  term: string;
+  score: number;
+  distance: number | null;
+};
 type ScannedNode = { node: Element; innerText: string; attributeValues: string[] };
-type RankedMatch = { kind: 'action' | 'text'; node: Element; score: number; term: string | null };
+// `distance` is how many edits separate the query from what matched, for approximate
+// results only. It is what lets a row say how much of a stretch it is.
+type RankedMatch = {
+  kind: 'action' | 'text';
+  node: Element;
+  score: number;
+  term: string | null;
+  distance: number | null;
+};
 type MatchCollector = {
   actions: ActionMatch[];
   matchingText: TextMatch[];
@@ -67,12 +86,14 @@ function rankSuggestions(collector: MatchCollector, limit: number): RankedMatch[
       node: match.node as Element,
       score: match.score * ACTION_PRIORITY_BOOST,
       term: match.term,
+      distance: match.distance,
     })),
     ...collector.rankedText.map(match => ({
       kind: 'text' as const,
       node: match.node,
       score: match.score,
       term: match.term,
+      distance: match.distance,
     })),
   ].sort((left, right) => right.score - left.score);
 
@@ -436,7 +457,7 @@ class PageSearchIndex {
       const score = nodeScorer.score(node, innerText, record.attributeValues);
       const textTerm =
         score > 0 && nodeScorer.textMatchesWithValue(innerText) ? nodeScorer.queryText : null;
-      this.collectScoredNode(node, score, textTerm, collector);
+      this.collectScoredNode(node, score, textTerm, null, collector);
     }
 
     const isFuzzy =
@@ -490,12 +511,12 @@ class PageSearchIndex {
       const pause = budget.checkpoint(searchSignal);
       if (pause) await pause;
       if (!this.root.contains(entry.node)) continue;
-      const { score, textTerm } = nodeScorer.fuzzyScore(
+      const { score, textTerm, distance } = nodeScorer.fuzzyScore(
         entry.node,
         entry.innerText,
         entry.attributeValues,
       );
-      this.collectScoredNode(entry.node, score, textTerm, collector);
+      this.collectScoredNode(entry.node, score, textTerm, distance, collector);
     }
   }
 
@@ -503,12 +524,13 @@ class PageSearchIndex {
     node: Element,
     score: number,
     textTerm: string | null,
+    distance: number | null,
     collector: MatchCollector,
   ) {
     if (score <= 0) return;
     const { actions, matchingText, rankedText, textMatchesByContainer, resultLimit } = collector;
     if (node instanceof HTMLElement && isLinkOrButtonOrInput(node)) {
-      insertByScore(actions, { node, score, term: textTerm }, resultLimit);
+      insertByScore(actions, { node, score, term: textTerm, distance }, resultLimit);
     }
     if (textTerm === null) return;
     if (!this.hasDirectSearchableText(node) && !node.matches(TEXT_BLOCK_SELECTOR)) return;
@@ -522,7 +544,7 @@ class PageSearchIndex {
     const insertion = matchingText.findIndex(match =>
       Boolean(match.node.compareDocumentPosition(textContainer) & Node.DOCUMENT_POSITION_PRECEDING),
     );
-    const match = { node: textContainer, action, term: textTerm, score };
+    const match = { node: textContainer, action, term: textTerm, score, distance };
     insertByScore(rankedText, match, SUGGESTION_CANDIDATE_LIMIT);
     if (insertion !== -1) matchingText.splice(insertion, 0, match);
     else if (matchingText.length < resultLimit) matchingText.push(match);

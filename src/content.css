@@ -476,11 +476,7 @@
 }
 
 .keymove-suggestion-label {
-  display: block;
-  overflow: hidden;
   color: white;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .keymove-suggestion-match {
@@ -489,12 +485,12 @@
   color: rgb(255, 233, 163);
 }
 
+/* Runs on from the label and drops to its own line only when it will not fit, which keeps a
+   short row to a single line instead of always spending two. */
 .keymove-suggestion-context {
-  display: block;
-  margin-top: 2px;
-  overflow: hidden;
-  color: rgba(255, 255, 255, 0.55);
+  margin-left: 7px;
+  color: rgba(255, 255, 255, 0.5);
   font-size: 11px;
-  text-overflow: ellipsis;
+  /* Moves to the next line whole rather than breaking apart mid-phrase. */
   white-space: nowrap;
 }

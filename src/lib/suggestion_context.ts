@@ -1,20 +1,20 @@
 import { visibleText } from './visible_text.js';
 
 const LANDMARK_LABELS: [string, string][] = [
-  ['nav', 'navigation'],
-  ['[role="navigation"]', 'navigation'],
-  ['header', 'header'],
-  ['[role="banner"]', 'header'],
-  ['footer', 'footer'],
-  ['[role="contentinfo"]', 'footer'],
-  ['aside', 'sidebar'],
-  ['[role="complementary"]', 'sidebar'],
-  ['dialog', 'dialog'],
-  ['[role="dialog"]', 'dialog'],
-  ['form', 'form'],
-  ['table', 'table'],
-  ['main', 'main content'],
-  ['[role="main"]', 'main content'],
+  ['nav', 'Navigation'],
+  ['[role="navigation"]', 'Navigation'],
+  ['header', 'Header'],
+  ['[role="banner"]', 'Header'],
+  ['footer', 'Footer'],
+  ['[role="contentinfo"]', 'Footer'],
+  ['aside', 'Sidebar'],
+  ['[role="complementary"]', 'Sidebar'],
+  ['dialog', 'Dialog'],
+  ['[role="dialog"]', 'Dialog'],
+  ['form', 'Form'],
+  ['table', 'Table'],
+  ['main', 'Main content'],
+  ['[role="main"]', 'Main content'],
 ];
 
 const CONTROL_LABELS: [string, string][] = [

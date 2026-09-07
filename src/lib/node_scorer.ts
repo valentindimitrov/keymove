@@ -11,7 +11,7 @@ import { fuzzyMatchInText, maxDistanceForQuery } from './fuzzy_match.js';
 const WHITESPACE_SPLIT_REGEX = /[\s.,/\u200B-\u200D\uFEFF\u200E\u200F-]+/;
 const NO_BREAK_SPACE_REGEX = /\u00a0/g;
 
-type ScoredMatch = { score: number; textTerm: string | null };
+type ScoredMatch = { score: number; textTerm: string | null; distance: number | null };
 
 class NodeScorer {
   readonly queryText: string;
@@ -106,7 +106,7 @@ class NodeScorer {
       score = score * IS_VISIBLE_BOOST;
     }
 
-    return { score, textTerm: textMatch?.term ?? null };
+    return { score, textTerm: textMatch?.term ?? null, distance: textMatch?.distance ?? null };
   }
 
   getWordsFromText(text: string) {

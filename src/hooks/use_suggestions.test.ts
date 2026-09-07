@@ -1,11 +1,11 @@
-import { applyHysteresis } from './use_suggestions.js';
+import { applyHysteresis, describeAll } from './use_suggestions.js';
 import type { RankedMatch } from '../lib/page_search_index.js';
 
 function match(name: string, score: number, kind: 'action' | 'text' = 'action'): RankedMatch {
   const node = document.createElement('button');
   node.textContent = name;
   node.id = name;
-  return { kind, node, score, term: name };
+  return { kind, node, score, term: name, distance: null };
 }
 
 function named(matches: RankedMatch[]) {
@@ -56,4 +56,31 @@ test('adds a new result without disturbing the places already held', () => {
   const grown = withScores(first, { a: 10, b: 9, c: 9.5 });
 
   expect(named(applyHysteresis(grown, first))).toEqual(['a', 'b', 'c']);
+});
+
+test('reads out the edit distance and the region a result sits in', () => {
+  const nav = document.createElement('nav');
+  const link = document.createElement('a');
+  link.href = '/contributing';
+  link.textContent = 'Contributing guidelines';
+  nav.append(link);
+  document.body.append(nav);
+
+  const [near] = describeAll(
+    [{ kind: 'action', node: link, score: 1, term: 'contribu', distance: 1 }],
+    true,
+  );
+  expect(near!.context).toBe('link · 1 edit away · in Navigation');
+
+  const [further] = describeAll(
+    [{ kind: 'action', node: link, score: 1, term: 'contribu', distance: 2 }],
+    true,
+  );
+  expect(further!.context).toBe('link · 2 edits away · in Navigation');
+
+  const [exact] = describeAll(
+    [{ kind: 'action', node: link, score: 1, term: 'contribu', distance: null }],
+    false,
+  );
+  expect(exact!.context).toBe('link · in Navigation');
 });

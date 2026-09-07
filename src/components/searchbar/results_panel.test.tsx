@@ -95,3 +95,13 @@ test('opens towards the side of the bar with room for it', () => {
   );
   expect(container.querySelector('.keymove-suggestions')).toHaveClass('keymove-suggestions-start');
 });
+
+test('says how far off an approximate result is, and where it sits', () => {
+  const row = suggestion('Contributing guidelines', {
+    term: 'contribu',
+    context: 'link · 1 edit away · in Navigation',
+  });
+  render(<ResultsPanel suggestions={[row]} selectedNode={null} above={false} alignEnd={false} />);
+
+  expect(screen.getByRole('option')).toHaveTextContent('link · 1 edit away · in Navigation');
+});
