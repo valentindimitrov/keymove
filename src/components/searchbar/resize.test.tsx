@@ -30,6 +30,130 @@ function drag(handle: HTMLElement, from: number, to: number) {
   fireEvent.mouseUp(document);
 }
 
+afterEach(() => vi.unstubAllGlobals());
+
+test('leaves room for a classic page scrollbar', () => {
+  vi.stubGlobal('innerWidth', 400);
+  const clientWidth = vi.spyOn(document.documentElement, 'clientWidth', 'get').mockReturnValue(385);
+  try {
+    const { container } = renderContainer(650);
+    expect(container.style.width).toBe('385px');
+  } finally {
+    clientWidth.mockRestore();
+  }
+});
+
+test('fits a narrower viewport without overwriting the preferred width', () => {
+  const { container, updateWidth, updatePosition } = renderContainer(650);
+  const originalViewportWidth = window.innerWidth;
+  for (const viewportWidth of [400, 240, originalViewportWidth]) {
+    vi.stubGlobal('innerWidth', viewportWidth);
+    fireEvent.resize(window);
+    expect(Number.parseFloat(container.style.width)).toBe(Math.min(650, viewportWidth));
+    expect(Number.parseFloat(container.style.left)).toBeGreaterThanOrEqual(0);
+    expect(
+      Number.parseFloat(container.style.left) + Number.parseFloat(container.style.width),
+    ).toBeLessThanOrEqual(viewportWidth);
+  }
+  expect(updateWidth).not.toHaveBeenCalled();
+  expect(updatePosition).not.toHaveBeenCalled();
+});
+
+test('drags using the visible width when the preferred width exceeds the viewport', () => {
+  vi.stubGlobal('innerWidth', 400);
+  const { container, updatePosition, updateWidth } = renderContainer(650);
+  fireEvent.mouseDown(container, { clientX: 200, clientY: 300 });
+  fireEvent.mouseMove(document, { clientX: 210, clientY: 315 });
+  fireEvent.mouseUp(document);
+  expect(container.style.left).toBe('0px');
+  expect(updatePosition.mock.lastCall?.[0].x).toBe(0.5);
+  expect(updateWidth).not.toHaveBeenCalled();
+});
+
+test('resizes from the visible width and retains the deliberate new size', () => {
+  vi.stubGlobal('innerWidth', 400);
+  const { container, handle, updateWidth } = renderContainer(650);
+  drag(handle, 400, 350);
+  expect(container.style.width).toBe('300px');
+  expect(updateWidth).toHaveBeenCalledWith(300);
+  vi.stubGlobal('innerWidth', 1024);
+  fireEvent.resize(window);
+  expect(container.style.width).toBe('300px');
+});
+
+test.each(['stored', 'just resized'])('dragging uses the %s width without jumping', kind => {
+  const { container, handle, updatePosition } = renderContainer(kind === 'stored' ? 650 : 420);
+  if (kind === 'just resized') drag(handle, 500, 550);
+  const beforeLeft = Number.parseFloat(container.style.left);
+  const beforeTop = Number.parseFloat(container.style.top);
+  const width = Number.parseFloat(container.style.width);
+  fireEvent.mouseDown(container, { clientX: 500, clientY: 300 });
+  fireEvent.mouseMove(document, { clientX: 510, clientY: 315 });
+  fireEvent.mouseUp(document);
+  expect(Number.parseFloat(container.style.left)).toBeCloseTo(beforeLeft + 10);
+  expect(Number.parseFloat(container.style.top)).toBeCloseTo(beforeTop + 15);
+  expect(updatePosition).toHaveBeenLastCalledWith({
+    x: (beforeLeft + 10 + width / 2) / window.innerWidth,
+    y: (beforeTop + 15 + 25) / window.innerHeight,
+  });
+});
+
+test.each(['drag', 'resize'])(
+  'locking cancels an active %s and unlocking restores interaction',
+  gesture => {
+    const updatePosition = vi.fn();
+    const updateWidth = vi.fn();
+    const containerRef = React.createRef<HTMLDivElement>();
+    const searchInputRef = React.createRef<HTMLInputElement>();
+    const props = {
+      width: 420,
+      position: { x: 0.5, y: 0.5 },
+      updatePosition,
+      updateWidth,
+      containerRef,
+      searchInputRef,
+    };
+    const view = render(
+      <DraggableContainer {...props}>
+        <input ref={searchInputRef} />
+      </DraggableContainer>,
+    );
+    const container = containerRef.current!;
+    const before = container.style.cssText;
+    const target =
+      gesture === 'drag'
+        ? container
+        : view.getByRole('separator', { name: 'Resize KeyMove from the right' });
+    fireEvent.mouseDown(target, { clientX: 500, clientY: 300 });
+    fireEvent.mouseMove(document, { clientX: 530, clientY: 330 });
+    expect(container.style.cssText).not.toBe(before);
+    view.rerender(
+      <DraggableContainer {...props} locked>
+        <input ref={searchInputRef} />
+      </DraggableContainer>,
+    );
+    expect(container.style.cssText).toBe(before);
+    expect(view.queryAllByRole('separator')).toHaveLength(0);
+    fireEvent.mouseMove(document, { clientX: 560, clientY: 360 });
+    fireEvent.mouseUp(document);
+    fireEvent.mouseDown(container, { clientX: 500, clientY: 300 });
+    fireEvent.mouseMove(document, { clientX: 600, clientY: 400 });
+    fireEvent.mouseUp(document);
+    expect(container.style.cssText).toBe(before);
+    expect(updatePosition).not.toHaveBeenCalled();
+    expect(updateWidth).not.toHaveBeenCalled();
+    // Locking geometry must not consume an ordinary input click.
+    expect(fireEvent.mouseDown(searchInputRef.current!)).toBe(true);
+    view.rerender(
+      <DraggableContainer {...props}>
+        <input ref={searchInputRef} />
+      </DraggableContainer>,
+    );
+    drag(view.getByRole('separator', { name: 'Resize KeyMove from the right' }), 500, 530);
+    expect(updateWidth).toHaveBeenCalledWith(480);
+  },
+);
+
 // The pointer moves one edge, both edges move, so the width gains twice the distance dragged.
 test('widens the bar by twice the distance the handle was dragged', () => {
   const { container, handle, updateWidth } = renderContainer(420);

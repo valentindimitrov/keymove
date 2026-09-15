@@ -138,3 +138,62 @@ body {
 .keymove-popup-links .keymove-info-panel-button-row:first-child {
   margin-top: 0;
 }
+
+.keymove-popup-layout-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 16px 0 0 28px;
+}
+
+#keymove-popup .keymove-popup-layout-actions button {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 30px;
+}
+
+#keymove-popup .keymove-popup-layout-actions .keymove-info-panel-setting-row {
+  padding: 0;
+  align-items: center;
+}
+
+#keymove-popup .keymove-popup-layout-actions .keymove-info-panel-setting-checkbox {
+  flex-shrink: 0;
+  margin-top: 0;
+}
+
+#keymove-popup button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+#keymove-popup .keymove-suggestion-count-setting {
+  margin-top: var(--keymove-gap-md, 16px);
+}
+
+.keymove-suggestion-count-setting input {
+  flex-shrink: 0;
+  box-sizing: border-box;
+  width: 16px;
+  height: 20px;
+  margin: 0 12px 0 0;
+  padding: 0;
+  border: 1px solid white;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  font: inherit;
+  text-align: center;
+  appearance: textfield;
+}
+
+/* Only one digit is accepted; keep native arrow-key stepping without a spinner
+   widening the column shared with checkboxes and colour swatches. */
+.keymove-suggestion-count-setting input::-webkit-inner-spin-button,
+.keymove-suggestion-count-setting input::-webkit-outer-spin-button {
+  margin: 0;
+  appearance: none;
+}

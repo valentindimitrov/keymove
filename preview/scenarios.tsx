@@ -1,12 +1,16 @@
 import React from 'react';
 import DraggableContainer from '../src/components/searchbar/draggable_container.js';
+import PopupLayoutActions from '../src/components/popup/popup_layout_actions.js';
+import popupStyles from '../src/popup.css?inline';
 import MatchesSummary from '../src/components/searchbar/matches_summary.js';
 import ResultsPanel from '../src/components/searchbar/results_panel.js';
 import SearchInput from '../src/components/searchbar/search_input.js';
 import { SEARCH_MODES } from '../src/hooks/use_search_navigation.js';
 import { KEYMOVE_CONTAINER_WIDTH } from '../src/constants.js';
-import Logo from '../src/icons/logo-without-color.svg?react';
-import type { Suggestion } from '../src/hooks/use_suggestions.js';
+import SettingsButton from '../src/components/searchbar/settings_button.js';
+import SuggestionCountSetting from '../src/components/popup/suggestion_count_setting.js';
+import InfoPanelSettingRow from '../src/components/searchbar/info_panel/info_panel_setting_row.js';
+import useSuggestions, { type Suggestion } from '../src/hooks/use_suggestions.js';
 import type { SearchMode } from '../src/hooks/use_search_navigation.js';
 
 type BarProps = {
@@ -20,6 +24,11 @@ type BarProps = {
   above?: boolean;
   width?: number;
   y?: number;
+  locked?: boolean;
+  pending?: boolean;
+  onSearchTextChange?: (query: string) => void;
+  suggestionsOpen?: boolean;
+  onOpenSettings?: () => void;
 };
 
 function suggestionNode(label: string) {
@@ -76,6 +85,30 @@ const LONG_SLATE: Suggestion[] = [
   ...EXACT_SLATE.slice(0, 2),
 ];
 
+const ALIGNED_SLATE: Suggestion[] = [
+  {
+    kind: 'action',
+    node: suggestionNode('font-link'),
+    term: 'test',
+    label: 'FontVS: Free Font Viewer & Tester | Compare Fonts Online',
+    context: 'link · in Main content',
+  },
+  {
+    kind: 'text',
+    node: suggestionNode('font-heading'),
+    term: 'test',
+    label: 'FontVS: Free Font Viewer & Tester | Compare Fonts Online',
+    context: 'heading · in Main content',
+  },
+  {
+    kind: 'text',
+    node: suggestionNode('font-paragraph'),
+    term: 'test',
+    label: 'FontVS: Free online font tester. Instantly preview & compare different installed…',
+    context: 'paragraph · in Main content',
+  },
+];
+
 const Bar = (props: BarProps) => {
   const {
     searchText,
@@ -88,33 +121,47 @@ const Bar = (props: BarProps) => {
     above = false,
     width = KEYMOVE_CONTAINER_WIDTH,
     y = 0.5,
+    locked = false,
+    pending = false,
+    onSearchTextChange = () => undefined,
+    suggestionsOpen,
+    onOpenSettings = () => undefined,
   } = props;
   const containerRef = React.useRef<HTMLDivElement>(null);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
   const [currentWidth, setCurrentWidth] = React.useState(width);
+  const [currentMode, setCurrentMode] = React.useState(mode);
+  const [currentPosition, setCurrentPosition] = React.useState({ x: 0.5, y });
 
   return (
     <DraggableContainer
+      locked={locked}
       className={above ? 'keymove-container-suggestions-above' : undefined}
       width={currentWidth}
       updateWidth={setCurrentWidth}
-      position={{ x: 0.5, y }}
-      updatePosition={() => undefined}
+      position={currentPosition}
+      updatePosition={setCurrentPosition}
       containerRef={containerRef}
       searchInputRef={searchInputRef}
     >
       <div id={'keymove-bar'}>
-        <Logo />
+        <SettingsButton onClick={onOpenSettings} />
         <SearchInput
           inputRef={searchInputRef}
           searchText={searchText}
           suggestionCount={suggestions.length}
+          suggestionsOpen={suggestionsOpen ?? suggestions.length > 0}
           activeSuggestionIndex={null}
           onBlur={() => undefined}
-          updateSearchText={() => undefined}
+          updateSearchText={onSearchTextChange}
         />
         <MatchesSummary
-          mode={mode}
+          mode={currentMode}
+          onToggleMode={() =>
+            setCurrentMode(
+              currentMode === SEARCH_MODES.TEXT ? SEARCH_MODES.ACTIONS : SEARCH_MODES.TEXT,
+            )
+          }
           hasSearchQuery={searchText.length > 0}
           isFuzzy={isFuzzy}
           selectedSelectionIndex={selectedSelectionIndex}
@@ -122,6 +169,8 @@ const Bar = (props: BarProps) => {
         />
       </div>
       <ResultsPanel
+        open={suggestionsOpen ?? suggestions.length > 0}
+        pending={pending}
         suggestions={suggestions}
         selectedNode={selectedNode}
         above={above}
@@ -133,7 +182,136 @@ const Bar = (props: BarProps) => {
 
 type Scenario = { name: string; description: string; render: () => React.ReactNode };
 
+const LayoutLockPreview = () => {
+  const [locked, setLocked] = React.useState(false);
+  const [reset, setReset] = React.useState(0);
+  return (
+    <>
+      <style>{popupStyles}</style>
+      <div id="keymove-popup" style={{ position: 'fixed', top: 20, left: 20, width: 420 }}>
+        <PopupLayoutActions
+          locked={locked}
+          onToggleLock={() => setLocked(!locked)}
+          onReset={() => setReset(reset + 1)}
+        />
+      </div>
+      <Bar key={reset} searchText="test" suggestions={ALIGNED_SLATE} locked={locked} y={0.4} />
+    </>
+  );
+};
+
+const SuggestionsRefreshPreview = () => {
+  const [query, setQuery] = React.useState('contribu');
+  const [committedQuery, setCommittedQuery] = React.useState(query);
+  const pending = query !== committedQuery;
+  const matches = React.useMemo(
+    () =>
+      EXACT_SLATE.filter(row => row.label.toLowerCase().includes(committedQuery.toLowerCase())).map(
+        (row, index) => ({ ...row, score: 10 - index, term: committedQuery, distance: null }),
+      ),
+    [committedQuery],
+  );
+  const suggestions = useSuggestions({
+    suggestions: matches,
+    searchText: query,
+    isFuzzy: false,
+    pending,
+  });
+  return (
+    <>
+      <button
+        style={{ position: 'fixed', top: 20, left: 20 }}
+        onClick={() => setCommittedQuery(query)}
+      >
+        Complete pending search
+      </button>
+      <Bar
+        searchText={query}
+        onSearchTextChange={setQuery}
+        suggestionsOpen={query.trim().length >= 3}
+        suggestions={suggestions}
+        pending={pending}
+        selectedNode={pending ? null : (suggestions[0]?.node ?? null)}
+        above
+        y={0.75}
+      />
+    </>
+  );
+};
+
+const SearchControlsPreview = () => {
+  const [count, setCount] = React.useState(3);
+  const [settingsOpen, setSettingsOpen] = React.useState(false);
+  const rows = [...EXACT_SLATE, ...ALIGNED_SLATE].slice(0, count);
+  return (
+    <>
+      <style>{popupStyles}</style>
+      {settingsOpen && (
+        <div
+          id="keymove-popup"
+          style={{ position: 'fixed', top: 20, left: 20, width: 420, background: '#1c1c1c' }}
+        >
+          <SuggestionCountSetting value={count} onChange={setCount} />
+        </div>
+      )}
+      <Bar
+        searchText="contribu"
+        mode={SEARCH_MODES.TEXT}
+        suggestions={rows}
+        selectedNode={NODES.guidelines}
+        onOpenSettings={() => setSettingsOpen(!settingsOpen)}
+      />
+    </>
+  );
+};
+
 const SCENARIOS: Scenario[] = [
+  {
+    name: 'suggestion-setting-alignment',
+    description: 'Suggestion count uses the same control and text columns as the settings above',
+    render: () => (
+      <>
+        <style>{popupStyles}</style>
+        <div
+          id="keymove-popup"
+          style={{
+            position: 'fixed',
+            top: 20,
+            left: 20,
+            width: 420,
+            padding: 18,
+            background: '#1c1c1c',
+          }}
+        >
+          <InfoPanelSettingRow
+            label="Autohide"
+            description="Hide the KeyMove searchbar when not searching."
+            value={true}
+            onChange={() => {}}
+          />
+          <SuggestionCountSetting value={3} onChange={() => {}} />
+        </div>
+      </>
+    ),
+  },
+  {
+    name: 'search-controls',
+    description:
+      'Colour logo opens settings, clickable mode label, configurable row count and selected gray row',
+    render: () => <SearchControlsPreview />,
+  },
+  {
+    name: 'suggestions-refresh',
+    description:
+      'Type to hold a pending query; complete it to check stable panel geometry and row updates',
+    render: () => <SuggestionsRefreshPreview />,
+  },
+  {
+    name: 'layout-lock',
+    description:
+      'Real popup buttons: lock/unlock dragging and resizing, with boxed Action/Text badges',
+    render: () => <LayoutLockPreview />,
+  },
   {
     name: 'bar-only',
     description: 'The bar with no query, which is how it rests on every page',
@@ -192,9 +370,28 @@ const SCENARIOS: Scenario[] = [
     ),
   },
   {
+    name: 'slate-alignment',
+    description: 'Matching Action/Text badge columns and centered numbers on wrapped rows',
+    render: () => (
+      <Bar
+        searchText="test"
+        mode={SEARCH_MODES.TEXT}
+        resultCount={2}
+        suggestions={ALIGNED_SLATE}
+        y={0.25}
+      />
+    ),
+  },
+  {
     name: 'narrow',
     description: 'Resized to the narrowest allowed width',
     render: () => <Bar searchText="contribu" suggestions={EXACT_SLATE} width={260} y={0.25} />,
+  },
+  {
+    name: 'viewport-fit',
+    description:
+      'Saved 650px width: shrink the viewport to check controls, then widen to restore it',
+    render: () => <Bar searchText="contribu" suggestions={EXACT_SLATE} width={650} y={0.25} />,
   },
   {
     name: 'wide',

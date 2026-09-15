@@ -14,6 +14,7 @@ const browserMocks = vi.hoisted(() => ({
   executeScript: vi.fn(),
   insertCSS: vi.fn(),
   onMessage: vi.fn(),
+  openPopup: vi.fn(),
 }));
 
 vi.mock('wxt/browser', () => ({
@@ -24,9 +25,10 @@ vi.mock('wxt/browser', () => ({
       sendMessage: browserMocks.sendMessage,
     },
     scripting: { executeScript: browserMocks.executeScript, insertCSS: browserMocks.insertCSS },
-    action: { onClicked: { addListener: vi.fn() } },
+    action: { openPopup: browserMocks.openPopup, onClicked: { addListener: vi.fn() } },
     runtime: {
       id: 'keymove-test',
+      getURL: (path: string) => `chrome-extension://keymove-test${path}`,
       onMessage: { addListener: browserMocks.onMessage },
       onInstalled: { addListener: vi.fn() },
     },
@@ -40,9 +42,26 @@ beforeEach(() => {
   browserMocks.executeScript.mockReset().mockResolvedValue([]);
   browserMocks.insertCSS.mockReset().mockResolvedValue(undefined);
   browserMocks.onMessage.mockReset();
+  browserMocks.openPopup.mockReset().mockResolvedValue(undefined);
 });
 
 const tabSender = { id: 'keymove-test', frameId: 0, tab: { id: 42 } as Browser.tabs.Tab };
+
+test('opens settings from a validated content-script request and falls back when popup opening is denied', async () => {
+  const message = { type: ExtensionMessageTypes.OPEN_SETTINGS };
+  await handleExtensionMessage(message, tabSender);
+  expect(browserMocks.openPopup).toHaveBeenCalledOnce();
+  expect(browserMocks.create).not.toHaveBeenCalled();
+  browserMocks.openPopup.mockRejectedValueOnce(new Error('User gesture required'));
+  await handleExtensionMessage(message, tabSender);
+  expect(browserMocks.create).toHaveBeenCalledWith({
+    url: 'chrome-extension://keymove-test/popup.html',
+    active: true,
+  });
+  browserMocks.openPopup.mockClear();
+  await handleExtensionMessage(message, { ...tabSender, id: 'another-extension' });
+  expect(browserMocks.openPopup).not.toHaveBeenCalled();
+});
 
 test.each([
   { active: true, description: 'foreground' },

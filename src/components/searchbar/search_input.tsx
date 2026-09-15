@@ -6,6 +6,7 @@ import Utils from '../../lib/utils.js';
 type SearchInputProps = {
   searchText: string;
   suggestionCount: number;
+  suggestionsOpen?: boolean;
   activeSuggestionIndex: number | null;
   updateSearchText: (value: string) => void;
   inputRef: React.RefObject<HTMLInputElement | null>;
@@ -55,7 +56,7 @@ const SearchInput = (props: SearchInputProps) => {
         type="text"
         aria-label="Search page"
         role="combobox"
-        aria-expanded={suggestionCount > 0}
+        aria-expanded={props.suggestionsOpen ?? suggestionCount > 0}
         aria-controls={KEYMOVE_SUGGESTIONS_ID}
         aria-activedescendant={
           activeSuggestionIndex === null ? undefined : `keymove-suggestion-${activeSuggestionIndex}`

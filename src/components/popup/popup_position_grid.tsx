@@ -11,7 +11,7 @@ function isSamePosition(a: PopupPosition, b: PopupPosition) {
   return Math.abs(a.x - b.x) < 0.001 && Math.abs(a.y - b.y) < 0.001;
 }
 
-const PopupPositionGrid = () => {
+const PopupPositionGrid = ({ disabled = false }: { disabled?: boolean }) => {
   const { position, updatePosition } = usePopupPosition();
 
   return (
@@ -23,6 +23,7 @@ const PopupPositionGrid = () => {
             <button
               key={`${x}-${y}`}
               type="button"
+              disabled={disabled}
               className={
                 selected
                   ? 'keymove-position-cell keymove-position-cell-selected'

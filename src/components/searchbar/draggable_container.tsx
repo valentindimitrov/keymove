@@ -16,6 +16,7 @@ type ResizeOrigin = { pointerX: number; width: number; center: number; edge: Res
 
 type DraggableContainerProps = React.PropsWithChildren<{
   className?: string | undefined;
+  locked?: boolean;
   width: number;
   updateWidth: (width: number) => void;
   searchInputRef: React.RefObject<HTMLInputElement | null>;
@@ -61,13 +62,16 @@ function normalizedPosition(
 
 const DraggableContainer = (props: DraggableContainerProps) => {
   const { children, className, searchInputRef, containerRef, position, updatePosition } = props;
-  const { width, updateWidth } = props;
+  const { width, updateWidth, locked = false } = props;
   const windowSize = useWindowSize();
 
   const [isDragging, setIsDragging] = React.useState(false);
   const [dragOffset, setDragOffset] = React.useState<DragOffset | null>(null);
   const [currentPosition, setCurrentPosition] = React.useState(position);
   const [currentWidth, setCurrentWidth] = React.useState(width);
+  // Fit the current viewport without discarding the user's preferred size. Geometry for
+  // dragging and resizing must use the same width the user actually sees.
+  const renderedWidth = Math.min(currentWidth, Math.max(0, windowSize.width));
   const [resizeOrigin, setResizeOrigin] = React.useState<ResizeOrigin | null>(null);
   const currentWidthRef = React.useRef(currentWidth);
 
@@ -83,6 +87,19 @@ const DraggableContainer = (props: DraggableContainerProps) => {
   }, [width]);
   const currentPositionRef = React.useRef(position);
 
+  // A lock arriving from another tab cancels any unfinished gesture. Restore the saved
+  // geometry rather than letting its eventual mouseup persist a partial drag or resize.
+  React.useLayoutEffect(() => {
+    if (!locked) return;
+    setIsDragging(false);
+    setDragOffset(null);
+    setResizeOrigin(null);
+    currentPositionRef.current = position;
+    currentWidthRef.current = width;
+    setCurrentPosition(position);
+    setCurrentWidth(width);
+  }, [locked, position, width]);
+
   React.useEffect(() => {
     currentPositionRef.current = position;
     setCurrentPosition(position);
@@ -90,6 +107,7 @@ const DraggableContainer = (props: DraggableContainerProps) => {
 
   const onDragStart = React.useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
+      if (locked) return;
       const target = event.target;
       if (target instanceof Element && target.closest('button, a')) {
         return;
@@ -99,7 +117,12 @@ const DraggableContainer = (props: DraggableContainerProps) => {
         !event.metaKey
       ) {
         event.preventDefault();
-        const currentPixels = pixelPosition(currentPosition, windowSize.width, windowSize.height);
+        const currentPixels = pixelPosition(
+          currentPosition,
+          windowSize.width,
+          windowSize.height,
+          renderedWidth,
+        );
         setDragOffset({
           x: event.clientX - currentPixels.left,
           y: event.clientY - currentPixels.top,
@@ -107,22 +130,24 @@ const DraggableContainer = (props: DraggableContainerProps) => {
         setIsDragging(true);
       }
     },
-    [currentPosition, searchInputRef, windowSize],
+    [currentPosition, renderedWidth, searchInputRef, windowSize, locked],
   );
 
   const onDragEnd = React.useCallback(
     (event: MouseEvent) => {
+      if (locked) return;
       setIsDragging(false);
       updatePosition(currentPositionRef.current);
       if (event.target === searchInputRef.current) {
         searchInputRef.current?.focus();
       }
     },
-    [searchInputRef, updatePosition],
+    [searchInputRef, updatePosition, locked],
   );
 
   const drag = React.useCallback(
     (event: MouseEvent) => {
+      if (locked) return;
       event.preventDefault();
       if (!dragOffset) {
         return;
@@ -130,7 +155,7 @@ const DraggableContainer = (props: DraggableContainerProps) => {
       const left = Utils.clampNumber(
         event.clientX - dragOffset.x,
         0,
-        Math.max(0, windowSize.width - width),
+        Math.max(0, windowSize.width - renderedWidth),
       );
       const top = Utils.clampNumber(
         event.clientY - dragOffset.y,
@@ -142,12 +167,12 @@ const DraggableContainer = (props: DraggableContainerProps) => {
         top,
         windowSize.width,
         windowSize.height,
-        width,
+        renderedWidth,
       );
       currentPositionRef.current = nextPosition;
       setCurrentPosition(nextPosition);
     },
-    [dragOffset, windowSize, width],
+    [dragOffset, windowSize, renderedWidth, locked],
   );
 
   // Resizing pins the centre and moves both edges, so either handle grows the bar the same
@@ -156,31 +181,32 @@ const DraggableContainer = (props: DraggableContainerProps) => {
   // once on release rather than on every pixel of the drag, the same way moving the bar does.
   const startResize = React.useCallback(
     (edge: ResizeEdge) => (event: React.MouseEvent) => {
+      if (locked) return;
       event.preventDefault();
       event.stopPropagation();
       const left = pixelPosition(
         currentPositionRef.current,
         windowSize.width,
         windowSize.height,
-        currentWidth,
+        renderedWidth,
       ).left;
       // The rendered centre, not the stored one: a bar against a viewport edge is clamped,
       // and anchoring to the stored value would slide it as the width changed.
-      const center = left + currentWidth / 2;
+      const center = left + renderedWidth / 2;
       const anchored = {
         x: Utils.clampNumber(center / Math.max(windowSize.width, 1), 0, 1),
         y: currentPositionRef.current.y,
       };
       currentPositionRef.current = anchored;
       setCurrentPosition(anchored);
-      setResizeOrigin({ pointerX: event.clientX, width: currentWidth, center, edge });
+      setResizeOrigin({ pointerX: event.clientX, width: renderedWidth, center, edge });
     },
-    [windowSize, currentWidth],
+    [windowSize, renderedWidth, locked],
   );
 
   const resize = React.useCallback(
     (event: MouseEvent) => {
-      if (!resizeOrigin) return;
+      if (locked || !resizeOrigin) return;
       event.preventDefault();
       const travel = (event.clientX - resizeOrigin.pointerX) * resizeOrigin.edge;
       // Growing symmetrically means the nearer viewport edge is what runs out first.
@@ -191,17 +217,18 @@ const DraggableContainer = (props: DraggableContainerProps) => {
       currentWidthRef.current = nextWidth;
       setCurrentWidth(nextWidth);
     },
-    [resizeOrigin, windowSize],
+    [resizeOrigin, windowSize, locked],
   );
 
   const onResizeEnd = React.useCallback(() => {
+    if (locked) return;
     setResizeOrigin(null);
     updateWidth(currentWidthRef.current);
     updatePosition(currentPositionRef.current);
-  }, [updateWidth, updatePosition]);
+  }, [updateWidth, updatePosition, locked]);
 
-  React.useEffect(() => {
-    if (resizeOrigin) {
+  React.useLayoutEffect(() => {
+    if (!locked && resizeOrigin) {
       document.addEventListener('mousemove', resize);
       document.addEventListener('mouseup', onResizeEnd);
       return () => {
@@ -210,10 +237,10 @@ const DraggableContainer = (props: DraggableContainerProps) => {
       };
     }
     return undefined;
-  }, [resizeOrigin, resize, onResizeEnd]);
+  }, [locked, resizeOrigin, resize, onResizeEnd]);
 
-  React.useEffect(() => {
-    if (isDragging) {
+  React.useLayoutEffect(() => {
+    if (!locked && isDragging) {
       document.addEventListener('mousemove', drag);
       document.addEventListener('mouseup', onDragEnd);
 
@@ -223,38 +250,43 @@ const DraggableContainer = (props: DraggableContainerProps) => {
       };
     }
     return undefined;
-  }, [isDragging, drag, onDragEnd]);
+  }, [locked, isDragging, drag, onDragEnd]);
 
   const containerStyle = React.useMemo(() => {
     return {
-      ...pixelPosition(currentPosition, windowSize.width, windowSize.height, currentWidth),
-      width: currentWidth,
+      ...pixelPosition(currentPosition, windowSize.width, windowSize.height, renderedWidth),
+      width: renderedWidth,
     };
-  }, [currentPosition, windowSize, currentWidth]);
+  }, [currentPosition, windowSize, renderedWidth]);
 
   return (
     <div
       id={'keymove-container'}
       className={className}
+      data-layout-locked={locked}
       style={containerStyle}
       onMouseDown={onDragStart}
       ref={containerRef}
     >
       {children}
-      <div
-        className={'keymove-resize-handle keymove-resize-handle-left'}
-        role="separator"
-        aria-orientation="vertical"
-        aria-label={'Resize KeyMove from the left'}
-        onMouseDown={startResize(-1)}
-      />
-      <div
-        className={'keymove-resize-handle keymove-resize-handle-right'}
-        role="separator"
-        aria-orientation="vertical"
-        aria-label={'Resize KeyMove from the right'}
-        onMouseDown={startResize(1)}
-      />
+      {!locked && (
+        <>
+          <div
+            className={'keymove-resize-handle keymove-resize-handle-left'}
+            role="separator"
+            aria-orientation="vertical"
+            aria-label={'Resize KeyMove from the left'}
+            onMouseDown={startResize(-1)}
+          />
+          <div
+            className={'keymove-resize-handle keymove-resize-handle-right'}
+            role="separator"
+            aria-orientation="vertical"
+            aria-label={'Resize KeyMove from the right'}
+            onMouseDown={startResize(1)}
+          />
+        </>
+      )}
     </div>
   );
 };

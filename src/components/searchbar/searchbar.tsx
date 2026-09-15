@@ -28,7 +28,7 @@ import ResultsPanel from './results_panel.js';
 import DraggableContainer from './draggable_container.js';
 import InfoDropdown from './info_dropdown.js';
 import VisibilityButton from './visibility_button.js';
-import Logo from '../../icons/logo-without-color.svg?react';
+import SettingsButton from './settings_button.js';
 import ExtensionMessageTypes from '../../extension_message_types.js';
 import type { KeyboardShortcutName } from '../../lib/static_data_schema.js';
 import { EXTENSION_NAME } from '../../extension_identity.js';
@@ -36,6 +36,7 @@ import {
   KEYMOVE_CONTAINER_HEIGHT,
   SUGGESTION_PANEL_PADDING,
   SUGGESTION_ROW_HEIGHT,
+  MIN_SUGGESTION_QUERY_LENGTH,
 } from '../../constants.js';
 
 const SCROLL_OR_RESIZE_UPDATE_TIMEOUT_DURATION = 100;
@@ -50,12 +51,14 @@ const Searchbar = () => {
   const focusRequested = React.useRef(false);
 
   const {
+    suggestionCount,
     autoHide,
     updateAutoHide,
     alwaysOn,
     startInActionMode,
     highlightMatches,
     showAutohideButton,
+    lockPositionAndSize,
   } = useStoredSettings();
   const defaultSearchMode = startInActionMode ? SEARCH_MODES.ACTIONS : SEARCH_MODES.TEXT;
   // Seeded with the reducer's initial mode, not the first computed default, so a stored
@@ -81,6 +84,7 @@ const Searchbar = () => {
   const [rankedMatches, setRankedMatches] = React.useState<RankedMatch[]>([]);
   const [resultsQuery, setResultsQuery] = React.useState('');
   const [searchPending, setSearchPending] = React.useState(false);
+  const [suggestionsHeight, setSuggestionsHeight] = React.useState(0);
   const previousSearchText = React.useRef(searchText);
   const [scrollOrResizeRefresh, setScrollOrResizeRefresh] = React.useState<boolean>(false);
   const [hideSelections, setHideSelections] = React.useState<boolean>(false);
@@ -95,6 +99,14 @@ const Searchbar = () => {
   // Everything the user navigates and sees follows the effective mode; only the Alt+S
   // toggle acts on the chosen one, so a fallback never silently rewrites their choice.
   const chosenMode = searchNavigation.mode;
+  const toggleSearchMode = React.useCallback(() => {
+    setMode(chosenMode === SEARCH_MODES.TEXT ? SEARCH_MODES.ACTIONS : SEARCH_MODES.TEXT);
+  }, [chosenMode, setMode]);
+  const openSettings = React.useCallback(() => {
+    void browser.runtime.sendMessage({ type: ExtensionMessageTypes.OPEN_SETTINGS }).catch(error => {
+      console.error(`${EXTENSION_NAME} could not open settings:`, error);
+    });
+  }, []);
   const navigationMode = effectiveSearchMode(searchNavigation);
   const selectedSelectionIndex = searchNavigation.selectedIndices[navigationMode];
   const selectedTextMatch =
@@ -272,13 +284,16 @@ const Searchbar = () => {
     [cancelPendingSearch, clearSearchResults, runSearch, searchText],
   );
 
+  // Query identity disables old rows before the search effect runs; the flag also covers
+  // refreshes of the same query. Keep their presentation until replacements are ready.
+  const suggestionsPending = searchPending || resultsQuery !== searchText;
+  const suggestionsOpen = isInteractive && searchText.trim().length >= MIN_SUGGESTION_QUERY_LENGTH;
   const suggestions = useSuggestions({
+    count: suggestionCount,
     suggestions: rankedMatches,
     searchText,
     isFuzzy,
-    // Query identity hides the old slate on the first render of a keystroke, before the
-    // search effect runs. The explicit flag also covers refreshes of the same query.
-    pending: searchPending || resultsQuery !== searchText,
+    pending: suggestionsPending,
   });
 
   // Shared by stepping through matches and by jumping straight to a numbered row, so both
@@ -359,7 +374,7 @@ const Searchbar = () => {
   const selectSuggestion = React.useCallback(
     (position: number) => {
       const suggestion = suggestions[position];
-      if (!isInteractive || !suggestion) return false;
+      if (!isInteractive || suggestionsPending || !suggestion) return false;
       const mode = suggestion.kind === 'action' ? SEARCH_MODES.ACTIONS : SEARCH_MODES.TEXT;
       const matches = mode === SEARCH_MODES.TEXT ? matchingTextNodes : matchingLinksAndButtons;
       const index = matches.indexOf(suggestion.node);
@@ -368,7 +383,14 @@ const Searchbar = () => {
       selectMatchAtIndex(mode, index);
       return true;
     },
-    [isInteractive, suggestions, matchingTextNodes, matchingLinksAndButtons, selectMatchAtIndex],
+    [
+      isInteractive,
+      suggestionsPending,
+      suggestions,
+      matchingTextNodes,
+      matchingLinksAndButtons,
+      selectMatchAtIndex,
+    ],
   );
 
   const selectListedMatch = React.useCallback(
@@ -403,7 +425,7 @@ const Searchbar = () => {
       toggle_search_mode: guarded(event => {
         event.preventDefault();
         event.stopPropagation();
-        setMode(chosenMode === SEARCH_MODES.TEXT ? SEARCH_MODES.ACTIONS : SEARCH_MODES.TEXT);
+        toggleSearchMode();
       }),
       // The browser's native copy command emits the document copy event handled by handleCopy.
       copy_selected_link: null,
@@ -420,6 +442,8 @@ const Searchbar = () => {
       select_listed_match_1: selectListedMatch(0),
       select_listed_match_2: selectListedMatch(1),
       select_listed_match_3: selectListedMatch(2),
+      select_listed_match_4: selectListedMatch(3),
+      select_listed_match_5: selectListedMatch(4),
       clear_search_or_hide: event => {
         const differentInputIsActive = Utils.differentInputIsActive(searchInputRef.current);
         if (!isInteractive || differentInputIsActive) return;
@@ -437,8 +461,7 @@ const Searchbar = () => {
     createNavigationShortcutHandler,
     guarded,
     selectListedMatch,
-    chosenMode,
-    setMode,
+    toggleSearchMode,
     activateSelectedMatchingNodeAndReset,
     preventDefaultAndClearSearchText,
     revealAndFocus,
@@ -575,16 +598,27 @@ const Searchbar = () => {
   // the side has to be chosen before the list has been laid out; erring high only means
   // opening upwards a little sooner than strictly necessary.
   const suggestionsAbove = React.useMemo(() => {
-    if (suggestions.length === 0) return false;
+    if (!suggestionsOpen) return false;
     const barBottom = popupPosition.y * windowSize.height + KEYMOVE_CONTAINER_HEIGHT / 2;
-    const listHeight = suggestions.length * SUGGESTION_ROW_HEIGHT + SUGGESTION_PANEL_PADDING;
-    return windowSize.height - barBottom < listHeight;
-  }, [suggestions.length, popupPosition.y, windowSize.height]);
+    const listHeight = Math.max(
+      suggestionsHeight,
+      Math.max(1, suggestions.length) * SUGGESTION_ROW_HEIGHT + SUGGESTION_PANEL_PADDING,
+    );
+    const below = windowSize.height - barBottom;
+    const above = barBottom - KEYMOVE_CONTAINER_HEIGHT;
+    return below < listHeight && above > below;
+  }, [suggestionsOpen, suggestionsHeight, suggestions.length, popupPosition.y, windowSize.height]);
+  const suggestionsMaxHeight = Math.max(
+    0,
+    (suggestionsAbove
+      ? popupPosition.y * windowSize.height - KEYMOVE_CONTAINER_HEIGHT / 2
+      : windowSize.height - popupPosition.y * windowSize.height - KEYMOVE_CONTAINER_HEIGHT / 2) - 8,
+  );
   const activeSuggestionIndex = React.useMemo(() => {
-    if (!selectedSuggestionNode) return null;
+    if (suggestionsPending || !selectedSuggestionNode) return null;
     const index = suggestions.findIndex(item => item.node === selectedSuggestionNode);
     return index === -1 ? null : index;
-  }, [suggestions, selectedSuggestionNode]);
+  }, [suggestions, selectedSuggestionNode, suggestionsPending]);
 
   const hasActiveMatches = activeMatchingNodes.length > 0;
 
@@ -630,6 +664,7 @@ const Searchbar = () => {
         />
       )}
       <DraggableContainer
+        locked={lockPositionAndSize}
         className={suggestionsAbove ? 'keymove-container-suggestions-above' : undefined}
         width={popupWidth}
         updateWidth={updatePopupWidth}
@@ -638,17 +673,19 @@ const Searchbar = () => {
         position={popupPosition}
         updatePosition={updatePopupPosition}
       >
-        <div id={'keymove-bar'}>
-          <Logo />
+        <div id={'keymove-bar'} data-always-on={alwaysOn}>
+          <SettingsButton onClick={openSettings} />
           <SearchInput
             inputRef={searchInputRef}
             searchText={searchText}
             suggestionCount={suggestions.length}
+            suggestionsOpen={suggestionsOpen}
             activeSuggestionIndex={activeSuggestionIndex}
             onBlur={handleBlur}
             updateSearchText={setSearchText}
           />
           <MatchesSummary
+            onToggleMode={toggleSearchMode}
             mode={navigationMode}
             hasSearchQuery={hasSearchQuery}
             isFuzzy={isFuzzy}
@@ -662,6 +699,10 @@ const Searchbar = () => {
         </div>
         {isInteractive && (
           <ResultsPanel
+            maxHeight={suggestionsMaxHeight}
+            open={suggestionsOpen}
+            onHeightChange={setSuggestionsHeight}
+            pending={suggestionsPending}
             suggestions={suggestions}
             selectedNode={selectedSuggestionNode}
             above={suggestionsAbove}

@@ -1,4 +1,5 @@
-import { renderHook } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
+import { makeTextMatch } from '../test_support/factories.js';
 import { KEYMOVE_CURRENT_HIGHLIGHT_NAME, KEYMOVE_HIGHLIGHT_NAME } from '../constants.js';
 import useHighlights, {
   highlightRangesForMatches,
@@ -34,6 +35,130 @@ test('does not duplicate ranges when matching nodes overlap', () => {
   expect(ranges).toHaveLength(1);
 });
 
+test('deduplicates overlapping roots even when a descendant precedes its ancestor', () => {
+  document.body.innerHTML = '<div><p><span>Save</span></p></div>';
+  const parent = document.querySelector('div')!;
+  const child = document.querySelector('span')!;
+  expect(
+    highlightRangesForNodes([child, parent, parent], 'save').map(range => range.toString()),
+  ).toEqual(['Save']);
+});
+
+test('caps dense highlights without comparing every pair of matching blocks', () => {
+  document.body.innerHTML = '<p>Save</p>'.repeat(1000);
+  const nodes = [...document.querySelectorAll('p')];
+  const contains = vi.spyOn(Node.prototype, 'contains');
+  try {
+    expect(highlightRangesForNodes(nodes, 'save')).toHaveLength(MAX_HIGHLIGHT_RANGES);
+    expect(contains.mock.calls.length).toBeLessThan(nodes.length * 10);
+  } finally {
+    contains.mockRestore();
+  }
+});
+
+test('moving the selection retains the existing general highlights', () => {
+  document.body.innerHTML = '<p>Save one</p><p>Save two</p>';
+  const matches = [...document.querySelectorAll('p')].map(node => makeTextMatch({ node }));
+  const registry = new Map<string, unknown>();
+  vi.stubGlobal('CSS', { highlights: registry });
+  vi.stubGlobal(
+    'Highlight',
+    class {
+      priority = 0;
+    },
+  );
+  const { rerender, unmount } = renderHook(
+    ({ selectedMatch }) => useHighlights({ matches, selectedMatch }),
+    { initialProps: { selectedMatch: matches[0]! } },
+  );
+  try {
+    const general = registry.get(KEYMOVE_HIGHLIGHT_NAME);
+    const current = registry.get(KEYMOVE_CURRENT_HIGHLIGHT_NAME);
+    rerender({ selectedMatch: matches[1]! });
+    expect(registry.get(KEYMOVE_HIGHLIGHT_NAME)).toBe(general);
+    expect(registry.get(KEYMOVE_CURRENT_HIGHLIGHT_NAME)).not.toBe(current);
+  } finally {
+    unmount();
+    vi.unstubAllGlobals();
+  }
+});
+
+test.each(['replace', 'disable', 'unmount'])(
+  'cancels unfinished highlight preparation on %s',
+  async change => {
+    vi.useFakeTimers();
+    let clock = 0;
+    const now = vi.spyOn(performance, 'now').mockImplementation(() => {
+      clock += 10;
+      return clock;
+    });
+    document.body.innerHTML = '<p>Save</p>'.repeat(250);
+    const matches = [...document.querySelectorAll('p')].map(node => makeTextMatch({ node }));
+    const registry = new Map<string, unknown>();
+    vi.stubGlobal('CSS', { highlights: registry });
+    vi.stubGlobal('Highlight', class {});
+    const { rerender, unmount } = renderHook(props => useHighlights(props), {
+      initialProps: { matches, enabled: true },
+    });
+    try {
+      expect(registry.size).toBe(0);
+      expect(vi.getTimerCount()).toBeGreaterThan(0);
+      if (change === 'replace') rerender({ matches: [matches[0]!], enabled: true });
+      else if (change === 'disable') rerender({ matches, enabled: false });
+      else unmount();
+      const replacement = registry.get(KEYMOVE_HIGHLIGHT_NAME);
+      expect(vi.getTimerCount()).toBe(0);
+      await act(async () => {
+        vi.runAllTimers();
+      });
+      expect(registry.get(KEYMOVE_HIGHLIGHT_NAME)).toBe(replacement);
+      expect(registry.size).toBe(change === 'replace' ? 1 : 0);
+    } finally {
+      unmount();
+      now.mockRestore();
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
+  },
+);
+
+test('finishes a dense highlight job across chunks while retaining the range cap', async () => {
+  vi.useFakeTimers();
+  let clock = 0;
+  const now = vi.spyOn(performance, 'now').mockImplementation(() => {
+    clock += 10;
+    return clock;
+  });
+  document.body.innerHTML = '<p>Save</p>'.repeat(1000);
+  const matches = [...document.querySelectorAll('p')].map(node => makeTextMatch({ node }));
+  const registry = new Map<string, unknown>();
+  const makeHighlight = vi.fn();
+  vi.stubGlobal('CSS', { highlights: registry });
+  vi.stubGlobal(
+    'Highlight',
+    class {
+      constructor(...ranges: Range[]) {
+        makeHighlight(ranges);
+      }
+    },
+  );
+  const { unmount } = renderHook(() => useHighlights({ matches }));
+  try {
+    expect(makeHighlight).not.toHaveBeenCalled();
+    await act(async () => {
+      vi.runAllTimers();
+    });
+    expect(makeHighlight).toHaveBeenCalledOnce();
+    expect(makeHighlight.mock.calls[0]![0]).toHaveLength(MAX_HIGHLIGHT_RANGES);
+    expect(registry.has(KEYMOVE_HIGHLIGHT_NAME)).toBe(true);
+  } finally {
+    unmount();
+    now.mockRestore();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  }
+});
+
 test('finds repeated matches within one text node', () => {
   const textNode = document.createTextNode('go go go');
   expect(rangesForTextNode(textNode, 'go')).toHaveLength(3);
@@ -52,6 +177,25 @@ test('keeps DOM range offsets correct after lowercase expansion', () => {
   const text = document.createTextNode('\u0130 Save');
   expect(rangesForTextNode(text, 'save').map(range => range.toString())).toEqual(['Save']);
   expect(rangesForTextNode(text, '')).toEqual([]);
+});
+
+test('maps repeated collapsed whitespace matches and leaves markup untouched', () => {
+  document.body.innerHTML = '<p>  İ Account   <b> settings</b> / Account\t\tsettings </p>';
+  const node = document.querySelector('p')!;
+  const before = node.innerHTML;
+  expect(
+    highlightRangesForNodes([node], 'account settings').map(range => range.toString()),
+  ).toEqual(['Account    settings', 'Account\t\tsettings']);
+  expect(node.innerHTML).toBe(before);
+});
+
+test('maps a match spanning the text processing chunk boundary', () => {
+  document.body.innerHTML = `<p>${'x'.repeat(1021)}Save    settings</p>`;
+  expect(
+    highlightRangesForNodes([document.querySelector('p')!], 'save settings').map(range =>
+      range.toString(),
+    ),
+  ).toEqual(['Save    settings']);
 });
 
 test('bounds highlight allocation on a page with tens of thousands of matches', () => {

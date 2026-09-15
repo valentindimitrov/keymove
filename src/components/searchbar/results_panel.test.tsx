@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import ResultsPanel from './results_panel.js';
 import type { Suggestion } from '../../hooks/use_suggestions.js';
 
@@ -64,6 +64,25 @@ test('renders nothing at all when there is no slate', () => {
   );
 
   expect(container).toBeEmptyDOMElement();
+});
+
+test('keeps selection styling while busy but prevents selecting outdated rows', () => {
+  const row = suggestion('Contributing guidelines');
+  const onSelect = vi.fn();
+  const props = { suggestions: [row], selectedNode: row.node, above: false, onSelect };
+  const { rerender } = render(<ResultsPanel {...props} />);
+  const panel = screen.getByRole('listbox');
+  const option = screen.getByRole('option');
+  rerender(<ResultsPanel {...props} selectedNode={null} pending />);
+  expect(screen.getByRole('listbox')).toBe(panel);
+  expect(option).toHaveClass('keymove-suggestion-selected');
+  expect(option).toHaveAttribute('aria-selected', 'false');
+  expect(option).toHaveAttribute('aria-disabled', 'true');
+  fireEvent.click(option);
+  expect(onSelect).not.toHaveBeenCalled();
+  rerender(<ResultsPanel {...props} />);
+  fireEvent.click(option);
+  expect(onSelect).toHaveBeenCalledWith(0);
 });
 
 test('flips above the bar when asked, so it does not run off the bottom', () => {

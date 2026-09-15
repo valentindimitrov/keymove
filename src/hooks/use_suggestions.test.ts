@@ -52,6 +52,20 @@ test('takes the incoming order when there is nothing to hold on to', () => {
   expect(named(applyHysteresis(incoming, []))).toEqual(['a', 'b']);
 });
 
+test('uses the configured count and keeps the strongest result when only one is requested', () => {
+  const candidates = [
+    match('a', 20),
+    match('b', 19),
+    match('c', 18),
+    match('d', 17),
+    match('text', 5, 'text'),
+  ];
+  expect(named(applyHysteresis(candidates, [], 1))).toEqual(['a']);
+  expect(applyHysteresis(candidates, [], 2).map(row => row.kind)).toEqual(['action', 'text']);
+  expect(applyHysteresis(candidates, [], 5)).toHaveLength(5);
+  expect(applyHysteresis(candidates, [], 100)).toHaveLength(5);
+});
+
 test('adds a new result without disturbing the places already held', () => {
   const first = [match('a', 10), match('b', 9)];
   const grown = withScores(first, { a: 10, b: 9, c: 9.5 });
@@ -80,21 +94,26 @@ test('keeps both kinds and stabilizes the reserved third row too', () => {
   expect(named(applyHysteresis(candidates, first))).toEqual(['a', 'b', 'other-text']);
 });
 
-test('preserves history through pending searches without displaying stale rows', () => {
+test('keeps the last rendered slate unchanged through pending searches', () => {
   const first = [match('a', 10), match('b', 9.6), match('c', 9)];
-  const props = { suggestions: first, searchText: 'sav', isFuzzy: false, pending: false };
+  const props = { suggestions: first, searchText: 'sav', isFuzzy: true, pending: false };
   const { result, rerender } = renderHook(props => useSuggestions(props), { initialProps: props });
   expect(result.current.map(row => row.node.id)).toEqual(['a', 'b', 'c']);
+  const displayed = result.current;
   rerender({ ...props, searchText: 'save', pending: true });
-  expect(result.current).toEqual([]);
-  rerender({ ...props, searchText: 'save', suggestions: [], pending: true });
-  expect(result.current).toEqual([]);
+  expect(result.current).toBe(displayed);
+  rerender({ ...props, searchText: 'save', suggestions: [], pending: true, isFuzzy: false });
+  expect(result.current).toBe(displayed);
   rerender({
     ...props,
     searchText: 'save',
     suggestions: withScores(first, { a: 9.8, b: 10, c: 9 }),
   });
   expect(result.current.map(row => row.node.id)).toEqual(['a', 'b', 'c']);
+  rerender({ ...props, searchText: 'sa', pending: true });
+  expect(result.current).toEqual([]);
+  rerender({ ...props, searchText: 'sav', pending: true });
+  expect(result.current).toEqual([]);
 });
 
 test.each(['short query', 'completed empty search'])('resets history after a %s', reset => {

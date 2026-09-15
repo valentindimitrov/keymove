@@ -1,0 +1,34 @@
+changelog:
+  exclude:
+    labels:
+      - duplicate
+      - invalid
+      - question
+      - skip-release-notes
+      - wontfix
+  categories:
+    - title: Accessibility
+      labels:
+        - accessibility
+    - title: New features and improvements
+      labels:
+        - enhancement
+    - title: Performance
+      labels:
+        - performance
+    - title: Security
+      labels:
+        - security
+    - title: Fixes
+      labels:
+        - bug
+    - title: Documentation
+      labels:
+        - documentation
+    - title: Dependencies and maintenance
+      labels:
+        - dependencies
+        - maintenance
+    - title: Other changes
+      labels:
+        - '*'

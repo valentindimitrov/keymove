@@ -67,7 +67,7 @@ ends, and large indexing jobs yield between chunks so they can be cancelled.
 | `Ctrl + C` | Copy the selected text block or selected link URL. Use `Command + C` on macOS. |
 | `Ctrl + Backspace` | Clear the search. Use `Command + Backspace` on macOS. |
 | `Alt + F` | Focus KeyMove. Use `Option + F` on macOS. |
-| `Alt + 1` … `Alt + 3` | Select the numbered result in the panel and scroll to it. Use `Option` on macOS. |
+| `Alt + 1` … `Alt + 5` | Select the numbered result in the panel and scroll to it. Use `Option` on macOS. |
 | `Escape` | Clear the current search, or hide KeyMove when the search is already empty. |
 
 The numbered rows are a shortlist of the best matches across both modes, so a number can
@@ -102,24 +102,27 @@ pressing `Tab` first.
 
 ### Ranked results
 
-Once a query is at least three characters long, the three strongest results appear as part of the
+Once a query is at least three characters long, the strongest results appear as part of the
 searchbar itself, opening downwards when there is room below and upwards when there is not. The bar
 stays where you put it either way. Each row names what activating it would do and where on the page it lives, so a control
 buried in a sidebar is distinguishable from one with the same label in the main content. The part
-of the row that matched is marked.
+of the row that matched is marked. Settings control the number shown (three by default); long lists scroll within the available space.
 
 Actions rank ahead of text on near-ties, since a search is more often a way to reach a control than
-to read, but the last place is given up so the slate is never entirely one kind. The panel is a
-second view of the same selection, not a separate one: a row is highlighted only when `Tab` has
-landed on it, and no row is highlighted once the cursor moves past the three.
+to read, but when showing at least two suggestions the last place is reserved for the other kind when available.
+The panel reflects the current selection: automatic selection, navigation and clicking a row all
+mark the selected suggestion with a gray background. No row is highlighted when the selection is outside the visible list.
 
 Below three characters almost everything matches and the order churns on every keystroke, so
 nothing is shown. At three or more characters, stability is applied across all candidates before
-choosing the final three. A matching result keeps its numbered place unless a challenger scores
-more than 15% higher, including when a fourth candidate challenges the third row. The same rule
+choosing the configured number. A matching result keeps its numbered place unless a challenger scores
+more than 15% higher, including when another candidate challenges the last row. The same rule
 applies to the row reserved for the other kind of result.
 
-While a query or page refresh is pending, the panel hides stale rows but remembers its last choices.
+While a query or page refresh is pending, the panel keeps its previous rows visible without
+collapsing and reopening. Those rows cannot be selected until the new results arrive.
+The frame retains its height while the query has at least three characters, including an empty
+result, which displays "No matches". Shortening or clearing the query closes the frame.
 Completed results use fresh scores, labels, and match spans; results that stopped matching leave
 immediately. Clearing the query, shortening it below three characters, or completing a search with
 no matches resets that history. Search still starts on every keystroke without a debounce.
@@ -161,7 +164,10 @@ it does not, and matches are highlighted using the page's own spelling rather th
 
 ## Settings
 
-Open the **KeyMove help and settings** button inside the search interface to configure:
+Click the colorful **K** logo or the browser toolbar icon to open settings. Click **Text** or
+**Actions** in the searchbar to switch mode, just like `Alt + S`.
+
+Settings include:
 
 - **Always on:** begin searching whenever you type while another input is not focused.
 - **Start in action mode:** begin each search in action mode instead of text mode.
@@ -170,7 +176,8 @@ Open the **KeyMove help and settings** button inside the search interface to con
   **Reset highlight colours** restores amber and violet.
 - **Show autohide button:** show the eye icon that turns Autohide on and off from the searchbar.
   Off by default; Autohide itself stays available in this panel.
-- **Autohide:** hide the interface when it is not being used.
+- **Autohide:** hide the interface when it is not being used. On by default; existing saved choices are preserved.
+- **Number of suggestions:** 1–5, defaulting to three. `Alt + 1` through `Alt + 5` select the corresponding displayed suggestion.
 - **Reset popup position:** return the interface to its default location—horizontally centered with
   its center 75% down the viewport.
 
@@ -178,6 +185,8 @@ Dragging the interface saves normalized screen coordinates in extension-local st
 the chosen position useful across different window sizes. Dragging its right edge resizes it, which
 is worth doing on a page with long link labels: a wider bar keeps a result and its context on one
 line. The toolbar popup can put both the position and the size back to their defaults.
+The **Lock position and size** checkbox beside **Reset position and size** freezes manual movement and resizing across
+tabs and browser restarts. It also disables the position presets and reset button until unlocked.
 
 ## Browser support
 
@@ -335,13 +344,14 @@ KeyMove is inspired by and built on the original code of
 [YipYip by Comake, Inc.](https://github.com/comake/yip-yip). Thank you to its original
 developers for creating and sharing the project.
 
-Original KeyMove contributions by Valentin Dimitrov are available under the **MIT License**.
+Original KeyMove contributions by Valentin Dimitrov are available under **Apache License 2.0**.
 Inherited and adapted YipYip code retains its **BSD 4-Clause License**, including its copyright,
 attribution, advertising acknowledgement, and disclaimer requirements. Both license texts and
 their scope are in [LICENSE](LICENSE), which is also included in each browser build.
 
-An MIT-only license for the combined project is pending permission from the upstream rights
-holders. Attribution does not replace that permission. KeyMove is maintained independently;
+Comake has been contacted about relicensing. An Apache-2.0-only license for the combined project
+remains pending permission from the upstream rights holders. Attribution does not replace that
+permission. KeyMove is maintained independently;
 this acknowledgement does not imply Comake's endorsement.
 
 ## Contact
@@ -351,7 +361,7 @@ Questions and feedback: [keymove.impulse550@passmail.com](mailto:keymove.impulse
 ## Project status and TODOs
 Store listings and publication (permanent extension IDs)
 repository metadata
-permission to relicense the upstream code under MIT,
+permission to relicense the upstream code under Apache License 2.0 (Comake contacted),
 upstream contribution documentation
 
 Functionality:

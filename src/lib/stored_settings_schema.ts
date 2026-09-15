@@ -1,7 +1,9 @@
-import { SETTINGS_KEYS } from '../constants.js';
+import { SETTINGS_KEYS, DEFAULT_SUGGESTION_COUNT, MAX_SUGGESTION_COUNT } from '../constants.js';
 
 const DEFAULT_STORED_SETTINGS = Object.freeze({
-  [SETTINGS_KEYS.AUTO_HIDE]: false,
+  [SETTINGS_KEYS.SUGGESTION_COUNT]: DEFAULT_SUGGESTION_COUNT,
+  [SETTINGS_KEYS.LOCK_POSITION_AND_SIZE]: false,
+  [SETTINGS_KEYS.AUTO_HIDE]: true,
   [SETTINGS_KEYS.ALWAYS_ON]: true,
   [SETTINGS_KEYS.START_IN_ACTION_MODE]: false,
   [SETTINGS_KEYS.HIGHLIGHT_MATCHES]: true,
@@ -9,8 +11,9 @@ const DEFAULT_STORED_SETTINGS = Object.freeze({
 });
 
 type StoredSettingKey = (typeof SETTINGS_KEYS)[keyof typeof SETTINGS_KEYS];
-type StoredSettings = Record<StoredSettingKey, boolean>;
-type ValidationResult = { value: boolean; issues: string[] };
+type BooleanStoredSettingKey = Exclude<StoredSettingKey, 'suggestionCount'>;
+type StoredSettings = Record<BooleanStoredSettingKey, boolean> & { suggestionCount: number };
+type ValidationResult<T = boolean | number> = { value: T; issues: string[] };
 
 function issueFor(key: StoredSettingKey, value: unknown) {
   const receivedType = value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value;
@@ -24,6 +27,21 @@ function assertKnownSettingKey(key: string): asserts key is StoredSettingKey {
 }
 
 function validateStoredSetting(
+  key: 'suggestionCount',
+  value: unknown,
+  options?: { allowMissing?: boolean },
+): ValidationResult<number>;
+function validateStoredSetting(
+  key: BooleanStoredSettingKey,
+  value: unknown,
+  options?: { allowMissing?: boolean },
+): ValidationResult<boolean>;
+function validateStoredSetting(
+  key: string,
+  value: unknown,
+  options?: { allowMissing?: boolean },
+): ValidationResult;
+function validateStoredSetting(
   key: string,
   value: unknown,
   { allowMissing = false }: { allowMissing?: boolean } = {},
@@ -32,6 +50,14 @@ function validateStoredSetting(
 
   if (value === undefined && allowMissing) {
     return { value: DEFAULT_STORED_SETTINGS[key], issues: [] };
+  }
+  if (key === SETTINGS_KEYS.SUGGESTION_COUNT) {
+    return typeof value === 'number' && Number.isSafeInteger(value) && value > 0
+      ? { value: Math.min(value, MAX_SUGGESTION_COUNT), issues: [] }
+      : {
+          value: DEFAULT_SUGGESTION_COUNT,
+          issues: ['Stored setting "suggestionCount" must be a positive whole number.'],
+        };
   }
   if (typeof value === 'boolean') {
     return { value, issues: [] };
@@ -58,13 +84,22 @@ function validateStoredSettings(data: unknown): { settings: StoredSettings; issu
       return;
     }
     const result = validateStoredSetting(key, (data as Record<string, unknown>)[key]);
-    settings[key] = result.value;
+    Object.assign(settings, { [key]: result.value });
     issues.push(...result.issues);
   });
 
   return { settings, issues };
 }
 
+function validateStoredSettingChange(
+  key: 'suggestionCount',
+  change: unknown,
+): ValidationResult<number>;
+function validateStoredSettingChange(
+  key: BooleanStoredSettingKey,
+  change: unknown,
+): ValidationResult<boolean>;
+function validateStoredSettingChange(key: string, change: unknown): ValidationResult;
 function validateStoredSettingChange(key: string, change: unknown): ValidationResult {
   assertKnownSettingKey(key);
   if (!change || typeof change !== 'object' || Array.isArray(change)) {
@@ -79,7 +114,7 @@ function validateStoredSettingChange(key: string, change: unknown): ValidationRe
   });
 }
 
-export type { StoredSettingKey, StoredSettings, ValidationResult };
+export type { StoredSettingKey, BooleanStoredSettingKey, StoredSettings, ValidationResult };
 export {
   DEFAULT_STORED_SETTINGS,
   validateStoredSetting,

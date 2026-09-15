@@ -7,6 +7,7 @@ import type { ChromiumClient } from 'web-ext';
 import { boundedClient, openPage, waitFor } from './browser-driver.ts';
 import type { TestPage } from './browser-driver.ts';
 import { checkContextNavigation } from './context-navigation-smoke.ts';
+import { checkRenderedText } from './rendered-text-smoke.ts';
 
 const shadow = `document.getElementById('keymove-root')?.shadowRoot`;
 const input = `${shadow}?.querySelector('[aria-label="Search page"]')`;
@@ -26,7 +27,7 @@ async function expectSummary(page: TestPage, expected: string) {
   await waitFor(page, `${summary} === ${JSON.stringify(expected)}`);
 }
 
-// Measure input-event to committed result text in the browser, excluding protocol
+// Measure keydown to committed result text in the browser, excluding protocol
 // round trips. Different counts for each prefix prevent stale results from passing.
 async function timedCharacter(
   page: TestPage,
@@ -38,7 +39,8 @@ async function timedCharacter(
     const root = ${shadow};
     let started = null;
     const start = () => { started = performance.now(); };
-    root.addEventListener('input', start, { capture: true, once: true });
+    // Start before the extension's document-capture handler can render results.
+    window.addEventListener('keydown', start, { capture: true, once: true });
     const observer = new MutationObserver(() => {
       if (started !== null && ${summary} === ${JSON.stringify(expected)}) {
         globalThis.__keymoveTiming = performance.now() - started;
@@ -46,7 +48,7 @@ async function timedCharacter(
       }
     });
     observer.observe(root, { childList: true, subtree: true, characterData: true });
-    setTimeout(() => { observer.disconnect(); root.removeEventListener('input', start, true); }, 10000);
+    setTimeout(() => { observer.disconnect(); window.removeEventListener('keydown', start, true); }, 10000);
   })()`);
   await page.key(character);
   await waitFor(page, `typeof globalThis.__keymoveTiming === 'number'`);
@@ -71,6 +73,10 @@ export async function runBrowserSmoke(client: ChromiumClient, browser: string): 
     await server.listen();
     const origin = server.resolvedUrls?.local[0];
     assert(origin, 'Fixture server did not expose its address');
+    await checkRenderedText(client, origin);
+    passed.push(
+      'Rendered whitespace, line breaks and preformatted text: search, highlights and real copy/paste agree',
+    );
     await checkContextNavigation(client, origin);
     passed.push(
       'Off-screen matches leave context below; switching tabs preserves independent queries and selections',
@@ -79,10 +85,17 @@ export async function runBrowserSmoke(client: ChromiumClient, browser: string): 
       console.log(`Checking ${size} fixture at ${origin}`);
       const page = await openPage(client, `${origin}fixtures.html?size=${size}`);
       await page.activate();
-      await waitFor(page, `document.documentElement.dataset.fixtureReady && ${input}`);
+      await waitFor(page, `document.documentElement?.dataset.fixtureReady && ${input}`);
+      // Mounting precedes storage hydration. The startup regression tests cover the
+      // deliberate no-capture interval; these checks exercise the enabled behavior.
+      await waitFor(page, `${shadow}?.querySelector('#keymove-bar')?.dataset.alwaysOn === 'true'`);
       console.log(`${size}: extension mounted; checking typing and latency`);
-      await page.key('f', 1); // Alt+F, including when always-on is disabled.
-      await waitFor(page, `${shadow}?.activeElement === ${input}`);
+      await waitFor(page, 'document.hasFocus()');
+      assert.equal(
+        await page.evaluate(`${input}.getClientRects().length`),
+        0,
+        'Autohide is on in a fresh profile',
+      );
       const coldMs = await timedCharacter(page, 'q', 'Text 1 / 4');
       await page.key('Tab');
       await expectSummary(page, 'Text 2 / 4');
@@ -111,6 +124,45 @@ export async function runBrowserSmoke(client: ChromiumClient, browser: string): 
       );
       passed.push(
         `${size}: real typing, distinct prefix counts, hidden text excluded, automatic first selection, forward/backward Tab`,
+      );
+      await page.evaluate(`(() => {
+        const root = ${shadow};
+        const panel = root.getElementById('keymove-suggestions');
+        const bar = root.getElementById('keymove-bar');
+        const top = bar.getBoundingClientRect().top;
+        const height = panel.getBoundingClientRect().height;
+        const check = globalThis.__keymovePanelCheck = { removed: false, shifted: false, collapsed: false };
+        const observer = new MutationObserver(records => {
+          if (records.some(record => Array.from(record.removedNodes).some(node => node === panel || node.contains(panel)))) check.removed = true;
+          if (panel.getAttribute('aria-busy') === 'true' && Math.abs(bar.getBoundingClientRect().top - top) > 1) check.shifted = true;
+          if (panel.getBoundingClientRect().height < height - 1) check.collapsed = true;
+        });
+        observer.observe(root, { subtree: true, childList: true, attributes: true });
+        globalThis.__keymoveStopPanelCheck = () => {
+          observer.disconnect();
+          return { ...check, samePanel: root.getElementById('keymove-suggestions') === panel };
+        };
+      })()`);
+      await page.key('Backspace');
+      await expectSummary(page, 'Text 1 / 2');
+      await page.key('z');
+      await expectSummary(page, 'Text 1 / 1');
+      await type(page, 'zzzz');
+      await expectSummary(page, 'Text ~ 0 / 0');
+      await waitFor(
+        page,
+        `${shadow}.querySelector('.keymove-suggestions-empty')?.textContent === 'No matches'`,
+      );
+      for (let index = 0; index < 4; index++) await page.key('Backspace');
+      await expectSummary(page, 'Text 1 / 1');
+      assert.deepEqual(await page.evaluate('globalThis.__keymoveStopPanelCheck()'), {
+        removed: false,
+        shifted: false,
+        collapsed: false,
+        samePanel: true,
+      });
+      passed.push(
+        `${size}: suggestion frame stays mounted without shrinking through typing, deletion and empty results`,
       );
       if (size === 'large') continue;
 
@@ -200,11 +252,13 @@ export async function runBrowserSmoke(client: ChromiumClient, browser: string): 
       await clear(page);
       await type(page, 'apricot');
       await expectSummary(page, 'Text 0 / 0');
-      await page.key('s', 1);
+      await page.evaluate(`${shadow}.querySelector('.keymove-mode-button').click()`);
       await expectSummary(page, 'Actions 1 / 1');
       passed.push('Attribute-only matches appear in action mode and stay out of text mode');
-      await page.key('s', 1);
+      await page.evaluate(`${shadow}.querySelector('.keymove-mode-button').click()`);
       await expectSummary(page, 'Text 0 / 0');
+      assert.equal(await page.evaluate(`${input}.value`), 'apricot');
+      passed.push('Clicking Text/Actions switches mode without clearing the query');
 
       await clear(page);
       await type(page, 'nectarine');
@@ -242,11 +296,122 @@ export async function runBrowserSmoke(client: ChromiumClient, browser: string): 
         ),
       );
       assert(worker, 'Installed extension service worker not found');
+      await page.evaluate(`${shadow}.querySelector('.keymove-settings-button').click()`);
+      await waitFor(page, '!document.hasFocus()');
+      const opened = await client.sendCommand('Target.getTargets', {});
+      assert(
+        opened &&
+          typeof opened === 'object' &&
+          'targetInfos' in opened &&
+          Array.isArray(opened.targetInfos),
+      );
+      const settingsTarget = opened.targetInfos.find(
+        (target: { url?: string }) => target.url === new URL('popup.html', worker.url).href,
+      );
+      assert(
+        settingsTarget && typeof settingsTarget.targetId === 'string',
+        'Logo did not open the extension settings',
+      );
+      await client.sendCommand('Target.closeTarget', { targetId: settingsTarget.targetId });
+      passed.push('The color K logo opens the actual extension settings');
       const popup = await openPage(client, new URL('popup.html', worker.url).href);
       await waitFor(popup, `document.querySelector('label')`);
+      assert.equal(
+        await popup.evaluate(
+          `Array.from(document.querySelectorAll('label')).find(label => label.textContent === 'Autohide').control.checked`,
+        ),
+        true,
+      );
+      const setCount = async (count: number) => {
+        await popup.evaluate(`(() => {
+          const input = document.querySelector('input[type="number"]');
+          Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, '${count}');
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+        })()`);
+      };
+      await page.activate();
+      await waitFor(page, 'document.hasFocus()');
+      await page.key('f', 1);
+      await waitFor(
+        page,
+        `${shadow}.activeElement === ${input} && ${input}.getClientRects().length > 0`,
+      );
+      await clear(page);
+      await page.evaluate(
+        `document.getElementById('dynamic').innerHTML = Array.from({length:30}, (_,index) => '<p>countsample ' + index + '</p>').join('')`,
+      );
+      await type(page, 'countsample');
+      await expectSummary(page, 'Text 1 / 30');
+      for (const count of [5, 1, 5]) {
+        await setCount(count);
+        await waitFor(page, `${shadow}.querySelectorAll('[role="option"]').length === ${count}`);
+      }
+      for (const number of [4, 5]) {
+        await page.key(String(number), 1);
+        await waitFor(
+          page,
+          `${shadow}.querySelectorAll('[role="option"]')[${number - 1}]?.getAttribute('aria-selected') === 'true'`,
+        );
+      }
+      assert.equal(
+        await page.evaluate(
+          `(() => { const panel = ${shadow}.querySelector('[role="listbox"]').getBoundingClientRect(); return panel.top >= 0 && panel.bottom <= innerHeight; })()`,
+        ),
+        true,
+      );
+      await page.evaluate(`${shadow}.querySelectorAll('[role="option"]')[4].click()`);
+      assert.equal(
+        await page.evaluate(
+          `getComputedStyle(${shadow}.querySelectorAll('[role="option"]')[4]).backgroundColor`,
+        ),
+        'rgb(65, 65, 65)',
+      );
+      await setCount(3);
+      await waitFor(page, `${shadow}.querySelectorAll('[role="option"]').length === 3`);
+      await clear(page);
+      await page.evaluate(`document.getElementById('dynamic').replaceChildren()`);
+      passed.push(
+        'Suggestion count updates live within 1–5; Alt+4/5 select rows and selected rows have a gray background',
+      );
+      const lockButton = `document.querySelector('.keymove-popup-layout-actions input[type="checkbox"]')`;
+      const pageContainer = `${shadow}?.getElementById('keymove-container')`;
+      await popup.evaluate(`${lockButton}.click()`);
+      await waitFor(page, `${pageContainer}?.dataset.layoutLocked === 'true'`);
+      assert.equal(
+        await page.evaluate(`${shadow}.querySelectorAll('.keymove-resize-handle').length`),
+        0,
+      );
+      assert.equal(
+        await popup.evaluate(`document.querySelector('.keymove-position-cell').disabled`),
+        true,
+      );
+      await page.activate();
+      await waitFor(page, 'document.hasFocus()');
+      await page.key('f', 1);
+      await waitFor(page, `${shadow}?.activeElement === ${input}`);
+      await clear(page);
+      await type(page, 'qxyz');
+      await expectSummary(page, 'Text 1 / 1');
+      // reload() returns before navigation starts. Do not accept the old document's
+      // already-checked control as proof that the new document hydrated its settings.
+      await popup.evaluate(
+        `document.documentElement.dataset.reloadPending = 'true'; location.reload()`,
+      );
+      await waitFor(
+        popup,
+        `!document.documentElement?.dataset.reloadPending && ${lockButton}?.checked === true`,
+      );
+      await popup.evaluate(`${lockButton}.click()`);
+      await waitFor(
+        page,
+        `${pageContainer}?.dataset.layoutLocked === 'false' && ${shadow}.querySelectorAll('.keymove-resize-handle').length === 2`,
+      );
+      passed.push(
+        'Layout lock persists when settings reopen and disables/re-enables resizing in the open page',
+      );
       for (const label of ['Always on', 'Autohide']) {
         await popup.evaluate(
-          `Array.from(document.querySelectorAll('label')).find(label => label.textContent === ${JSON.stringify(label)}).click()`,
+          `(() => { const label = Array.from(document.querySelectorAll('label')).find(label => label.textContent === ${JSON.stringify(label)}); if (label.control.checked !== ${label === 'Autohide'}) label.click(); })()`,
         );
       }
       await waitFor(
@@ -274,7 +439,7 @@ export async function runBrowserSmoke(client: ChromiumClient, browser: string): 
       passed.push('Actual popup settings propagate to an open tab; hidden bar reopens with Alt+F');
       for (const label of ['Always on', 'Autohide']) {
         await popup.evaluate(
-          `Array.from(document.querySelectorAll('label')).find(label => label.textContent === ${JSON.stringify(label)}).click()`,
+          `(() => { const label = Array.from(document.querySelectorAll('label')).find(label => label.textContent === ${JSON.stringify(label)}); if (!label.control.checked) label.click(); })()`,
         );
       }
     }

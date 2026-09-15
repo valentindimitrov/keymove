@@ -1,5 +1,6 @@
 import NodeScorer from './node_scorer.js';
 import { PageSearchIndex } from './page_search_index.js';
+import { highlightRangesForMatches } from '../hooks/use_highlights.js';
 
 let index: PageSearchIndex | null = null;
 
@@ -10,6 +11,29 @@ function scorerFor(query: string) {
 function waitForMutations() {
   return new Promise<void>(resolve => window.setTimeout(resolve, 0));
 }
+
+test.each([
+  ['Account     settings', 'account settings', 'Account     settings', false],
+  ['Account \n <strong>  settings</strong>', 'account settings', 'Account \n   settings', false],
+  ['Account<br>settings', 'account settings', 'Accountsettings', false],
+  [
+    'Account<span style="display:block">settings</span>',
+    'account settings',
+    'Accountsettings',
+    false,
+  ],
+  ['Account     settings', 'account settongs', 'Account     settings', true],
+  ['İ Account     settings', 'account settings', 'Account     settings', false],
+])('search and highlighting agree for %s / %s', async (html, query, expectedRange, fuzzy) => {
+  document.body.innerHTML = `<p>${html}</p>`;
+  index = new PageSearchIndex();
+  const result = await index.search(scorerFor(query));
+  expect(result.isFuzzy).toBe(fuzzy);
+  expect(result.matchingText).toHaveLength(1);
+  expect(highlightRangesForMatches(result.matchingText).map(range => range.toString())).toEqual([
+    expectedRange,
+  ]);
+});
 
 beforeAll(() => {
   Object.defineProperty(HTMLElement.prototype, 'offsetWidth', {

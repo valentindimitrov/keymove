@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "A keyboard-first search interface for web pages.",
   "author": "Valentin Dimitrov",
-  "license": "(MIT AND BSD-4-Clause)",
+  "license": "(Apache-2.0 AND BSD-4-Clause)",
   "private": false,
   "type": "module",
   "packageManager": "yarn@1.22.22",

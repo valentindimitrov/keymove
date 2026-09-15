@@ -110,29 +110,6 @@
   border-bottom-right-radius: 12px;
 }
 
-.keymove-resize-handle::after {
-  position: absolute;
-  top: 50%;
-  width: 2px;
-  height: 18px;
-  border-radius: 1px;
-  background-color: rgba(255, 255, 255, 0.25);
-  content: '';
-  transform: translateY(-50%);
-}
-
-.keymove-resize-handle-left::after {
-  left: 3px;
-}
-
-.keymove-resize-handle-right::after {
-  right: 3px;
-}
-
-.keymove-resize-handle:hover::after {
-  background-color: rgba(255, 255, 255, 0.55);
-}
-
 /* Lifts the element so the bar itself stays where it was put, and the list grows upwards. */
 #keymove-container.keymove-container-suggestions-above {
   transform: translateY(calc(-100% + 50px));
@@ -147,11 +124,36 @@
   padding-left: 15px;
 }
 
-#keymove-bar > svg {
+.keymove-settings-button svg {
   width: 18px;
   min-width: 18px;
   height: 18px;
   color: var(--keymove-text-secondary, rgba(255, 255, 255, 0.75));
+}
+
+.keymove-settings-button,
+.keymove-mode-button {
+  border: none;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.keymove-settings-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 30px;
+}
+
+.keymove-settings-button:focus-visible,
+.keymove-mode-button:focus-visible {
+  outline: 2px solid white;
+  outline-offset: 3px;
+  border-radius: 3px;
 }
 
 #keymove-input-container {
@@ -455,6 +457,8 @@
 }
 
 .keymove-suggestions {
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 5px;
   /* No background of its own: it sits inside the bar's, which is what keeps them identical. */
   border-top: 1px solid rgba(180, 180, 180, 0.2);
@@ -467,33 +471,48 @@
   border-bottom: 1px solid rgba(180, 180, 180, 0.2);
 }
 
+.keymove-suggestions-empty {
+  min-height: 34px;
+  padding: 7px 8px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
 .keymove-suggestion {
-  display: flex;
+  display: grid;
+  grid-template-columns: 18px 44px minmax(0, 1fr);
   gap: 9px;
-  align-items: flex-start;
+  align-items: center;
   padding: 7px 8px;
   border-radius: 6px;
   color: white;
 }
 
 .keymove-suggestion-selected {
-  background-color: rgba(255, 255, 255, 0.12);
+  background-color: rgb(65, 65, 65);
 }
 
 .keymove-suggestion-position {
-  margin-top: 1px;
-  padding: 1px 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
   border-radius: 4px;
   background-color: rgba(255, 255, 255, 0.14);
   color: rgba(255, 255, 255, 0.8);
   font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .keymove-suggestion-kind {
-  margin-top: 2px;
-  padding: 1px 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+  padding: 0 5px;
   border-radius: 3px;
   font-size: 10px;
+  line-height: 1;
   letter-spacing: 0.4px;
   white-space: nowrap;
 }
@@ -504,12 +523,16 @@
 }
 
 .keymove-suggestion-kind-text {
-  background-color: rgba(255, 255, 255, 0.14);
-  color: var(--keymove-text-secondary, rgba(255, 255, 255, 0.75));
+  background-color: rgb(66, 66, 66);
+  border: 1px solid rgb(100, 100, 100);
+  color: rgb(235, 235, 235);
+}
+
+#keymove-container[data-layout-locked='true'] {
+  cursor: default;
 }
 
 .keymove-suggestion-body {
-  flex: 1;
   min-width: 0;
 }
 

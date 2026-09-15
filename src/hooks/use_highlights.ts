@@ -5,24 +5,29 @@ import {
   inkForHexColor,
   rgbaForHexColor,
 } from '../lib/highlight_colors_schema.js';
-import { visibleTextNodes } from '../lib/visible_text.js';
+import { iterateRenderedText, normalizeSearchText } from '../lib/visible_text.js';
+import type { StyleCache, RenderedTextPart, TextBoundary } from '../lib/visible_text.js';
 // Highlighting needs only the node and the slice that matched, not the rest of a result.
 type HighlightTarget = { node: Element; term: string };
 
 const MAX_HIGHLIGHT_RANGES = 500;
+const HIGHLIGHT_WORK_BUDGET_MS = 8;
+const HIGHLIGHT_CHUNK_SIZE = 100;
 
 function rangesForTextNode(textNode: Text, query: string): Range[] {
-  return rangesForTextNodes([textNode], query);
+  const parts = [...iterateRenderedText(textNode)].filter(part => part !== null);
+  return rangesForTextParts(parts, query);
 }
 
-function rangesForTextNodes(
-  textNodes: Text[],
+function rangesForTextParts(
+  parts: RenderedTextPart[],
   query: string,
   limit = MAX_HIGHLIGHT_RANGES,
 ): Range[] {
   if (!query || limit <= 0) return [];
-  const text = textNodes.map(node => node.data).join('');
-  const normalizedText = text.toLocaleLowerCase().replace(/\u00a0/g, ' ');
+  query = normalizeSearchText(query);
+  const text = parts.map(part => part.searchText).join('');
+  const normalizedText = normalizeSearchText(text);
   const ranges: Range[] = [];
   let matchIndex = normalizedText.indexOf(query);
   if (matchIndex === -1) return ranges;
@@ -49,17 +54,22 @@ function rangesForTextNodes(
 
   let nodeIndex = 0;
   let nodeOffset = 0;
-  const boundary = (offset: number, atEnd: boolean): [Text, number] => {
+  const boundary = (offset: number, atEnd: boolean): TextBoundary => {
     while (
-      nodeIndex < textNodes.length - 1 &&
+      nodeIndex < parts.length - 1 &&
       (atEnd
-        ? offset > nodeOffset + textNodes[nodeIndex]!.length
-        : offset >= nodeOffset + textNodes[nodeIndex]!.length)
+        ? offset > nodeOffset + parts[nodeIndex]!.searchText.length
+        : offset >= nodeOffset + parts[nodeIndex]!.searchText.length)
     ) {
-      nodeOffset += textNodes[nodeIndex]!.length;
+      nodeOffset += parts[nodeIndex]!.searchText.length;
       nodeIndex += 1;
     }
-    return [textNodes[nodeIndex]!, offset - nodeOffset];
+    const part = parts[nodeIndex]!;
+    return part.linear
+      ? [part.start[0], part.start[1] + offset - nodeOffset]
+      : atEnd
+        ? part.end
+        : part.start;
   };
 
   while (matchIndex !== -1 && ranges.length < limit) {
@@ -76,29 +86,92 @@ function rangesForTextNodes(
 }
 
 /**
- * Each match carries the term that matched it, which is a verbatim slice of that node's own
- * text. A fuzzy result does not contain the query, so highlighting the query would mark
+ * Each match carries the term that matched the node's whitespace-aware searchable text.
+ * A fuzzy result does not contain the query, so highlighting the query would mark
  * nothing and leave the match invisible on the page.
  */
-function highlightRangesForMatches(matches: readonly HighlightTarget[]): Range[] {
-  const nodes = matches.map(match => match.node);
-  const roots = matches.filter(
-    (match, index) =>
-      nodes.indexOf(match.node) === index &&
-      !nodes.some(other => other !== match.node && other.contains(match.node)),
-  );
+function* highlightRangeWork(matches: readonly HighlightTarget[]): Generator<void, Range[]> {
+  // Collect membership before visiting roots, so an ancestor suppresses its descendant
+  // even if the descendant arrived first. Shared ancestor paths are only walked once.
+  const nodes = new Set<Element>();
+  for (const match of matches) {
+    nodes.add(match.node);
+    yield;
+  }
+  const seen = new Set<Element>();
+  const coveredAncestors = new WeakMap<Element, boolean>();
+  const styles: StyleCache = new WeakMap();
   const ranges: Range[] = [];
-  for (const match of roots) {
+  for (const match of matches) {
+    yield;
+    if (seen.has(match.node)) continue;
+    seen.add(match.node);
+    const path: Element[] = [];
+    let covered = false;
+    for (let ancestor = match.node.parentElement; ancestor; ancestor = ancestor.parentElement) {
+      if (nodes.has(ancestor)) {
+        covered = true;
+        break;
+      }
+      const cached = coveredAncestors.get(ancestor);
+      if (cached !== undefined) {
+        covered = cached;
+        break;
+      }
+      path.push(ancestor);
+      yield;
+    }
+    for (const ancestor of path) {
+      coveredAncestors.set(ancestor, covered);
+      yield;
+    }
+    if (covered) continue;
+    const parts: RenderedTextPart[] = [];
+    for (const part of iterateRenderedText(match.node, styles)) {
+      if (part) parts.push(part);
+      yield;
+    }
+    ranges.push(...rangesForTextParts(parts, match.term, MAX_HIGHLIGHT_RANGES - ranges.length));
     if (ranges.length === MAX_HIGHLIGHT_RANGES) break;
-    ranges.push(
-      ...rangesForTextNodes(
-        visibleTextNodes(match.node),
-        match.term,
-        MAX_HIGHLIGHT_RANGES - ranges.length,
-      ),
-    );
   }
   return ranges;
+}
+
+function highlightRangesForMatches(matches: readonly HighlightTarget[]): Range[] {
+  const work = highlightRangeWork(matches);
+  let step = work.next();
+  while (!step.done) step = work.next();
+  return step.value;
+}
+
+// Small updates publish immediately. Larger ones yield while preparing membership,
+// ancestor paths and visible text, and cleanup cancels an obsolete query's remaining work.
+function scheduleHighlightRanges(
+  matches: readonly HighlightTarget[],
+  publish: (ranges: Range[]) => void,
+) {
+  const work = highlightRangeWork(matches);
+  let timer: number | undefined;
+  const resume = () => {
+    const deadline = performance.now() + HIGHLIGHT_WORK_BUDGET_MS;
+    let processed = 0;
+    while (true) {
+      const step = work.next();
+      if (step.done) {
+        publish(step.value);
+        return;
+      }
+      if (++processed % HIGHLIGHT_CHUNK_SIZE === 0 && performance.now() >= deadline) {
+        timer = window.setTimeout(resume, 0);
+        return;
+      }
+    }
+  };
+  resume();
+  return () => {
+    window.clearTimeout(timer);
+    work.return([]);
+  };
 }
 
 function highlightRangesForNodes(nodes: Element[], query: string): Range[] {
@@ -144,22 +217,31 @@ const useHighlights = ({
       return undefined;
     }
 
-    const ranges = highlightRangesForMatches(matches);
-    highlightRegistry.set(KEYMOVE_HIGHLIGHT_NAME, new window.Highlight(...ranges));
-
-    // The current match is painted by its own highlight so it reads differently from the
-    // rest. Both cover the same text, so priority decides which one wins.
-    if (selectedMatch) {
-      const currentHighlight = new window.Highlight(...highlightRangesForMatches([selectedMatch]));
-      currentHighlight.priority = 1;
-      highlightRegistry.set(KEYMOVE_CURRENT_HIGHLIGHT_NAME, currentHighlight);
-    }
+    const cancel = scheduleHighlightRanges(matches, ranges => {
+      highlightRegistry.set(KEYMOVE_HIGHLIGHT_NAME, new window.Highlight(...ranges));
+    });
 
     return () => {
+      cancel();
       highlightRegistry.delete(KEYMOVE_HIGHLIGHT_NAME);
+    };
+  }, [matches, enabled]);
+
+  // Moving the cursor only changes this highlight, leaving the general ranges intact.
+  React.useEffect(() => {
+    const highlightRegistry = typeof CSS !== 'undefined' ? CSS.highlights : null;
+    if (!highlightRegistry || typeof window.Highlight === 'undefined' || !enabled || !selectedMatch)
+      return undefined;
+    const cancel = scheduleHighlightRanges([selectedMatch], ranges => {
+      const currentHighlight = new window.Highlight(...ranges);
+      currentHighlight.priority = 1;
+      highlightRegistry.set(KEYMOVE_CURRENT_HIGHLIGHT_NAME, currentHighlight);
+    });
+    return () => {
+      cancel();
       highlightRegistry.delete(KEYMOVE_CURRENT_HIGHLIGHT_NAME);
     };
-  }, [matches, selectedMatch, enabled]);
+  }, [selectedMatch, enabled]);
 };
 
 export type { HighlightTarget };

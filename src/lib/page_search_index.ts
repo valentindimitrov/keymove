@@ -10,12 +10,11 @@ import {
   isLinkOrButtonOrInput,
   searchableAttributeValuesForNode,
 } from './searchable_attributes.js';
-import { isTextVisible, iterateVisibleTextNodes } from './visible_text.js';
+import { isTextVisible, iterateRenderedText, normalizeSearchText } from './visible_text.js';
 import type { StyleCache } from './visible_text.js';
 
 const SEARCH_CHUNK_SIZE = 100;
 const SEARCH_WORK_BUDGET_MS = 8;
-const NO_BREAK_SPACE_REGEX = /\u00a0/g;
 const TEXT_BLOCK_SELECTOR =
   'p, li, blockquote, pre, td, th, dt, dd, figcaption, h1, h2, h3, h4, h5, h6';
 
@@ -29,8 +28,8 @@ type ActionMatch = {
   term: string | null;
   distance: number | null;
 };
-// `term` is the literal slice of the node's text that matched, so highlighting can find it
-// again. For an exact search it is the query; for a fuzzy one it is the near-miss spelling.
+// `term` is a slice of the shared searchable text. Highlighting maps it back to DOM
+// boundaries, including collapsed whitespace and structural line breaks.
 type TextMatch = {
   node: Element;
   action: HTMLElement | null;
@@ -441,16 +440,12 @@ class PageSearchIndex {
       const record = this.recordForNode(node);
       // Visibility can change through ancestor styles without changing this node's text.
       const textParts: string[] = [];
-      for (const text of iterateVisibleTextNodes(node, styles)) {
-        textParts.push(text.data);
+      for (const part of iterateRenderedText(node, styles)) {
+        if (part) textParts.push(part.searchText);
         const pause = budget.checkpoint(searchSignal);
         if (pause) await pause;
       }
-      const innerText = textParts
-        .join('')
-        .toLocaleLowerCase()
-        .trim()
-        .replace(NO_BREAK_SPACE_REGEX, ' ');
+      const innerText = normalizeSearchText(textParts.join('')).trim();
       if (rescorable && (innerText.length > 0 || record.attributeValues.length > 0)) {
         scanned.push({ node, innerText, attributeValues: record.attributeValues });
       }

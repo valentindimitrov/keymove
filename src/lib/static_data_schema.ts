@@ -26,6 +26,8 @@ const KEYBOARD_SHORTCUT_NAMES = [
   'select_listed_match_1',
   'select_listed_match_2',
   'select_listed_match_3',
+  'select_listed_match_4',
+  'select_listed_match_5',
 ] as const;
 const KEYBOARD_SHORTCUT_NAME_SET: ReadonlySet<string> = new Set(KEYBOARD_SHORTCUT_NAMES);
 

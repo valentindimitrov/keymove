@@ -5,8 +5,9 @@ import {
   DEFAULT_STORED_SETTINGS,
   validateStoredSettingChange,
   validateStoredSettings,
+  validateStoredSetting,
 } from '../lib/stored_settings_schema.js';
-import type { StoredSettingKey } from '../lib/stored_settings_schema.js';
+import type { StoredSettingKey, BooleanStoredSettingKey } from '../lib/stored_settings_schema.js';
 import { isRecord } from '../lib/runtime_schema.js';
 import { browser, type Browser } from 'wxt/browser';
 
@@ -19,11 +20,11 @@ function reportStorageError(operation: string, error: unknown) {
   console.error(`${EXTENSION_NAME} could not ${operation}: ${message}`);
 }
 
-function persistBooleanSetting(
+function persistSetting<T extends boolean | number>(
   key: StoredSettingKey,
-  value: boolean,
-  previousValue: boolean,
-  setter: React.Dispatch<React.SetStateAction<boolean>>,
+  value: T,
+  previousValue: T,
+  setter: React.Dispatch<React.SetStateAction<T>>,
   isCurrent: () => boolean,
 ) {
   void browser.storage.local.set({ [key]: value }).catch(error => {
@@ -36,24 +37,65 @@ function persistBooleanSetting(
 
 const useStoredSettings = () => {
   const revisions = React.useRef({
+    suggestionCount: 0,
+    lockPositionAndSize: 0,
     showAutohideButton: 0,
     autoHide: 0,
     alwaysOn: 0,
     startInActionMode: 0,
     highlightMatches: 0,
   });
+  const [suggestionCount, setSuggestionCount] = React.useState<number>(
+    DEFAULT_STORED_SETTINGS.suggestionCount,
+  );
+  const updateSuggestionCount = React.useCallback(
+    (value: number) => {
+      const validation = validateStoredSetting(SETTINGS_KEYS.SUGGESTION_COUNT, value);
+      if (validation.issues.length) {
+        reportStorageIssues(validation.issues);
+        return;
+      }
+      const revision = ++revisions.current.suggestionCount;
+      setSuggestionCount(validation.value);
+      persistSetting(
+        SETTINGS_KEYS.SUGGESTION_COUNT,
+        validation.value,
+        suggestionCount,
+        setSuggestionCount,
+        () => revisions.current.suggestionCount === revision,
+      );
+    },
+    [suggestionCount],
+  );
+  const [lockPositionAndSize, setLockPositionAndSize] = React.useState<boolean>(
+    DEFAULT_STORED_SETTINGS[SETTINGS_KEYS.LOCK_POSITION_AND_SIZE],
+  );
+  const updateLockPositionAndSize = React.useCallback(
+    (value: boolean) => {
+      const revision = ++revisions.current.lockPositionAndSize;
+      setLockPositionAndSize(value);
+      persistSetting(
+        SETTINGS_KEYS.LOCK_POSITION_AND_SIZE,
+        value,
+        lockPositionAndSize,
+        setLockPositionAndSize,
+        () => revisions.current.lockPositionAndSize === revision,
+      );
+    },
+    [lockPositionAndSize],
+  );
   const [autoHide, setAutoHide] = React.useState<boolean>(
     DEFAULT_STORED_SETTINGS[SETTINGS_KEYS.AUTO_HIDE],
   );
-  const [alwaysOn, setAlwaysOn] = React.useState<boolean>(
-    DEFAULT_STORED_SETTINGS[SETTINGS_KEYS.ALWAYS_ON],
-  );
+  // Never intercept page typing based on a provisional default. A successful read applies
+  // the saved value (or the new-install default); a failed read leaves capture disabled.
+  const [alwaysOn, setAlwaysOn] = React.useState(false);
 
   const updateAutoHide = React.useCallback(
     (newAutoHide: boolean) => {
       const revision = ++revisions.current.autoHide;
       setAutoHide(newAutoHide);
-      persistBooleanSetting(
+      persistSetting(
         SETTINGS_KEYS.AUTO_HIDE,
         newAutoHide,
         autoHide,
@@ -72,7 +114,7 @@ const useStoredSettings = () => {
     (newStartInActionMode: boolean) => {
       const revision = ++revisions.current.startInActionMode;
       setStartInActionMode(newStartInActionMode);
-      persistBooleanSetting(
+      persistSetting(
         SETTINGS_KEYS.START_IN_ACTION_MODE,
         newStartInActionMode,
         startInActionMode,
@@ -91,7 +133,7 @@ const useStoredSettings = () => {
     (newHighlightMatches: boolean) => {
       const revision = ++revisions.current.highlightMatches;
       setHighlightMatches(newHighlightMatches);
-      persistBooleanSetting(
+      persistSetting(
         SETTINGS_KEYS.HIGHLIGHT_MATCHES,
         newHighlightMatches,
         highlightMatches,
@@ -110,7 +152,7 @@ const useStoredSettings = () => {
     (newShowAutohideButton: boolean) => {
       const revision = ++revisions.current.showAutohideButton;
       setShowAutohideButton(newShowAutohideButton);
-      persistBooleanSetting(
+      persistSetting(
         SETTINGS_KEYS.SHOW_AUTOHIDE_BUTTON,
         newShowAutohideButton,
         showAutohideButton,
@@ -125,7 +167,7 @@ const useStoredSettings = () => {
     (newAlwaysOn: boolean) => {
       const revision = ++revisions.current.alwaysOn;
       setAlwaysOn(newAlwaysOn);
-      persistBooleanSetting(
+      persistSetting(
         SETTINGS_KEYS.ALWAYS_ON,
         newAlwaysOn,
         alwaysOn,
@@ -140,6 +182,10 @@ const useStoredSettings = () => {
     (data: unknown, initialRevisions: Record<StoredSettingKey, number>) => {
       const { settings, issues } = validateStoredSettings(data);
       reportStorageIssues(issues);
+      if (revisions.current.suggestionCount === initialRevisions.suggestionCount)
+        setSuggestionCount(settings.suggestionCount);
+      if (revisions.current.lockPositionAndSize === initialRevisions.lockPositionAndSize)
+        setLockPositionAndSize(settings.lockPositionAndSize);
       if (revisions.current.autoHide === initialRevisions.autoHide) setAutoHide(settings.autoHide);
       if (revisions.current.alwaysOn === initialRevisions.alwaysOn) setAlwaysOn(settings.alwaysOn);
       if (revisions.current.startInActionMode === initialRevisions.startInActionMode)
@@ -163,7 +209,7 @@ const useStoredSettings = () => {
       }
 
       const applyChange = (
-        key: StoredSettingKey,
+        key: BooleanStoredSettingKey,
         setter: React.Dispatch<React.SetStateAction<boolean>>,
       ) => {
         if (!Object.hasOwn(changes, key)) {
@@ -176,6 +222,16 @@ const useStoredSettings = () => {
       };
 
       applyChange(SETTINGS_KEYS.AUTO_HIDE, setAutoHide);
+      if (Object.hasOwn(changes, SETTINGS_KEYS.SUGGESTION_COUNT)) {
+        const { value, issues } = validateStoredSettingChange(
+          SETTINGS_KEYS.SUGGESTION_COUNT,
+          changes[SETTINGS_KEYS.SUGGESTION_COUNT],
+        );
+        reportStorageIssues(issues);
+        revisions.current.suggestionCount += 1;
+        setSuggestionCount(value);
+      }
+      applyChange(SETTINGS_KEYS.LOCK_POSITION_AND_SIZE, setLockPositionAndSize);
       applyChange(SETTINGS_KEYS.ALWAYS_ON, setAlwaysOn);
       applyChange(SETTINGS_KEYS.START_IN_ACTION_MODE, setStartInActionMode);
       applyChange(SETTINGS_KEYS.HIGHLIGHT_MATCHES, setHighlightMatches);
@@ -201,6 +257,10 @@ const useStoredSettings = () => {
   }, [initializeStoredSettings, updateStoredSettings]);
 
   return {
+    suggestionCount,
+    updateSuggestionCount,
+    lockPositionAndSize,
+    updateLockPositionAndSize,
     autoHide,
     updateAutoHide,
     alwaysOn,

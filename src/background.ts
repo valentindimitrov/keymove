@@ -11,7 +11,10 @@ const INSTALLATION_CONCURRENCY = 4;
 export default function registerBackground() {
   browser.runtime.onInstalled.addListener(handleInstallationEvent);
   browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (!isExtensionMessage(message) || message.type !== ExtensionMessageTypes.OPEN_LINK_IN_NEW_TAB)
+    if (
+      !isExtensionMessage(message) ||
+      message.type === ExtensionMessageTypes.CONTENT_SCRIPT_INSTALLED
+    )
       return undefined;
     void handleExtensionMessage(message, sender).then(() => sendResponse());
     return true;
@@ -19,7 +22,10 @@ export default function registerBackground() {
 }
 
 async function handleExtensionMessage(message: unknown, sender: Browser.runtime.MessageSender) {
-  if (!isExtensionMessage(message) || message.type !== ExtensionMessageTypes.OPEN_LINK_IN_NEW_TAB) {
+  if (
+    !isExtensionMessage(message) ||
+    message.type === ExtensionMessageTypes.CONTENT_SCRIPT_INSTALLED
+  ) {
     return;
   }
 
@@ -34,6 +40,20 @@ async function handleExtensionMessage(message: unknown, sender: Browser.runtime.
       'open a link requested by an invalid sender',
       new Error('expected this extension in a top-level content-script tab'),
     );
+    return;
+  }
+
+  if (message.type === ExtensionMessageTypes.OPEN_SETTINGS) {
+    try {
+      await browser.action.openPopup();
+    } catch {
+      // Older browsers may disallow opening the toolbar popup from a content-script request.
+      try {
+        await browser.tabs.create({ url: browser.runtime.getURL('/popup.html'), active: true });
+      } catch (error) {
+        reportExtensionApiError('open settings', error);
+      }
+    }
     return;
   }
 

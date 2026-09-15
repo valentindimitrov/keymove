@@ -1,6 +1,13 @@
 import { DO_NOT_SEARCH_NODE_TYPES, KEYMOVE_ROOT_ID } from '../constants.js';
 
-type StyleCache = WeakMap<Element, { style: CSSStyleDeclaration; subtreeVisible?: boolean }>;
+type StyleCache = WeakMap<
+  Element,
+  {
+    style: CSSStyleDeclaration;
+    subtreeVisible?: boolean;
+    whitespace?: string;
+  }
+>;
 
 function computedStyle(element: Element, cache: StyleCache) {
   let entry = cache.get(element);
@@ -40,39 +47,157 @@ function isTextVisible(element: Element, cache: StyleCache = new WeakMap()): boo
   return visibility !== 'hidden' && visibility !== 'collapse' && isSubtreeVisible(element, cache);
 }
 
-function* iterateVisibleTextNodes(
-  node: Element,
+type TextBoundary = [Node, number];
+type RenderedTextPart = {
+  text: string;
+  searchText: string;
+  start: TextBoundary;
+  end: TextBoundary;
+  linear: boolean;
+};
+
+function whitespaceFor(element: Element | null, cache: StyleCache): string {
+  if (!element) return 'normal';
+  const style = computedStyle(element, cache);
+  const entry = cache.get(element)!;
+  // Browsers return inherited computed values. The fallback also supports DOM test
+  // environments that leave inherited properties empty.
+  const collapse = style.getPropertyValue('white-space-collapse');
+  entry.whitespace ??=
+    style.whiteSpace.split(' ')[0] ||
+    (collapse && collapse !== 'collapse' ? collapse : whitespaceFor(element.parentElement, cache));
+  return entry.whitespace;
+}
+
+function textPart(
+  text: string,
+  node: Text,
+  start: number,
+  end: number,
+  linear = true,
+): RenderedTextPart {
+  return { text, searchText: text, start: [node, start], end: [node, end], linear };
+}
+
+/**
+ * Whitespace-aware text with a compact map back to DOM boundaries. Unchanged runs use
+ * linear offsets; collapsed whitespace and structural separators carry just two endpoints.
+ * Null entries are work checkpoints, including when visiting nodes that emit no text.
+ * No layout-dependent innerText reads, per-character maps, or retained page-wide ranges.
+ */
+function* iterateRenderedText(
+  node: Element | Text,
   cache: StyleCache = new WeakMap(),
-): Generator<Text> {
-  if (!isSubtreeVisible(node, cache)) return;
-  const walker = document.createTreeWalker(node, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
-    acceptNode: candidate => {
-      if (candidate instanceof Element) {
-        return isSubtreeVisible(candidate, cache)
-          ? NodeFilter.FILTER_SKIP
-          : NodeFilter.FILTER_REJECT;
+): Generator<RenderedTextPart | null> {
+  let pending: RenderedTextPart | null = null;
+  let lineStart = true;
+  function* append(part: RenderedTextPart): Generator<RenderedTextPart> {
+    if (pending) {
+      yield pending;
+      pending = null;
+    }
+    yield part;
+    lineStart = part.text.endsWith('\n');
+  }
+  const separate = (element: Element, offset: number) => {
+    if (!lineStart)
+      pending = {
+        text: '\n',
+        searchText: ' ',
+        start: [element, offset],
+        end: [element, offset],
+        linear: false,
+      };
+  };
+  function* readText(text: Text): Generator<RenderedTextPart | null> {
+    if (text.parentElement && !isTextVisible(text.parentElement, cache)) return;
+    const whitespace = whitespaceFor(text.parentElement, cache);
+    const preserve = ['pre', 'pre-wrap', 'preserve', 'break-spaces'].includes(whitespace);
+    const preserveBreaks = ['pre-line', 'preserve-breaks'].includes(whitespace);
+    // Bound processing even when a page puts megabytes into one Text node.
+    for (let offset = 0; offset < text.length; offset += 1024) {
+      yield null;
+      const chunk = text.data.slice(offset, offset + 1024);
+      if (preserve || whitespace === 'preserve-spaces') {
+        const value = preserve ? chunk : chunk.replace(/[\t\r\n\f]/g, ' ');
+        yield* append(textPart(value, text, offset, offset + chunk.length));
+        continue;
       }
-      return candidate.parentElement && isTextVisible(candidate.parentElement, cache)
-        ? NodeFilter.FILTER_ACCEPT
-        : NodeFilter.FILTER_REJECT;
-    },
-  });
-  let text = walker.nextNode();
-  while (text) {
-    if (text instanceof Text) yield text;
-    text = walker.nextNode();
+      if (!/[\t\r\n\f]| {2}/.test(chunk) && !chunk.startsWith(' ') && !chunk.endsWith(' ')) {
+        yield* append(textPart(chunk, text, offset, offset + chunk.length));
+        continue;
+      }
+      const runs = preserveBreaks
+        ? /[^\t\n\f\r ]+|\r\n|[\r\n]|[\t\f ]+/g
+        : /[^\t\n\f\r ]+|[\t\n\f\r ]+/g;
+      for (const match of chunk.matchAll(runs)) {
+        const value = match[0];
+        const start = offset + match.index;
+        const end = start + value.length;
+        if (preserveBreaks && /^[\r\n]/.test(value)) {
+          pending = null;
+          yield* append(textPart('\n', text, start, end, false));
+        } else if (/^[\t\n\f\r ]/.test(value)) {
+          if (!lineStart && pending?.text !== '\n') {
+            if (pending) pending.end = [text, end];
+            else pending = textPart(' ', text, start, end, false);
+          }
+        } else yield* append(textPart(value, text, start, end));
+      }
+    }
+  }
+  if (node instanceof Text) {
+    yield* readText(node);
+    return;
+  }
+  if (!isSubtreeVisible(node, cache)) return;
+  type Frame = { element: Element; next: ChildNode | null; offset: number; block: boolean };
+  const stack: Frame[] = [{ element: node, next: node.firstChild, offset: 0, block: false }];
+  while (stack.length) {
+    yield null;
+    const frame = stack[stack.length - 1]!;
+    const child = frame.next;
+    if (!child) {
+      if (frame.block) separate(frame.element, frame.offset);
+      stack.pop();
+      continue;
+    }
+    const offset = frame.offset++;
+    frame.next = child.nextSibling;
+    if (child instanceof Text) yield* readText(child);
+    else if (child instanceof Element && isSubtreeVisible(child, cache)) {
+      if (child.tagName === 'BR') {
+        if (isTextVisible(child, cache)) {
+          pending = null;
+          yield* append({
+            text: '\n',
+            searchText: ' ',
+            start: [frame.element, offset],
+            end: [frame.element, offset + 1],
+            linear: false,
+          });
+        }
+        continue;
+      }
+      const block =
+        /^(block|flow-root|list-item|flex|grid|table|table-row|table-cell|table-caption)$/.test(
+          computedStyle(child, cache).display,
+        );
+      if (block) separate(child, 0);
+      stack.push({ element: child, next: child.firstChild, offset: 0, block });
+    }
   }
 }
 
-function visibleTextNodes(node: Element, cache: StyleCache = new WeakMap()): Text[] {
-  return [...iterateVisibleTextNodes(node, cache)];
-}
-
 function visibleText(node: Element, cache: StyleCache = new WeakMap()): string {
-  return visibleTextNodes(node, cache)
-    .map(text => text.data)
-    .join('');
+  const parts: string[] = [];
+  for (const part of iterateRenderedText(node, cache)) if (part) parts.push(part.text);
+  return parts.join('');
 }
 
-export { isTextVisible, iterateVisibleTextNodes, visibleText, visibleTextNodes };
-export type { StyleCache };
+function normalizeSearchText(text: string): string {
+  return text.toLocaleLowerCase().replace(/\u00a0/g, ' ');
+}
+
+export { isTextVisible, iterateRenderedText, visibleText, normalizeSearchText };
+export type { StyleCache, RenderedTextPart, TextBoundary };

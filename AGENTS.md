@@ -6,7 +6,8 @@ This repository contains KeyMove, a keyboard-first in-page search browser extens
 prepared as a new extension rather than an update to an existing store listing. The KeyMove name
 and artwork are applied; repository metadata, store metadata, extension IDs, upstream relicensing
 permission, and upstream contribution documentation remain pending. Original KeyMove contributions
-by Valentin Dimitrov use MIT; inherited and adapted Comake code retains BSD 4-Clause. Preserve both
+by Valentin Dimitrov use Apache License 2.0; inherited and adapted Comake code retains BSD 4-Clause.
+Comake has been contacted about relicensing; permission remains pending. Preserve both
 license texts in `LICENSE` and its inclusion in browser builds until upstream permission is obtained.
 
 The runtime is Manifest V3 only. Chromium and Vivaldi use the Chrome target; Firefox uses the
@@ -59,8 +60,10 @@ artifacts are `.output/chrome-mv3` and `.output/firefox-mv3`.
    each match carries the page's own spelling so highlighting can find it.
 6. Results are split into text blocks and actionable elements.
 7. `page_search_index` also emits all distinct ranked candidates across both kinds. `useSuggestions`
-   applies stability before selecting a mixed three-row slate, retaining its history while a query
-   or DOM refresh is pending. Pending rows are hidden; short queries and completed empty results
+   applies stability before selecting the configured number of mixed suggestions (three by default), retaining its history while a query
+   or DOM refresh is pending. Pending rows stay visible but cannot be selected, keeping the pane
+   mounted until fresh results arrive. The frame stays open without shrinking for queries of at
+   least three characters, including completed empty results. Short queries and completed empty results
    clear history. `ResultsPanel` is a view of the one selection, never a second cursor.
 8. `useSearchNavigation` retains an independent cursor for each mode.
 9. `useHighlights` uses the CSS Custom Highlight API without rewriting host-page DOM.
@@ -139,10 +142,12 @@ popup stays on-screen.
 Stored keys:
 
 - `autoHide`: boolean
+- `suggestionCount`: integer from 1 to 5, defaults to 3; larger saved counts clamp to 5. Limits displayed suggestions, never navigation results
 - `alwaysOn`: boolean
 - `startInActionMode`: boolean
 - `highlightMatches`: boolean
 - `showAutohideButton`: boolean
+- `lockPositionAndSize`: boolean; blocks dragging, resizing, position presets and reset until unlocked
 - `popupPosition`: `{ x: number; y: number }`, with both values finite and in `[0, 1]`
 - `popupWidth`: number of pixels, clamped into the usable range rather than rejected, so a
   window that shrank between sessions does not discard a deliberate choice
@@ -191,6 +196,9 @@ blindly replacing it can break selectors, stored preferences, and content/backgr
   when delegation is requested, create and assign an absolute worktree path before
   a subagent edits or builds. Read-only review may share files. A single foreground
   task may use the primary checkout. See `docs/development.md` for setup and integration.
+- When opening a pull request, use `.github/pull_request_template.md` even when creating
+  the pull request through the command line. Complete every relevant section and checkbox;
+  explain any verification or release-impact item that does not apply.
 - Keep implementation batches focused on one behavior or subsystem. Reproduce bugs
   with a failing regression check before fixing them. Keep cleanup separate from
   performance work and record before/after browser timing samples for optimizations.
@@ -221,8 +229,11 @@ blindly replacing it can break selectors, stored preferences, and content/backgr
 - Search work must remain cancellable and chunked to avoid blocking large pages. The fuzzy pass
   is part of that budget; it reuses the text gathered by the exact pass rather than walking the
   DOM again, because deriving visible text costs far more than comparing it.
-- A `TextMatch` carries the literal slice of its node that matched. Highlighting locates that
-  slice, so it must stay a verbatim substring of the node's visible text.
+- Search, highlighting, and copied text use the shared whitespace-aware reader in
+  `visible_text.ts`. A `TextMatch` carries a slice of its case-folded searchable text;
+  highlighting maps that slice back to DOM boundaries. Preserve preformatted whitespace,
+  collapse ordinary whitespace across inline nodes, and keep structural line-break separators.
+  Keep the reader chunked and its offset mapping proportional to text segments, not characters.
 - Add or update tests for navigation shortcuts, DOM indexing, storage validation, and build-shape
   changes.
 - Preserve unrelated user changes and leave generated build output untracked.

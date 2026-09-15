@@ -32,12 +32,14 @@ vi.mock('../../lib/find_in_page.js', () => ({
 vi.mock('../../hooks/use_highlights.js', () => ({ default: searchMocks.useHighlights }));
 vi.mock('../../hooks/use_extension_messaging.js', () => ({ default: vi.fn() }));
 const settingsMocks = vi.hoisted(() => ({
+  suggestionCount: 3,
   startInActionMode: false,
   highlightMatches: true,
   showAutohideButton: false,
 }));
 vi.mock('../../hooks/use_stored_settings.js', () => ({
   default: () => ({
+    suggestionCount: settingsMocks.suggestionCount,
     autoHide: false,
     updateAutoHide: vi.fn(),
     alwaysOn: true,
@@ -83,6 +85,7 @@ beforeEach(() => {
   searchMocks.popupWidth = 420;
   searchMocks.updatePopupWidth.mockReset();
   settingsMocks.startInActionMode = false;
+  settingsMocks.suggestionCount = 3;
   settingsMocks.highlightMatches = true;
   settingsMocks.showAutohideButton = false;
   Element.prototype.scrollIntoView = vi.fn();
@@ -433,6 +436,7 @@ test('selects the first match as soon as results arrive and keeps the mode while
 
 // The numbered rows of the results panel are the shortlist Alt+1 to Alt+3 aim at.
 test('keeps the third row across pending and superseded queries and selects its current index', async () => {
+  searchMocks.popupPosition = { x: 0.5, y: 0.99 };
   const nodes = ['alpha', 'beta', 'gamma', 'delta'].map(name => {
     const button = document.createElement('button');
     button.textContent = `Save ${name}`;
@@ -451,11 +455,18 @@ test('keeps the third row across pending and superseded queries and selects its 
   fireEvent.change(input, { target: { value: 'sav' } });
   await flushSearch();
   expect(screen.getAllByRole('option')[2]).toHaveTextContent('gamma');
+  const panel = screen.getByRole('listbox');
+  const row = screen.getAllByRole('option')[2]!;
 
   const obsolete = Promise.withResolvers<SearchResult>();
   searchMocks.findMatches.mockReturnValueOnce(obsolete.promise);
   fireEvent.change(input, { target: { value: 'save' } });
-  expect(screen.queryAllByRole('option')).toHaveLength(0);
+  expect(screen.getByRole('listbox')).toBe(panel);
+  expect(panel).toHaveAttribute('aria-busy', 'true');
+  expect(panel.parentElement).toHaveClass('keymove-container-suggestions-above');
+  expect(screen.getAllByRole('option')[2]).toBe(row);
+  expect(row).toHaveAttribute('aria-disabled', 'true');
+  fireEvent.click(row);
   fireEvent.keyDown(input, { key: '3', code: 'Digit3', altKey: true });
   expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
   const current = Promise.withResolvers<SearchResult>();
@@ -475,10 +486,54 @@ test('keeps the third row across pending and superseded queries and selects its 
     ),
   );
   await act(async () => obsolete.resolve(makeSearchResult()));
+  expect(screen.getByRole('listbox')).toBe(panel);
+  expect(panel).toHaveAttribute('aria-busy', 'false');
   expect(screen.getAllByRole('option')[2]).toHaveTextContent('gamma');
   fireEvent.keyDown(input, { key: '3', code: 'Digit3', altKey: true });
   expect(screen.getByRole('status')).toHaveTextContent('Actions 4 / 4');
   expect(vi.mocked(Element.prototype.scrollIntoView).mock.contexts.at(-1)).toBe(nodes[2]);
+});
+
+test('uses the configured count, switches mode by clicking, opens settings and marks selected rows', async () => {
+  settingsMocks.suggestionCount = 5;
+  const nodes = Array.from({ length: 6 }, (_, index) => {
+    const node = document.createElement('button');
+    node.textContent = `Save ${index}`;
+    document.body.append(node);
+    return node;
+  });
+  searchMocks.findMatches.mockResolvedValue(
+    makeSearchResult({
+      matchingText: [makeTextMatch({ node: nodes[0]!, action: nodes[0]!, term: 'Save' })],
+      matchingLinksAndButtons: nodes,
+      suggestions: nodes.map((node, index) => makeRankedMatch({ node, score: 10 - index })),
+    }),
+  );
+  render(<Searchbar />);
+  const input = screen.getByRole('combobox', { name: 'Search page' });
+  fireEvent.change(input, { target: { value: 'save' } });
+  await flushSearch();
+  expect(screen.getAllByRole('option')).toHaveLength(5);
+  for (const number of [4, 5]) {
+    fireEvent.keyDown(input, { key: String(number), code: `Digit${number}`, altKey: true });
+    expect(screen.getByRole('status')).toHaveTextContent(`Actions ${number} / 6`);
+    expect(screen.getAllByRole('option')[number - 1]).toHaveClass('keymove-suggestion-selected');
+    expect(vi.mocked(Element.prototype.scrollIntoView).mock.contexts.at(-1)).toBe(
+      nodes[number - 1],
+    );
+  }
+  fireEvent.click(screen.getByRole('button', { name: 'Switch to text' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Switch to actions' }));
+  expect(screen.getByRole('status')).toHaveTextContent('Actions 5 / 6');
+  fireEvent.click(screen.getAllByRole('option')[4]!);
+  expect(screen.getAllByRole('option')[4]).toHaveClass('keymove-suggestion-selected');
+  expect(screen.getAllByRole('option')[0]).not.toHaveClass('keymove-suggestion-selected');
+  fireEvent.click(screen.getByRole('button', { name: 'Switch to text' }));
+  expect(screen.getByRole('status')).toHaveTextContent('Text 1 / 1');
+  expect(screen.getAllByRole('option')[0]).toHaveClass('keymove-suggestion-selected');
+  fireEvent.click(screen.getByRole('button', { name: 'Open KeyMove settings' }));
+  expect(searchMocks.sendMessage).toHaveBeenCalledWith({ type: 'KEYMOVE_OPEN_SETTINGS' });
+  expect(input).toHaveValue('save');
 });
 
 test('Alt+1 and Alt+2 jump to the numbered result, taking its mode with them', async () => {
@@ -922,7 +977,7 @@ test.each([
   const input = screen.getByRole('combobox', { name: 'Search page' });
   fireEvent.change(input, { target: { value: 'result' } });
   await flushSearch();
-  await screen.findByText('Text 1 / 1');
+  await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Text 1 / 1'));
   fireEvent.keyDown(input, {
     bubbles: true,
     cancelable: true,
@@ -1018,6 +1073,38 @@ test('drops the slate when the query is cleared', async () => {
   expect(screen.getAllByRole('option')).toHaveLength(1);
 
   fireEvent.change(input, { target: { value: '' } });
+  expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+});
+
+test('keeps the suggestions frame through empty results and the next pending query', async () => {
+  const node = document.createElement('button');
+  node.textContent = 'Save';
+  document.body.append(node);
+  const matches = makeSearchResult({
+    matchingLinksAndButtons: [node],
+    suggestions: [makeRankedMatch({ node, term: 'save' })],
+  });
+  searchMocks.findMatches.mockResolvedValueOnce(matches);
+  render(<Searchbar />);
+  const input = screen.getByRole('combobox', { name: 'Search page' });
+  fireEvent.change(input, { target: { value: 'save' } });
+  await flushSearch();
+  const panel = screen.getByRole('listbox');
+  searchMocks.findMatches.mockResolvedValueOnce(makeSearchResult());
+  fireEvent.change(input, { target: { value: 'savexyz' } });
+  await flushSearch();
+  expect(screen.getByRole('listbox')).toBe(panel);
+  expect(panel).toHaveTextContent('No matches');
+  expect(input).toHaveAttribute('aria-expanded', 'true');
+  expect(screen.queryAllByRole('option')).toHaveLength(0);
+  const pending = Promise.withResolvers<SearchResult>();
+  searchMocks.findMatches.mockReturnValueOnce(pending.promise);
+  fireEvent.change(input, { target: { value: 'save' } });
+  expect(screen.getByRole('listbox')).toBe(panel);
+  await act(async () => pending.resolve(matches));
+  expect(screen.getByRole('listbox')).toBe(panel);
+  expect(screen.getAllByRole('option')).toHaveLength(1);
+  fireEvent.change(input, { target: { value: 'sa' } });
   expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
 });
 

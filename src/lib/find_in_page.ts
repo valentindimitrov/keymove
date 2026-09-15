@@ -1,6 +1,7 @@
 import NodeScorer from './node_scorer.js';
 import { PageSearchIndex } from './page_search_index.js';
 import type { SearchOptions } from './page_search_index.js';
+import { normalizeSearchText } from './visible_text.js';
 
 let sharedIndex: PageSearchIndex | null = null;
 let sharedIndexHost: string | null = null;
@@ -25,7 +26,7 @@ class FindInPage {
   readonly nodeScorer: NodeScorer;
 
   constructor(searchText: string) {
-    this.searchText = searchText.toLocaleLowerCase().trimStart();
+    this.searchText = normalizeSearchText(searchText).trimStart();
     this.nodeScorer = new NodeScorer(this.searchText);
   }
 

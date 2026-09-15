@@ -1,7 +1,9 @@
 import React from 'react';
 
 function getWindowDimensions() {
-  return { height: window.innerHeight, width: window.innerWidth };
+  // innerWidth includes classic scrollbars; fixed UI must fit the space beside them.
+  const width = document.documentElement.clientWidth || window.innerWidth;
+  return { height: window.innerHeight, width };
 }
 
 const useWindowSize = (timeoutDuration = 0) => {

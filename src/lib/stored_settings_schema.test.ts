@@ -12,15 +12,18 @@ test('accepts boolean values returned by extension storage', () => {
     [SETTINGS_KEYS.START_IN_ACTION_MODE]: true,
     [SETTINGS_KEYS.HIGHLIGHT_MATCHES]: false,
     [SETTINGS_KEYS.SHOW_AUTOHIDE_BUTTON]: true,
+    [SETTINGS_KEYS.LOCK_POSITION_AND_SIZE]: true,
   });
 
   expect(result).toEqual({
     settings: {
+      suggestionCount: 3,
       [SETTINGS_KEYS.AUTO_HIDE]: true,
       [SETTINGS_KEYS.ALWAYS_ON]: false,
       [SETTINGS_KEYS.START_IN_ACTION_MODE]: true,
       [SETTINGS_KEYS.HIGHLIGHT_MATCHES]: false,
       [SETTINGS_KEYS.SHOW_AUTOHIDE_BUTTON]: true,
+      [SETTINGS_KEYS.LOCK_POSITION_AND_SIZE]: true,
     },
     issues: [],
   });
@@ -57,6 +60,28 @@ test('treats a removed setting as a reset to its default', () => {
 test('rejects malformed storage change envelopes', () => {
   const result = validateStoredSettingChange(SETTINGS_KEYS.AUTO_HIDE, 'invalid');
 
-  expect(result.value).toBe(false);
+  expect(result.value).toBe(true);
   expect(result.issues).toEqual(['Storage change for "autoHide" must be an object.']);
+});
+
+test('validates layout locks and unlocks when the stored key is removed', () => {
+  expect(validateStoredSettings({ lockPositionAndSize: 'true' }).settings.lockPositionAndSize).toBe(
+    false,
+  );
+  expect(validateStoredSettingChange('lockPositionAndSize', { newValue: true }).value).toBe(true);
+  expect(validateStoredSettingChange('lockPositionAndSize', { oldValue: true }).value).toBe(false);
+});
+
+test('validates suggestion counts and defaults Autohide to on without overriding saved choices', () => {
+  expect(validateStoredSettings({}).settings.autoHide).toBe(true);
+  expect(validateStoredSettings({ autoHide: false, suggestionCount: 7 }).settings).toMatchObject({
+    autoHide: false,
+    suggestionCount: 5,
+  });
+  for (const suggestionCount of [0, -1, 1.5, NaN, Infinity, '5', Number.MAX_SAFE_INTEGER + 1]) {
+    const result = validateStoredSettings({ suggestionCount });
+    expect(result.settings.suggestionCount).toBe(3);
+    expect(result.issues).toHaveLength(1);
+  }
+  expect(validateStoredSettingChange('suggestionCount', { oldValue: 8 }).value).toBe(3);
 });

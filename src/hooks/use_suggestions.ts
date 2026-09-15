@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   MIN_SUGGESTION_QUERY_LENGTH,
-  SUGGESTION_LIMIT,
+  DEFAULT_SUGGESTION_COUNT,
   SUGGESTION_SWAP_MARGIN,
 } from '../constants.js';
 import {
@@ -25,6 +25,7 @@ type SuggestionOptions = {
   searchText: string;
   isFuzzy: boolean;
   pending: boolean;
+  count?: number;
 };
 
 /**
@@ -32,7 +33,11 @@ type SuggestionOptions = {
  * Scores shift on every keystroke, and two results that are effectively tied would otherwise
  * trade places continuously, which makes a numbered row impossible to aim at.
  */
-function applyHysteresis(incoming: RankedMatch[], previous: RankedMatch[]): RankedMatch[] {
+function applyHysteresis(
+  incoming: RankedMatch[],
+  previous: RankedMatch[],
+  count = DEFAULT_SUGGESTION_COUNT,
+): RankedMatch[] {
   const incomingByNode = new Map(incoming.map(match => [match.node, match]));
   const incumbents = previous.flatMap(match => {
     const current = incomingByNode.get(match.node);
@@ -42,7 +47,7 @@ function applyHysteresis(incoming: RankedMatch[], previous: RankedMatch[]): Rank
   const held: RankedMatch[] = [];
   // incoming contains every distinct candidate in score order, including those outside
   // the previous three. Membership and order are decided together, using current scores.
-  while (held.length < SUGGESTION_LIMIT && remaining.size > 0) {
+  while (held.length < count && remaining.size > 0) {
     const challenger = remaining.values().next().value!;
     const incumbent = incumbents[held.length];
     const winner =
@@ -56,7 +61,7 @@ function applyHysteresis(incoming: RankedMatch[], previous: RankedMatch[]): Rank
   }
   // Keep the mixed slate. Apply the same margin within the reserved kind so a near-tied
   // alternative cannot churn the third row through this route either.
-  if (held.length === SUGGESTION_LIMIT && held.every(match => match.kind === held[0]!.kind)) {
+  if (count > 1 && held.length === count && held.every(match => match.kind === held[0]!.kind)) {
     const challenger = incoming.find(match => match.kind !== held[0]!.kind);
     if (challenger) {
       const incumbent = incumbents.find(match => match.kind === challenger.kind);
@@ -92,23 +97,35 @@ function describeAll(matches: RankedMatch[], isFuzzy: boolean) {
   return matches.map(match => describe(match, isFuzzy));
 }
 
-const useSuggestions = ({ suggestions, searchText, isFuzzy, pending }: SuggestionOptions) => {
+const useSuggestions = ({
+  suggestions,
+  searchText,
+  isFuzzy,
+  pending,
+  count = DEFAULT_SUGGESTION_COUNT,
+}: SuggestionOptions) => {
   const previous = React.useRef<RankedMatch[]>([]);
+  const displayed = React.useRef<Suggestion[]>([]);
   // Below a few characters almost everything matches, and the order churns with every
   // keystroke. There is nothing worth showing yet.
   const enabled = searchText.trim().length >= MIN_SUGGESTION_QUERY_LENGTH;
 
   const ordered = React.useMemo(
-    () => (!enabled || pending ? [] : applyHysteresis(suggestions, previous.current)),
-    [enabled, pending, suggestions],
+    () => (!enabled || pending ? [] : applyHysteresis(suggestions, previous.current, count)),
+    [enabled, pending, suggestions, count],
   );
-  // Only committed results become history. Pending queries hide stale rows but retain the
-  // last slate; a short/cleared query or a completed empty result really ends that history.
+  const described = React.useMemo(
+    () => (!enabled ? [] : pending ? displayed.current : describeAll(ordered, isFuzzy)),
+    [enabled, pending, ordered, isFuzzy],
+  );
+  // Keep the committed presentation intact while searching, including fuzzy labels. The
+  // caller disables selection until fresh results arrive. Short or empty queries clear it.
   React.useLayoutEffect(() => {
     if (!enabled) previous.current = [];
     else if (!pending) previous.current = ordered;
-  }, [enabled, pending, ordered]);
-  return React.useMemo(() => describeAll(ordered, isFuzzy), [ordered, isFuzzy]);
+    if (!enabled || !pending) displayed.current = described;
+  }, [enabled, pending, ordered, described]);
+  return described;
 };
 
 export type { Suggestion };

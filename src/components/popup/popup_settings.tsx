@@ -6,6 +6,8 @@ import usePopupWidth from '../../hooks/use_popup_width.js';
 import InfoPanelSectionHeader from '../searchbar/info_panel/info_panel_section_header.js';
 import InfoPanelShortcutRow from '../searchbar/info_panel/info_panel_shortcut_row.js';
 import PopupPositionGrid from './popup_position_grid.js';
+import PopupLayoutActions from './popup_layout_actions.js';
+import SuggestionCountSetting from './suggestion_count_setting.js';
 import { keyboardShortcuts } from '../../lib/static_data.js';
 import Utils from '../../lib/utils.js';
 import type { DisplayableKeyboardShortcut } from '../searchbar/info_panel/info_panel_shortcut_row.js';
@@ -17,6 +19,8 @@ import InfoPanelButtons from '../searchbar/info_panel/info_panel_buttons.js';
 // storage change events, so a write here reaches all of them without any messaging.
 const PopupSettings = () => {
   const {
+    suggestionCount,
+    updateSuggestionCount,
     autoHide,
     updateAutoHide,
     alwaysOn,
@@ -27,6 +31,8 @@ const PopupSettings = () => {
     updateHighlightMatches,
     showAutohideButton,
     updateShowAutohideButton,
+    lockPositionAndSize,
+    updateLockPositionAndSize,
   } = useStoredSettings();
   const { resetPosition } = usePopupPosition();
   const { width: popupWidth, resetWidth } = usePopupWidth();
@@ -88,21 +94,22 @@ const PopupSettings = () => {
         updateHighlightColor={updateHighlightColor}
         resetHighlightColors={resetHighlightColors}
       />
+      <SuggestionCountSetting value={suggestionCount} onChange={updateSuggestionCount} />
       <InfoPanelSectionHeader marginTop text={'Searchbar position and size'} />
-      <PopupPositionGrid />
+      <PopupPositionGrid disabled={lockPositionAndSize} />
       <p className={'keymove-popup-hint'}>
-        {`Drag the right edge of the searchbar to resize it. Currently ${popupWidth} pixels wide.`}
+        {lockPositionAndSize
+          ? `Position and size are locked. Currently ${popupWidth} pixels wide.`
+          : 'Drag the right edge of the searchbar to resize it. Click and drag within the pane to resize it.'}
       </p>
-      <button
-        type="button"
-        className={'keymove-info-panel-reset-position-button'}
-        onClick={() => {
+      <PopupLayoutActions
+        locked={lockPositionAndSize}
+        onToggleLock={() => updateLockPositionAndSize(!lockPositionAndSize)}
+        onReset={() => {
           resetPosition();
           resetWidth();
         }}
-      >
-        {'Reset position and size'}
-      </button>
+      />
       <div className={'keymove-popup-links'}>
         <InfoPanelButtons />
       </div>
