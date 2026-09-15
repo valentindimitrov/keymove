@@ -195,9 +195,5 @@ function visibleText(node: Element, cache: StyleCache = new WeakMap()): string {
   return parts.join('');
 }
 
-function normalizeSearchText(text: string): string {
-  return text.toLocaleLowerCase().replace(/\u00a0/g, ' ');
-}
-
-export { isTextVisible, iterateRenderedText, visibleText, normalizeSearchText };
+export { isTextVisible, iterateRenderedText, visibleText };
 export type { StyleCache, RenderedTextPart, TextBoundary };

@@ -130,3 +130,12 @@ test('agrees with an exhaustive substring oracle across random inputs', () => {
     }
   }
 });
+
+test('counts supplementary letters as characters, not surrogate halves', () => {
+  expect(maxDistanceForQuery('𐐀𐐁')).toBe(0);
+  expect(boundedEditDistance('𐐀𐐁', '𐐁𐐀', 1)).toBe(1);
+  expect(fuzzyMatchInText('before 𐐀𐐁𐐂 after', '𐐁𐐀𐐂', 1)).toEqual({
+    term: '𐐀𐐁𐐂',
+    distance: 1,
+  });
+});

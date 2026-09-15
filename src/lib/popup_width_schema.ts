@@ -1,10 +1,4 @@
-import {
-  KEYMOVE_CONTAINER_WIDTH,
-  MAX_CONTAINER_WIDTH,
-  MIN_CONTAINER_WIDTH,
-  POPUP_WIDTH_STORAGE_KEY,
-} from '../constants.js';
-import { isRecord } from './runtime_schema.js';
+import { KEYMOVE_CONTAINER_WIDTH, MAX_CONTAINER_WIDTH, MIN_CONTAINER_WIDTH } from '../constants.js';
 
 const DEFAULT_POPUP_WIDTH = KEYMOVE_CONTAINER_WIDTH;
 
@@ -26,23 +20,4 @@ function validatePopupWidth(value: unknown): PopupWidthValidation {
   return { width: clampWidth(value), issues: [] };
 }
 
-function validateStoredPopupWidth(data: unknown): PopupWidthValidation {
-  if (!isRecord(data)) return validatePopupWidth(null);
-  return validatePopupWidth(
-    Object.hasOwn(data, POPUP_WIDTH_STORAGE_KEY) ? data[POPUP_WIDTH_STORAGE_KEY] : undefined,
-  );
-}
-
-function validatePopupWidthChange(change: unknown): PopupWidthValidation {
-  if (!isRecord(change)) return validatePopupWidth(null);
-  return validatePopupWidth(Object.hasOwn(change, 'newValue') ? change['newValue'] : undefined);
-}
-
-export type { PopupWidthValidation };
-export {
-  DEFAULT_POPUP_WIDTH,
-  clampWidth,
-  validatePopupWidth,
-  validateStoredPopupWidth,
-  validatePopupWidthChange,
-};
+export { DEFAULT_POPUP_WIDTH, clampWidth, validatePopupWidth };

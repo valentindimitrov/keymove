@@ -47,14 +47,17 @@ const Tooltip = (props: TooltipProps) => {
         containerBounds.left + containerBounds.width / 2 - ARROW_SIZE,
       );
 
-      const maxPanelLeft = windowSize.width - panelBounds.width;
+      const maxPanelLeft = Math.max(0, windowSize.width - panelBounds.width);
       const panelLeft = Utils.clampNumber(centeredPanelLeft, 0, maxPanelLeft);
 
       const maxArrowLeft = windowSize.width - ARROW_SIZE;
       const arrowLeft = Utils.clampNumber(centeredArrowLeft, ARROW_SIZE, maxArrowLeft);
 
       return {
-        panel: { left: panelLeft, top: panelTop },
+        panel: {
+          left: panelLeft,
+          top: Utils.clampNumber(panelTop, 0, Math.max(0, windowSize.height - panelBounds.height)),
+        },
         arrow: { left: arrowLeft, top: arrowTop, borderWidth: arrowBorderWidth },
       };
     }

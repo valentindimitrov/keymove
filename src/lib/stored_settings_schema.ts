@@ -114,7 +114,7 @@ function validateStoredSettingChange(key: string, change: unknown): ValidationRe
   });
 }
 
-export type { StoredSettingKey, BooleanStoredSettingKey, StoredSettings, ValidationResult };
+export type { StoredSettingKey, BooleanStoredSettingKey };
 export {
   DEFAULT_STORED_SETTINGS,
   validateStoredSetting,

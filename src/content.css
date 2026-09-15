@@ -258,6 +258,9 @@
 
 .keymove-tooltip-panel {
   position: fixed;
+  width: min(545px, calc(100vw - 16px));
+  max-height: calc(100vh - 16px);
+  overflow: auto;
   z-index: 2147483004;
   border-radius: 12px;
   background-color: rgba(30, 30, 30, 0.92);
@@ -272,8 +275,7 @@
 }
 
 #keymove-info-panel {
-  width: 545px;
-  min-width: 545px;
+  width: 100%;
   padding: 20px;
 }
 
@@ -301,9 +303,6 @@
   font-weight: 400;
   letter-spacing: normal;
   line-height: 1.35em;
-}
-
-.keymove-info-panel-row {
   display: flex;
   align-items: center;
   padding-left: 15px;
@@ -331,7 +330,15 @@
 }
 
 .keymove-info-panel-shortcut-text {
+  flex: 1 1 150px;
+  min-width: 0;
+  overflow-wrap: anywhere;
   margin-left: 3px;
+}
+
+.keymove-info-panel-shortcut-row {
+  flex-wrap: wrap;
+  row-gap: 4px;
 }
 
 .keymove-info-panel-shortcut-separator {
@@ -357,13 +364,6 @@
   margin: 2px 12px 0 0;
   appearance: auto;
   cursor: pointer;
-}
-
-.keymove-info-panel-pin-hint {
-  padding: 8px 4px 0;
-  color: rgba(255, 255, 255, 0.55);
-  font-size: 11px;
-  text-align: center;
 }
 
 .keymove-info-panel-reset-position-button {

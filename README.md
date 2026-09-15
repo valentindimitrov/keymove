@@ -317,8 +317,13 @@ non-thenable values. It runs automatically through `yarn lint`, `yarn lint:fix`,
 The generated WXT types must be available (`yarn install` runs `wxt prepare`). Strict TypeScript
 checking remains a separate required step.
 
-Run `yarn audit` to check dependency advisories. The `package.json` resolutions keep the development
-tooling dependencies `ansi-regex` and `@babel/runtime` above their known vulnerable versions.
+Run `yarn audit` to check dependency advisories. Two scoped `package.json` resolutions select
+patched development dependencies: `cosmiconfig/js-yaml` and `addons-linter/image-size`. Remove each
+pin when its parent requests a patched version itself. Babel and ansi-regex resolve normally.
+
+Pull requests and pushes to `main` run `yarn quality`. Release preparation runs the same full gate
+before packaging and revalidates the resulting artifacts, including the settings popup and its assets.
+Installed-browser smoke remains a separate local check.
 
 ### Architecture
 
@@ -332,7 +337,7 @@ tooling dependencies `ansi-regex` and `@babel/runtime` above their known vulnera
   attributes.
 - [src/hooks/use_highlights.ts](src/hooks/use_highlights.ts) uses the CSS Custom Highlight API
   without inserting wrappers into host-page content.
-- [src/background.ts](src/background.ts) handles toolbar actions, safe MV3 injection, and validated
+- [src/background.ts](src/background.ts) handles settings requests, safe MV3 injection, and validated
   new-tab requests.
 
 Shared search attributes and keyboard shortcuts live in `src/data`. Repository conventions and
@@ -358,35 +363,24 @@ this acknowledgement does not imply Comake's endorsement.
 
 Questions and feedback: [keymove.impulse550@passmail.com](mailto:keymove.impulse550@passmail.com)
 
-## Project status and TODOs
-Store listings and publication (permanent extension IDs)
-repository metadata
-permission to relicense the upstream code under Apache License 2.0 (Comake contacted),
-upstream contribution documentation
+## Project status
 
-Functionality:
-Add actions extensibility - dictionary, search, custom pass along
-links only navigation
+Store listings and permanent extension IDs, repository metadata, upstream relicensing permission
+(Comake contacted), and upstream contribution documentation remain pending. Resizing, layout reset,
+and license acknowledgements are implemented. GitHub draft-release preparation is available;
+publishing store releases remains a separate step.
 
-lower transparency of searchbar
+Future features and issues needing reproduction are tracked in [the backlog](docs/backlog.md).
 
-make the searchbar + shortlist menu resizeable and add reset button in the browser extension pane
+## Language support
 
+Type-to-search accepts Unicode letters and numbers, including Cyrillic, Greek, Arabic and CJK.
+Search treats composed and decomposed accents consistently while preserving accent distinctions;
+for example, `café` and `cafe` are different exact queries. Matching is case-insensitive with
+locale-independent Unicode casing, not language-specific transliteration. Page highlights and
+suggestions retain the original spelling. Fuzzy search counts supplementary characters as whole
+code points.
 
-
-Start in action mode -> Use action mode 
-
-as highlight
-
-actions to text switch to not right
-https://blip.net not working
-
-packages and releases on github
-integration with chrome extension store
-
-
-contributor guidance - describe the idea
-
-license and acknowledgement - name original developers and current developer
-
-product hunt and youtube launch
+For input methods that compose text, such as a Japanese IME, press **Alt+F** to focus the search
+field before composing. KeyMove leaves composition in other page controls alone. This is search
+support for those scripts; the extension's own interface is currently in English.

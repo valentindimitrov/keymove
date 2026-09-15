@@ -40,16 +40,6 @@ function validateHighlightColors(data: unknown): HighlightColorsValidation {
   return { colors, issues };
 }
 
-function validateHighlightColorsChange(change: unknown): HighlightColorsValidation {
-  if (!change || typeof change !== 'object' || Array.isArray(change)) {
-    return {
-      colors: { ...DEFAULT_HIGHLIGHT_COLORS },
-      issues: ['Storage change for highlight colours must be an object.'],
-    };
-  }
-  return validateHighlightColors((change as Record<string, unknown>).newValue);
-}
-
 // Colours reach the page as concrete rgba() strings rather than through a custom property.
 // A var() that fails to resolve invalidates the whole declaration it sits in, which once
 // erased the selection outline entirely instead of falling back to a visible colour.
@@ -71,12 +61,5 @@ function inkForHexColor(hexColor: string) {
   return luminance > 0.4 ? '#1a1a1a' : '#ffffff';
 }
 
-export type { HighlightColors, HighlightColorsValidation };
-export {
-  DEFAULT_HIGHLIGHT_COLORS,
-  inkForHexColor,
-  isHexColor,
-  rgbaForHexColor,
-  validateHighlightColors,
-  validateHighlightColorsChange,
-};
+export type { HighlightColors };
+export { DEFAULT_HIGHLIGHT_COLORS, inkForHexColor, rgbaForHexColor, validateHighlightColors };

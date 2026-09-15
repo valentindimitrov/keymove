@@ -12,6 +12,13 @@ afterEach(() => {
   document.body.innerHTML = '';
 });
 
+test('maps canonical Unicode normalization across DOM text nodes', () => {
+  document.body.innerHTML = '<p>Cafe<span>\u0301</span> and CAFÉ</p>';
+  expect(
+    highlightRangesForNodes([document.querySelector('p')!], 'café').map(range => range.toString()),
+  ).toEqual(['Cafe\u0301', 'CAFÉ']);
+});
+
 test('creates a range for every case-insensitive match without changing the DOM', () => {
   const button = document.createElement('button');
   button.innerHTML = '<span>Save</span> and save again';

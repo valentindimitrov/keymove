@@ -77,7 +77,10 @@ jobs:
       - name: Install locked dependencies
         run: yarn install --frozen-lockfile --non-interactive
 
-      - name: Build and package both browsers
+      - name: Run the full quality gate
+        run: yarn quality
+
+      - name: Package verified source
         run: yarn zip
 
       - name: Validate packaged builds

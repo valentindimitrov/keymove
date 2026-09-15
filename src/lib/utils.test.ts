@@ -1,5 +1,16 @@
 import Utils from './utils.js';
 
+test.each(['é', 'Б', 'λ', '日', 'ع', '𐐀', '१'])('accepts %s to start searching', key => {
+  expect(Utils.keyValidForFocus(key)).toBe(true);
+});
+
+test.each(['Dead', 'Process', 'Enter', ' ', '😀'])(
+  'does not capture the non-search key %s',
+  key => {
+    expect(Utils.keyValidForFocus(key)).toBe(false);
+  },
+);
+
 test.each([
   ['below the viewport', 900, 940, 'center'],
   ['partly below the viewport', 780, 820, 'center'],

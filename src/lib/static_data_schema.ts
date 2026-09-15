@@ -156,12 +156,5 @@ function validateSearchableAttributes(
   return value as SearchableAttributes;
 }
 
-export type {
-  KeyboardShortcut,
-  KeyboardShortcutName,
-  ModifierKey,
-  PlatformKeyGroups,
-  SearchableAttributes,
-  ShortcutEventMatcher,
-};
-export { KEYBOARD_SHORTCUT_NAMES, validateKeyboardShortcuts, validateSearchableAttributes };
+export type { KeyboardShortcut, KeyboardShortcutName, ModifierKey, PlatformKeyGroups };
+export { validateKeyboardShortcuts, validateSearchableAttributes };

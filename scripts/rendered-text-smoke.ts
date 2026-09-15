@@ -12,7 +12,28 @@ export async function checkRenderedText(client: ChromiumClient, origin: string) 
     await page.activate();
     await waitFor(page, `document.documentElement.dataset.fixtureReady && ${input}`);
     await waitFor(page, 'document.hasFocus()');
-    const scenarios = [
+    const scenarios: {
+      html: string;
+      query: string;
+      copied: string;
+      range: string;
+      fuzzy?: boolean;
+    }[] = [
+      ...[
+        ['İstanbul', 'stanbul', 'stanbul'],
+        ['Cafe<span>\u0301</span>', 'café', 'Cafe\u0301'],
+        ['Настройки', 'НАСТРОЙКИ', 'Настройки'],
+        ['ΕΛΛΑΣ', 'ελλας', 'ΕΛΛΑΣ'],
+        ['日本語検索', '日本語', '日本語'],
+        ['مرحبا بالعالم', 'مرحبا', 'مرحبا'],
+        ['𐐀𐐁𐐂', '𐐨𐐩𐐪', '𐐀𐐁𐐂'],
+      ].map(([text, query, range]) => ({
+        html: `<p id="sample">${text}</p>`,
+        query: query!,
+        range: range!,
+        copied: text!.replace(/<[^>]+>/g, ''),
+        fuzzy: false,
+      })),
       {
         html: '<p id="sample">Account     settings</p>',
         query: 'account settings',

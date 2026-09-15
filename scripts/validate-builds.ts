@@ -79,8 +79,8 @@ function parseJsonFile(filePath: string): unknown {
   }
 }
 
-function readPackageVersion(): string {
-  const packagePath = path.join(projectRoot, 'package.json');
+function readPackageVersion(root: string): string {
+  const packagePath = path.join(root, 'package.json');
   const packageJson = parseJsonFile(packagePath);
   requireCondition(isObject(packageJson), 'package.json must contain an object');
   requireCondition(typeof packageJson['version'] === 'string', 'package.json.version is missing');
@@ -149,7 +149,16 @@ function validateManifestShape(value: unknown, targetName: string): asserts valu
 }
 
 function resolveOutputPath(buildDirectory: string, relativePath: string) {
-  return path.join(buildDirectory, relativePath.replace(/^[/\\]+/, ''));
+  requireCondition(
+    !/^[a-z][a-z\d+.-]*:/i.test(relativePath) && !relativePath.startsWith('//'),
+    'Build resources must be local',
+  );
+  const resolved = path.resolve(buildDirectory, relativePath.replace(/^[/\\]+/, ''));
+  requireCondition(
+    resolved.startsWith(path.resolve(buildDirectory) + path.sep),
+    'Build resource escapes its output directory',
+  );
+  return resolved;
 }
 
 function readRequiredFile(buildDirectory: string, relativePath: string, targetName: string) {
@@ -158,14 +167,59 @@ function readRequiredFile(buildDirectory: string, relativePath: string, targetNa
   return fs.readFileSync(filePath, 'utf8');
 }
 
-function validateTarget(target: BuildTarget, packageVersion: string) {
-  const buildDirectory = path.join(projectRoot, target.directory);
+function validatePopup(buildDirectory: string, action: unknown, targetName: string) {
+  requireCondition(
+    isObject(action) && action['default_popup'] === 'popup.html',
+    `${targetName}: settings popup must be popup.html`,
+  );
+  const html = readRequiredFile(buildDirectory, action['default_popup'], targetName);
+  const scripts = [...html.matchAll(/<script\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi)].map(
+    match => match[1]!,
+  );
+  const styles = [...html.matchAll(/<link\b[^>]*>/gi)]
+    .filter(match => /\brel=["']stylesheet["']/i.test(match[0]))
+    .map(match => /\bhref=["']([^"']+)["']/i.exec(match[0])?.[1]);
+  requireCondition(
+    scripts.length > 0 && styles.length > 0,
+    `${targetName}: popup script or stylesheet reference is missing`,
+  );
+  for (const file of styles) {
+    requireCondition(file, `${targetName}: popup stylesheet href is missing`);
+    readRequiredFile(buildDirectory, file, targetName);
+  }
+  const visited = new Set<string>();
+  const sources: string[] = [];
+  const visitScript = (file: string) => {
+    if (visited.has(file)) return;
+    visited.add(file);
+    const source = readRequiredFile(buildDirectory, file, targetName);
+    sources.push(source);
+    // Vite emits local ES module imports when the popup is split into chunks.
+    for (const match of source.matchAll(/\b(?:from\s*|import\s*(?:\(\s*)?)["']([^"']+)["']/g)) {
+      const specifier = match[1]!;
+      requireCondition(
+        specifier.startsWith('.') || specifier.startsWith('/'),
+        `${targetName}: popup contains a non-local import`,
+      );
+      visitScript(
+        specifier.startsWith('/')
+          ? specifier
+          : path.posix.join(path.posix.dirname(file), specifier),
+      );
+    }
+  };
+  scripts.forEach(visitScript);
+  return sources.join('\n');
+}
+
+function validateTarget(target: BuildTarget, packageVersion: string, root: string) {
+  const buildDirectory = path.join(root, target.directory);
   const manifestPath = path.join(buildDirectory, 'manifest.json');
   requireCondition(fs.existsSync(manifestPath), `${target.name}: manifest.json is missing`);
 
   const license = readRequiredFile(buildDirectory, 'LICENSE', target.name);
   requireCondition(
-    license === fs.readFileSync(path.join(projectRoot, 'LICENSE'), 'utf8'),
+    license === fs.readFileSync(path.join(root, 'LICENSE'), 'utf8'),
     `${target.name}: bundled LICENSE must match the repository license`,
   );
 
@@ -211,7 +265,7 @@ function validateTarget(target: BuildTarget, packageVersion: string) {
     contentBundle.includes('MutationObserver'),
     `${target.name}: incremental page indexing is missing`,
   );
-  requireCondition(manifest.action, `${target.name}: toolbar action is missing`);
+  const popupBundle = validatePopup(buildDirectory, manifest.action, target.name);
   requireCondition(!manifest.browser_action, `${target.name}: legacy browser action is present`);
   requireCondition(
     manifest.permissions?.includes('scripting'),
@@ -266,7 +320,7 @@ function validateTarget(target: BuildTarget, packageVersion: string) {
     `${target.name}: background path is invalid`,
   );
   const backgroundBundle = readRequiredFile(buildDirectory, backgroundPath, target.name);
-  const bundledSource = `${backgroundBundle}\n${contentBundle}`;
+  const bundledSource = `${backgroundBundle}\n${contentBundle}\n${popupBundle}`;
   requireCondition(
     !/\brequire(?:\.context)?\s*\(/.test(bundledSource),
     `${target.name}: unresolved CommonJS require call is bundled`,
@@ -290,10 +344,16 @@ function validateTarget(target: BuildTarget, packageVersion: string) {
   );
 }
 
-try {
-  const packageVersion = readPackageVersion();
-  targets.forEach(target => validateTarget(target, packageVersion));
-} catch (error) {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exit(1);
+export function validateBuilds(root = projectRoot) {
+  const packageVersion = readPackageVersion(root);
+  targets.forEach(target => validateTarget(target, packageVersion, root));
+}
+
+if (import.meta.main) {
+  try {
+    validateBuilds();
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  }
 }

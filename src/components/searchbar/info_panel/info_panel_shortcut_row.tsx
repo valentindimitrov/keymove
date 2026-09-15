@@ -14,7 +14,7 @@ const InfoPanelShortcutRow = (props: InfoPanelShortcutRowProps) => {
   const keys = (isMacOS && shortcut.displayKeys.mac) || shortcut.displayKeys.default;
 
   return (
-    <InfoPanelRow>
+    <InfoPanelRow classes="keymove-info-panel-shortcut-row">
       {keys.flatMap((key, index) => {
         const keyElement = (
           <div key={key} className={'keymove-info-panel-shortcut-key'}>

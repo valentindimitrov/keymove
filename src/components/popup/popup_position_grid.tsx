@@ -1,4 +1,3 @@
-import usePopupPosition from '../../hooks/use_popup_position.js';
 import type { PopupPosition } from '../../lib/popup_position_schema.js';
 
 // Normalized viewport coordinates, so the searchbar keeps its place across window sizes.
@@ -11,9 +10,15 @@ function isSamePosition(a: PopupPosition, b: PopupPosition) {
   return Math.abs(a.x - b.x) < 0.001 && Math.abs(a.y - b.y) < 0.001;
 }
 
-const PopupPositionGrid = ({ disabled = false }: { disabled?: boolean }) => {
-  const { position, updatePosition } = usePopupPosition();
-
+const PopupPositionGrid = ({
+  disabled = false,
+  position,
+  updatePosition,
+}: {
+  disabled?: boolean;
+  position: PopupPosition;
+  updatePosition: (position: PopupPosition) => void;
+}) => {
   return (
     <div className={'keymove-position-grid'} role="group" aria-label="Searchbar position">
       {POSITION_STEPS.map((y, rowIndex) =>

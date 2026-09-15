@@ -12,5 +12,5 @@ const EXTENSION_IDENTITY = {
   sourceUrl: 'https://github.com/valentindimitrov/keymove',
 } as const;
 
-export { CONTACT_EMAIL, EXTENSION_NAME };
+export { EXTENSION_NAME };
 export default EXTENSION_IDENTITY;

@@ -174,7 +174,7 @@ function useSearchNavigation() {
   return { state, setResults, clearResults, reset, setMode, setSelectedIndex };
 }
 
-export type { SearchMode, SearchNavigationAction, SearchNavigationState };
+export type { SearchMode };
 export {
   INITIAL_SEARCH_NAVIGATION_STATE,
   SEARCH_MODES,

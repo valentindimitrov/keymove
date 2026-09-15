@@ -43,5 +43,4 @@ function assertStringArray(
   value.forEach((entry, index) => assertNonemptyString(entry, `${path}[${index}]`));
 }
 
-export type { JsonObject, StringArrayOptions };
 export { assertKnownKeys, assertNonemptyString, assertObject, assertStringArray, fail, isRecord };

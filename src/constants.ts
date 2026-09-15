@@ -1,6 +1,6 @@
 export const MAC_OS_PLATFORMS = ['Macintosh', 'MacIntel', 'MacPPC', 'Mac68K'];
 
-export const KEYS_VALID_FOR_FOCUS_REGEX = /^[a-zA-Z0-9-_/]$/i;
+export const KEYS_VALID_FOR_FOCUS_REGEX = /^[\p{L}\p{N}\p{M}\-_/]$/u;
 
 export const KEYMOVE_ROOT_ID = 'keymove-root';
 export const KEYMOVE_APP_ID = 'keymove-app';

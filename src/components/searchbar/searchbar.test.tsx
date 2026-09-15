@@ -1140,3 +1140,16 @@ test('opens the slate downwards when there is room, and upwards when there is no
     'keymove-container-suggestions-above',
   );
 });
+
+test.each(['é', 'Б', 'λ', '日', 'ع', '𐐀'])(
+  'starts searching with the first %s keystroke',
+  async key => {
+    searchMocks.findMatches.mockResolvedValue(makeSearchResult());
+    render(<Searchbar />);
+    const input = screen.getByRole('combobox', { name: 'Search page' });
+    fireEvent.keyDown(document.body, { key });
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue(key);
+    await flushSearch();
+  },
+);

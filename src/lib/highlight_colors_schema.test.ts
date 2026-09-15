@@ -3,7 +3,6 @@ import {
   inkForHexColor,
   rgbaForHexColor,
   validateHighlightColors,
-  validateHighlightColorsChange,
 } from './highlight_colors_schema.js';
 
 test('accepts stored hex colours and normalises their case', () => {
@@ -23,10 +22,8 @@ test('falls back to defaults for malformed colours without dropping valid ones',
 test('uses defaults when storage returns nothing or the wrong shape', () => {
   expect(validateHighlightColors(undefined).colors).toEqual({ ...DEFAULT_HIGHLIGHT_COLORS });
   expect(validateHighlightColors([]).issues).toHaveLength(1);
-  expect(validateHighlightColorsChange('nope').colors).toEqual({ ...DEFAULT_HIGHLIGHT_COLORS });
-  expect(validateHighlightColorsChange({ newValue: { text: '#123456' } }).colors.text).toBe(
-    '#123456',
-  );
+  expect(validateHighlightColors('nope').colors).toEqual({ ...DEFAULT_HIGHLIGHT_COLORS });
+  expect(validateHighlightColors({ text: '#123456' }).colors.text).toBe('#123456');
 });
 
 test('builds concrete rgba strings rather than relying on custom properties', () => {

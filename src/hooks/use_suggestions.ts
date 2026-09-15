@@ -46,7 +46,7 @@ function applyHysteresis(
   const remaining = new Map(incomingByNode);
   const held: RankedMatch[] = [];
   // incoming contains every distinct candidate in score order, including those outside
-  // the previous three. Membership and order are decided together, using current scores.
+  // the previous slate. Membership and order are decided together, using current scores.
   while (held.length < count && remaining.size > 0) {
     const challenger = remaining.values().next().value!;
     const incumbent = incumbents[held.length];
@@ -60,7 +60,7 @@ function applyHysteresis(
     remaining.delete(winner.node);
   }
   // Keep the mixed slate. Apply the same margin within the reserved kind so a near-tied
-  // alternative cannot churn the third row through this route either.
+  // alternative cannot churn the last row through this route either.
   if (count > 1 && held.length === count && held.every(match => match.kind === held[0]!.kind)) {
     const challenger = incoming.find(match => match.kind !== held[0]!.kind);
     if (challenger) {

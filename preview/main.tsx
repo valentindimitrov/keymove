@@ -1,4 +1,5 @@
 import { createRoot } from 'react-dom/client';
+import { PortalTargetProvider } from '../src/components/searchbar/portal.js';
 import createExtensionRoot from '../src/lib/create_extension_root.js';
 import contentStyles from '../src/content.css?inline';
 import { SCENARIOS } from './scenarios.js';
@@ -39,7 +40,9 @@ function renderScenario(name: string, node: React.ReactNode) {
 
   const extensionRoot = createExtensionRoot(contentStyles, browserName);
   if (!extensionRoot) throw new Error('The preview could not create an extension root.');
-  createRoot(extensionRoot.app).render(node);
+  createRoot(extensionRoot.app).render(
+    <PortalTargetProvider target={extensionRoot.portal}>{node}</PortalTargetProvider>,
+  );
 }
 
 if (scenario) {

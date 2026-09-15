@@ -4,6 +4,13 @@ import {
   SHORT_FUZZY_QUERY_LENGTH,
 } from '../constants.js';
 
+type Characters = string | readonly string[];
+
+// Keep the allocation-free BMP path; only supplementary characters need an array.
+function characters(text: string): Characters {
+  return /[\uD800-\uDFFF]/.test(text) ? Array.from(text) : text;
+}
+
 type FuzzyMatch = { term: string; distance: number };
 
 /**
@@ -11,8 +18,9 @@ type FuzzyMatch = { term: string; distance: number };
  * changes a third of it, so short queries stay strict to avoid matching everything.
  */
 function maxDistanceForQuery(query: string) {
-  if (query.length < MIN_FUZZY_QUERY_LENGTH) return 0;
-  return query.length < SHORT_FUZZY_QUERY_LENGTH ? 1 : MAX_FUZZY_DISTANCE;
+  const length = characters(query).length;
+  if (length < MIN_FUZZY_QUERY_LENGTH) return 0;
+  return length < SHORT_FUZZY_QUERY_LENGTH ? 1 : MAX_FUZZY_DISTANCE;
 }
 
 /**
@@ -21,6 +29,10 @@ function maxDistanceForQuery(query: string) {
  * cannot come in under the budget, so most comparisons stop after a row or two.
  */
 function boundedEditDistance(a: string, b: string, maxDistance: number) {
+  return sequenceDistance(characters(a), characters(b), maxDistance);
+}
+
+function sequenceDistance(a: Characters, b: Characters, maxDistance: number) {
   const exceeded = maxDistance + 1;
   if (Math.abs(a.length - b.length) > maxDistance) return exceeded;
   if (a === b) return 0;
@@ -74,7 +86,7 @@ function boundedEditDistance(a: string, b: string, maxDistance: number) {
  * This is the search half of the algorithm: it reports the closest distance and where that
  * match ends, leaving the matching span to be recovered separately.
  */
-function bestMatchEnd(text: string, query: string, maxDistance: number) {
+function bestMatchEnd(text: Characters, query: Characters, maxDistance: number) {
   const queryLength = query.length;
   let twoRowsBack = new Array<number>(queryLength + 1).fill(0);
   let previousRow = new Array<number>(queryLength + 1);
@@ -131,24 +143,25 @@ function bestMatchEnd(text: string, query: string, maxDistance: number) {
 function fuzzyMatchInText(text: string, query: string, maxDistance: number): FuzzyMatch | null {
   if (maxDistance === 0 || text.length === 0 || query.length === 0) return null;
 
-  const { distance, end } = bestMatchEnd(text, query, maxDistance);
+  const textCharacters = characters(text);
+  const queryCharacters = characters(query);
+  const { distance, end } = bestMatchEnd(textCharacters, queryCharacters, maxDistance);
   if (end === -1 || distance > maxDistance) return null;
 
   // A match of this distance differs from the query by at most maxDistance characters, so its
   // start is within that of `end - query.length`. Only a handful of offsets need checking,
   // which keeps the scan above free of the bookkeeping needed to track a span.
-  const idealStart = end - query.length;
+  const idealStart = end - queryCharacters.length;
   for (let offset = 0; offset <= maxDistance; offset += 1) {
     for (const start of offset === 0 ? [idealStart] : [idealStart - offset, idealStart + offset]) {
       if (start < 0 || start >= end) continue;
-      const candidate = text.slice(start, end);
-      if (boundedEditDistance(query, candidate, maxDistance) === distance) {
-        return { term: candidate, distance };
+      const candidate = textCharacters.slice(start, end);
+      if (sequenceDistance(queryCharacters, candidate, maxDistance) === distance) {
+        return { term: typeof candidate === 'string' ? candidate : candidate.join(''), distance };
       }
     }
   }
   return null;
 }
 
-export type { FuzzyMatch };
 export { boundedEditDistance, fuzzyMatchInText, maxDistanceForQuery };

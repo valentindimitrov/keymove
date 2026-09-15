@@ -23,6 +23,12 @@ test.each([
     false,
   ],
   ['Account     settings', 'account settongs', 'Account     settings', true],
+  ['Cafe<span>\u0301</span>', 'café', 'Cafe\u0301', false],
+  ['Настройки', 'настройки', 'Настройки', false],
+  ['ΕΛΛΑΣ', 'ελλασ', 'ΕΛΛΑΣ', false],
+  ['日本語検索', '日本語', '日本語', false],
+  ['مرحبا بالعالم', 'مرحبا', 'مرحبا', false],
+  ['𐐀𐐁𐐂', '𐐨𐐩𐐪', '𐐀𐐁𐐂', false],
   ['İ Account     settings', 'account settings', 'Account     settings', false],
 ])('search and highlighting agree for %s / %s', async (html, query, expectedRange, fuzzy) => {
   document.body.innerHTML = `<p>${html}</p>`;

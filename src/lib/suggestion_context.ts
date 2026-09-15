@@ -1,4 +1,5 @@
 import { visibleText } from './visible_text.js';
+import { matchingTextSpans } from './search_text.js';
 
 const LANDMARK_LABELS: [string, string][] = [
   ['nav', 'Navigation'],
@@ -94,9 +95,9 @@ function labelForNode(node: Element, kind: 'action' | 'text') {
  */
 function excerptAround(label: string, term: string | null, maxLength = MAX_LABEL_LENGTH) {
   if (label.length <= maxLength) return { excerpt: label, elided: false };
-  const index = term ? label.toLocaleLowerCase().indexOf(term.toLocaleLowerCase()) : -1;
-  if (index === -1) return { excerpt: `${label.slice(0, maxLength).trimEnd()}…`, elided: true };
-  const lead = Math.max(0, index - Math.floor((maxLength - term!.length) / 2));
+  const span = term ? matchingTextSpans(label, term, 1)[0] : undefined;
+  if (!span) return { excerpt: `${label.slice(0, maxLength).trimEnd()}…`, elided: true };
+  const lead = Math.max(0, span.start - Math.floor((maxLength - (span.end - span.start)) / 2));
   const excerpt = label.slice(lead, lead + maxLength).trim();
   return {
     excerpt: `${lead > 0 ? '…' : ''}${excerpt}${lead + maxLength < label.length ? '…' : ''}`,

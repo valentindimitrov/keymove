@@ -1,6 +1,3 @@
-import { POPUP_POSITION_STORAGE_KEY } from '../constants.js';
-import { isRecord } from './runtime_schema.js';
-
 const DEFAULT_POPUP_POSITION = Object.freeze({ x: 0.5, y: 0.75 });
 
 type PopupPosition = { x: number; y: number };
@@ -35,22 +32,5 @@ function validatePopupPosition(value: unknown): PopupPositionValidation {
     : { position: { ...DEFAULT_POPUP_POSITION }, issues };
 }
 
-function validateStoredPopupPosition(data: unknown): PopupPositionValidation {
-  if (!isRecord(data)) return validatePopupPosition(null);
-  return validatePopupPosition(
-    Object.hasOwn(data, POPUP_POSITION_STORAGE_KEY) ? data[POPUP_POSITION_STORAGE_KEY] : undefined,
-  );
-}
-
-function validatePopupPositionChange(change: unknown): PopupPositionValidation {
-  if (!isRecord(change)) return validatePopupPosition(null);
-  return validatePopupPosition(Object.hasOwn(change, 'newValue') ? change['newValue'] : undefined);
-}
-
-export type { PopupPosition, PopupPositionValidation };
-export {
-  DEFAULT_POPUP_POSITION,
-  validatePopupPosition,
-  validateStoredPopupPosition,
-  validatePopupPositionChange,
-};
+export type { PopupPosition };
+export { DEFAULT_POPUP_POSITION, validatePopupPosition };

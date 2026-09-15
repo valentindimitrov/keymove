@@ -1,5 +1,6 @@
 import { LINK_OR_BUTTON_OR_INPUT_TYPES, LINK_OR_BUTTON_ROLE_VALUES } from '../constants.js';
 import { searchableAttributesByNodeName } from './static_data.js';
+import { normalizeSearchText } from './search_text.js';
 
 function selectorsForNodeTypeWithSearchableAttributes(nodeName: string) {
   if (LINK_OR_BUTTON_OR_INPUT_TYPES.includes(nodeName)) {
@@ -27,7 +28,7 @@ function searchableAttributeValuesForNode(node: Element) {
   return attributeNames.reduce<string[]>((values, attributeName) => {
     const attributeValue = node.getAttribute(attributeName);
     if (attributeValue) {
-      values.push(attributeValue.toLocaleLowerCase());
+      values.push(normalizeSearchText(attributeValue));
     }
     return values;
   }, []);

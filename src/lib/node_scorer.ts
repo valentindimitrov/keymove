@@ -130,5 +130,4 @@ class NodeScorer {
   }
 }
 
-export type { ScoredMatch };
 export default NodeScorer;

@@ -5,7 +5,8 @@ import {
   inkForHexColor,
   rgbaForHexColor,
 } from '../lib/highlight_colors_schema.js';
-import { iterateRenderedText, normalizeSearchText } from '../lib/visible_text.js';
+import { iterateRenderedText } from '../lib/visible_text.js';
+import { matchingTextSpans } from '../lib/search_text.js';
 import type { StyleCache, RenderedTextPart, TextBoundary } from '../lib/visible_text.js';
 // Highlighting needs only the node and the slice that matched, not the rest of a result.
 type HighlightTarget = { node: Element; term: string };
@@ -25,32 +26,9 @@ function rangesForTextParts(
   limit = MAX_HIGHLIGHT_RANGES,
 ): Range[] {
   if (!query || limit <= 0) return [];
-  query = normalizeSearchText(query);
   const text = parts.map(part => part.searchText).join('');
-  const normalizedText = normalizeSearchText(text);
+  const spans = matchingTextSpans(text, query, limit);
   const ranges: Range[] = [];
-  let matchIndex = normalizedText.indexOf(query);
-  if (matchIndex === -1) return ranges;
-
-  // Most text preserves UTF-16 offsets when lowercased. Only allocate an offset map
-  // for expanding characters, using packed integers instead of an object per character.
-  let starts: Uint32Array | undefined;
-  let ends: Uint32Array | undefined;
-  if (normalizedText.length !== text.length) {
-    starts = new Uint32Array(normalizedText.length);
-    ends = new Uint32Array(normalizedText.length);
-    let originalOffset = 0;
-    let normalizedOffset = 0;
-    for (const character of text) {
-      const end = originalOffset + character.length;
-      for (let index = 0; index < character.toLocaleLowerCase().length; index += 1) {
-        starts[normalizedOffset] = originalOffset;
-        ends[normalizedOffset] = end;
-        normalizedOffset += 1;
-      }
-      originalOffset = end;
-    }
-  }
 
   let nodeIndex = 0;
   let nodeOffset = 0;
@@ -72,14 +50,11 @@ function rangesForTextParts(
         : part.start;
   };
 
-  while (matchIndex !== -1 && ranges.length < limit) {
+  for (const span of spans) {
     const range = new Range();
-    range.setStart(...boundary(starts?.[matchIndex] ?? matchIndex, false));
-    range.setEnd(
-      ...boundary(ends?.[matchIndex + query.length - 1] ?? matchIndex + query.length, true),
-    );
+    range.setStart(...boundary(span.start, false));
+    range.setEnd(...boundary(span.end, true));
     ranges.push(range);
-    matchIndex = normalizedText.indexOf(query, matchIndex + query.length);
   }
 
   return ranges;
@@ -244,7 +219,6 @@ const useHighlights = ({
   }, [selectedMatch, enabled]);
 };
 
-export type { HighlightTarget };
 export {
   highlightRangesForMatches,
   highlightRangesForNodes,

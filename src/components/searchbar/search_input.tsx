@@ -23,7 +23,7 @@ function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
   const isCopy = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c';
   if (
     !isCopy &&
-    (event.key.length === 1 ||
+    (Array.from(event.key).length === 1 ||
       [
         'Backspace',
         'Delete',

@@ -1,6 +1,7 @@
 import React from 'react';
 import { KEYMOVE_SUGGESTIONS_ID } from '../../constants.js';
 import type { Suggestion } from '../../hooks/use_suggestions.js';
+import { matchingTextSpans } from '../../lib/search_text.js';
 
 type ResultsPanelProps = {
   suggestions: Suggestion[];
@@ -16,12 +17,12 @@ type ResultsPanelProps = {
 /** Marks the matched slice inside a row so the reason a result is listed is visible. */
 function labelParts(label: string, term: string | null) {
   if (!term) return [{ text: label, matched: false }];
-  const index = label.toLocaleLowerCase().indexOf(term.toLocaleLowerCase());
-  if (index === -1) return [{ text: label, matched: false }];
+  const span = matchingTextSpans(label, term, 1)[0];
+  if (!span) return [{ text: label, matched: false }];
   return [
-    { text: label.slice(0, index), matched: false },
-    { text: label.slice(index, index + term.length), matched: true },
-    { text: label.slice(index + term.length), matched: false },
+    { text: label.slice(0, span.start), matched: false },
+    { text: label.slice(span.start, span.end), matched: true },
+    { text: label.slice(span.end), matched: false },
   ].filter(part => part.text.length > 0);
 }
 

@@ -32,6 +32,25 @@ test('marks the part of the row that matched', () => {
   expect(marked.tagName).toBe('MARK');
 });
 
+test.each([
+  ['İstanbul', 'stanbul', 'stanbul'],
+  ['Cafe\u0301', 'café', 'Cafe\u0301'],
+  ['БЪЛГАРИЯ', 'българия', 'БЪЛГАРИЯ'],
+  ['ΕΛΛΑΔΑ', 'ελλαδα', 'ΕΛΛΑΔΑ'],
+  ['日本語', '日本', '日本'],
+  ['العربية', 'عرب', 'عرب'],
+])('marks original Unicode text in %s', (label, term, expected) => {
+  const { container } = render(
+    <ResultsPanel
+      onSelect={vi.fn()}
+      suggestions={[suggestion(label, { term })]}
+      selectedNode={null}
+      above={false}
+    />,
+  );
+  expect(container.querySelector('mark')?.textContent).toBe(expected);
+});
+
 test('selects the row the cursor is on, and none when it has moved past the slate', () => {
   const rows = [suggestion('First'), suggestion('Second')];
   const { rerender } = render(

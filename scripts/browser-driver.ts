@@ -67,9 +67,16 @@ export async function openPage(client: ChromiumClient, url: string) {
     },
     async key(key: string, modifiers = 0) {
       const codes: Record<string, number> = { Tab: 9, Enter: 13, Escape: 27, Backspace: 8 };
-      const character = key.length === 1;
-      const code = /^\d$/.test(key) ? `Digit${key}` : character ? `Key${key.toUpperCase()}` : key;
-      const windowsVirtualKeyCode = codes[key] ?? key.toUpperCase().charCodeAt(0);
+      const character = Array.from(key).length === 1;
+      const ascii = /^[a-z0-9]$/i.test(key);
+      const code = /^\d$/.test(key)
+        ? `Digit${key}`
+        : ascii
+          ? `Key${key.toUpperCase()}`
+          : character
+            ? ''
+            : key;
+      const windowsVirtualKeyCode = codes[key] ?? (ascii ? key.toUpperCase().charCodeAt(0) : 0);
       const params = { key, code, modifiers, windowsVirtualKeyCode };
       await client.sendCommand(
         'Input.dispatchKeyEvent',

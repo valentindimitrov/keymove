@@ -34,7 +34,7 @@ const PopupSettings = () => {
     lockPositionAndSize,
     updateLockPositionAndSize,
   } = useStoredSettings();
-  const { resetPosition } = usePopupPosition();
+  const { position, updatePosition, resetPosition } = usePopupPosition();
   const { width: popupWidth, resetWidth } = usePopupWidth();
   const {
     colors: highlightColors,
@@ -96,7 +96,11 @@ const PopupSettings = () => {
       />
       <SuggestionCountSetting value={suggestionCount} onChange={updateSuggestionCount} />
       <InfoPanelSectionHeader marginTop text={'Searchbar position and size'} />
-      <PopupPositionGrid disabled={lockPositionAndSize} />
+      <PopupPositionGrid
+        position={position}
+        updatePosition={updatePosition}
+        disabled={lockPositionAndSize}
+      />
       <p className={'keymove-popup-hint'}>
         {lockPositionAndSize
           ? `Position and size are locked. Currently ${popupWidth} pixels wide.`

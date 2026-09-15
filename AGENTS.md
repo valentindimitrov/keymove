@@ -26,7 +26,7 @@ authentication flow.
 |-- scripts/
 |   `-- validate-builds.ts   Manifest and generated-bundle checks
 |-- src/
-|   |-- background.ts        Toolbar action and safe content-script injection
+|   |-- background.ts        Settings requests, new tabs, and safe injection
 |   |-- components/searchbar React search UI, overlays, help, and settings
 |   |-- data/                 Validated JSON search configuration and shortcuts
 |   |-- hooks/                Browser events, storage, highlights, and navigation state
@@ -67,8 +67,8 @@ artifacts are `.output/chrome-mv3` and `.output/firefox-mv3`.
    clear history. `ResultsPanel` is a view of the one selection, never a second cursor.
 8. `useSearchNavigation` retains an independent cursor for each mode.
 9. `useHighlights` uses the CSS Custom Highlight API without rewriting host-page DOM.
-10. The MV3 background responds to toolbar clicks and injects the content assets into eligible tabs
-   that were already open at installation time.
+10. The MV3 background handles validated settings/new-tab requests and injects the content assets
+   into eligible tabs that were already open at installation time. The toolbar opens the settings popup.
 
 ## Navigation invariants
 
@@ -93,6 +93,16 @@ artifacts are `.output/chrome-mv3` and `.output/firefox-mv3`.
   immediately. A DOM refresh retains the selected node, or clears it if that node disappeared.
 - Browsers may reserve `Ctrl + Tab` before content scripts receive it. Do not claim that page code
   can override a browser-level shortcut reservation.
+
+## Language support
+
+Search accepts Unicode letters, numbers, and combining marks. Queries, visible text and
+searchable attributes share NFC normalization and locale-independent case conversion, including
+Greek final sigma. Accents remain significant; there is no transliteration or synonym expansion.
+Highlight and suggestion offsets map back to the unchanged original text, including decomposed
+accents. Supplementary characters count as one code point in fuzzy matching. For IME entry, focus
+the search field with Alt+F before composing; never intercept an unfinished page-input composition.
+Measure browser timings when changing normalization, and report significant regressions.
 
 ## Accessibility invariants
 
@@ -135,7 +145,7 @@ the ways in.
 ## Popup position and storage
 
 The default popup center is `{ x: 0.5, y: 0.75 }`, expressed as normalized viewport coordinates.
-Dragging persists `popupPosition` to `browser.storage.local`; the help panel can reset it. Retain
+Dragging persists `popupPosition` to `browser.storage.local`; the toolbar settings can reset it. Retain
 normalized coordinates so the position adapts to viewport changes and clamp rendered pixels so the
 popup stays on-screen.
 
@@ -167,7 +177,8 @@ Yarn 1 hoists these transitive packages into the
 top-level installation, so their presence does not mean the extension imports or ships all of them.
 
 `node_modules/` is local, ignored development state. WXT tree-shakes and bundles reachable runtime
-code only; the measured unpacked Chromium and Firefox artifacts are each roughly 317 KB. Do not
+code only. Measure the current unpacked artifacts in `.output/`; both include a content script
+and a separate settings popup with shared chunks. Do not
 judge the published extension footprint from the development installation size, and do not remove a
 transitive package manually from `node_modules/` or `yarn.lock`.
 

@@ -1,4 +1,5 @@
 import React from 'react';
+import InfoDropdown from '../src/components/searchbar/info_dropdown.js';
 import DraggableContainer from '../src/components/searchbar/draggable_container.js';
 import PopupLayoutActions from '../src/components/popup/popup_layout_actions.js';
 import popupStyles from '../src/popup.css?inline';
@@ -266,6 +267,15 @@ const SearchControlsPreview = () => {
 };
 
 const SCENARIOS: Scenario[] = [
+  {
+    name: 'help-viewport-fit',
+    description: 'Open keyboard help, then shrink the viewport to check wrapping and scrolling',
+    render: () => (
+      <div style={{ position: 'fixed', bottom: 20, right: 20 }}>
+        <InfoDropdown />
+      </div>
+    ),
+  },
   {
     name: 'suggestion-setting-alignment',
     description: 'Suggestion count uses the same control and text columns as the settings above',

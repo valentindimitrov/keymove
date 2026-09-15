@@ -10,7 +10,8 @@ import {
   isLinkOrButtonOrInput,
   searchableAttributeValuesForNode,
 } from './searchable_attributes.js';
-import { isTextVisible, iterateRenderedText, normalizeSearchText } from './visible_text.js';
+import { isTextVisible, iterateRenderedText } from './visible_text.js';
+import { normalizeSearchText } from './search_text.js';
 import type { StyleCache } from './visible_text.js';
 
 const SEARCH_CHUNK_SIZE = 100;
@@ -56,7 +57,7 @@ type SearchOptions = { signal?: AbortSignal };
 type SearchResult = {
   matchingText: TextMatch[];
   matchingLinksAndButtons: HTMLElement[];
-  // All distinct candidates in score order. The UI applies stability before choosing three.
+  // All distinct candidates in score order. The UI applies stability before choosing the configured count.
   suggestions: RankedMatch[];
   isFuzzy: boolean;
 };
@@ -259,14 +260,6 @@ class PageSearchIndex {
       }
       element = element.parentElement;
     }
-  }
-
-  invalidateSubtree(root: Node | null) {
-    if (!(root instanceof Element)) {
-      return;
-    }
-
-    this.pendingSubtrees.set(root, ++this.subtreeRevision);
   }
 
   private async flushPendingSubtrees(signal: AbortSignal, budget: SearchWorkBudget) {
