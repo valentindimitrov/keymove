@@ -70,6 +70,11 @@ ends, and large indexing jobs yield between chunks so they can be cancelled.
 | `Alt + 1` … `Alt + 5` | Select the numbered result in the panel and scroll to it. Use `Option` on macOS. |
 | `Escape` | Clear the current search, or hide KeyMove when the search is already empty. |
 
+Escape is handled only while the search field has focus. Dismissing it restores the previous
+page control and its input/textarea selection without scrolling, if that control is still available.
+Moving focus elsewhere leaves Escape to that control or the page. Activating a search result ends
+the return-focus session; it does not restore the previous control.
+
 The numbered rows are a shortlist of the best matches across both modes, so a number can
 land on an action while the bar is in text mode; the mode follows the row it lands on.
 

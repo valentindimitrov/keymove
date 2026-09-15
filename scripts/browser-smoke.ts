@@ -8,6 +8,7 @@ import { boundedClient, openPage, waitFor } from './browser-driver.ts';
 import type { TestPage } from './browser-driver.ts';
 import { checkContextNavigation } from './context-navigation-smoke.ts';
 import { checkRenderedText } from './rendered-text-smoke.ts';
+import { checkFocusRestoration } from './focus-restoration-smoke.ts';
 
 const shadow = `document.getElementById('keymove-root')?.shadowRoot`;
 const input = `${shadow}?.querySelector('[aria-label="Search page"]')`;
@@ -329,6 +330,10 @@ export async function runBrowserSmoke(client: ChromiumClient, browser: string): 
           input.dispatchEvent(new Event('input', { bubbles: true }));
         })()`);
       };
+      await checkFocusRestoration(page, popup);
+      passed.push(
+        'Escape restores focus/caret without scrolling; new page focus owns Escape, including after reopening',
+      );
       await page.activate();
       await waitFor(page, 'document.hasFocus()');
       await page.key('f', 1);

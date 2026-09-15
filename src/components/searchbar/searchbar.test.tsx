@@ -312,6 +312,7 @@ test('returns to the default mode once the search is over, but not while typing'
   renderWithBothKinds();
   render(<Searchbar />);
   const input = screen.getByRole('combobox', { name: 'Search page' });
+  act(() => input.focus());
   fireEvent.change(input, { target: { value: 'sav' } });
   await flushSearch();
 
@@ -740,6 +741,137 @@ test('Escape clears the query, then hides the bar with Autohide off, and Alt+F r
   fireEvent.keyDown(document.body, { key: 'f', code: 'KeyF', altKey: true });
   expect(container.firstElementChild).not.toHaveClass('keymove-hidden');
   expect(input).toHaveFocus();
+});
+
+test('Escape restores the original field and caret only after dismissing the search', async () => {
+  searchMocks.findMatches.mockResolvedValue(makeSearchResult());
+  const original = document.createElement('textarea');
+  original.value = 'Original text';
+  document.body.append(original);
+  render(<Searchbar />);
+  act(() => {
+    original.focus();
+    original.setSelectionRange(2, 6, 'backward');
+  });
+  fireEvent.keyDown(original, { key: 'f', code: 'KeyF', altKey: true });
+  const input = screen.getByRole('combobox', { name: 'Search page' });
+  expect(input).toHaveFocus();
+  // Reopening an already focused search must not replace its return target.
+  fireEvent.keyDown(input, { key: 'f', code: 'KeyF', altKey: true });
+  fireEvent.change(input, { target: { value: 'save' } });
+  await flushSearch();
+  original.setSelectionRange(0, 0);
+  const focus = vi.spyOn(original, 'focus');
+  fireEvent.keyDown(input, { key: 'Escape', code: 'Escape' });
+  expect(input).toHaveFocus();
+  expect(input).toHaveValue('');
+  expect(focus).not.toHaveBeenCalled();
+  fireEvent.keyDown(input, { key: 'Escape', code: 'Escape' });
+  expect(original).toHaveFocus();
+  expect(focus).toHaveBeenCalledWith({ preventScroll: true });
+  expect([original.selectionStart, original.selectionEnd, original.selectionDirection]).toEqual([
+    2,
+    6,
+    'backward',
+  ]);
+});
+
+test.each(['button', 'input', 'a'] as const)(
+  'leaves Escape and the new focus with a page %s',
+  tag => {
+    const original = document.createElement('input');
+    const destination = document.createElement(tag);
+    destination.setAttribute('tabindex', '0');
+    document.body.append(original, destination);
+    const { container } = render(<Searchbar />);
+    act(() => original.focus());
+    fireEvent.keyDown(original, { key: 'f', code: 'KeyF', altKey: true });
+    act(() => destination.focus());
+    const onEscape = vi.fn();
+    destination.addEventListener('keydown', onEscape);
+    expect(fireEvent.keyDown(destination, { key: 'Escape', code: 'Escape' })).toBe(true);
+    expect(onEscape).toHaveBeenCalledOnce();
+    expect(destination).toHaveFocus();
+    expect(container.firstElementChild).not.toHaveClass('keymove-hidden');
+    // A later search belongs to this new origin, never to the earlier field.
+    fireEvent.keyDown(destination, { key: 'f', code: 'KeyF', altKey: true });
+    const input = screen.getByRole('combobox', { name: 'Search page' });
+    fireEvent.keyDown(input, { key: 'Escape', code: 'Escape' });
+    expect(destination).toHaveFocus();
+  },
+);
+
+test('restores a page control across both page and extension shadow roots', () => {
+  const pageHost = document.createElement('div');
+  document.body.append(pageHost);
+  const pageShadow = pageHost.attachShadow({ mode: 'open' });
+  const original = document.createElement('input');
+  pageShadow.append(original);
+  const extensionRoot = createExtensionRoot('');
+  if (!extensionRoot) throw new Error('Expected extension root');
+  render(<Searchbar />, { container: extensionRoot.app });
+  const input = within(extensionRoot.app).getByRole('combobox', { name: 'Search page' });
+  act(() => original.focus());
+  // Native focus also covers entering the search directly rather than by shortcut.
+  act(() => input.focus());
+  fireEvent.keyDown(input, { key: 'Escape', code: 'Escape' });
+  expect(pageShadow.activeElement).toBe(original);
+});
+
+test('explicitly blurring the search ends its return session', () => {
+  const original = document.createElement('input');
+  document.body.append(original);
+  render(<Searchbar />);
+  act(() => original.focus());
+  fireEvent.keyDown(original, { key: 'f', code: 'KeyF', altKey: true });
+  const input = screen.getByRole('combobox', { name: 'Search page' });
+  // jsdom reports an unfocused document during blur, unlike a foreground browser tab.
+  const hasFocus = vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+  try {
+    act(() => input.blur());
+    act(() => input.focus());
+    fireEvent.keyDown(input, { key: 'Escape', code: 'Escape' });
+    expect(original).not.toHaveFocus();
+  } finally {
+    hasFocus.mockRestore();
+  }
+});
+
+test.each(['removed', 'disabled', 'hidden', 'inert'])(
+  'does not restore a field that became %s',
+  state => {
+    const original = document.createElement('input');
+    document.body.append(original);
+    render(<Searchbar />);
+    act(() => original.focus());
+    fireEvent.keyDown(original, { key: 'f', code: 'KeyF', altKey: true });
+    const input = screen.getByRole('combobox', { name: 'Search page' });
+    if (state === 'removed') original.remove();
+    else original.setAttribute(state, '');
+    const focus = vi.spyOn(original, 'focus');
+    fireEvent.keyDown(input, { key: 'Escape', code: 'Escape' });
+    expect(focus).not.toHaveBeenCalled();
+    expect(input).not.toHaveFocus();
+  },
+);
+
+test('activation discards the old return target even if the action leaves search focused', async () => {
+  const original = document.createElement('input');
+  const button = document.createElement('button');
+  button.textContent = 'Save';
+  document.body.append(original, button);
+  searchMocks.findMatches.mockResolvedValue(
+    makeSearchResult({ matchingLinksAndButtons: [button] }),
+  );
+  render(<Searchbar />);
+  act(() => original.focus());
+  fireEvent.keyDown(original, { key: 'f', code: 'KeyF', altKey: true });
+  const input = screen.getByRole('combobox', { name: 'Search page' });
+  fireEvent.change(input, { target: { value: 'save' } });
+  await flushSearch();
+  fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
+  fireEvent.keyDown(input, { key: 'Escape', code: 'Escape' });
+  expect(original).not.toHaveFocus();
 });
 
 test.each(['blur first', 'hidden first'])(
