@@ -154,6 +154,14 @@ const Searchbar = () => {
       if (Utils.isExtensionElement(event.relatedTarget)) {
         return;
       }
+      // Leaving the tab/window can blur the input before visibilitychange arrives.
+      // Keep this document's search state; a focus change within the page still resets it.
+      if (
+        event.relatedTarget === null &&
+        (!document.hasFocus() || document.visibilityState === 'hidden')
+      ) {
+        return;
+      }
       if (autoHide) {
         setIsHidden(true);
       }

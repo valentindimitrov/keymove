@@ -6,6 +6,7 @@ import { createServer } from 'vite';
 import type { ChromiumClient } from 'web-ext';
 import { boundedClient, openPage, waitFor } from './browser-driver.ts';
 import type { TestPage } from './browser-driver.ts';
+import { checkContextNavigation } from './context-navigation-smoke.ts';
 
 const shadow = `document.getElementById('keymove-root')?.shadowRoot`;
 const input = `${shadow}?.querySelector('[aria-label="Search page"]')`;
@@ -70,6 +71,10 @@ export async function runBrowserSmoke(client: ChromiumClient, browser: string): 
     await server.listen();
     const origin = server.resolvedUrls?.local[0];
     assert(origin, 'Fixture server did not expose its address');
+    await checkContextNavigation(client, origin);
+    passed.push(
+      'Off-screen matches leave context below; switching tabs preserves independent queries and selections',
+    );
     for (const size of ['small', 'large']) {
       console.log(`Checking ${size} fixture at ${origin}`);
       const page = await openPage(client, `${origin}fixtures.html?size=${size}`);

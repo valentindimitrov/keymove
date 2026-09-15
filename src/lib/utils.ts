@@ -117,7 +117,17 @@ function nodeIsInViewport(node: Node) {
 function scrollToNodeAtIndexInList(nodeList: readonly Element[], selectedIndex: number) {
   const selectedMatchingNode = nodeList.length > 0 ? nodeList[selectedIndex] : null;
   if (selectedMatchingNode) {
-    selectedMatchingNode.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    const rect = selectedMatchingNode.getBoundingClientRect();
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+    // Native text selection can first reveal a result flush against the viewport edge.
+    // Reserve context there too, while leaving comfortably visible results in place.
+    const contextMargin = Math.min(200, viewportHeight * 0.2);
+    const nearViewportEdge =
+      rect.top < contextMargin || rect.bottom > viewportHeight - contextMargin;
+    selectedMatchingNode.scrollIntoView({
+      block: nearViewportEdge ? 'center' : 'nearest',
+      inline: 'nearest',
+    });
   }
 }
 

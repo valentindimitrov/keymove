@@ -1,5 +1,35 @@
 import Utils from './utils.js';
 
+test.each([
+  ['below the viewport', 900, 940, 'center'],
+  ['partly below the viewport', 780, 820, 'center'],
+  ['above the viewport', -100, -60, 'center'],
+  ['just inside the bottom edge', 740, 780, 'center'],
+  ['just inside the top edge', 20, 60, 'center'],
+  ['already visible', 200, 240, 'nearest'],
+])('scrolls a match %s with room for context', (_label, top, bottom, block) => {
+  vi.stubGlobal('innerHeight', 800);
+  const node = document.createElement('p');
+  node.scrollIntoView = vi.fn();
+  vi.spyOn(node, 'getBoundingClientRect').mockReturnValue({
+    top,
+    bottom,
+    left: 0,
+    right: 100,
+    width: 100,
+    height: bottom - top,
+    x: 0,
+    y: top,
+    toJSON: () => ({}),
+  });
+  try {
+    Utils.scrollToNodeAtIndexInList([node], 0);
+    expect(node.scrollIntoView).toHaveBeenCalledWith({ block, inline: 'nearest' });
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
+
 afterEach(() => {
   Utils.clearPageSelection();
   window.getSelection()?.removeAllRanges();

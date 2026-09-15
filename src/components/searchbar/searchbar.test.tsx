@@ -687,6 +687,61 @@ test('Escape clears the query, then hides the bar with Autohide off, and Alt+F r
   expect(input).toHaveFocus();
 });
 
+test.each(['blur first', 'hidden first'])(
+  'keeps tab context when switching away: %s',
+  async order => {
+    const first = document.createElement('button');
+    first.textContent = 'Save first';
+    const second = document.createElement('button');
+    second.textContent = 'Save second';
+    document.body.append(first, second);
+    searchMocks.findMatches.mockResolvedValue(
+      makeSearchResult({
+        matchingLinksAndButtons: [first, second],
+        suggestions: [makeRankedMatch({ node: first }), makeRankedMatch({ node: second })],
+      }),
+    );
+    render(<Searchbar />);
+    const input = screen.getByRole('combobox', { name: 'Search page' });
+    fireEvent.change(input, { target: { value: 'save' } });
+    await flushSearch();
+    input.focus();
+    fireEvent.keyDown(input, { key: '2', code: 'Digit2', altKey: true });
+    const hasFocus = vi.spyOn(document, 'hasFocus').mockReturnValue(false);
+    const visibility = vi
+      .spyOn(document, 'visibilityState', 'get')
+      .mockReturnValue(order === 'hidden first' ? 'hidden' : 'visible');
+    try {
+      fireEvent.blur(input, { relatedTarget: null });
+      visibility.mockReturnValue('hidden');
+      fireEvent(document, new Event('visibilitychange'));
+      visibility.mockReturnValue('visible');
+      hasFocus.mockReturnValue(true);
+      fireEvent(document, new Event('visibilitychange'));
+      expect(input).toHaveValue('save');
+      expect(screen.getByRole('status')).toHaveTextContent('Actions 2 / 2');
+      expect(screen.getAllByRole('option')[1]).toHaveAttribute('aria-selected', 'true');
+      expect(searchMocks.findMatches).toHaveBeenCalledOnce();
+    } finally {
+      hasFocus.mockRestore();
+      visibility.mockRestore();
+    }
+  },
+);
+
+test('still clears a search when focus moves to a control on the same page', async () => {
+  searchMocks.findMatches.mockResolvedValue(makeSearchResult());
+  render(<Searchbar />);
+  const input = screen.getByRole('combobox', { name: 'Search page' });
+  fireEvent.change(input, { target: { value: 'save' } });
+  await flushSearch();
+  const pageInput = document.createElement('input');
+  document.body.append(pageInput);
+  act(() => input.focus());
+  act(() => pageInput.focus());
+  expect(input).toHaveValue('');
+});
+
 test('does not clear results or intercept Tab and Enter when focus moves to help controls', async () => {
   const button = document.createElement('button');
   button.textContent = 'Save';

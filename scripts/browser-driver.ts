@@ -49,6 +49,7 @@ export async function openPage(client: ChromiumClient, url: string) {
   const session = sessionId as string;
   return {
     activate: () => client.sendCommand('Target.activateTarget', { targetId }),
+    close: () => client.sendCommand('Target.closeTarget', { targetId }),
     async evaluate(expression: string): Promise<unknown> {
       const response = record(
         await client.sendCommand(
