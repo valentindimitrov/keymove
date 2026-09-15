@@ -13,7 +13,7 @@ test('numbers each row and names what activating it would do', () => {
     suggestion('Contributing guidelines', { term: 'contribu', context: 'link · in navigation' }),
     suggestion('We welcome contributions', { kind: 'text', context: 'paragraph' }),
   ];
-  render(<ResultsPanel suggestions={rows} selectedNode={null} above={false} />);
+  render(<ResultsPanel onSelect={vi.fn()} suggestions={rows} selectedNode={null} above={false} />);
 
   const options = screen.getAllByRole('option');
   expect(options).toHaveLength(2);
@@ -26,7 +26,7 @@ test('numbers each row and names what activating it would do', () => {
 
 test('marks the part of the row that matched', () => {
   const row = suggestion('Contributing guidelines', { term: 'contribu' });
-  render(<ResultsPanel suggestions={[row]} selectedNode={null} above={false} />);
+  render(<ResultsPanel onSelect={vi.fn()} suggestions={[row]} selectedNode={null} above={false} />);
 
   const marked = within(screen.getByRole('option')).getByText('Contribu');
   expect(marked.tagName).toBe('MARK');
@@ -35,32 +35,51 @@ test('marks the part of the row that matched', () => {
 test('selects the row the cursor is on, and none when it has moved past the slate', () => {
   const rows = [suggestion('First'), suggestion('Second')];
   const { rerender } = render(
-    <ResultsPanel suggestions={rows} selectedNode={rows[1]!.node} above={false} />,
+    <ResultsPanel
+      onSelect={vi.fn()}
+      suggestions={rows}
+      selectedNode={rows[1]!.node}
+      above={false}
+    />,
   );
 
   expect(screen.getAllByRole('option')[1]).toHaveAttribute('aria-selected', 'true');
   expect(screen.getAllByRole('option')[0]).toHaveAttribute('aria-selected', 'false');
 
   rerender(
-    <ResultsPanel suggestions={rows} selectedNode={document.createElement('p')} above={false} />,
+    <ResultsPanel
+      onSelect={vi.fn()}
+      suggestions={rows}
+      selectedNode={document.createElement('p')}
+      above={false}
+    />,
   );
 
   expect(screen.queryByRole('option', { selected: true })).not.toBeInTheDocument();
 });
 
 test('renders nothing at all when there is no slate', () => {
-  const { container } = render(<ResultsPanel suggestions={[]} selectedNode={null} above={false} />);
+  const { container } = render(
+    <ResultsPanel onSelect={vi.fn()} suggestions={[]} selectedNode={null} above={false} />,
+  );
 
   expect(container).toBeEmptyDOMElement();
 });
 
 test('flips above the bar when asked, so it does not run off the bottom', () => {
   const { container, rerender } = render(
-    <ResultsPanel suggestions={[suggestion('One')]} selectedNode={null} above />,
+    <ResultsPanel onSelect={vi.fn()} suggestions={[suggestion('One')]} selectedNode={null} above />,
   );
   expect(container.querySelector('.keymove-suggestions')).toHaveClass('keymove-suggestions-above');
 
-  rerender(<ResultsPanel suggestions={[suggestion('One')]} selectedNode={null} above={false} />);
+  rerender(
+    <ResultsPanel
+      onSelect={vi.fn()}
+      suggestions={[suggestion('One')]}
+      selectedNode={null}
+      above={false}
+    />,
+  );
   expect(container.querySelector('.keymove-suggestions')).toHaveClass('keymove-suggestions-below');
 });
 
@@ -69,7 +88,7 @@ test('says how far off an approximate result is, and where it sits', () => {
     term: 'contribu',
     context: 'link · 1 edit away · in Navigation',
   });
-  render(<ResultsPanel suggestions={[row]} selectedNode={null} above={false} />);
+  render(<ResultsPanel onSelect={vi.fn()} suggestions={[row]} selectedNode={null} above={false} />);
 
   expect(screen.getByRole('option')).toHaveTextContent('link · 1 edit away · in Navigation');
 });

@@ -469,6 +469,60 @@ test('Alt+1 and Alt+2 jump to the numbered result, taking its mode with them', a
   expect(status).toHaveTextContent('Text 2 / 2');
 });
 
+test('clicking suggestion contents selects and scrolls without dragging or activating', async () => {
+  const first = document.createElement('p');
+  first.textContent = 'Save now';
+  const second = document.createElement('p');
+  second.textContent = 'Saved items';
+  const action = document.createElement('button');
+  action.textContent = 'Save draft';
+  const activate = vi.fn();
+  action.addEventListener('click', activate);
+  document.body.append(first, second, action);
+  searchMocks.findMatches.mockResolvedValue(
+    makeSearchResult({
+      matchingText: [makeTextMatch({ node: first }), makeTextMatch({ node: second })],
+      matchingLinksAndButtons: [action],
+      suggestions: [
+        makeRankedMatch({ kind: 'action', node: action, term: 'Sav' }),
+        makeRankedMatch({ kind: 'text', node: second, term: 'Sav' }),
+      ],
+    }),
+  );
+  render(<Searchbar />);
+  const input = screen.getByRole('combobox', { name: 'Search page' });
+  fireEvent.change(input, { target: { value: 'sav' } });
+  await flushSearch();
+  input.focus();
+  const panel = document.getElementById('keymove-container')!;
+  const originalPosition = panel.style.cssText;
+  // Click a nested mark, with slight pointer movement as happens during a real click.
+  for (const index of [1, 0]) {
+    const row = screen.getAllByRole('option')[index]!;
+    const target = within(row).getByText('Sav');
+    expect(fireEvent.mouseDown(target, { button: 0, clientX: 200, clientY: 300 })).toBe(false);
+    fireEvent.mouseMove(document, { clientX: 204, clientY: 302 });
+    fireEvent.mouseUp(target, { button: 0, clientX: 204, clientY: 302 });
+    fireEvent.click(target);
+    expect(panel.style.cssText).toBe(originalPosition);
+    expect(searchMocks.updatePopupPosition).not.toHaveBeenCalled();
+    expect(row).toHaveAttribute('aria-selected', 'true');
+    expect(input).toHaveAttribute('aria-activedescendant', row.id);
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue('sav');
+    expect(activate).not.toHaveBeenCalled();
+    expect(screen.getByRole('status')).toHaveTextContent(
+      index === 1 ? 'Text 2 / 2' : 'Actions 1 / 1',
+    );
+    expect(window.getSelection()?.toString()).toBe(index === 1 ? second.textContent : '');
+    expect(vi.mocked(Element.prototype.scrollIntoView).mock.contexts.at(-1)).toBe(
+      index === 1 ? second : action,
+    );
+  }
+  fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
+  expect(activate).toHaveBeenCalledOnce();
+});
+
 test('Alt+3 does nothing when the list is shorter than three rows', async () => {
   const paragraph = document.createElement('p');
   paragraph.textContent = 'Save now';

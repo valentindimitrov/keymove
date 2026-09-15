@@ -5,6 +5,7 @@ type ResultsPanelProps = {
   suggestions: Suggestion[];
   selectedNode: Element | null;
   above: boolean;
+  onSelect: (position: number) => void;
 };
 
 /** Marks the matched slice inside a row so the reason a result is listed is visible. */
@@ -20,7 +21,7 @@ function labelParts(label: string, term: string | null) {
 }
 
 const ResultsPanel = (props: ResultsPanelProps) => {
-  const { suggestions, selectedNode, above } = props;
+  const { suggestions, selectedNode, above, onSelect } = props;
 
   if (suggestions.length === 0) {
     return null;
@@ -40,6 +41,15 @@ const ResultsPanel = (props: ResultsPanelProps) => {
             id={`keymove-suggestion-${index}`}
             role="option"
             aria-selected={selected}
+            onMouseDown={event => {
+              // Keep the search input focused and prevent the parent from dragging the bar.
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+            onClick={event => {
+              event.stopPropagation();
+              onSelect(index);
+            }}
             className={`keymove-suggestion${selected ? ' keymove-suggestion-selected' : ''}`}
           >
             <span className={'keymove-suggestion-position'} aria-hidden="true">

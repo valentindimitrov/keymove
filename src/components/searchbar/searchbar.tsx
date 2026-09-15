@@ -327,21 +327,29 @@ const Searchbar = () => {
 
   // Jumps straight to a row of the results panel. The row carries its own kind, so a number
   // can land on an action while the bar is in text mode, and the mode follows it.
+  const selectSuggestion = React.useCallback(
+    (position: number) => {
+      const suggestion = suggestions[position];
+      if (!isInteractive || !suggestion) return false;
+      const mode = suggestion.kind === 'action' ? SEARCH_MODES.ACTIONS : SEARCH_MODES.TEXT;
+      const matches = mode === SEARCH_MODES.TEXT ? matchingTextNodes : matchingLinksAndButtons;
+      const index = matches.indexOf(suggestion.node);
+      // A listed node that is no longer among the matches has nothing to select.
+      if (index === -1) return false;
+      selectMatchAtIndex(mode, index);
+      return true;
+    },
+    [isInteractive, suggestions, matchingTextNodes, matchingLinksAndButtons, selectMatchAtIndex],
+  );
+
   const selectListedMatch = React.useCallback(
     (position: number): ShortcutHandler =>
       guarded(event => {
-        const suggestion = suggestions[position];
-        if (!suggestion) return;
-        const mode = suggestion.kind === 'action' ? SEARCH_MODES.ACTIONS : SEARCH_MODES.TEXT;
-        const matches = mode === SEARCH_MODES.TEXT ? matchingTextNodes : matchingLinksAndButtons;
-        const index = matches.indexOf(suggestion.node);
-        // A listed node that is no longer among the matches has nothing to select.
-        if (index === -1) return;
+        if (!selectSuggestion(position)) return;
         event.preventDefault();
         event.stopPropagation();
-        selectMatchAtIndex(mode, index);
       }),
-    [guarded, suggestions, matchingTextNodes, matchingLinksAndButtons, selectMatchAtIndex],
+    [guarded, selectSuggestion],
   );
 
   const toggleAutoHide = React.useCallback(() => {
@@ -628,6 +636,7 @@ const Searchbar = () => {
             suggestions={suggestions}
             selectedNode={selectedSuggestionNode}
             above={suggestionsAbove}
+            onSelect={selectSuggestion}
           />
         )}
       </DraggableContainer>

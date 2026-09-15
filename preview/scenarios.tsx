@@ -121,7 +121,12 @@ const Bar = (props: BarProps) => {
           resultCount={resultCount}
         />
       </div>
-      <ResultsPanel suggestions={suggestions} selectedNode={selectedNode} above={above} />
+      <ResultsPanel
+        suggestions={suggestions}
+        selectedNode={selectedNode}
+        above={above}
+        onSelect={() => undefined}
+      />
     </DraggableContainer>
   );
 };
