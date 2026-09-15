@@ -76,7 +76,7 @@ const usePopupPosition = () => {
       .catch(error => reportPositionError('read the popup position', error));
     return () => {
       active = false;
-      browser.storage.onChanged.removeListener(handleStorageChange);
+      browser.storage?.onChanged.removeListener(handleStorageChange);
     };
   }, [applyStoredPosition, handleStorageChange]);
 

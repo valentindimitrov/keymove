@@ -27,7 +27,7 @@ const useExtensionMessaging = () => {
   React.useEffect(() => {
     browser.runtime.onMessage.addListener(handleExtensionMessage);
     return () => {
-      browser.runtime.onMessage.removeListener(handleExtensionMessage);
+      browser.runtime?.onMessage.removeListener(handleExtensionMessage);
     };
   }, [handleExtensionMessage]);
 };

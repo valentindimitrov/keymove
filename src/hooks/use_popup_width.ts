@@ -71,7 +71,7 @@ const usePopupWidth = () => {
       .catch(error => reportWidthError('read the popup width', error));
     return () => {
       active = false;
-      browser.storage.onChanged.removeListener(handleStorageChange);
+      browser.storage?.onChanged.removeListener(handleStorageChange);
     };
   }, [applyStoredWidth, handleStorageChange]);
 

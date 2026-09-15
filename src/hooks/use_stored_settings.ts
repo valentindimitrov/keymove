@@ -196,7 +196,7 @@ const useStoredSettings = () => {
       .catch(error => reportStorageError('read stored settings', error));
     return () => {
       active = false;
-      browser.storage.onChanged.removeListener(updateStoredSettings);
+      browser.storage?.onChanged.removeListener(updateStoredSettings);
     };
   }, [initializeStoredSettings, updateStoredSettings]);
 

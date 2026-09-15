@@ -89,7 +89,7 @@ const useHighlightColors = () => {
       .catch(error => reportColorError('read the highlight colours', error));
     return () => {
       active = false;
-      browser.storage.onChanged.removeListener(handleStorageChange);
+      browser.storage?.onChanged.removeListener(handleStorageChange);
     };
   }, [applyStoredColors, handleStorageChange]);
 
