@@ -157,6 +157,42 @@ export async function runBrowserSmoke(client: ChromiumClient, browser: string): 
       passed.push('All 61 results are navigable; Alt+1 selects the strongest late-page text match');
 
       await clear(page);
+      await page.evaluate(`document.getElementById('dynamic').innerHTML =
+        ['alpha', 'beta', 'gamma', 'delta'].map((name, index) =>
+          '<p id="stable-' + name + '" style="position:fixed;left:20px;top:' +
+          (index === 3 ? '200vh' : (20 + index * 30) + 'px') + '">zest ' + name + '</p>'
+        ).join('')`);
+      await type(page, 'zes');
+      await expectSummary(page, 'Text 1 / 4');
+      const thirdLabel = `${shadow}?.querySelectorAll('.keymove-suggestion-label')[2]?.textContent`;
+      await waitFor(page, `${thirdLabel} === 'zest gamma'`);
+      // The viewport bonus raises delta 10% over gamma, a near tie at the third-place boundary.
+      await page.evaluate(`(() => {
+        document.getElementById('stable-gamma').style.top = '200vh';
+        document.getElementById('stable-delta').style.top = '80px';
+        document.getElementById('dynamic').insertAdjacentHTML('beforeend',
+          '<p style="position:fixed;top:200vh">zest epsilon</p>');
+      })()`);
+      await expectSummary(page, 'Text 1 / 5');
+      await waitFor(page, `${thirdLabel} === 'zest gamma'`);
+      await page.key('t');
+      await waitFor(
+        page,
+        `${shadow}?.querySelector('.keymove-suggestion-label mark')?.textContent === 'zest'`,
+      );
+      assert.equal(await page.evaluate(thirdLabel), 'zest gamma');
+      // Losing the word-prefix boost is a decisive drop and must allow replacement.
+      await page.evaluate(`document.getElementById('stable-gamma').textContent = 'azest gamma'`);
+      await waitFor(page, `${thirdLabel} === 'zest delta'`);
+      await page.key('3', 1);
+      await expectSummary(page, 'Text 4 / 5');
+      assert.equal(await page.evaluate('getSelection().toString()'), 'zest delta');
+      await page.evaluate(`document.getElementById('dynamic').replaceChildren()`);
+      passed.push(
+        'Third-row membership survives near ties, DOM refresh and typing; decisive wins replace it and Alt+3 follows',
+      );
+
+      await clear(page);
       await type(page, 'apricot');
       await expectSummary(page, 'Text 0 / 0');
       await page.key('s', 1);

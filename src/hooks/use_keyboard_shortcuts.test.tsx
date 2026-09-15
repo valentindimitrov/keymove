@@ -1,4 +1,5 @@
 import { render } from '@testing-library/react';
+import React from 'react';
 import useKeyboardShortcuts from './use_keyboard_shortcuts.js';
 
 function KeyboardShortcutHarness({
@@ -12,6 +13,35 @@ function KeyboardShortcutHarness({
 
 afterEach(() => {
   document.body.innerHTML = '';
+});
+
+test('installs current shortcuts before a committed UI can receive input', () => {
+  function ImmediateShortcut({
+    handler,
+  }: {
+    handler: (name: string, event: KeyboardEvent) => void;
+  }) {
+    useKeyboardShortcuts(handler);
+    React.useLayoutEffect(() => {
+      document.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: 'f',
+          code: 'KeyF',
+          altKey: true,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    }, [handler]);
+    return null;
+  }
+  const initial = vi.fn();
+  const updated = vi.fn();
+  const { rerender } = render(<ImmediateShortcut handler={initial} />);
+  expect(initial).toHaveBeenCalledWith('focus_searchbar', expect.any(KeyboardEvent));
+  rerender(<ImmediateShortcut handler={updated} />);
+  expect(initial).toHaveBeenCalledTimes(1);
+  expect(updated).toHaveBeenCalledWith('focus_searchbar', expect.any(KeyboardEvent));
 });
 
 test('handles Tab before a page element can swallow the bubbling event', () => {

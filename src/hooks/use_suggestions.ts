@@ -1,5 +1,9 @@
 import React from 'react';
-import { MIN_SUGGESTION_QUERY_LENGTH, SUGGESTION_SWAP_MARGIN } from '../constants.js';
+import {
+  MIN_SUGGESTION_QUERY_LENGTH,
+  SUGGESTION_LIMIT,
+  SUGGESTION_SWAP_MARGIN,
+} from '../constants.js';
 import {
   excerptAround,
   kindLabelForNode,
@@ -20,6 +24,7 @@ type SuggestionOptions = {
   suggestions: RankedMatch[];
   searchText: string;
   isFuzzy: boolean;
+  pending: boolean;
 };
 
 /**
@@ -28,27 +33,40 @@ type SuggestionOptions = {
  * trade places continuously, which makes a numbered row impossible to aim at.
  */
 function applyHysteresis(incoming: RankedMatch[], previous: RankedMatch[]): RankedMatch[] {
-  if (previous.length === 0) return incoming;
   const incomingByNode = new Map(incoming.map(match => [match.node, match]));
+  const incumbents = previous.flatMap(match => {
+    const current = incomingByNode.get(match.node);
+    return current?.kind === match.kind ? [current] : [];
+  });
+  const remaining = new Map(incomingByNode);
   const held: RankedMatch[] = [];
-
-  for (const previousMatch of previous) {
-    const current = incomingByNode.get(previousMatch.node);
-    if (!current) continue;
-    const challenger = incoming[held.length];
-    // The result holding this place keeps it unless something outranks it by the margin.
-    if (!challenger || challenger.node === current.node) {
-      held.push(current);
-    } else if (challenger.score > current.score * SUGGESTION_SWAP_MARGIN) {
-      break;
-    } else {
-      held.push(current);
-    }
-    incomingByNode.delete(previousMatch.node);
+  // incoming contains every distinct candidate in score order, including those outside
+  // the previous three. Membership and order are decided together, using current scores.
+  while (held.length < SUGGESTION_LIMIT && remaining.size > 0) {
+    const challenger = remaining.values().next().value!;
+    const incumbent = incumbents[held.length];
+    const winner =
+      incumbent &&
+      remaining.has(incumbent.node) &&
+      challenger.score <= incumbent.score * SUGGESTION_SWAP_MARGIN
+        ? incumbent
+        : challenger;
+    held.push(winner);
+    remaining.delete(winner.node);
   }
-
-  const remainder = incoming.filter(match => incomingByNode.has(match.node));
-  return [...held, ...remainder].slice(0, incoming.length);
+  // Keep the mixed slate. Apply the same margin within the reserved kind so a near-tied
+  // alternative cannot churn the third row through this route either.
+  if (held.length === SUGGESTION_LIMIT && held.every(match => match.kind === held[0]!.kind)) {
+    const challenger = incoming.find(match => match.kind !== held[0]!.kind);
+    if (challenger) {
+      const incumbent = incumbents.find(match => match.kind === challenger.kind);
+      held[held.length - 1] =
+        incumbent && challenger.score <= incumbent.score * SUGGESTION_SWAP_MARGIN
+          ? incumbent
+          : challenger;
+    }
+  }
+  return held;
 }
 
 function describe(match: RankedMatch, isFuzzy: boolean): Suggestion {
@@ -74,21 +92,23 @@ function describeAll(matches: RankedMatch[], isFuzzy: boolean) {
   return matches.map(match => describe(match, isFuzzy));
 }
 
-const useSuggestions = ({ suggestions, searchText, isFuzzy }: SuggestionOptions) => {
+const useSuggestions = ({ suggestions, searchText, isFuzzy, pending }: SuggestionOptions) => {
   const previous = React.useRef<RankedMatch[]>([]);
   // Below a few characters almost everything matches, and the order churns with every
   // keystroke. There is nothing worth showing yet.
   const enabled = searchText.trim().length >= MIN_SUGGESTION_QUERY_LENGTH;
 
-  return React.useMemo(() => {
-    if (!enabled || suggestions.length === 0) {
-      previous.current = [];
-      return [];
-    }
-    const ordered = applyHysteresis(suggestions, previous.current);
-    previous.current = ordered;
-    return ordered.map(match => describe(match, isFuzzy));
-  }, [enabled, suggestions, isFuzzy]);
+  const ordered = React.useMemo(
+    () => (!enabled || pending ? [] : applyHysteresis(suggestions, previous.current)),
+    [enabled, pending, suggestions],
+  );
+  // Only committed results become history. Pending queries hide stale rows but retain the
+  // last slate; a short/cleared query or a completed empty result really ends that history.
+  React.useLayoutEffect(() => {
+    if (!enabled) previous.current = [];
+    else if (!pending) previous.current = ordered;
+  }, [enabled, pending, ordered]);
+  return React.useMemo(() => describeAll(ordered, isFuzzy), [ordered, isFuzzy]);
 };
 
 export type { Suggestion };

@@ -79,6 +79,8 @@ const Searchbar = () => {
   const [searchText, setSearchText] = React.useState('');
   const [isFuzzy, setIsFuzzy] = React.useState(false);
   const [rankedMatches, setRankedMatches] = React.useState<RankedMatch[]>([]);
+  const [resultsQuery, setResultsQuery] = React.useState('');
+  const [searchPending, setSearchPending] = React.useState(false);
   const previousSearchText = React.useRef(searchText);
   const [scrollOrResizeRefresh, setScrollOrResizeRefresh] = React.useState<boolean>(false);
   const [hideSelections, setHideSelections] = React.useState<boolean>(false);
@@ -200,6 +202,7 @@ const Searchbar = () => {
     async (preserveSelection = false) => {
       const controller = new AbortController();
       searchAbortController.current = controller;
+      setSearchPending(true);
 
       try {
         const { matchingText, matchingLinksAndButtons, suggestions, isFuzzy } =
@@ -210,16 +213,24 @@ const Searchbar = () => {
         }
 
         setIsFuzzy(isFuzzy);
+        setResultsQuery(searchText);
+        setSearchPending(false);
         setRankedMatches(suggestions);
         setSearchResults(matchingText, matchingLinksAndButtons, preserveSelection);
         setScrollOrResizeRefresh(refresh => !refresh);
       } catch (error) {
+        if (controller.signal.aborted) return;
+        setSearchPending(false);
+        setResultsQuery(searchText);
+        setRankedMatches([]);
+        setIsFuzzy(false);
+        clearSearchResults();
         if (!(error instanceof Error) || error.name !== 'AbortError') {
           console.error(`${EXTENSION_NAME} search failed:`, error);
         }
       }
     },
-    [searchText, setSearchResults],
+    [searchText, setSearchResults, clearSearchResults],
   );
 
   const updateSelectionPositionsAfterTimeout = React.useCallback(() => {
@@ -244,13 +255,23 @@ const Searchbar = () => {
         setRankedMatches([]);
         Utils.clearPageSelection();
       }
-      if (searchText.trimStart().length === 0) return;
+      if (searchText.trimStart().length === 0) {
+        setSearchPending(false);
+        return;
+      }
       void runSearch(preserveSelection);
     },
     [cancelPendingSearch, clearSearchResults, runSearch, searchText],
   );
 
-  const suggestions = useSuggestions({ suggestions: rankedMatches, searchText, isFuzzy });
+  const suggestions = useSuggestions({
+    suggestions: rankedMatches,
+    searchText,
+    isFuzzy,
+    // Query identity hides the old slate on the first render of a keystroke, before the
+    // search effect runs. The explicit flag also covers refreshes of the same query.
+    pending: searchPending || resultsQuery !== searchText,
+  });
 
   // Shared by stepping through matches and by jumping straight to a numbered row, so both
   // routes leave the same mode, selection, scroll position and page selection behind.

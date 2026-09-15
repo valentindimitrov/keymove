@@ -1,5 +1,5 @@
 import { makeRankedMatch } from '../test_support/factories.js';
-import { applyHysteresis, describeAll } from './use_suggestions.js';
+import useSuggestions, { applyHysteresis, describeAll } from './use_suggestions.js';
 import type { RankedMatch } from '../lib/page_search_index.js';
 
 function match(name: string, score: number, kind: 'action' | 'text' = 'action'): RankedMatch {
@@ -59,6 +59,69 @@ test('adds a new result without disturbing the places already held', () => {
   expect(named(applyHysteresis(grown, first))).toEqual(['a', 'b', 'c']);
 });
 
+test('holds shortlist membership against a near-tied fourth candidate', () => {
+  const first = [match('a', 10), match('b', 9), match('c', 8)];
+  const incoming = withScores(first, { a: 10, b: 9, c: 8, d: 8.5 });
+  expect(named(applyHysteresis(incoming, first))).toEqual(['a', 'b', 'c']);
+  expect(named(applyHysteresis(withScores(first, { a: 10, b: 9, c: 8, d: 9.5 }), first))).toEqual([
+    'a',
+    'b',
+    'd',
+  ]);
+});
+
+test('keeps both kinds and stabilizes the reserved third row too', () => {
+  const first = [match('a', 20), match('b', 19), match('text', 5, 'text')];
+  const otherText = match('other-text', 5.5, 'text');
+  const candidates = [...first.slice(0, 2), match('c', 18), otherText, first[2]!];
+  expect(named(applyHysteresis(candidates, first))).toEqual(['a', 'b', 'text']);
+  expect(named(applyHysteresis(candidates, []))).toEqual(['a', 'b', 'other-text']);
+  otherText.score = 7;
+  expect(named(applyHysteresis(candidates, first))).toEqual(['a', 'b', 'other-text']);
+});
+
+test('preserves history through pending searches without displaying stale rows', () => {
+  const first = [match('a', 10), match('b', 9.6), match('c', 9)];
+  const props = { suggestions: first, searchText: 'sav', isFuzzy: false, pending: false };
+  const { result, rerender } = renderHook(props => useSuggestions(props), { initialProps: props });
+  expect(result.current.map(row => row.node.id)).toEqual(['a', 'b', 'c']);
+  rerender({ ...props, searchText: 'save', pending: true });
+  expect(result.current).toEqual([]);
+  rerender({ ...props, searchText: 'save', suggestions: [], pending: true });
+  expect(result.current).toEqual([]);
+  rerender({
+    ...props,
+    searchText: 'save',
+    suggestions: withScores(first, { a: 9.8, b: 10, c: 9 }),
+  });
+  expect(result.current.map(row => row.node.id)).toEqual(['a', 'b', 'c']);
+});
+
+test.each(['short query', 'completed empty search'])('resets history after a %s', reset => {
+  const first = [match('a', 10), match('b', 9.6), match('c', 9)];
+  const props = { suggestions: first, searchText: 'save', isFuzzy: false, pending: false };
+  const { result, rerender } = renderHook(props => useSuggestions(props), { initialProps: props });
+  rerender({ ...props, searchText: reset === 'short query' ? 'sa' : 'nothing', suggestions: [] });
+  expect(result.current).toEqual([]);
+  rerender({ ...props, suggestions: withScores(first, { a: 9.8, b: 10, c: 9 }) });
+  expect(result.current.map(row => row.node.id)).toEqual(['b', 'a', 'c']);
+});
+
+test('uses fresh match metadata when holding a row', () => {
+  const first = [match('a', 10), match('b', 9.6)];
+  const fresh = withScores(first, { a: 9.8, b: 10 }).map(row => ({
+    ...row,
+    term: 'new',
+    distance: 1,
+  }));
+  expect(applyHysteresis(fresh, first)[0]).toMatchObject({
+    node: first[0]!.node,
+    score: 9.8,
+    term: 'new',
+    distance: 1,
+  });
+});
+
 test('reads out the edit distance and the region a result sits in', () => {
   const nav = document.createElement('nav');
   const link = document.createElement('a');
@@ -85,3 +148,4 @@ test('reads out the edit distance and the region a result sits in', () => {
   );
   expect(exact!.context).toBe('link · in Navigation');
 });
+import { renderHook } from '@testing-library/react';

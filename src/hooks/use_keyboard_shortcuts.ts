@@ -1,7 +1,6 @@
 import React from 'react';
 import { keyboardShortcuts } from '../lib/static_data.js';
 import Utils from '../lib/utils.js';
-import useDocumentEvent from './use_document_event.js';
 import type {
   KeyboardShortcut,
   KeyboardShortcutName,
@@ -56,8 +55,12 @@ const useKeyboardShortcuts = (handleShortcut: ShortcutHandler) => {
     [handleShortcut, findShortcutMatchingEvent],
   );
 
-  // Capture shortcuts before page controls can swallow Tab and other key events.
-  useDocumentEvent('keydown', true, handleKeyEvent, true);
+  // Register during commit so a freshly mounted or revealed bar cannot receive a shortcut
+  // before its handler is ready. Capture also beats host controls that swallow key events.
+  React.useLayoutEffect(() => {
+    document.addEventListener('keydown', handleKeyEvent, true);
+    return () => document.removeEventListener('keydown', handleKeyEvent, true);
+  }, [handleKeyEvent]);
 };
 
 export default useKeyboardShortcuts;

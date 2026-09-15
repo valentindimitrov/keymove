@@ -58,9 +58,10 @@ artifacts are `.output/chrome-mv3` and `.output/firefox-mv3`.
    still matches. Approximate matching never runs for a search that already has results, and
    each match carries the page's own spelling so highlighting can find it.
 6. Results are split into text blocks and actionable elements.
-7. `page_search_index` also emits a short ranked slate across both kinds, which `useSuggestions`
-   holds steady between keystrokes and `ResultsPanel` renders. The slate is a view of the one
-   selection, never a second cursor.
+7. `page_search_index` also emits all distinct ranked candidates across both kinds. `useSuggestions`
+   applies stability before selecting a mixed three-row slate, retaining its history while a query
+   or DOM refresh is pending. Pending rows are hidden; short queries and completed empty results
+   clear history. `ResultsPanel` is a view of the one selection, never a second cursor.
 8. `useSearchNavigation` retains an independent cursor for each mode.
 9. `useHighlights` uses the CSS Custom Highlight API without rewriting host-page DOM.
 10. The MV3 background responds to toolbar clicks and injects the content assets into eligible tabs

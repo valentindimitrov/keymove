@@ -93,6 +93,8 @@ export async function waitFor(page: TestPage, expression: string) {
     await delay(25);
   }
   const state = await page.evaluate(`({url: location.href, title: document.title,
+    focused: document.hasFocus(), activeElement: document.activeElement?.outerHTML.slice(0, 200),
+    shadowActive: document.getElementById('keymove-root')?.shadowRoot?.activeElement?.outerHTML.slice(0, 200),
     summary: document.getElementById('keymove-root')?.shadowRoot?.querySelector('[role="status"]')?.textContent,
     input: document.getElementById('keymove-root')?.shadowRoot?.querySelector('input')?.value})`);
   throw new Error(`Timed out: ${expression}. Page state: ${JSON.stringify(state)}`);

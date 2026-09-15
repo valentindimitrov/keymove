@@ -40,7 +40,6 @@ export const FUZZY_DISTANCE_PENALTY = 0.6;
 // A search is more often a way to reach a control than to read, so actions win near-ties.
 export const ACTION_PRIORITY_BOOST = 1.25;
 export const SUGGESTION_LIMIT = 3;
-export const SUGGESTION_CANDIDATE_LIMIT = 8;
 export const MIN_SUGGESTION_QUERY_LENGTH = 3;
 // A challenger must beat the result already holding a place by this margin before they swap,
 // so results that score almost identically stop trading places on every keystroke.

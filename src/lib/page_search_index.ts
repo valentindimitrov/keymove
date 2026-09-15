@@ -2,8 +2,7 @@ import {
   ACTION_PRIORITY_BOOST,
   DO_NOT_SEARCH_NODE_TYPES,
   KEYMOVE_ROOT_ID,
-  SUGGESTION_CANDIDATE_LIMIT,
-  SUGGESTION_LIMIT,
+  MIN_SUGGESTION_QUERY_LENGTH,
 } from '../constants.js';
 import NodeScorer from './node_scorer.js';
 import {
@@ -52,68 +51,57 @@ type RankedMatch = {
 type MatchCollector = {
   actions: ActionMatch[];
   matchingText: TextMatch[];
-  // Navigation uses page order; the picker needs the strongest text matches instead.
-  rankedText: TextMatch[];
   textMatchesByContainer: Map<Element, TextMatch>;
 };
 type SearchOptions = { signal?: AbortSignal };
 type SearchResult = {
   matchingText: TextMatch[];
   matchingLinksAndButtons: HTMLElement[];
+  // All distinct candidates in score order. The UI applies stability before choosing three.
   suggestions: RankedMatch[];
   isFuzzy: boolean;
 };
 
-function insertByScore<T extends { score: number }>(list: T[], entry: T, limit: number) {
-  const insertion = list.findIndex(existing => existing.score < entry.score);
-  if (insertion !== -1) list.splice(insertion, 0, entry);
-  else if (list.length < limit) list.push(entry);
-  if (list.length > limit) list.pop();
-}
-
 /**
- * Blends the two result sets into one short slate. Actions carry a bias because a search is
- * more often a way to reach a control than to read, but a slate of only one kind hides the
- * other entirely, so the last place is given up when both kinds are available.
+ * Rank all candidates so a near-tied fourth result cannot evict an incumbent before the
+ * UI has a chance to apply stability. Candidate preparation shares the search work budget.
  */
-function rankSuggestions(collector: MatchCollector, limit: number): RankedMatch[] {
-  const candidates: RankedMatch[] = [
-    ...collector.actions.slice(0, SUGGESTION_CANDIDATE_LIMIT).map(match => ({
-      kind: 'action' as const,
-      node: match.node as Element,
-      score: match.score * ACTION_PRIORITY_BOOST,
-      term: match.term,
-      distance: match.distance,
-    })),
-    ...collector.rankedText.map(match => ({
-      kind: 'text' as const,
-      node: match.node,
-      score: match.score,
-      term: match.term,
-      distance: match.distance,
-    })),
-  ].sort((left, right) => right.score - left.score);
+async function rankSuggestions(
+  collector: MatchCollector,
+  budget: SearchWorkBudget,
+  signal: AbortSignal,
+): Promise<RankedMatch[]> {
+  const candidates: RankedMatch[] = [];
+  for (const kind of ['action', 'text'] as const) {
+    const matches = kind === 'action' ? collector.actions : collector.matchingText;
+    for (const match of matches) {
+      candidates.push({
+        kind,
+        node: match.node,
+        score: match.score * (kind === 'action' ? ACTION_PRIORITY_BOOST : 1),
+        term: match.term,
+        distance: match.distance,
+      });
+      const pause = budget.checkpoint(signal);
+      if (pause) await pause;
+    }
+  }
+  const ranked = await budget.sort(candidates, (left, right) => right.score - left.score, signal);
 
   // A control with a label is both an action and a text block, so the same node can arrive
   // twice. Showing one node on two rows would waste a place people are meant to aim at.
   const seen = new Set<Element>();
-  const distinct = candidates.filter(match => {
-    if (seen.has(match.node)) return false;
-    seen.add(match.node);
-    return true;
-  });
-
-  const slate = distinct.slice(0, limit);
-  if (slate.length < limit || limit === 0) return slate;
-  const missingKind = slate.every(match => match.kind === 'action')
-    ? 'text'
-    : slate.every(match => match.kind === 'text')
-      ? 'action'
-      : null;
-  if (!missingKind) return slate;
-  const best = distinct.find(match => match.kind === missingKind);
-  if (best) slate[slate.length - 1] = best;
-  return slate;
+  const distinct: RankedMatch[] = [];
+  for (const match of ranked) {
+    if (!seen.has(match.node)) {
+      seen.add(match.node);
+      distinct.push(match);
+    }
+    const pause = budget.checkpoint(signal);
+    if (pause) await pause;
+  }
+  if (signal.aborted) throw abortError();
+  return distinct;
 }
 
 function abortError(): Error {
@@ -429,7 +417,6 @@ class PageSearchIndex {
     const collector: MatchCollector = {
       actions: [],
       matchingText: [],
-      rankedText: [],
       textMatchesByContainer: new Map(),
     };
     const styles: StyleCache = new WeakMap();
@@ -517,7 +504,10 @@ class PageSearchIndex {
     return {
       matchingText,
       matchingLinksAndButtons: actions.map(match => match.node),
-      suggestions: rankSuggestions(collector, SUGGESTION_LIMIT),
+      suggestions:
+        nodeScorer.queryText.trim().length >= MIN_SUGGESTION_QUERY_LENGTH
+          ? await rankSuggestions(collector, budget, searchSignal)
+          : [],
       isFuzzy,
     };
   }
@@ -556,7 +546,7 @@ class PageSearchIndex {
     collector: MatchCollector,
   ) {
     if (score <= 0) return;
-    const { actions, matchingText, rankedText, textMatchesByContainer } = collector;
+    const { actions, matchingText, textMatchesByContainer } = collector;
     if (node instanceof HTMLElement && isLinkOrButtonOrInput(node)) {
       actions.push({ node, score, term: textTerm, distance });
     }
@@ -570,7 +560,6 @@ class PageSearchIndex {
       return;
     }
     const match = { node: textContainer, action, term: textTerm, score, distance };
-    insertByScore(rankedText, match, SUGGESTION_CANDIDATE_LIMIT);
     matchingText.push(match);
     textMatchesByContainer.set(textContainer, match);
   }

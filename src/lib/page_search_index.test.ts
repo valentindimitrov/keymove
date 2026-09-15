@@ -398,7 +398,15 @@ test('matches a word the query is only a mistyped prefix of', async () => {
   }
 });
 
-test('ranks a short slate with actions ahead of text', async () => {
+test('skips picker ranking below three characters without limiting navigation', async () => {
+  document.body.innerHTML = '<p>Save</p>'.repeat(65);
+  index = new PageSearchIndex();
+  const result = await index.search(scorerFor('sa'));
+  expect(result.matchingText).toHaveLength(65);
+  expect(result.suggestions).toEqual([]);
+});
+
+test('ranks candidates with actions ahead of text', async () => {
   document.body.innerHTML = `
     <p>Save your work before leaving</p>
     <button>Save</button>
@@ -414,7 +422,7 @@ test('ranks a short slate with actions ahead of text', async () => {
   );
 });
 
-test('gives up the last place so a slate is never all of one kind', async () => {
+test('passes both kinds to shortlist selection without truncating candidates', async () => {
   document.body.innerHTML = `
     <button>Save</button><button>Save all</button><button>Save as</button>
     <p>Save your work before leaving</p>`;
@@ -422,7 +430,7 @@ test('gives up the last place so a slate is never all of one kind', async () => 
 
   const { suggestions } = await index.search(scorerFor('save'));
 
-  expect(suggestions.map(entry => entry.kind)).toEqual(['action', 'action', 'text']);
+  expect(suggestions.map(entry => entry.kind)).toEqual(['action', 'action', 'action', 'text']);
 });
 
 test('leaves a slate alone when only one kind of result exists', async () => {
@@ -446,6 +454,7 @@ test('ranks text for the slate by score, not by position on the page', async () 
 
   expect(suggestions[0]!.node.textContent).toBe('Save');
   expect(matchingText[60]!.node).toBe(suggestions[0]!.node);
+  expect(suggestions).toHaveLength(61);
 });
 
 test('never gives one node two places in the slate', async () => {

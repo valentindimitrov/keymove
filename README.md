@@ -48,8 +48,8 @@ KeyMove has two independent navigation modes:
 The two modes retain separate positions. Changing the search query clears both positions while
 searching, then selects the first result when matches arrive so Enter works immediately.
 
-Both modes navigate all matching results, with no result-count cap. Visual highlighting is limited to 500 occurrences per query;
-navigation and copying still use complete text blocks. The page index is released when search
+Both modes navigate all matching results, with no result-count cap. Visual highlighting is limited
+to 500 occurrences per query; navigation and copying still use complete text blocks. The page index is released when search
 ends, and large indexing jobs yield between chunks so they can be cancelled.
 
 ### Keyboard shortcuts
@@ -114,8 +114,15 @@ second view of the same selection, not a separate one: a row is highlighted only
 landed on it, and no row is highlighted once the cursor moves past the three.
 
 Below three characters almost everything matches and the order churns on every keystroke, so
-nothing is shown. Above it, a result keeps its place unless another clearly outranks it, so rows
-stay where you last saw them.
+nothing is shown. At three or more characters, stability is applied across all candidates before
+choosing the final three. A matching result keeps its numbered place unless a challenger scores
+more than 15% higher, including when a fourth candidate challenges the third row. The same rule
+applies to the row reserved for the other kind of result.
+
+While a query or page refresh is pending, the panel hides stale rows but remembers its last choices.
+Completed results use fresh scores, labels, and match spans; results that stopped matching leave
+immediately. Clearing the query, shortening it below three characters, or completing a search with
+no matches resets that history. Search still starts on every keystroke without a debounce.
 
 ### Approximate matching
 

@@ -432,6 +432,55 @@ test('selects the first match as soon as results arrive and keeps the mode while
 });
 
 // The numbered rows of the results panel are the shortlist Alt+1 to Alt+3 aim at.
+test('keeps the third row across pending and superseded queries and selects its current index', async () => {
+  const nodes = ['alpha', 'beta', 'gamma', 'delta'].map(name => {
+    const button = document.createElement('button');
+    button.textContent = `Save ${name}`;
+    document.body.append(button);
+    return button;
+  });
+  const candidates = nodes.map((node, index) => makeRankedMatch({ node, score: 10 - index }));
+  searchMocks.findMatches.mockResolvedValueOnce(
+    makeSearchResult({
+      matchingLinksAndButtons: nodes,
+      suggestions: candidates,
+    }),
+  );
+  render(<Searchbar />);
+  const input = screen.getByRole('combobox', { name: 'Search page' });
+  fireEvent.change(input, { target: { value: 'sav' } });
+  await flushSearch();
+  expect(screen.getAllByRole('option')[2]).toHaveTextContent('gamma');
+
+  const obsolete = Promise.withResolvers<SearchResult>();
+  searchMocks.findMatches.mockReturnValueOnce(obsolete.promise);
+  fireEvent.change(input, { target: { value: 'save' } });
+  expect(screen.queryAllByRole('option')).toHaveLength(0);
+  fireEvent.keyDown(input, { key: '3', code: 'Digit3', altKey: true });
+  expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
+  const current = Promise.withResolvers<SearchResult>();
+  searchMocks.findMatches.mockReturnValueOnce(current.promise);
+  fireEvent.change(input, { target: { value: 'saved' } });
+  await act(async () =>
+    current.resolve(
+      makeSearchResult({
+        matchingLinksAndButtons: [nodes[0]!, nodes[1]!, nodes[3]!, nodes[2]!],
+        suggestions: [
+          candidates[0]!,
+          candidates[1]!,
+          { ...candidates[3]!, score: 8.5 },
+          candidates[2]!,
+        ],
+      }),
+    ),
+  );
+  await act(async () => obsolete.resolve(makeSearchResult()));
+  expect(screen.getAllByRole('option')[2]).toHaveTextContent('gamma');
+  fireEvent.keyDown(input, { key: '3', code: 'Digit3', altKey: true });
+  expect(screen.getByRole('status')).toHaveTextContent('Actions 4 / 4');
+  expect(vi.mocked(Element.prototype.scrollIntoView).mock.contexts.at(-1)).toBe(nodes[2]);
+});
+
 test('Alt+1 and Alt+2 jump to the numbered result, taking its mode with them', async () => {
   const firstParagraph = document.createElement('p');
   firstParagraph.textContent = 'Save now';
