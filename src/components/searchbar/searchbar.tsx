@@ -16,6 +16,7 @@ import useWindowSize from '../../hooks/use_window_size.js';
 import usePopupWidth from '../../hooks/use_popup_width.js';
 import useSuggestions from '../../hooks/use_suggestions.js';
 import useHighlightColors from '../../hooks/use_highlight_colors.js';
+import useSearchFocus from '../../hooks/use_search_focus.js';
 
 import Utils from '../../lib/utils.js';
 import FindInPage, { subscribeToPageChanges } from '../../lib/find_in_page.js';
@@ -48,6 +49,7 @@ const Searchbar = () => {
   const searchAbortController = React.useRef<AbortController | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
+  const { restore: restorePageFocus, discard: discardPageFocus } = useSearchFocus(searchInputRef);
   const focusRequested = React.useRef(false);
 
   const {
@@ -195,6 +197,7 @@ const Searchbar = () => {
 
       event.preventDefault();
       event.stopPropagation();
+      discardPageFocus();
       if (activation === 'current') {
         Utils.clickOrFocusNode(selectedActionNode);
       } else {
@@ -215,7 +218,7 @@ const Searchbar = () => {
       }
       resetSearchTextAndMatches();
     },
-    [selectedActionNode, autoHide, resetSearchTextAndMatches],
+    [selectedActionNode, autoHide, resetSearchTextAndMatches, discardPageFocus],
   );
 
   const runSearch = React.useCallback(
@@ -445,15 +448,15 @@ const Searchbar = () => {
       select_listed_match_4: selectListedMatch(3),
       select_listed_match_5: selectListedMatch(4),
       clear_search_or_hide: event => {
-        const differentInputIsActive = Utils.differentInputIsActive(searchInputRef.current);
-        if (!isInteractive || differentInputIsActive) return;
+        // Escape belongs to the page once focus leaves the search, including buttons/links.
+        if (!isInteractive || !Utils.elementIsActive(searchInputRef.current)) return;
         if (searchText.length > 0) {
           preventDefaultAndClearSearchText(event);
         } else {
           event.preventDefault();
           event.stopPropagation();
           hide();
-          searchInputRef.current?.blur();
+          restorePageFocus();
         }
       },
     };
@@ -468,6 +471,7 @@ const Searchbar = () => {
     isInteractive,
     searchText,
     hide,
+    restorePageFocus,
   ]);
 
   const handleShortcut = React.useCallback(
