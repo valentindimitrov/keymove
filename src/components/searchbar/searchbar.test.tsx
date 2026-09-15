@@ -325,9 +325,9 @@ test('returns to the default mode once the search is over, but not while typing'
   await flushSearch();
   expect(status).toHaveTextContent('Actions 1 / 1');
 
-  // Escape clears the query, then a second Escape ends the search and restores the default.
+  // Escape ends the search and restores its default mode in one press.
   fireEvent.keyDown(input, { key: 'Escape', code: 'Escape' });
-  fireEvent.keyDown(input, { key: 'Escape', code: 'Escape' });
+  fireEvent.keyDown(document.body, { key: 'f', code: 'KeyF', altKey: true });
   fireEvent.change(input, { target: { value: 'save' } });
   await flushSearch();
   expect(status).toHaveTextContent('Text 1 / 1');
@@ -724,7 +724,7 @@ test('falls back to text when action mode is empty, and retries actions on the n
   expect(status).toHaveTextContent('Actions 1 / 1');
 });
 
-test('Escape clears the query, then hides the bar with Autohide off, and Alt+F restores focus', async () => {
+test('Escape closes the search in one press and Alt+F reopens it', async () => {
   searchMocks.findMatches.mockResolvedValue(makeSearchResult());
   const { container } = render(<Searchbar />);
   const input = screen.getByRole('combobox', { name: 'Search page' });
@@ -735,15 +735,58 @@ test('Escape clears the query, then hides the bar with Autohide off, and Alt+F r
   await flushSearch();
   fireEvent.keyDown(input, { key: 'Escape', code: 'Escape' });
   expect(input).toHaveValue('');
-  expect(container.firstElementChild).not.toHaveClass('keymove-hidden');
-  fireEvent.keyDown(input, { key: 'Escape', code: 'Escape' });
   expect(container.firstElementChild).toHaveClass('keymove-hidden');
   fireEvent.keyDown(document.body, { key: 'f', code: 'KeyF', altKey: true });
   expect(container.firstElementChild).not.toHaveClass('keymove-hidden');
   expect(input).toHaveFocus();
 });
 
-test('Escape restores the original field and caret only after dismissing the search', async () => {
+test.each(['Tab', 'Alt+1'])(
+  'Alt+Backspace returns to the reading position before %s',
+  async shortcut => {
+    const paragraph = document.createElement('p');
+    paragraph.textContent = 'Help improve MDN';
+    document.body.append(paragraph);
+    searchMocks.findMatches.mockResolvedValue(
+      makeSearchResult({
+        matchingText: [makeTextMatch({ node: paragraph, term: 'improve' })],
+        suggestions: [makeRankedMatch({ node: paragraph, kind: 'text', term: 'improve' })],
+      }),
+    );
+    vi.stubGlobal('scrollX', 15);
+    vi.stubGlobal('scrollY', 240);
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+    try {
+      const { container } = render(<Searchbar />);
+      // Start from ordinary reading, with no focused page control.
+      fireEvent.keyDown(document.body, { key: 'i', code: 'KeyI' });
+      const input = screen.getByRole('combobox', { name: 'Search page' });
+      fireEvent.change(input, { target: { value: 'improve' } });
+      await flushSearch();
+      fireEvent.keyDown(
+        input,
+        shortcut === 'Tab'
+          ? { key: 'Tab', code: 'Tab' }
+          : { key: '1', code: 'Digit1', altKey: true },
+      );
+      expect(paragraph.scrollIntoView).toHaveBeenCalled();
+      vi.stubGlobal('scrollY', 1500);
+      // Refining the same search must not replace the original position.
+      fireEvent.change(input, { target: { value: 'improv' } });
+      await flushSearch();
+      fireEvent.keyDown(input, { key: 'Backspace', code: 'Backspace', altKey: true });
+      expect(scrollTo).toHaveBeenCalledWith({ left: 15, top: 240, behavior: 'instant' });
+      expect(container.firstElementChild).toHaveClass('keymove-hidden');
+      expect(input).toHaveValue('');
+      expect(input).not.toHaveFocus();
+    } finally {
+      scrollTo.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  },
+);
+
+test('Escape keeps the current position and does not restore an earlier field', async () => {
   searchMocks.findMatches.mockResolvedValue(makeSearchResult());
   const original = document.createElement('textarea');
   original.value = 'Original text';
@@ -756,24 +799,19 @@ test('Escape restores the original field and caret only after dismissing the sea
   fireEvent.keyDown(original, { key: 'f', code: 'KeyF', altKey: true });
   const input = screen.getByRole('combobox', { name: 'Search page' });
   expect(input).toHaveFocus();
-  // Reopening an already focused search must not replace its return target.
-  fireEvent.keyDown(input, { key: 'f', code: 'KeyF', altKey: true });
   fireEvent.change(input, { target: { value: 'save' } });
   await flushSearch();
-  original.setSelectionRange(0, 0);
   const focus = vi.spyOn(original, 'focus');
-  fireEvent.keyDown(input, { key: 'Escape', code: 'Escape' });
-  expect(input).toHaveFocus();
-  expect(input).toHaveValue('');
-  expect(focus).not.toHaveBeenCalled();
-  fireEvent.keyDown(input, { key: 'Escape', code: 'Escape' });
-  expect(original).toHaveFocus();
-  expect(focus).toHaveBeenCalledWith({ preventScroll: true });
-  expect([original.selectionStart, original.selectionEnd, original.selectionDirection]).toEqual([
-    2,
-    6,
-    'backward',
-  ]);
+  const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+  try {
+    fireEvent.keyDown(input, { key: 'Escape', code: 'Escape' });
+    expect(input).not.toHaveFocus();
+    expect(input).toHaveValue('');
+    expect(focus).not.toHaveBeenCalled();
+    expect(scrollTo).not.toHaveBeenCalled();
+  } finally {
+    scrollTo.mockRestore();
+  }
 });
 
 test.each(['button', 'input', 'a'] as const)(
@@ -793,73 +831,39 @@ test.each(['button', 'input', 'a'] as const)(
     expect(onEscape).toHaveBeenCalledOnce();
     expect(destination).toHaveFocus();
     expect(container.firstElementChild).not.toHaveClass('keymove-hidden');
-    // A later search belongs to this new origin, never to the earlier field.
-    fireEvent.keyDown(destination, { key: 'f', code: 'KeyF', altKey: true });
-    const input = screen.getByRole('combobox', { name: 'Search page' });
-    fireEvent.keyDown(input, { key: 'Escape', code: 'Escape' });
+    expect(
+      fireEvent.keyDown(destination, { key: 'Backspace', code: 'Backspace', altKey: true }),
+    ).toBe(true);
     expect(destination).toHaveFocus();
   },
 );
 
-test('restores a page control across both page and extension shadow roots', () => {
-  const pageHost = document.createElement('div');
-  document.body.append(pageHost);
-  const pageShadow = pageHost.attachShadow({ mode: 'open' });
-  const original = document.createElement('input');
-  pageShadow.append(original);
-  const extensionRoot = createExtensionRoot('');
-  if (!extensionRoot) throw new Error('Expected extension root');
-  render(<Searchbar />, { container: extensionRoot.app });
-  const input = within(extensionRoot.app).getByRole('combobox', { name: 'Search page' });
-  act(() => original.focus());
-  // Native focus also covers entering the search directly rather than by shortcut.
-  act(() => input.focus());
-  fireEvent.keyDown(input, { key: 'Escape', code: 'Escape' });
-  expect(pageShadow.activeElement).toBe(original);
-});
-
-test('explicitly blurring the search ends its return session', () => {
-  const original = document.createElement('input');
-  document.body.append(original);
+test('a new search captures the new position after Escape closes the previous search', () => {
+  vi.stubGlobal('scrollY', 100);
+  const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
   render(<Searchbar />);
-  act(() => original.focus());
-  fireEvent.keyDown(original, { key: 'f', code: 'KeyF', altKey: true });
+  fireEvent.keyDown(document.body, { key: 'f', code: 'KeyF', altKey: true });
   const input = screen.getByRole('combobox', { name: 'Search page' });
-  // jsdom reports an unfocused document during blur, unlike a foreground browser tab.
-  const hasFocus = vi.spyOn(document, 'hasFocus').mockReturnValue(true);
   try {
-    act(() => input.blur());
-    act(() => input.focus());
+    vi.stubGlobal('scrollY', 700);
     fireEvent.keyDown(input, { key: 'Escape', code: 'Escape' });
-    expect(original).not.toHaveFocus();
+    fireEvent.keyDown(document.body, { key: 'f', code: 'KeyF', altKey: true });
+    vi.stubGlobal('scrollY', 1200);
+    fireEvent.keyDown(input, { key: 'Backspace', code: 'Backspace', altKey: true });
+    expect(scrollTo).toHaveBeenCalledWith({ left: 0, top: 700, behavior: 'instant' });
   } finally {
-    hasFocus.mockRestore();
+    scrollTo.mockRestore();
+    vi.unstubAllGlobals();
   }
 });
 
-test.each(['removed', 'disabled', 'hidden', 'inert'])(
-  'does not restore a field that became %s',
-  state => {
-    const original = document.createElement('input');
-    document.body.append(original);
-    render(<Searchbar />);
-    act(() => original.focus());
-    fireEvent.keyDown(original, { key: 'f', code: 'KeyF', altKey: true });
-    const input = screen.getByRole('combobox', { name: 'Search page' });
-    if (state === 'removed') original.remove();
-    else original.setAttribute(state, '');
-    const focus = vi.spyOn(original, 'focus');
-    fireEvent.keyDown(input, { key: 'Escape', code: 'Escape' });
-    expect(focus).not.toHaveBeenCalled();
-    expect(input).not.toHaveFocus();
-  },
-);
-
-test('activation discards the old return target even if the action leaves search focused', async () => {
+test('activation discards the return position even if the action leaves search focused', async () => {
+  settingsMocks.startInActionMode = true;
   const original = document.createElement('input');
   const button = document.createElement('button');
   button.textContent = 'Save';
   document.body.append(original, button);
+  const click = vi.spyOn(button, 'click');
   searchMocks.findMatches.mockResolvedValue(
     makeSearchResult({ matchingLinksAndButtons: [button] }),
   );
@@ -870,8 +874,15 @@ test('activation discards the old return target even if the action leaves search
   fireEvent.change(input, { target: { value: 'save' } });
   await flushSearch();
   fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
-  fireEvent.keyDown(input, { key: 'Escape', code: 'Escape' });
-  expect(original).not.toHaveFocus();
+  expect(click).toHaveBeenCalledOnce();
+  const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+  try {
+    fireEvent.keyDown(input, { key: 'Backspace', code: 'Backspace', altKey: true });
+    expect(scrollTo).not.toHaveBeenCalled();
+    expect(original).not.toHaveFocus();
+  } finally {
+    scrollTo.mockRestore();
+  }
 });
 
 test.each(['blur first', 'hidden first'])(

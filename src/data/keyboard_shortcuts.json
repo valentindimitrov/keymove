@@ -228,12 +228,27 @@
     }
   },
   {
-    "name": "clear_search_or_hide",
+    "name": "return_to_origin",
+    "eventMatcher": {
+      "code": "Backspace",
+      "flags": { "default": ["altKey"] },
+      "discludedFlags": { "default": ["shiftKey", "metaKey", "ctrlKey"] }
+    },
+    "displayKeys": {
+      "default": ["Alt", "Backspace"],
+      "mac": ["Option", "Backspace"]
+    },
+    "text": "to return to the original position and close KeyMove"
+  },
+  {
+    "name": "dismiss_search",
     "eventMatcher": {
       "code": "Escape",
       "discludedFlags": {
         "default": ["altKey", "shiftKey", "metaKey", "ctrlKey"]
       }
-    }
+    },
+    "displayKeys": { "default": ["Escape"] },
+    "text": "to close KeyMove and stay here"
   }
 ]

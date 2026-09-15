@@ -68,12 +68,15 @@ ends, and large indexing jobs yield between chunks so they can be cancelled.
 | `Ctrl + Backspace` | Clear the search. Use `Command + Backspace` on macOS. |
 | `Alt + F` | Focus KeyMove. Use `Option + F` on macOS. |
 | `Alt + 1` … `Alt + 5` | Select the numbered result in the panel and scroll to it. Use `Option` on macOS. |
-| `Escape` | Clear the current search, or hide KeyMove when the search is already empty. |
+| `Escape` | Close KeyMove in one press, staying at the current position. |
+| `Alt + Backspace` | Return to the position where the current search began and close KeyMove. Use `Option + Backspace` on macOS. |
 
-Escape is handled only while the search field has focus. Dismissing it restores the previous
-page control and its input/textarea selection without scrolling, if that control is still available.
-Moving focus elsewhere leaves Escape to that control or the page. Activating a search result ends
-the return-focus session; it does not restore the previous control.
+Escape and Alt+Backspace are handled only while the search field has focus. Searching and jumping
+with Tab or Alt+1–5 keeps one original reading position for the current search, including nested
+scrolling containers that KeyMove moves. Alt+Backspace returns there immediately, even if no page
+control was focused when the search began. Escape stays at the current position; neither shortcut
+restores an old field or caret. Moving focus elsewhere or activating a result ends the return session.
+Use Ctrl+Backspace (Command+Backspace on macOS) to clear the query while keeping KeyMove open.
 
 The numbered rows are a shortlist of the best matches across both modes, so a number can
 land on an action while the bar is in text mode; the mode follows the row it lands on.

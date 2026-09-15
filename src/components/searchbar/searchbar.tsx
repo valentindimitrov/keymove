@@ -16,7 +16,7 @@ import useWindowSize from '../../hooks/use_window_size.js';
 import usePopupWidth from '../../hooks/use_popup_width.js';
 import useSuggestions from '../../hooks/use_suggestions.js';
 import useHighlightColors from '../../hooks/use_highlight_colors.js';
-import useSearchFocus from '../../hooks/use_search_focus.js';
+import useSearchOrigin from '../../hooks/use_search_origin.js';
 
 import Utils from '../../lib/utils.js';
 import FindInPage, { subscribeToPageChanges } from '../../lib/find_in_page.js';
@@ -49,7 +49,11 @@ const Searchbar = () => {
   const searchAbortController = React.useRef<AbortController | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
-  const { restore: restorePageFocus, discard: discardPageFocus } = useSearchFocus(searchInputRef);
+  const {
+    remember: rememberOrigin,
+    restore: restoreOrigin,
+    discard: discardOrigin,
+  } = useSearchOrigin();
   const focusRequested = React.useRef(false);
 
   const {
@@ -126,8 +130,9 @@ const Searchbar = () => {
     navigationMode === SEARCH_MODES.TEXT ? matchingTextNodes : matchingLinksAndButtons;
 
   const focusSearchInput = React.useCallback(() => {
-    searchInputRef.current?.focus();
-  }, []);
+    rememberOrigin();
+    searchInputRef.current?.focus({ preventScroll: true });
+  }, [rememberOrigin]);
 
   const revealAndFocus = React.useCallback(() => {
     setIsHidden(false);
@@ -159,9 +164,10 @@ const Searchbar = () => {
   }, [cancelPendingSearch, resetSearchNavigation, defaultSearchMode]);
 
   const hide = React.useCallback(() => {
+    discardOrigin();
     setIsHidden(true);
     resetSearchTextAndMatches();
-  }, [resetSearchTextAndMatches]);
+  }, [resetSearchTextAndMatches, discardOrigin]);
 
   const handleBlur = React.useCallback(
     (event: React.FocusEvent<HTMLInputElement>) => {
@@ -179,9 +185,10 @@ const Searchbar = () => {
       if (autoHide) {
         setIsHidden(true);
       }
+      discardOrigin();
       resetSearchTextAndMatches();
     },
-    [autoHide, resetSearchTextAndMatches],
+    [autoHide, resetSearchTextAndMatches, discardOrigin],
   );
 
   const activateSelectedMatchingNodeAndReset = React.useCallback(
@@ -197,7 +204,7 @@ const Searchbar = () => {
 
       event.preventDefault();
       event.stopPropagation();
-      discardPageFocus();
+      discardOrigin();
       if (activation === 'current') {
         Utils.clickOrFocusNode(selectedActionNode);
       } else {
@@ -218,7 +225,7 @@ const Searchbar = () => {
       }
       resetSearchTextAndMatches();
     },
-    [selectedActionNode, autoHide, resetSearchTextAndMatches, discardPageFocus],
+    [selectedActionNode, autoHide, resetSearchTextAndMatches, discardOrigin],
   );
 
   const runSearch = React.useCallback(
@@ -282,9 +289,10 @@ const Searchbar = () => {
         setSearchPending(false);
         return;
       }
+      rememberOrigin();
       void runSearch(preserveSelection);
     },
-    [cancelPendingSearch, clearSearchResults, runSearch, searchText],
+    [cancelPendingSearch, clearSearchResults, runSearch, searchText, rememberOrigin],
   );
 
   // Query identity disables old rows before the search effect runs; the flag also covers
@@ -304,6 +312,7 @@ const Searchbar = () => {
   const selectMatchAtIndex = React.useCallback(
     (mode: SearchMode, index: number) => {
       const matches = mode === SEARCH_MODES.TEXT ? matchingTextNodes : matchingLinksAndButtons;
+      rememberOrigin(matches[index]);
       setMode(mode);
       setSelectedIndex(mode, index);
       Utils.scrollToNodeAtIndexInList(matches, index);
@@ -314,7 +323,7 @@ const Searchbar = () => {
       }
       setScrollOrResizeRefresh(refresh => !refresh);
     },
-    [matchingTextNodes, matchingLinksAndButtons, setMode, setSelectedIndex],
+    [matchingTextNodes, matchingLinksAndButtons, setMode, setSelectedIndex, rememberOrigin],
   );
 
   const selectNextMatchingNode = React.useCallback(
@@ -447,17 +456,22 @@ const Searchbar = () => {
       select_listed_match_3: selectListedMatch(2),
       select_listed_match_4: selectListedMatch(3),
       select_listed_match_5: selectListedMatch(4),
-      clear_search_or_hide: event => {
+      return_to_origin: event => {
+        if (!isInteractive || !Utils.elementIsActive(searchInputRef.current)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        Utils.clearPageSelection();
+        restoreOrigin();
+        hide();
+        searchInputRef.current?.blur();
+      },
+      dismiss_search: event => {
         // Escape belongs to the page once focus leaves the search, including buttons/links.
         if (!isInteractive || !Utils.elementIsActive(searchInputRef.current)) return;
-        if (searchText.length > 0) {
-          preventDefaultAndClearSearchText(event);
-        } else {
-          event.preventDefault();
-          event.stopPropagation();
-          hide();
-          restorePageFocus();
-        }
+        event.preventDefault();
+        event.stopPropagation();
+        hide();
+        searchInputRef.current?.blur();
       },
     };
   }, [
@@ -469,9 +483,8 @@ const Searchbar = () => {
     preventDefaultAndClearSearchText,
     revealAndFocus,
     isInteractive,
-    searchText,
     hide,
-    restorePageFocus,
+    restoreOrigin,
   ]);
 
   const handleShortcut = React.useCallback(
@@ -554,11 +567,12 @@ const Searchbar = () => {
 
   React.useEffect(() => {
     if (selectedTextMatch?.node.isConnected) {
+      rememberOrigin(selectedTextMatch.node);
       Utils.selectNodeContents(selectedTextMatch.node);
       return () => Utils.clearPageSelection();
     }
     return undefined;
-  }, [selectedTextMatch]);
+  }, [selectedTextMatch, rememberOrigin]);
 
   React.useEffect(() => {
     return () => {

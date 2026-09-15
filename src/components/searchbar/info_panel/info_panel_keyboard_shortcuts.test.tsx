@@ -41,4 +41,10 @@ test('shows both text and action navigation shortcut families', () => {
   expect(within(clearSearchRow).getByText('Backspace')).toBeInTheDocument();
   expect(within(clearSearchRow).queryByText('Delete')).not.toBeInTheDocument();
   expect(screen.queryByText(/autohide/i)).not.toBeInTheDocument();
+  const returnRow = screen.getByText(
+    'to return to the original position and close KeyMove',
+  ).parentElement!;
+  expect(within(returnRow).getByText('Alt')).toBeInTheDocument();
+  expect(within(returnRow).getByText('Backspace')).toBeInTheDocument();
+  expect(screen.getByText('to close KeyMove and stay here')).toBeInTheDocument();
 });
