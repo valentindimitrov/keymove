@@ -34,9 +34,8 @@ class NodeScorer {
     let score = 0;
 
     innerText = innerText.replace(NO_BREAK_SPACE_REGEX, ' ');
-    const innerTextWords = this.getWordsFromText(innerText);
     if (innerText) {
-      score = this.fieldScore(innerText, innerTextWords, this.queryText, FIELD_BOOSTS.innerText);
+      score = this.fieldScore(innerText, this.queryText, FIELD_BOOSTS.innerText);
     }
 
     if (attributeValues.length > 0) {
@@ -53,19 +52,16 @@ class NodeScorer {
     return score;
   }
 
-  fieldScore(fieldText: string, fieldWords: string[], queryText: string, fieldBoost = 1) {
-    let score = 0;
-
-    if (!fieldText) {
+  fieldScore(fieldText: string, queryText: string, fieldBoost = 1) {
+    // Most page blocks do not match. Tokenization only affects the ranking of matches.
+    if (!fieldText || !fieldText.includes(queryText)) {
       return 0;
     }
-
-    if (fieldText.includes(queryText)) {
-      score += fieldBoost;
-    }
+    let score = fieldBoost;
 
     if (score > 0) {
       const queryWords = this.getWordsFromText(queryText);
+      const fieldWords = this.getWordsFromText(fieldText);
       const hasWordStartingWithQueryText = fieldWords.some(word =>
         queryWords.some(qWord => word.startsWith(qWord)),
       );
@@ -115,8 +111,7 @@ class NodeScorer {
 
   getHighestAttributeScore(attributeTextValues: string[], queryText: string) {
     const attributeScores = attributeTextValues.map(attributeValue => {
-      const attributeWords = this.getWordsFromText(attributeValue);
-      return this.fieldScore(attributeValue, attributeWords, queryText, FIELD_BOOSTS.attribute);
+      return this.fieldScore(attributeValue, queryText, FIELD_BOOSTS.attribute);
     });
     return this.getHighestScore(attributeScores);
   }

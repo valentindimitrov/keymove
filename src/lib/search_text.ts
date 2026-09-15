@@ -1,6 +1,8 @@
 // Preserve accents and scripts, while treating canonically equivalent spellings alike.
 // Locale-independent casing keeps page text, attributes and queries consistent across tabs.
 function normalizeSearchText(text: string): string {
+  // ASCII is already NFC and contains neither NBSP nor Greek final sigma.
+  if (!/[^\p{ASCII}]/u.test(text)) return text.toLowerCase();
   return text
     .normalize('NFC')
     .toLowerCase()

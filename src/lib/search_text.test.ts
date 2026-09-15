@@ -1,5 +1,10 @@
 import { matchingTextSpans, normalizeSearchText } from './search_text.js';
 
+test('preserves ASCII spacing and applies Unicode rules to mixed text', () => {
+  expect(normalizeSearchText('SAVE\tSETTINGS 123')).toBe('save\tsettings 123');
+  expect(normalizeSearchText('SAVE\u00a0CAFE\u0301 Σ')).toBe('save café σ');
+});
+
 test.each([
   ['İstanbul', 'stanbul', 'stanbul'],
   ['Cafe\u0301', 'CAFÉ', 'Cafe\u0301'],
