@@ -1,5 +1,6 @@
 import NodeScorer from './node_scorer.js';
 import { PageSearchIndex } from './page_search_index.js';
+import type { SearchOptions } from './page_search_index.js';
 
 let sharedIndex: PageSearchIndex | null = null;
 let sharedIndexHost: string | null = null;
@@ -28,7 +29,7 @@ class FindInPage {
     this.nodeScorer = new NodeScorer(this.searchText);
   }
 
-  findMatches(options: { signal?: AbortSignal; limit?: number } = {}) {
+  findMatches(options: SearchOptions = {}) {
     if (this.searchText.length === 0) {
       return Promise.resolve({
         matchingText: [],

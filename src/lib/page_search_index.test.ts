@@ -1,5 +1,5 @@
 import NodeScorer from './node_scorer.js';
-import { DEFAULT_RESULT_LIMIT, PageSearchIndex } from './page_search_index.js';
+import { PageSearchIndex } from './page_search_index.js';
 
 let index: PageSearchIndex | null = null;
 
@@ -191,16 +191,19 @@ test('re-evaluates visibility without rebuilding cached search records', async (
   expect((await index.search(scorerFor('publish'))).matchingLinksAndButtons).toHaveLength(0);
 });
 
-test('limits the rendered result set', async () => {
+test.each(['save', 'savve'])('retains all exact and fuzzy matches for %s', async query => {
   document.body.innerHTML = Array.from(
-    { length: DEFAULT_RESULT_LIMIT + 10 },
+    { length: 65 },
     (_, index) => `<button>Save ${index}</button>`,
   ).join('');
   index = new PageSearchIndex();
 
-  const result = await index.search(scorerFor('save'));
+  const result = await index.search(scorerFor(query));
 
-  expect(result.matchingLinksAndButtons).toHaveLength(DEFAULT_RESULT_LIMIT);
+  expect(result.matchingLinksAndButtons).toHaveLength(65);
+  expect(result.matchingText).toHaveLength(65);
+  expect(new Set(result.matchingText.map(match => match.node)).size).toBe(65);
+  expect(result.isFuzzy).toBe(query === 'savve');
 });
 
 test('cancels obsolete searches', async () => {
@@ -212,6 +215,36 @@ test('cancels obsolete searches', async () => {
   await expect(
     index.search(scorerFor('save'), { signal: controller.signal }),
   ).rejects.toMatchObject({ name: 'AbortError' });
+});
+
+test('can cancel while ordering an uncapped result set', async () => {
+  document.body.innerHTML = '<p>Save</p>'.repeat(250);
+  index = new PageSearchIndex();
+  const controller = new AbortController();
+  let elapsed = 0;
+  vi.spyOn(performance, 'now').mockImplementation(() => {
+    elapsed += 8;
+    return elapsed;
+  });
+  const compare = Element.prototype.compareDocumentPosition;
+  let sortingStarted = false;
+  vi.spyOn(Element.prototype, 'compareDocumentPosition').mockImplementation(function (
+    this: Element,
+    other: Node,
+  ) {
+    if (!sortingStarted) {
+      sortingStarted = true;
+      window.setTimeout(() => controller.abort(), 0);
+    }
+    return compare.call(this, other);
+  });
+
+  await expect(
+    index.search(scorerFor('save'), { signal: controller.signal }),
+  ).rejects.toMatchObject({
+    name: 'AbortError',
+  });
+  expect(sortingStarted).toBe(true);
 });
 
 test('defers initial indexing, cancels queued work immediately, and resumes the full scan', async () => {
@@ -244,7 +277,7 @@ test('does not add timer or idle waits when index work fits within its time budg
   vi.spyOn(performance, 'now').mockReturnValue(0);
   const timer = vi.spyOn(window, 'setTimeout');
   index = new PageSearchIndex();
-  expect((await index.search(scorerFor('save'))).matchingText).toHaveLength(DEFAULT_RESULT_LIMIT);
+  expect((await index.search(scorerFor('save'))).matchingText).toHaveLength(250);
   expect(timer).not.toHaveBeenCalled();
 });
 
@@ -268,17 +301,17 @@ test('defers large inserted subtrees until a cancellable search runs', async () 
   document.body.innerHTML = `<main>${'<button>Save</button>'.repeat(250)}</main>`;
   await waitForMutations();
   expect(refresh).toHaveBeenCalledTimes(1);
-  expect((await index.search(scorerFor('save'))).matchingLinksAndButtons).toHaveLength(
-    DEFAULT_RESULT_LIMIT,
-  );
+  expect((await index.search(scorerFor('save'))).matchingLinksAndButtons).toHaveLength(250);
 });
 
-test('retains the earliest text blocks and highest ranked actions with a small limit', async () => {
+test('retains page order for all text and relevance order for all actions', async () => {
   document.body.innerHTML = `${'<button>Autosave</button>'.repeat(60)}<button>Save settings</button>`;
   index = new PageSearchIndex();
   const firstButton = document.querySelector('button');
-  const result = await index.search(scorerFor('save'), { limit: 1 });
-  expect(result.matchingText).toMatchObject([
+  const result = await index.search(scorerFor('save'));
+  expect(result.matchingText).toHaveLength(61);
+  expect(result.matchingLinksAndButtons).toHaveLength(61);
+  expect(result.matchingText.slice(0, 1)).toMatchObject([
     { node: firstButton, action: firstButton, term: 'save' },
   ]);
   expect(result.matchingLinksAndButtons[0]?.textContent).toBe('Save settings');
@@ -404,14 +437,15 @@ test('leaves a slate alone when only one kind of result exists', async () => {
 });
 
 test('ranks text for the slate by score, not by position on the page', async () => {
-  // The strong match sits past the result limit, where page-ordered truncation would drop it.
+  // A strong match late on the page must also be reachable through navigation.
   // The filler only matches mid-word, so it never earns the boost for starting with the query.
   document.body.innerHTML = `${'<p>unsaved drafts</p>'.repeat(60)}<p>Save</p>`;
   index = new PageSearchIndex();
 
-  const { suggestions } = await index.search(scorerFor('save'), { limit: 50 });
+  const { suggestions, matchingText } = await index.search(scorerFor('save'));
 
   expect(suggestions[0]!.node.textContent).toBe('Save');
+  expect(matchingText[60]!.node).toBe(suggestions[0]!.node);
 });
 
 test('never gives one node two places in the slate', async () => {

@@ -205,10 +205,16 @@ async function main(): Promise<void> {
   const requested =
     args.find(arg => arg.startsWith('--browser='))?.slice('--browser='.length) ?? 'auto';
   for (const arg of args) {
-    if (arg !== '--no-build' && !arg.startsWith('--browser='))
+    if (arg !== '--no-build' && arg !== '--smoke' && !arg.startsWith('--browser='))
       throw new Error(`Unknown argument: ${arg}`);
   }
   const browser = findBrowser(requested);
+  const smoke = args.includes('--smoke');
+  if (smoke && browser.name === 'firefox') {
+    throw new Error(
+      'Automated browser smoke currently requires Vivaldi or Chrome. Use yarn preview:firefox for manual Firefox checks.',
+    );
+  }
   const target = browser.name === 'firefox' ? 'firefox' : 'chrome';
   const sourceDir = path.join(projectRoot, '.output', `${target}-mv3`);
   console.log(`Using ${browser.name}: ${browser.binary}`);
@@ -245,12 +251,20 @@ async function main(): Promise<void> {
       noInput: true,
       ...(browser.name === 'vivaldi' ? { chromiumPref: vivaldiPreviewPreferences } : {}),
     },
-    { shouldExitProgram: true },
+    { shouldExitProgram: !smoke },
   );
-  if (target === 'chrome') {
-    const client = runner.extensionRunners[0]?.cdp;
-    if (!client) throw new Error('The browser launcher did not provide a Chromium connection.');
-    console.log(`Opened and focused: ${await openRepositoryPage(client)}`);
+  try {
+    if (target === 'chrome') {
+      const client = runner.extensionRunners[0]?.cdp;
+      if (!client) throw new Error('The browser launcher did not provide a Chromium connection.');
+      console.log(`Opened and focused: ${await openRepositoryPage(client)}`);
+      if (smoke) {
+        const { runBrowserSmoke } = await import('./browser-smoke.ts');
+        await runBrowserSmoke(client, browser.name);
+      }
+    }
+  } finally {
+    if (smoke) await runner.exit();
   }
 }
 

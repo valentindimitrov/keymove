@@ -31,7 +31,11 @@ a background tab.
 
 ## Using KeyMove
 
-Click the KeyMove toolbar button or simply begin typing while the page itself has focus. Matching
+For contributor setup, isolated agent worktrees, visual previews, browser regression
+checks and search timing measurements, see [the development workflow](docs/development.md).
+
+Press `Alt + F` or simply begin typing while the page itself has focus and Always on is enabled.
+The toolbar button opens settings. Matching
 page text is highlighted as the query changes.
 
 KeyMove has two independent navigation modes:
@@ -41,10 +45,10 @@ KeyMove has two independent navigation modes:
 - **Action mode** selects only interactive elements such as links, buttons, and inputs. It uses
   `Ctrl + Tab` and `Shift + Ctrl + Tab`.
 
-The two modes retain separate positions. Changing the search query clears both positions, so
-KeyMove never preselects a result before you choose a navigation command.
+The two modes retain separate positions. Changing the search query clears both positions while
+searching, then selects the first result when matches arrive so Enter works immediately.
 
-Each mode shows up to 50 results. Visual highlighting is limited to 500 occurrences per query;
+Both modes navigate all matching results, with no result-count cap. Visual highlighting is limited to 500 occurrences per query;
 navigation and copying still use complete text blocks. The page index is released when search
 ends, and large indexing jobs yield between chunks so they can be cancelled.
 
@@ -363,7 +367,6 @@ https://blip.net not working
 packages and releases on github
 integration with chrome extension store
 
-update readme - limit of 50
 
 contributor guidance - describe the idea
 

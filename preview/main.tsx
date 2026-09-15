@@ -17,6 +17,7 @@ function renderIndex() {
   document.title = 'KeyMove interface preview';
   page.innerHTML = `
     <h1>KeyMove interface preview</h1>
+    <p><a href="fixtures.html">Browser regression fixture</a> (load the extension to search it; add <code>?size=large</code> for 5,000 blocks).</p>
     <p>Real components in the real shadow root. Open one to screenshot it on its own.</p>
     <ul>${SCENARIOS.map(
       entry =>

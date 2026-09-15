@@ -84,8 +84,9 @@ artifacts are `.output/chrome-mv3` and `.output/firefox-mv3`.
   action for buttons or inputs.
 - In text mode, native copy yields the whole selected block. In action mode, `Ctrl + C` (or
   `Command + C` on macOS) copies the selected link's normalized URL.
-- Keep text and action cursors independent and reset both to `null` when a query changes.
-- Do not automatically preselect a result before the user invokes a navigation shortcut.
+- Keep text and action cursors independent and clear both while a new query is pending.
+- Automatically select the first result when a new query returns matches, so Enter works
+  immediately. A DOM refresh retains the selected node, or clears it if that node disappeared.
 - Browsers may reserve `Ctrl + Tab` before content scripts receive it. Do not claim that page code
   can override a browser-level shortcut reservation.
 
@@ -182,8 +183,23 @@ blindly replacing it can break selectors, stored preferences, and content/backgr
 
 ## Development rules
 
+- Before work, run `yarn worktree:check` and verify the checkout path and branch.
+  Each concurrent implementation task must own a separate worktree; run
+  `yarn worktree:check --require-linked` there before editing. Do not assign two
+  writers to the same linked checkout. Subagents do not get isolation automatically:
+  when delegation is requested, create and assign an absolute worktree path before
+  a subagent edits or builds. Read-only review may share files. A single foreground
+  task may use the primary checkout. See `docs/development.md` for setup and integration.
+- Keep implementation batches focused on one behavior or subsystem. Reproduce bugs
+  with a failing regression check before fixing them. Keep cleanup separate from
+  performance work and record before/after browser timing samples for optimizations.
+- Start search on every nonempty keystroke immediately. Do not add debounce or an
+  initial idle wait. Preserve cancellable chunks and discard superseded results.
+
 - Use strict TypeScript and preserve explicit DOM null handling.
 - Source imports intentionally use `.js` extensions so emitted ESM and tooling resolve consistently.
+  Directly executed Node scripts use `.ts` for local runtime imports because they run without
+  emitting JavaScript; bundled source and Vitest imports continue to use `.js`.
 - WXT provides `defineBackground` and `defineContentScript`; their globals are declared in Oxlint's
   entrypoint override.
 - Use `browser.action` and `browser.scripting`; do not reintroduce MV2 APIs such as `browserAction`,
@@ -233,6 +249,12 @@ browser processes. The command stays running until the test browser closes or Ct
 then removes its temporary build copy.
 
 - `yarn preview`: rebuild and open the preferred installed browser.
+- `yarn preview --smoke` / `yarn test:browser`: rebuild, run the actual extension's
+  automated Chromium interaction checks, record cold/warm timings under `.artifacts/`,
+  and close the dedicated browser. This also fulfills the preview launch requirement.
+- `yarn test:browser:built`: run smoke on existing production output after `yarn quality`.
+  Run it for input, navigation, search, settings, and extension-mounting changes.
+  Firefox behavior still requires a manual installed-browser check.
 - `yarn preview:vivaldi`, `yarn preview:chrome`, `yarn preview:firefox`: rebuild and open that browser.
 - `yarn browser:open`: open the existing production build after `yarn quality` or `yarn build`,
   avoiding a redundant rebuild. It uses the same browser preference order.

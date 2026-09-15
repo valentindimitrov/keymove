@@ -1,6 +1,10 @@
 declare module 'web-ext' {
   export type ChromiumClient = {
-    sendCommand(method: string, params: Record<string, unknown>): Promise<unknown>;
+    sendCommand(
+      method: string,
+      params: Record<string, unknown>,
+      sessionId?: string,
+    ): Promise<unknown>;
   };
   type RunOptions = {
     sourceDir: string;

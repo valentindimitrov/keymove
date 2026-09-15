@@ -14,7 +14,6 @@ import {
 import { isTextVisible, iterateVisibleTextNodes } from './visible_text.js';
 import type { StyleCache } from './visible_text.js';
 
-const DEFAULT_RESULT_LIMIT = 50;
 const SEARCH_CHUNK_SIZE = 100;
 const SEARCH_WORK_BUDGET_MS = 8;
 const NO_BREAK_SPACE_REGEX = /\u00a0/g;
@@ -53,13 +52,11 @@ type RankedMatch = {
 type MatchCollector = {
   actions: ActionMatch[];
   matchingText: TextMatch[];
-  // Text results are held in page order and truncated there, so the strongest match on a long
-  // page can fall off the end. Ranking needs its own set.
+  // Navigation uses page order; the picker needs the strongest text matches instead.
   rankedText: TextMatch[];
   textMatchesByContainer: Map<Element, TextMatch>;
-  resultLimit: number;
 };
-type SearchOptions = { signal?: AbortSignal; limit?: number };
+type SearchOptions = { signal?: AbortSignal };
 type SearchResult = {
   matchingText: TextMatch[];
   matchingLinksAndButtons: HTMLElement[];
@@ -81,7 +78,7 @@ function insertByScore<T extends { score: number }>(list: T[], entry: T, limit: 
  */
 function rankSuggestions(collector: MatchCollector, limit: number): RankedMatch[] {
   const candidates: RankedMatch[] = [
-    ...collector.actions.map(match => ({
+    ...collector.actions.slice(0, SUGGESTION_CANDIDATE_LIMIT).map(match => ({
       kind: 'action' as const,
       node: match.node as Element,
       score: match.score * ACTION_PRIORITY_BOOST,
@@ -154,6 +151,32 @@ class SearchWorkBudget {
     return yieldToMainThread(signal).then(() => {
       this.deadline = performance.now() + SEARCH_WORK_BUDGET_MS;
     });
+  }
+
+  // Collect first, then stable-sort in cancellable chunks. Inserting every match into an
+  // unbounded sorted array would make broad searches quadratic.
+  async sort<T>(items: T[], compare: (left: T, right: T) => number, signal: AbortSignal) {
+    let source = items;
+    let target = new Array<T>(items.length);
+    for (let width = 1; width < items.length; width *= 2) {
+      for (let start = 0; start < items.length; start += width * 2) {
+        const middle = Math.min(start + width, items.length);
+        const end = Math.min(start + width * 2, items.length);
+        let left = start;
+        let right = middle;
+        for (let output = start; output < end; output++) {
+          target[output] =
+            left < middle && (right >= end || compare(source[left]!, source[right]!) <= 0)
+              ? source[left++]!
+              : source[right++]!;
+          const pause = this.checkpoint(signal);
+          if (pause) await pause;
+        }
+      }
+      [source, target] = [target, source];
+    }
+    if (signal.aborted) throw abortError();
+    return source;
   }
 }
 
@@ -383,17 +406,14 @@ class PageSearchIndex {
     return null;
   }
 
-  async search(
-    nodeScorer: NodeScorer,
-    { signal, limit = DEFAULT_RESULT_LIMIT }: SearchOptions = {},
-  ): Promise<SearchResult> {
+  async search(nodeScorer: NodeScorer, { signal }: SearchOptions = {}): Promise<SearchResult> {
     if (signal?.aborted || this.lifetime.signal.aborted) throw abortError();
     const controller = new AbortController();
     const abort = () => controller.abort();
     signal?.addEventListener('abort', abort, { once: true });
     this.lifetime.signal.addEventListener('abort', abort, { once: true });
     try {
-      return await this.searchWithSignal(nodeScorer, controller.signal, limit);
+      return await this.searchWithSignal(nodeScorer, controller.signal);
     } finally {
       signal?.removeEventListener('abort', abort);
       this.lifetime.signal.removeEventListener('abort', abort);
@@ -403,13 +423,7 @@ class PageSearchIndex {
   private async searchWithSignal(
     nodeScorer: NodeScorer,
     searchSignal: AbortSignal,
-    limit: number,
   ): Promise<SearchResult> {
-    const resultLimit = Number.isFinite(limit)
-      ? Math.max(0, Math.floor(limit))
-      : DEFAULT_RESULT_LIMIT;
-    if (resultLimit === 0)
-      return { matchingText: [], matchingLinksAndButtons: [], suggestions: [], isFuzzy: false };
     const budget = new SearchWorkBudget();
     await this.flushPendingSubtrees(searchSignal, budget);
     const collector: MatchCollector = {
@@ -417,7 +431,6 @@ class PageSearchIndex {
       matchingText: [],
       rankedText: [],
       textMatchesByContainer: new Map(),
-      resultLimit,
     };
     const styles: StyleCache = new WeakMap();
     // Only retained when a fuzzy pass could follow, since it holds the visible text of the
@@ -465,6 +478,21 @@ class PageSearchIndex {
     if (isFuzzy) {
       await this.rescoreFuzzily(scanned, nodeScorer, collector, searchSignal, budget);
     }
+    collector.actions = await budget.sort(
+      collector.actions,
+      (left, right) => right.score - left.score,
+      searchSignal,
+    );
+    collector.matchingText = await budget.sort(
+      collector.matchingText,
+      (left, right) => {
+        const position = left.node.compareDocumentPosition(right.node);
+        if (position & Node.DOCUMENT_POSITION_PRECEDING) return 1;
+        if (position & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
+        return 0;
+      },
+      searchSignal,
+    );
     const { actions, matchingText } = collector;
     for (const match of matchingText) {
       if (match.action) continue;
@@ -528,9 +556,9 @@ class PageSearchIndex {
     collector: MatchCollector,
   ) {
     if (score <= 0) return;
-    const { actions, matchingText, rankedText, textMatchesByContainer, resultLimit } = collector;
+    const { actions, matchingText, rankedText, textMatchesByContainer } = collector;
     if (node instanceof HTMLElement && isLinkOrButtonOrInput(node)) {
-      insertByScore(actions, { node, score, term: textTerm, distance }, resultLimit);
+      actions.push({ node, score, term: textTerm, distance });
     }
     if (textTerm === null) return;
     if (!this.hasDirectSearchableText(node) && !node.matches(TEXT_BLOCK_SELECTOR)) return;
@@ -541,18 +569,10 @@ class PageSearchIndex {
       existingMatch.action ??= action;
       return;
     }
-    const insertion = matchingText.findIndex(match =>
-      Boolean(match.node.compareDocumentPosition(textContainer) & Node.DOCUMENT_POSITION_PRECEDING),
-    );
     const match = { node: textContainer, action, term: textTerm, score, distance };
     insertByScore(rankedText, match, SUGGESTION_CANDIDATE_LIMIT);
-    if (insertion !== -1) matchingText.splice(insertion, 0, match);
-    else if (matchingText.length < resultLimit) matchingText.push(match);
-    else return;
+    matchingText.push(match);
     textMatchesByContainer.set(textContainer, match);
-    if (matchingText.length > resultLimit) {
-      textMatchesByContainer.delete(matchingText.pop()!.node);
-    }
   }
 
   disconnect() {
@@ -564,4 +584,4 @@ class PageSearchIndex {
 }
 
 export type { RankedMatch, SearchOptions, SearchResult, TextMatch };
-export { DEFAULT_RESULT_LIMIT, PageSearchIndex };
+export { PageSearchIndex };

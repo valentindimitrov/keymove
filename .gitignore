@@ -9,6 +9,7 @@
 /.output
 /.wxt
 /coverage
+/.artifacts
 
 # misc
 .DS_Store
