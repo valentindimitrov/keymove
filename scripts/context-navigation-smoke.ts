@@ -24,6 +24,7 @@ export async function checkContextNavigation(client: ChromiumClient, origin: str
     })()`);
     for (const key of 'contexttarget') await first.key(key);
     await waitFor(first, `${status} === 'Text 1 / 1'`);
+    await waitFor(first, `${shadow}.querySelectorAll('[role="option"]').length === 1`);
     await first.key('1', 1);
     await waitFor(
       first,
@@ -36,6 +37,7 @@ export async function checkContextNavigation(client: ChromiumClient, origin: str
     await first.key('Escape');
     for (const key of 'qxy') await first.key(key);
     await waitFor(first, `${status} === 'Text 1 / 2'`);
+    await waitFor(first, `${shadow}.querySelectorAll('[role="option"]').length === 2`);
     await first.key('2', 1);
     await waitFor(first, `${status} === 'Text 2 / 2'`);
     const suggestions = await first.evaluate(
