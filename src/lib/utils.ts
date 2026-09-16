@@ -1,5 +1,16 @@
 import { INPUT_NODE_TYPES, KEYS_VALID_FOR_FOCUS_REGEX, MAC_OS_PLATFORMS } from '../constants.js';
 import { normalizedOpenableLinkUrl } from './extension_tabs.js';
+import { isActionDisabled, labelledToggle } from './searchable_attributes.js';
+
+const FOCUS_WIDGET_ROLES = [
+  'combobox',
+  'listbox',
+  'textbox',
+  'searchbox',
+  'slider',
+  'spinbutton',
+  'treeitem',
+];
 
 let selectedPageRange: Range | null = null;
 let savedInputSelection: {
@@ -17,7 +28,8 @@ function differentInputIsActive(inputElement: Element | null) {
 function elementIsEditable(element: Element) {
   return (
     (element instanceof HTMLElement && element.isContentEditable) ||
-    INPUT_NODE_TYPES.includes(element.nodeName)
+    INPUT_NODE_TYPES.includes(element.nodeName) ||
+    FOCUS_WIDGET_ROLES.includes(element.getAttribute('role') ?? '')
   );
 }
 
@@ -43,8 +55,29 @@ function isExtensionElement(element: EventTarget | null) {
 }
 
 function clickOrFocusNode(node: HTMLElement) {
-  if (INPUT_NODE_TYPES.includes(node.nodeName)) {
+  if (isActionDisabled(node)) return;
+  const clickInput =
+    node instanceof HTMLInputElement &&
+    ['checkbox', 'radio', 'submit', 'reset', 'button', 'image'].includes(node.type);
+  const focusWidget = FOCUS_WIDGET_ROLES.includes(node.getAttribute('role') ?? '');
+  if (
+    (INPUT_NODE_TYPES.includes(node.nodeName) && !clickInput) ||
+    node.isContentEditable ||
+    node.matches(
+      '[contenteditable="true"], [contenteditable=""], [contenteditable="plaintext-only"]',
+    ) ||
+    focusWidget
+  ) {
     node.focus();
+  } else if (
+    clickInput ||
+    labelledToggle(node) !== null ||
+    node.nodeName === 'SUMMARY' ||
+    node.matches(
+      '[role="switch"], [role="radio"], [role="checkbox"], [role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]',
+    )
+  ) {
+    node.click();
   } else {
     const eventConfig = {
       bubbles: true,

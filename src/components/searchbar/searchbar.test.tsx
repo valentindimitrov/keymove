@@ -103,6 +103,312 @@ async function flushSearch() {
   await act(async () => {});
 }
 
+async function openLinkActionMenu() {
+  const link = document.createElement('a');
+  link.href = 'https://example.com/report';
+  link.textContent = 'Report';
+  document.body.append(link);
+  settingsMocks.startInActionMode = true;
+  searchMocks.findMatches.mockResolvedValue(makeSearchResult({ matchingLinksAndButtons: [link] }));
+  render(<Searchbar />);
+  const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
+  fireEvent.input(input, { target: { value: 'report' } });
+  await flushSearch();
+  fireEvent.keyDown(input, { key: 'ArrowDown', code: 'ArrowDown' });
+  expect(screen.getByRole('menu')).toBeInTheDocument();
+  return { input, link };
+}
+
+test('Down opens actions, Up navigates only inside the menu and Escape returns to the query', async () => {
+  const { input } = await openLinkActionMenu();
+  expect(screen.getByRole('menuitem', { name: 'Open link' })).toHaveFocus();
+  fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown', code: 'ArrowDown' });
+  expect(screen.getByRole('menuitem', { name: 'Open in new tab' })).toHaveFocus();
+  fireEvent.keyDown(document.activeElement!, { key: 'ArrowUp', code: 'ArrowUp' });
+  expect(screen.getByRole('menuitem', { name: 'Open link' })).toHaveFocus();
+  fireEvent.keyDown(document.activeElement!, { key: 'Escape', code: 'Escape' });
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  expect(input).toHaveFocus();
+  expect(input).toHaveValue('report');
+  fireEvent.keyDown(input, { key: 'ArrowUp', code: 'ArrowUp' });
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+});
+
+test('menu retains the selected suggestion and restores the full shortlist on Escape', async () => {
+  const links = ['Report first', 'Report second', 'Report third', 'Report fourth'].map(label => {
+    const link = document.createElement('a');
+    link.href = `https://example.com/${label}`;
+    link.textContent = label;
+    document.body.append(link);
+    return link;
+  });
+  settingsMocks.startInActionMode = true;
+  searchMocks.findMatches.mockResolvedValue(
+    makeSearchResult({
+      matchingLinksAndButtons: links,
+      suggestions: links.map(node => makeRankedMatch({ node, term: 'report' })),
+    }),
+  );
+  render(<Searchbar />);
+  const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
+  fireEvent.input(input, { target: { value: 'report' } });
+  await flushSearch();
+  expect(screen.getAllByRole('option')).toHaveLength(3);
+  for (let i = 0; i < 3; i++) fireEvent.keyDown(input, { key: 'Tab', code: 'Tab' });
+  fireEvent.keyDown(input, { key: 'ArrowDown', code: 'ArrowDown' });
+  const retained = screen.getByRole('group', { name: 'Selected result' });
+  expect(retained).toHaveTextContent('Report fourth');
+  expect(retained.querySelector('mark')).toHaveTextContent('Report');
+  expect(retained.querySelector('.keymove-suggestion-context')).toHaveTextContent('link');
+  expect(retained.querySelector('.keymove-suggestion-position')).toBeNull();
+  expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  expect(document.querySelectorAll('.keymove-suggestion')).toHaveLength(1);
+  fireEvent.keyDown(document.activeElement!, { key: 'Escape', code: 'Escape' });
+  expect(screen.getAllByRole('option')).toHaveLength(3);
+  expect(screen.queryByRole('option', { selected: true })).not.toBeInTheDocument();
+});
+
+test('menu Alt+number runs the numbered action without changing the result', async () => {
+  const { link } = await openLinkActionMenu();
+  expect(screen.getByRole('group', { name: 'Selected result' })).toHaveTextContent('Report');
+  const items = screen.getAllByRole('menuitem');
+  items.forEach((item, index) => {
+    expect(item.querySelector('.keymove-suggestion-position')).toHaveTextContent(String(index + 1));
+    expect(item).toHaveAttribute('aria-keyshortcuts', `Alt+${index + 1}`);
+  });
+  // Physical digit codes also work where Alt changes the character produced by the key.
+  fireEvent.keyDown(document.activeElement!, { key: '£', code: 'Digit3', altKey: true });
+  await act(async () => {});
+  expect(searchMocks.sendMessage).toHaveBeenCalledExactlyOnceWith(
+    expect.objectContaining({ url: link.href, active: false }),
+  );
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+});
+
+test('Alt+6 copies linked text, and repeated shortcuts cannot duplicate a pending action', async () => {
+  const pending = Promise.withResolvers<void>();
+  const writeText = vi.fn().mockReturnValue(pending.promise);
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+  const link = document.createElement('a');
+  link.href = 'https://example.com/report';
+  link.textContent = 'Report complete text';
+  document.body.append(link);
+  searchMocks.findMatches.mockResolvedValue(
+    makeSearchResult({
+      matchingText: [makeTextMatch({ node: link, action: link, term: 'report' })],
+    }),
+  );
+  render(<Searchbar />);
+  const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
+  fireEvent.input(input, { target: { value: 'report' } });
+  await flushSearch();
+  fireEvent.keyDown(input, { key: 'ArrowDown', code: 'ArrowDown' });
+  expect(screen.getAllByRole('menuitem')).toHaveLength(6);
+  fireEvent.keyDown(document.activeElement!, { key: '6', code: 'Digit6', altKey: true });
+  fireEvent.keyDown(document.activeElement!, {
+    key: '6',
+    code: 'Digit6',
+    altKey: true,
+    repeat: true,
+  });
+  fireEvent.keyDown(document.activeElement!, { key: '4', code: 'Digit4', altKey: true });
+  expect(writeText).toHaveBeenCalledExactlyOnceWith('Report complete text');
+  await act(async () => pending.resolve());
+  expect(input).toHaveFocus();
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+});
+
+test('menu number shortcuts ignore extra modifiers, composition, missing actions and disabled targets', async () => {
+  const { input, link } = await openLinkActionMenu();
+  const click = vi.spyOn(link, 'click');
+  for (const flags of [
+    { ctrlKey: true },
+    { metaKey: true },
+    { shiftKey: true },
+    { isComposing: true },
+    { repeat: true },
+  ]) {
+    fireEvent.keyDown(document.activeElement!, {
+      key: '1',
+      code: 'Digit1',
+      altKey: true,
+      ...flags,
+    });
+  }
+  fireEvent.keyDown(document.activeElement!, { key: '9', code: 'Digit9', altKey: true });
+  expect(click).not.toHaveBeenCalled();
+  expect(searchMocks.sendMessage).not.toHaveBeenCalled();
+  fireEvent.keyDown(document.activeElement!, { key: 'Escape', code: 'Escape' });
+  link.setAttribute('aria-disabled', 'true');
+  fireEvent.keyDown(input, { key: 'ArrowDown', code: 'ArrowDown' });
+  fireEvent.keyDown(document.activeElement!, { key: '1', code: 'Digit1', altKey: true });
+  await act(async () => {});
+  expect(click).not.toHaveBeenCalled();
+  expect(screen.getByRole('menu')).toBeInTheDocument();
+});
+
+test('menu Enter runs the chosen link action rather than opening the current tab', async () => {
+  const { link } = await openLinkActionMenu();
+  const click = vi.spyOn(link, 'click');
+  fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown', code: 'ArrowDown' });
+  fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown', code: 'ArrowDown' });
+  fireEvent.keyDown(document.activeElement!, { key: 'Enter', code: 'Enter' });
+  await act(async () => {});
+  expect(click).not.toHaveBeenCalled();
+  expect(searchMocks.sendMessage).toHaveBeenCalledWith(
+    expect.objectContaining({ url: link.href, active: false }),
+  );
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+});
+
+test('menu focus-only hands off without clicking, and normal page keys remain available', async () => {
+  const { link } = await openLinkActionMenu();
+  const click = vi.spyOn(link, 'click');
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Focus without activating' }));
+  await act(async () => {});
+  expect(link).toHaveFocus();
+  expect(click).not.toHaveBeenCalled();
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  const down = new KeyboardEvent('keydown', {
+    key: 'ArrowDown',
+    code: 'ArrowDown',
+    bubbles: true,
+    cancelable: true,
+  });
+  link.dispatchEvent(down);
+  expect(down.defaultPrevented).toBe(false);
+});
+
+test('menu Tab continues result navigation and returns keyboard control to search', async () => {
+  const { input, link } = await openLinkActionMenu();
+  fireEvent.keyDown(document.activeElement!, { key: 'Tab', code: 'Tab' });
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  expect(input).toHaveFocus();
+  expect(input).toHaveValue('report');
+  expect(link.scrollIntoView).toHaveBeenCalled();
+});
+
+test('menu copying retains the query and reports clipboard failure without activating a link', async () => {
+  const writeText = vi
+    .fn()
+    .mockRejectedValueOnce(new Error('Clipboard blocked'))
+    .mockResolvedValue(undefined);
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+  const { input, link } = await openLinkActionMenu();
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Copy link address' }));
+  await screen.findByText('Could not complete this action. Please try again.');
+  expect(screen.getByRole('menu')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Copy link address' }));
+  await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
+  expect(writeText).toHaveBeenLastCalledWith(link.href);
+  expect(input).toHaveFocus();
+  expect(input).toHaveValue('report');
+});
+
+test('a late clipboard completion does not dismiss a reopened menu for the same result', async () => {
+  const pending = Promise.withResolvers<void>();
+  Object.defineProperty(navigator, 'clipboard', {
+    configurable: true,
+    value: { writeText: vi.fn().mockReturnValue(pending.promise) },
+  });
+  const { input } = await openLinkActionMenu();
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Copy link address' }));
+  fireEvent.keyDown(document.activeElement!, { key: 'Escape', code: 'Escape' });
+  fireEvent.keyDown(input, { key: 'ArrowDown', code: 'ArrowDown' });
+  await act(async () => pending.resolve());
+  expect(screen.getByRole('menu')).toBeInTheDocument();
+});
+
+test('modified Enter and composition do not accidentally activate a menu action', async () => {
+  const { input, link } = await openLinkActionMenu();
+  const click = vi.spyOn(link, 'click');
+  for (const flags of [
+    { ctrlKey: true },
+    { shiftKey: true },
+    { altKey: true },
+    { isComposing: true },
+  ]) {
+    fireEvent.keyDown(document.activeElement!, { key: 'Enter', code: 'Enter', ...flags });
+  }
+  expect(click).not.toHaveBeenCalled();
+  expect(searchMocks.sendMessage).not.toHaveBeenCalled();
+  fireEvent.keyDown(document.activeElement!, { key: 'Escape', code: 'Escape' });
+  fireEvent.keyDown(input, { key: 'ArrowDown', code: 'ArrowDown', isComposing: true });
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+});
+
+test('menu actions recheck removed and disabled nodes, and refresh dismisses the menu', async () => {
+  const { input, link } = await openLinkActionMenu();
+  const click = vi.spyOn(link, 'click');
+  link.setAttribute('aria-disabled', 'true');
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Open link' }));
+  await act(async () => {});
+  expect(click).not.toHaveBeenCalled();
+  expect(input).toHaveFocus();
+  link.removeAttribute('aria-disabled');
+  fireEvent.keyDown(input, { key: 'ArrowDown', code: 'ArrowDown' });
+  link.remove();
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Open link' }));
+  await act(async () => {});
+  expect(click).not.toHaveBeenCalled();
+  document.body.append(link);
+  fireEvent.keyDown(input, { key: 'ArrowDown', code: 'ArrowDown' });
+  act(() => {
+    searchMocks.subscribeToPageChanges.mock.calls.at(-1)![0]();
+  });
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  expect(input).toHaveFocus();
+  await flushSearch();
+});
+
+test('pure text results offer copy text without link actions', async () => {
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+  const paragraph = document.createElement('p');
+  paragraph.textContent = 'Report with complete text';
+  document.body.append(paragraph);
+  searchMocks.findMatches.mockResolvedValue(
+    makeSearchResult({ matchingText: [makeTextMatch({ node: paragraph })] }),
+  );
+  render(<Searchbar />);
+  const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
+  fireEvent.input(input, { target: { value: 'report' } });
+  await flushSearch();
+  fireEvent.keyDown(input, { key: 'ArrowDown', code: 'ArrowDown' });
+  expect(screen.getAllByRole('menuitem')).toHaveLength(1);
+  fireEvent.keyDown(document.activeElement!, { key: 'Enter', code: 'Enter' });
+  await act(async () => {});
+  expect(writeText).toHaveBeenCalledWith(paragraph.textContent);
+  expect(input).toHaveValue('report');
+});
+
+test('Down leaves pending queries, composition and unrelated form inputs alone', async () => {
+  const pending = Promise.withResolvers<SearchResult>();
+  searchMocks.findMatches.mockReturnValue(pending.promise);
+  render(<Searchbar />);
+  const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
+  fireEvent.input(input, { target: { value: 'report' } });
+  fireEvent.keyDown(input, { key: 'ArrowDown', code: 'ArrowDown' });
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  const field = document.createElement('input');
+  document.body.append(field);
+  field.focus();
+  const down = new KeyboardEvent('keydown', {
+    key: 'ArrowDown',
+    code: 'ArrowDown',
+    bubbles: true,
+    cancelable: true,
+  });
+  field.dispatchEvent(down);
+  expect(down.defaultPrevented).toBe(false);
+  await act(async () => pending.resolve(makeSearchResult()));
+});
+
 test('searches every keystroke immediately, including the first, and cancels superseded queries', async () => {
   vi.useFakeTimers();
   const pending = Promise.withResolvers<SearchResult>();

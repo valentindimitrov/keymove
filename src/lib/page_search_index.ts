@@ -8,11 +8,16 @@ import NodeScorer from './node_scorer.js';
 import {
   ACTIONABLE_SELECTOR,
   isLinkOrButtonOrInput,
+  isActionDisabled,
+  labelledToggle,
   searchableAttributeValuesForNode,
 } from './searchable_attributes.js';
 import { isTextVisible, iterateRenderedText } from './visible_text.js';
 import { normalizeSearchText } from './search_text.js';
 import type { StyleCache } from './visible_text.js';
+import { iterateControlName } from './control_name.js';
+import { hasSearchableInputValue, inputDisplayValue } from './input_value.js';
+import { activeModal, actionIsInScope, MODAL_CHANGED_EVENT } from './modal_context.js';
 
 const SEARCH_CHUNK_SIZE = 100;
 const SEARCH_WORK_BUDGET_MS = 8;
@@ -21,6 +26,8 @@ const TEXT_BLOCK_SELECTOR =
 
 type SearchRecord = {
   attributeValues: string[];
+  nameRevision?: number;
+  name?: string;
 };
 
 type ActionMatch = {
@@ -49,6 +56,8 @@ type RankedMatch = {
   distance: number | null;
 };
 type MatchCollector = {
+  styles: StyleCache;
+  modal: Element | null;
   actions: ActionMatch[];
   matchingText: TextMatch[];
   textMatchesByContainer: Map<Element, TextMatch>;
@@ -178,11 +187,15 @@ class PageSearchIndex {
   private readonly pendingSubtrees = new Map<Element, number>();
   private subtreeRevision = 0;
   private needsPruning = false;
+  private nameRevision = 0;
 
   constructor(onChange: () => void = () => undefined) {
     this.root = document.body;
     this.actionableSelector = ACTIONABLE_SELECTOR;
     this.onChange = onChange;
+    document.addEventListener(MODAL_CHANGED_EVENT, this.onChange);
+    document.addEventListener('input', this.handleControlChange, true);
+    document.addEventListener('change', this.handleControlChange, true);
     this.handleMutations = this.handleMutations.bind(this);
 
     this.addSubtree(this.root);
@@ -194,6 +207,21 @@ class PageSearchIndex {
       subtree: true,
     });
   }
+
+  private readonly handleControlChange = (event: Event) => {
+    const node = event.target;
+    if (
+      !(node instanceof Element) ||
+      !(
+        hasSearchableInputValue(node) ||
+        (node instanceof HTMLInputElement && ['checkbox', 'radio'].includes(node.type))
+      ) ||
+      node.closest(`#${KEYMOVE_ROOT_ID}`) ||
+      !this.root.contains(node)
+    )
+      return;
+    this.onChange();
+  };
 
   isCandidate(node: Node | null): node is Element {
     return (
@@ -322,6 +350,8 @@ class PageSearchIndex {
     if (pageMutations.length === 0) {
       return;
     }
+    // A referenced label can live anywhere, including outside the indexed body.
+    this.nameRevision++;
 
     pageMutations.forEach(mutation => {
       if (!this.root.contains(mutation.target)) {
@@ -375,10 +405,15 @@ class PageSearchIndex {
     return node.closest(TEXT_BLOCK_SELECTOR) ?? node;
   }
 
-  actionableAncestorForNode(node: Element): HTMLElement | null {
+  actionableAncestorForNode(node: Element, modal: Element | null): HTMLElement | null {
     let candidate: Element | null = node;
     while (candidate && candidate !== document.body) {
-      if (candidate instanceof HTMLElement && isLinkOrButtonOrInput(candidate)) {
+      if (
+        candidate instanceof HTMLElement &&
+        isLinkOrButtonOrInput(candidate) &&
+        actionIsInScope(candidate, modal) &&
+        !isActionDisabled(candidate)
+      ) {
         return candidate;
       }
       candidate = candidate.parentElement;
@@ -407,11 +442,13 @@ class PageSearchIndex {
     const budget = new SearchWorkBudget();
     await this.flushPendingSubtrees(searchSignal, budget);
     const collector: MatchCollector = {
+      styles: new WeakMap(),
+      modal: activeModal(),
       actions: [],
       matchingText: [],
       textMatchesByContainer: new Map(),
     };
-    const styles: StyleCache = new WeakMap();
+    const styles = collector.styles;
     // Only retained when a fuzzy pass could follow, since it holds the visible text of the
     // whole page. Re-deriving that text is the expensive half of a search, not comparing it.
     const rescorable = nodeScorer.supportsFuzzy();
@@ -426,11 +463,27 @@ class PageSearchIndex {
         continue;
       }
 
-      if (!this.isVisible(node, styles)) {
+      if (!actionIsInScope(node, collector.modal) || !this.isVisible(node, styles)) {
         continue;
       }
 
       const record = this.recordForNode(node);
+      if (isLinkOrButtonOrInput(node) && record.nameRevision !== this.nameRevision) {
+        const revision = this.nameRevision;
+        const parts: string[] = [];
+        for (const part of iterateControlName(node)) {
+          if (part) parts.push(part);
+          const pause = budget.checkpoint(searchSignal);
+          if (pause) await pause;
+        }
+        record.name = normalizeSearchText(parts.join('').replace(/\s+/g, ' ')).trim();
+        record.nameRevision = revision;
+      }
+      const attributeValues = record.name
+        ? [...record.attributeValues, record.name]
+        : [...record.attributeValues];
+      const value = inputDisplayValue(node);
+      if (value) attributeValues.push(normalizeSearchText(value));
       // Visibility can change through ancestor styles without changing this node's text.
       const textParts: string[] = [];
       for (const part of iterateRenderedText(node, styles)) {
@@ -439,10 +492,10 @@ class PageSearchIndex {
         if (pause) await pause;
       }
       const innerText = normalizeSearchText(textParts.join('')).trim();
-      if (rescorable && (innerText.length > 0 || record.attributeValues.length > 0)) {
-        scanned.push({ node, innerText, attributeValues: record.attributeValues });
+      if (rescorable && (innerText.length > 0 || attributeValues.length > 0)) {
+        scanned.push({ node, innerText, attributeValues });
       }
-      const score = nodeScorer.score(node, innerText, record.attributeValues);
+      const score = nodeScorer.score(node, innerText, attributeValues);
       const textTerm =
         score > 0 && nodeScorer.textMatchesWithValue(innerText) ? nodeScorer.queryText : null;
       this.collectScoredNode(node, score, textTerm, null, collector);
@@ -478,7 +531,9 @@ class PageSearchIndex {
         if (pause) await pause;
         if (
           node instanceof HTMLElement &&
-          node.matches(this.actionableSelector) &&
+          isLinkOrButtonOrInput(node) &&
+          actionIsInScope(node, collector.modal) &&
+          !isActionDisabled(node) &&
           this.isVisible(node, styles)
         ) {
           match.action = node;
@@ -535,13 +590,21 @@ class PageSearchIndex {
   ) {
     if (score <= 0) return;
     const { actions, matchingText, textMatchesByContainer } = collector;
-    if (node instanceof HTMLElement && isLinkOrButtonOrInput(node)) {
+    const labelledControl = labelledToggle(node);
+    if (
+      node instanceof HTMLElement &&
+      isLinkOrButtonOrInput(node) &&
+      actionIsInScope(node, collector.modal) &&
+      // A visible native input is already an action; its label must not duplicate it.
+      (!labelledControl || !this.isVisible(labelledControl, collector.styles))
+    ) {
       actions.push({ node, score, term: textTerm, distance });
     }
     if (textTerm === null) return;
     if (!this.hasDirectSearchableText(node) && !node.matches(TEXT_BLOCK_SELECTOR)) return;
-    const textContainer = this.textContainerForNode(node);
-    const action = this.actionableAncestorForNode(node);
+    const container = this.textContainerForNode(node);
+    const textContainer = actionIsInScope(container, collector.modal) ? container : node;
+    const action = this.actionableAncestorForNode(node, collector.modal);
     const existingMatch = textMatchesByContainer.get(textContainer);
     if (existingMatch) {
       existingMatch.action ??= action;
@@ -553,6 +616,9 @@ class PageSearchIndex {
   }
 
   disconnect() {
+    document.removeEventListener(MODAL_CHANGED_EVENT, this.onChange);
+    document.removeEventListener('input', this.handleControlChange, true);
+    document.removeEventListener('change', this.handleControlChange, true);
     this.lifetime.abort();
     this.observer.disconnect();
     this.records.clear();

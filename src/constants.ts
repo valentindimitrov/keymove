@@ -21,7 +21,24 @@ export const HIGHLIGHT_COLORS_STORAGE_KEY = 'highlightColors';
 
 export const INPUT_NODE_TYPES = ['INPUT', 'TEXTAREA', 'SELECT'];
 export const LINK_OR_BUTTON_OR_INPUT_TYPES = ['BUTTON', 'A', 'LINK', 'INPUT', 'TEXTAREA', 'SELECT'];
-export const LINK_OR_BUTTON_ROLE_VALUES = ['link', 'button', 'checkbox', 'tab'];
+export const LINK_OR_BUTTON_ROLE_VALUES = [
+  'link',
+  'button',
+  'checkbox',
+  'tab',
+  'switch',
+  'radio',
+  'combobox',
+  'listbox',
+  'textbox',
+  'searchbox',
+  'slider',
+  'spinbutton',
+  'menuitem',
+  'menuitemcheckbox',
+  'menuitemradio',
+  'treeitem',
+];
 export const DO_NOT_SEARCH_NODE_TYPES = ['SCRIPT', 'STYLE'];
 
 export const FIELD_BOOSTS = {

@@ -7,6 +7,8 @@ type SearchInputProps = {
   searchText: string;
   suggestionCount: number;
   suggestionsOpen?: boolean;
+  actionMenuOpen?: boolean;
+  actionsAvailable?: boolean;
   activeSuggestionIndex: number | null;
   updateSearchText: (value: string) => void;
   inputRef: React.RefObject<HTMLInputElement | null>;
@@ -56,10 +58,20 @@ const SearchInput = (props: SearchInputProps) => {
         type="text"
         aria-label="Search page"
         role="combobox"
-        aria-expanded={props.suggestionsOpen ?? suggestionCount > 0}
-        aria-controls={KEYMOVE_SUGGESTIONS_ID}
+        aria-expanded={props.actionMenuOpen || (props.suggestionsOpen ?? suggestionCount > 0)}
+        aria-haspopup={props.actionMenuOpen ? 'menu' : 'listbox'}
+        aria-controls={
+          props.actionMenuOpen
+            ? 'keymove-action-menu'
+            : (props.suggestionsOpen ?? suggestionCount > 0)
+              ? KEYMOVE_SUGGESTIONS_ID
+              : undefined
+        }
+        aria-describedby={props.actionsAvailable ? 'keymove-actions-hint' : undefined}
         aria-activedescendant={
-          activeSuggestionIndex === null ? undefined : `keymove-suggestion-${activeSuggestionIndex}`
+          props.actionMenuOpen || activeSuggestionIndex === null
+            ? undefined
+            : `keymove-suggestion-${activeSuggestionIndex}`
         }
         placeholder={`${EXTENSION_NAME}!`}
         value={searchText}
@@ -75,6 +87,7 @@ const SearchInput = (props: SearchInputProps) => {
         data-lpignore="true"
         onBlur={onBlur}
       />
+      {props.actionsAvailable && <span id="keymove-actions-hint">↓ Actions</span>}
     </div>
   );
 };

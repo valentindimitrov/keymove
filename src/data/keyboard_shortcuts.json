@@ -1,5 +1,14 @@
 [
   {
+    "name": "open_action_menu",
+    "eventMatcher": {
+      "code": "ArrowDown",
+      "discludedFlags": { "default": ["shiftKey", "ctrlKey", "metaKey", "altKey"] }
+    },
+    "displayKeys": { "default": ["↓"] },
+    "text": "to open actions for the selected result"
+  },
+  {
     "name": "next_match",
     "eventMatcher": {
       "code": "Tab",

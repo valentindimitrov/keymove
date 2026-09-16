@@ -1,5 +1,6 @@
 // This page deliberately mounts no extension UI. Browser smoke tests must load the
 // production extension; opening it in preview:ui alone only shows the host page.
+import { createModalFixture } from './modal_fixture.js';
 const size = new URLSearchParams(location.search).get('size') === 'large' ? 5000 : 100;
 const fixture = document.getElementById('fixture')!;
 fixture.innerHTML = `
@@ -41,3 +42,5 @@ for (const type of ['keydown', 'keypress', 'keyup']) {
   });
 }
 document.documentElement.dataset['fixtureReady'] = String(size);
+const parameters = new URLSearchParams(location.search);
+if (parameters.has('drawer')) createModalFixture(parameters.has('native'));

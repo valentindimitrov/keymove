@@ -9,6 +9,8 @@ import type { TestPage } from './browser-driver.ts';
 import { checkContextNavigation } from './context-navigation-smoke.ts';
 import { checkRenderedText } from './rendered-text-smoke.ts';
 import { checkReturnPosition } from './return-position-smoke.ts';
+import { checkControlNavigation } from './control-navigation-smoke.ts';
+import { checkActionMenu } from './action-menu-smoke.ts';
 
 const shadow = `document.getElementById('keymove-root')?.shadowRoot`;
 const input = `${shadow}?.querySelector('[aria-label="Search page"]')`;
@@ -74,6 +76,14 @@ export async function runBrowserSmoke(client: ChromiumClient, browser: string): 
     await server.listen();
     const origin = server.resolvedUrls?.local[0];
     assert(origin, 'Fixture server did not expose its address');
+    await checkActionMenu(client, origin);
+    passed.push(
+      'Down action menu, arrow navigation, Escape/Tab return, copy/paste, activation, focus-only and real shadow-root preview layouts',
+    );
+    await checkControlNavigation(client, origin);
+    passed.push(
+      'Linked labels, checkbox/radio/submit/disclosure activation, editor focus, disabled actions, native and ARIA modal scoping and restoration; transformed drawers retain layout and viewport-aligned overlays',
+    );
     await checkRenderedText(client, origin);
     passed.push(
       'Rendered whitespace, line breaks and preformatted text: search, highlights and real copy/paste agree',
@@ -277,6 +287,10 @@ export async function runBrowserSmoke(client: ChromiumClient, browser: string): 
 
       // Open the actual bundled popup document. This checks its storage writes and
       // cross-context change events; it does not simulate toolbar browser chrome.
+      // Opening settings wakes a suspended MV3 worker; its lifetime is not tied to
+      // the duration of the browser checks that ran before this point.
+      await page.evaluate(`${shadow}.querySelector('.keymove-settings-button').click()`);
+      await waitFor(page, '!document.hasFocus()');
       const targets = await client.sendCommand('Target.getTargets', {});
       assert(
         targets &&
@@ -297,8 +311,6 @@ export async function runBrowserSmoke(client: ChromiumClient, browser: string): 
         ),
       );
       assert(worker, 'Installed extension service worker not found');
-      await page.evaluate(`${shadow}.querySelector('.keymove-settings-button').click()`);
-      await waitFor(page, '!document.hasFocus()');
       const opened = await client.sendCommand('Target.getTargets', {});
       assert(
         opened &&

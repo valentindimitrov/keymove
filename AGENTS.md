@@ -94,6 +94,20 @@ artifacts are `.output/chrome-mv3` and `.output/firefox-mv3`.
 - Browsers may reserve `Ctrl + Tab` before content scripts receive it. Do not claim that page code
   can override a browser-level shortcut reservation.
 
+## Control discovery and modal navigation
+
+Control names resolve associated labels, `aria-labelledby`, `aria-label`, and image alternative
+text through `control_name.ts`. Name traversal is chunked and cached by page mutation revision;
+referenced label changes must invalidate dependent names. Names are action metadata and must
+never manufacture visible text matches. Disabled controls may be listed as unavailable but must
+not activate. Native checkboxes/radios/buttons/disclosures use click behavior; editors and complex
+widgets receive focus and retain their keyboard input.
+
+`modal_context.ts` identifies native modal dialogs and visible ARIA modal dialogs. Both navigation
+modes remain inside the active modal; nonmodal panels do not scope search. The existing shadow
+host moves inside the modal so native inertness does not block the UI, and returns on close.
+Recheck action availability at activation time, including for actions attached to text results.
+
 ## Language support
 
 Search accepts Unicode letters, numbers, and combining marks. Queries, visible text and
@@ -103,6 +117,19 @@ Highlight and suggestion offsets map back to the unchanged original text, includ
 accents. Supplementary characters count as one code point in fuzzy matching. For IME entry, focus
 the search field with Alt+F before composing; never intercept an unfinished page-input composition.
 Measure browser timings when changing normalization, and report significant regressions.
+
+## Result action menu
+
+Down opens the custom action menu only from the focused search input with a current result.
+Up is reserved outside the menu. Inside it, Up/Down navigate actions, Enter/Space execute,
+Escape returns to the unchanged query, and Tab/Shift+Tab resume result navigation. The menu
+uses native focus on menu items and is not a second result cursor. Query changes and index
+refreshes dismiss it; execution rechecks connectivity, visibility, disabled state and modal scope.
+Clipboard failures remain visible and announced. Successful copying retains the search; focus-only
+hands control to the page without activation. Menu styling stays in the existing shadow root.
+Keep only the selected result's suggestion row above the actions, including its match and context.
+Number the actions, not that retained row. Alt+number executes the corresponding menu action
+without selecting another suggestion; outside the menu the existing suggestion shortcuts remain.
 
 ## Accessibility invariants
 

@@ -14,11 +14,14 @@ import type { SearchMode } from '../../hooks/use_search_navigation.js';
 import usePopupPosition from '../../hooks/use_popup_position.js';
 import useWindowSize from '../../hooks/use_window_size.js';
 import usePopupWidth from '../../hooks/use_popup_width.js';
-import useSuggestions from '../../hooks/use_suggestions.js';
+import useSuggestions, { describeAll } from '../../hooks/use_suggestions.js';
 import useHighlightColors from '../../hooks/use_highlight_colors.js';
 import useSearchOrigin from '../../hooks/use_search_origin.js';
 
 import Utils from '../../lib/utils.js';
+import { isActionDisabled } from '../../lib/searchable_attributes.js';
+import { activeModal, actionIsInScope } from '../../lib/modal_context.js';
+import { isMovingExtensionRoot } from '../../lib/create_extension_root.js';
 import FindInPage, { subscribeToPageChanges } from '../../lib/find_in_page.js';
 import type { RankedMatch } from '../../lib/page_search_index.js';
 import { isTextVisible, visibleText } from '../../lib/visible_text.js';
@@ -26,6 +29,8 @@ import SearchInput from './search_input.js';
 import Selections from './selections.js';
 import MatchesSummary from './matches_summary.js';
 import ResultsPanel from './results_panel.js';
+import ActionMenu from './action_menu.js';
+import { actionsForResult } from '../../lib/result_actions.js';
 import DraggableContainer from './draggable_container.js';
 import InfoDropdown from './info_dropdown.js';
 import VisibilityButton from './visibility_button.js';
@@ -91,6 +96,8 @@ const Searchbar = () => {
   const [resultsQuery, setResultsQuery] = React.useState('');
   const [searchPending, setSearchPending] = React.useState(false);
   const [suggestionsHeight, setSuggestionsHeight] = React.useState(0);
+  const [menuTarget, setMenuTarget] = React.useState<Element | null>(null);
+  const menuGeneration = React.useRef(0);
   const previousSearchText = React.useRef(searchText);
   const [scrollOrResizeRefresh, setScrollOrResizeRefresh] = React.useState<boolean>(false);
   const [hideSelections, setHideSelections] = React.useState<boolean>(false);
@@ -157,6 +164,7 @@ const Searchbar = () => {
   }, []);
 
   const resetSearchTextAndMatches = React.useCallback(() => {
+    setMenuTarget(null);
     cancelPendingSearch();
     setSearchText('');
     resetSearchNavigation(defaultSearchMode);
@@ -171,6 +179,7 @@ const Searchbar = () => {
 
   const handleBlur = React.useCallback(
     (event: React.FocusEvent<HTMLInputElement>) => {
+      if (isMovingExtensionRoot()) return;
       if (Utils.isExtensionElement(event.relatedTarget)) {
         return;
       }
@@ -192,8 +201,13 @@ const Searchbar = () => {
   );
 
   const activateSelectedMatchingNodeAndReset = React.useCallback(
-    (event: KeyboardEvent, activation: ActionActivation = 'current') => {
-      if (!selectedActionNode?.isConnected || !isTextVisible(selectedActionNode)) {
+    (event: KeyboardEvent | null, activation: ActionActivation = 'current') => {
+      if (
+        !selectedActionNode?.isConnected ||
+        !isTextVisible(selectedActionNode) ||
+        isActionDisabled(selectedActionNode) ||
+        !actionIsInScope(selectedActionNode, activeModal())
+      ) {
         return;
       }
 
@@ -202,8 +216,8 @@ const Searchbar = () => {
         return;
       }
 
-      event.preventDefault();
-      event.stopPropagation();
+      event?.preventDefault();
+      event?.stopPropagation();
       discardOrigin();
       if (activation === 'current') {
         Utils.clickOrFocusNode(selectedActionNode);
@@ -276,6 +290,7 @@ const Searchbar = () => {
 
   const scheduleSearch = React.useCallback(
     (preserveSelection = false) => {
+      setMenuTarget(null);
       cancelPendingSearch();
       if (!preserveSelection) {
         clearSearchResults();
@@ -311,6 +326,7 @@ const Searchbar = () => {
   // routes leave the same mode, selection, scroll position and page selection behind.
   const selectMatchAtIndex = React.useCallback(
     (mode: SearchMode, index: number) => {
+      setMenuTarget(null);
       const matches = mode === SEARCH_MODES.TEXT ? matchingTextNodes : matchingLinksAndButtons;
       rememberOrigin(matches[index]);
       setMode(mode);
@@ -419,11 +435,138 @@ const Searchbar = () => {
     updateAutoHide(!autoHide);
   }, [autoHide, updateAutoHide]);
 
+  const selectedResultNode = selectedTextMatch?.node ?? selectedActionNode;
+  const closeActionMenu = React.useCallback(() => setMenuTarget(null), []);
+  const menuActions = actionsForResult(selectedActionNode, selectedTextMatch?.node ?? null);
+  const actionMenuOpen =
+    isInteractive &&
+    !suggestionsPending &&
+    menuTarget !== null &&
+    menuTarget === selectedResultNode;
+  const menuSuggestion = React.useMemo(() => {
+    if (!actionMenuOpen || !menuTarget) return null;
+    const displayed = suggestions.find(suggestion => suggestion.node === menuTarget);
+    if (displayed) return displayed;
+    const ranked = rankedMatches.find(match => match.node === menuTarget);
+    return (
+      describeAll(
+        [
+          ranked ?? {
+            kind: selectedTextMatch ? 'text' : 'action',
+            node: menuTarget,
+            term: selectedTextMatch?.term ?? searchText,
+            score: selectedTextMatch?.score ?? 0,
+            distance: selectedTextMatch?.distance ?? null,
+          },
+        ],
+        isFuzzy,
+      )[0] ?? null
+    );
+  }, [
+    actionMenuOpen,
+    menuTarget,
+    suggestions,
+    rankedMatches,
+    selectedTextMatch,
+    searchText,
+    isFuzzy,
+  ]);
+  const openActionMenu = React.useCallback(
+    (event: KeyboardEvent) => {
+      if (
+        !isInteractive ||
+        suggestionsPending ||
+        !Utils.elementIsActive(searchInputRef.current) ||
+        !selectedResultNode?.isConnected ||
+        !isTextVisible(selectedResultNode) ||
+        !actionIsInScope(selectedResultNode, activeModal())
+      )
+        return;
+      event.preventDefault();
+      event.stopPropagation();
+      menuGeneration.current += 1;
+      setMenuTarget(selectedResultNode);
+    },
+    [isInteractive, suggestionsPending, selectedResultNode],
+  );
+
+  const runMenuAction = React.useCallback(
+    async (id: string) => {
+      // Recheck live DOM state, including modal ownership, immediately before acting.
+      if (
+        !menuTarget?.isConnected ||
+        menuTarget !== selectedResultNode ||
+        suggestionsPending ||
+        !isTextVisible(menuTarget) ||
+        !actionIsInScope(menuTarget, activeModal())
+      ) {
+        setMenuTarget(null);
+        return;
+      }
+      if (id === 'copy-text' || id === 'copy-link') {
+        const source = id === 'copy-text' ? selectedTextMatch?.node : selectedActionNode;
+        if (
+          !source?.isConnected ||
+          !isTextVisible(source) ||
+          !actionIsInScope(source, activeModal())
+        ) {
+          setMenuTarget(null);
+          return;
+        }
+        const text =
+          id === 'copy-text' ? visibleText(source) : Utils.linkUrlForNode(selectedActionNode);
+        if (text === null) return;
+        const generation = menuGeneration.current;
+        await navigator.clipboard.writeText(text);
+        // A pending clipboard write must not dismiss a newer menu/search.
+        if (generation === menuGeneration.current)
+          setMenuTarget(current => (current === menuTarget ? null : current));
+        return;
+      }
+      if (
+        !selectedActionNode?.isConnected ||
+        isActionDisabled(selectedActionNode) ||
+        !isTextVisible(selectedActionNode) ||
+        !actionIsInScope(selectedActionNode, activeModal())
+      ) {
+        setMenuTarget(null);
+        return;
+      }
+      if (id === 'focus') {
+        Utils.clearPageSelection();
+        selectedActionNode.focus({ preventScroll: true });
+        if (!Utils.elementIsActive(selectedActionNode))
+          throw new Error('This control could not receive focus.');
+        hide();
+      } else if (id === 'activate' || id === 'foreground-tab' || id === 'background-tab') {
+        activateSelectedMatchingNodeAndReset(null, id === 'activate' ? 'current' : id);
+      }
+    },
+    [
+      menuTarget,
+      selectedResultNode,
+      suggestionsPending,
+      selectedTextMatch,
+      selectedActionNode,
+      hide,
+      activateSelectedMatchingNodeAndReset,
+    ],
+  );
+
+  const navigateFromMenu = React.useCallback(
+    (event: KeyboardEvent, forward: boolean) => {
+      setMenuTarget(null);
+      selectNextMatchingNode(event, navigationMode, forward);
+    },
+    [selectNextMatchingNode, navigationMode],
+  );
+
   const keyboardShortcutHandlerMapping = React.useMemo<
     Record<KeyboardShortcutName, ShortcutHandler | null>
   >(() => {
     return {
       next_match: createNavigationShortcutHandler('current'),
+      open_action_menu: openActionMenu,
       previous_match: createNavigationShortcutHandler('current', false),
       next_action_match: createNavigationShortcutHandler(SEARCH_MODES.ACTIONS),
       previous_action_match: createNavigationShortcutHandler(SEARCH_MODES.ACTIONS, false),
@@ -485,6 +628,7 @@ const Searchbar = () => {
     isInteractive,
     hide,
     restoreOrigin,
+    openActionMenu,
   ]);
 
   const handleShortcut = React.useCallback(
@@ -498,6 +642,7 @@ const Searchbar = () => {
         return;
       }
       const keyboardEventHandler = keyboardShortcutHandlerMapping[keyboardShortcutName];
+      if (keyboardShortcutName !== 'open_action_menu') setMenuTarget(null);
       keyboardEventHandler?.(event);
     },
     [keyboardShortcutHandlerMapping],
@@ -616,16 +761,26 @@ const Searchbar = () => {
   // the side has to be chosen before the list has been laid out; erring high only means
   // opening upwards a little sooner than strictly necessary.
   const suggestionsAbove = React.useMemo(() => {
-    if (!suggestionsOpen) return false;
+    if (!suggestionsOpen && !actionMenuOpen) return false;
     const barBottom = popupPosition.y * windowSize.height + KEYMOVE_CONTAINER_HEIGHT / 2;
-    const listHeight = Math.max(
-      suggestionsHeight,
-      Math.max(1, suggestions.length) * SUGGESTION_ROW_HEIGHT + SUGGESTION_PANEL_PADDING,
-    );
+    const listHeight = actionMenuOpen
+      ? menuActions.length * 38 + 130
+      : Math.max(
+          suggestionsHeight,
+          Math.max(1, suggestions.length) * SUGGESTION_ROW_HEIGHT + SUGGESTION_PANEL_PADDING,
+        );
     const below = windowSize.height - barBottom;
     const above = barBottom - KEYMOVE_CONTAINER_HEIGHT;
     return below < listHeight && above > below;
-  }, [suggestionsOpen, suggestionsHeight, suggestions.length, popupPosition.y, windowSize.height]);
+  }, [
+    suggestionsOpen,
+    actionMenuOpen,
+    menuActions.length,
+    suggestionsHeight,
+    suggestions.length,
+    popupPosition.y,
+    windowSize.height,
+  ]);
   const suggestionsMaxHeight = Math.max(
     0,
     (suggestionsAbove
@@ -660,6 +815,15 @@ const Searchbar = () => {
     color: highlightColors[SEARCH_MODES.TEXT],
   });
   useExtensionMessaging();
+
+  React.useEffect(() => {
+    if (!actionMenuOpen) return undefined;
+    const dismissOutside = (event: PointerEvent) => {
+      if (!Utils.isExtensionElement(event.composedPath()[0] ?? event.target)) setMenuTarget(null);
+    };
+    document.addEventListener('pointerdown', dismissOutside, true);
+    return () => document.removeEventListener('pointerdown', dismissOutside, true);
+  }, [actionMenuOpen]);
 
   return (
     <div className={isInteractive ? '' : 'keymove-hidden'}>
@@ -699,6 +863,8 @@ const Searchbar = () => {
             suggestionCount={suggestions.length}
             suggestionsOpen={suggestionsOpen}
             activeSuggestionIndex={activeSuggestionIndex}
+            actionMenuOpen={actionMenuOpen}
+            actionsAvailable={!suggestionsPending && selectedResultNode !== null}
             onBlur={handleBlur}
             updateSearchText={setSearchText}
           />
@@ -715,17 +881,30 @@ const Searchbar = () => {
           )}
           {isInteractive && <InfoDropdown />}
         </div>
-        {isInteractive && (
-          <ResultsPanel
-            maxHeight={suggestionsMaxHeight}
-            open={suggestionsOpen}
-            onHeightChange={setSuggestionsHeight}
-            pending={suggestionsPending}
-            suggestions={suggestions}
-            selectedNode={selectedSuggestionNode}
+        {actionMenuOpen && menuSuggestion ? (
+          <ActionMenu
+            actions={menuActions}
+            suggestion={menuSuggestion}
             above={suggestionsAbove}
-            onSelect={selectSuggestion}
+            maxHeight={suggestionsMaxHeight}
+            searchInputRef={searchInputRef}
+            onClose={closeActionMenu}
+            onNavigate={navigateFromMenu}
+            onAction={runMenuAction}
           />
+        ) : (
+          isInteractive && (
+            <ResultsPanel
+              maxHeight={suggestionsMaxHeight}
+              open={suggestionsOpen}
+              onHeightChange={setSuggestionsHeight}
+              pending={suggestionsPending}
+              suggestions={suggestions}
+              selectedNode={selectedSuggestionNode}
+              above={suggestionsAbove}
+              onSelect={selectSuggestion}
+            />
+          )
         )}
       </DraggableContainer>
     </div>

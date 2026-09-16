@@ -1,4 +1,10 @@
 import { KEYMOVE_APP_ID, KEYMOVE_PORTAL_ID, KEYMOVE_ROOT_ID } from '../constants.js';
+import { activeModal, MODAL_CHANGED_EVENT } from './modal_context.js';
+
+let movingExtensionRoot = false;
+export function isMovingExtensionRoot() {
+  return movingExtensionRoot;
+}
 
 type ExtensionRoot = {
   app: HTMLDivElement;
@@ -35,24 +41,77 @@ function createExtensionRoot(stylesText: string, browserName?: string): Extensio
 }
 
 function keepExtensionRootConnected(host: HTMLElement) {
-  let observedBody = document.body;
+  let previousModal: Element | null = null;
   const reconnect = () => {
-    if (observedBody !== document.body) {
-      observedBody = document.body;
+    if (movingExtensionRoot) return;
+    const modal = activeModal();
+    const parent = modal ?? document.body;
+    if (parent && (host.parentElement !== parent || modal !== previousModal)) {
+      // Native modal dialogs make everything outside their subtree inert, including
+      // extension UI. Keep the DOM inside, but render in the top layer: a transformed
+      // drawer must not become the containing block for our viewport-positioned UI,
+      // nor gain scrollable overflow from the searchbar and selection outlines.
+      const focused = host.shadowRoot?.activeElement;
+      movingExtensionRoot = true;
+      try {
+        const supportsPopover = typeof host.showPopover === 'function';
+        if (supportsPopover && host.matches(':popover-open')) host.hidePopover();
+        if (host.parentElement !== parent) {
+          if (host.isConnected && typeof parent.moveBefore === 'function')
+            parent.moveBefore(host, null);
+          else parent.appendChild(host);
+        }
+        if (modal && supportsPopover) {
+          // Manual avoids light-dismiss/Escape handling and leaves site popovers alone.
+          host.setAttribute('popover', 'manual');
+          host.showPopover();
+        } else host.removeAttribute('popover');
+        if (focused instanceof HTMLElement) focused.focus({ preventScroll: true });
+      } finally {
+        movingExtensionRoot = false;
+      }
+    }
+    if (modal !== previousModal) {
+      previousModal = modal;
+      document.dispatchEvent(new Event(MODAL_CHANGED_EVENT));
+    }
+  };
+  const observer = new MutationObserver(records => {
+    if (
+      records.some(
+        record =>
+          !(record.target instanceof Element && record.target.closest(`#${KEYMOVE_ROOT_ID}`)),
+      )
+    )
+      reconnect();
+  });
+  observer.observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: [
+      'open',
+      'aria-modal',
+      'role',
+      'hidden',
+      'inert',
+      'aria-hidden',
+      'style',
+      'class',
+    ],
+  });
+  document.addEventListener('focusin', reconnect, true);
+  document.addEventListener('toggle', reconnect, true);
+  document.addEventListener('close', reconnect, true);
+  reconnect();
+  return {
+    disconnect() {
       observer.disconnect();
-      observeParents();
-    }
-    if (!host.isConnected && document.body) {
-      document.body.appendChild(host);
-    }
+      document.removeEventListener('focusin', reconnect, true);
+      document.removeEventListener('toggle', reconnect, true);
+      document.removeEventListener('close', reconnect, true);
+    },
   };
-  const observer = new MutationObserver(reconnect);
-  const observeParents = () => {
-    observer.observe(document.documentElement, { childList: true });
-    if (observedBody) observer.observe(observedBody, { childList: true });
-  };
-  observeParents();
-  return observer;
 }
 
 export default createExtensionRoot;

@@ -24,6 +24,10 @@ a background tab.
 - Switch between text and action results with a single shortcut, each keeping its own position.
 - Open selected web links in the current tab, a foreground tab, or a background tab.
 - Copy the URL of a selected link directly from action mode.
+- Find controls through associated form labels, `aria-labelledby`, accessible labels, and image alternative text.
+- Toggle checkboxes and switches, select radio buttons, submit native buttons, and expand disclosures with Enter.
+- Focus text editors and complex widgets to continue using their own keyboard controls. Disabled controls are marked unavailable and cannot be activated.
+- Search inside an open modal automatically; closing it restores whole-page search without changing a setting.
 - Keep results current as dynamic pages change without rewriting the page DOM.
 - Move the search interface anywhere on screen and retain its position across pages and sessions.
 - Use an accessible, keyboard-operable settings panel with announced match counts.
@@ -62,6 +66,7 @@ ends, and large indexing jobs yield between chunks so they can be cancelled.
 | `Shift + Ctrl + Tab` | Select the previous matching action. |
 | `Alt + S` | Switch between text mode and action mode. Use `Option + S` on macOS. |
 | `Enter` | Activate the selected action in the current tab. |
+| `↓` | Open KeyMove's action menu for the selected result. |
 | `Shift + Enter` | Open the selected `http` or `https` link in a new foreground tab. |
 | `Ctrl + Enter` | Open the selected `http` or `https` link in a new background tab. |
 | `Ctrl + C` | Copy the selected text block or selected link URL. Use `Command + C` on macOS. |
@@ -71,7 +76,7 @@ ends, and large indexing jobs yield between chunks so they can be cancelled.
 | `Escape` | Close KeyMove in one press, staying at the current position. |
 | `Alt + Backspace` | Return to the position where the current search began and close KeyMove. Use `Option + Backspace` on macOS. |
 
-Escape and Alt+Backspace are handled only while the search field has focus. Searching and jumping
+With the action menu closed, Escape and Alt+Backspace are handled only while the search field has focus. Searching and jumping
 with Tab or Alt+1–5 keeps one original reading position for the current search, including nested
 scrolling containers that KeyMove moves. Alt+Backspace returns there immediately, even if no page
 control was focused when the search began. Escape stays at the current position; neither shortcut
@@ -84,6 +89,22 @@ land on an action while the bar is in text mode; the mode follows the row it lan
 In text mode, `Enter` also activates a link or control associated with the selected text block. For
 buttons and inputs, unmodified `Enter` preserves their normal click or focus behavior; modified
 Enter shortcuts never try to open them as new tabs.
+
+Native modal dialogs and visible `role="dialog"` / `role="alertdialog"` elements marked
+`aria-modal="true"` limit both text and action results to the active dialog. Nonmodal panels do
+not change the search area. Explicitly inert content is excluded. KeyMove keeps its existing
+search interface inside the modal while it is open, so it remains keyboard reachable. A manual
+popover renders that interface in the browser's top layer, preventing transformed or clipped
+drawers from shifting its highlights or acquiring scrollable overflow from the interface.
+Custom widgets must expose meaningful roles and labels; a plain `tabindex` does not make an
+element an action. Complex widgets receive focus rather than synthetic keyboard events.
+Styled native radios and checkboxes can be activated through their associated visible labels,
+even when CSS hides the input. Enter uses native label activation, preserving change events,
+radio-group behavior and disabled controls.
+Visible text/number input values are searched using their current displayed value, not their
+initial HTML value. These are action results: use Alt+S to switch from text results, then Enter
+to focus the field. Suggestions show the field label and value together. Password and hidden
+fields, file paths, and internal checkbox/radio/range values are excluded from value search.
 
 ### Search modes
 
@@ -392,3 +413,179 @@ code points.
 For input methods that compose text, such as a Japanese IME, press **Alt+F** to focus the search
 field before composing. KeyMove leaves composition in other page controls alone. This is search
 support for those scripts; the extension's own interface is currently in English.
+
+## Navigation patterns
+
+TODO: Add GIFs demonstrating these navigation patterns on the project's GitHub page once the project goes public.
+
+This reference describes the current behavior. Examples assume the default **Text** mode and
+**Always on** enabled unless stated otherwise. A sequence such as `Tab` → `Enter` means press
+the keys one after the other; `Alt + F` means hold them together.
+
+On macOS, use **Option** wherever **Alt** appears, and **Command** for copy and clear-query
+shortcuts. `Ctrl + Tab` and `Ctrl + Enter` still use **Control**.
+
+### Start or resume a search
+
+| Situation | What to do | What happens |
+| --- | --- | --- |
+| Reading a page, with no editor or input focused | Start typing a word or phrase. | KeyMove opens, keeps the first character, and searches as you type. |
+| Always on is disabled, or a page input already has focus | Press `Alt + F`, then type. | Focus moves to KeyMove; typing now searches instead of editing the page field. |
+| Entering text with an IME | Press `Alt + F` before composing. | Compose the query in KeyMove; composition inside a page field is left alone. |
+| KeyMove was closed | Press `Alt + F`, or start typing with Always on enabled. | A fresh search starts from the current page position and the configured default mode. |
+| Temporarily visiting another browser tab or window | Return to the original tab. | Its query and selections are retained; each tab has its own search state. |
+
+When results arrive for a new query, the first result is already selected. You can press `Enter`
+immediately if it has an action, or copy it if it is text. **Selection is not activation**:
+highlighting a button does not click it, and selecting an input does not start editing it.
+
+### Move through results or jump directly
+
+| Intent | Keys | Behavior |
+| --- | --- | --- |
+| Move forward in the active mode | `Tab` | Select the next result and bring it into view. |
+| Move backward in the active mode | `Shift + Tab` | Select the previous result and bring it into view. |
+| Switch between text and actions | `Alt + S` | Use the other mode's selection without advancing either cursor or activating anything. |
+| Move directly to the next action | `Ctrl + Tab` | Switch to action navigation and select the next action, if the browser delivers this shortcut. |
+| Move directly to the previous action | `Shift + Ctrl + Tab` | Switch to action navigation and select the previous action, if the browser delivers this shortcut. |
+| Jump to a numbered suggestion | `Alt + 1` … `Alt + 5` | Select that displayed row and bring it into view; the active mode follows the row's kind. |
+
+Navigation wraps: forward from the last result goes to the first, and backward from the first goes
+to the last. Because the first result is selected automatically, the first `Tab` normally moves to
+the **second** result. With only one result, it stays selected and is brought into view.
+
+Text results follow page order. Actions follow their search ranking. Each mode remembers its own
+position within the current results: switching from `Text 3 / 12` to actions and back keeps text
+result 3 selected. If action mode has no matches but text does, KeyMove falls back to text;
+changing the query tries the chosen action mode again.
+
+The numbered panel appears for queries of at least three characters and shows 1–5 suggestions
+(three by default). These are a mixed shortlist, not the first few results in either mode.
+`Alt + 2` therefore means **row 2 in the panel**, not text result 2. Only displayed, ready rows
+can be selected. `Tab` still reaches all matches, including those outside the shortlist.
+
+Browsers may reserve `Ctrl + Tab` for changing browser tabs. In that case, use `Alt + S` to choose
+**Actions**, then plain `Tab` / `Shift + Tab`. Clicking the mode label or a suggestion row is the
+pointer equivalent of switching mode or selecting that row; clicking a row does not activate it.
+
+### Activate a result or hand control to the page
+
+After selecting a result, choose what to do with it:
+
+| Selected result | Keys | Outcome |
+| --- | --- | --- |
+| Link | `Enter` | Activate the link normally in the current tab. |
+| Web link (`http` or `https`) | `Shift + Enter` | Open it in a new tab and switch to that tab. |
+| Web link (`http` or `https`) | `Ctrl + Enter` | Open it in a background tab and stay in the current tab. |
+| Button, checkbox, radio button, switch, or disclosure | `Enter` | Activate the control: click, toggle, select, submit, or expand as appropriate. |
+| Text input, editor, or complex widget | `Enter` | Focus the control, then use its own typing and keyboard navigation. |
+| Text block with an associated link or control | `Enter` | Activate that associated action without first switching to action mode. |
+| Text block without an associated action | `Enter` | No action. |
+| Disabled or unavailable control | `Enter` | No action; KeyMove does not activate it. |
+
+Modified Enter shortcuts are web-link-only. They do not open buttons or inputs in new tabs.
+For a text block associated with a web link, they apply to that link too.
+
+Activation clears the query and ends the return-position session. With **Autohide** enabled, it
+also hides KeyMove; with Autohide disabled, the interface can remain visible. To find another
+control after entering an editor, press `Alt + F` and start another search.
+
+### Choose an action with the arrow keys
+
+Press **↓** while the search field has focus and a result is selected. The suggestions give way
+to an action menu with only that result's suggestion row retained above it; the query and
+navigation position are kept.
+
+- **↑ / ↓:** move through menu actions. Up has no assigned KeyMove action when the menu is closed.
+- **Enter** or **Space:** run the chosen action. Home/End select the first/last action.
+- **Alt + number** (Option on Mac): immediately run the numbered action. Numbers belong only
+  to actions while the menu is open; outside it, Alt + number still selects suggestions.
+- **Escape:** close only the menu and return focus to the unchanged search.
+- **Tab / Shift+Tab:** close the menu and select the next/previous search result.
+
+Links offer Open link, Open in new tab, Open in background tab, Copy link address, and Focus
+without activating where supported. Controls offer activation and focus where supported. Text
+results offer Copy text; if a text block has an associated action, its actions appear too.
+Disabled controls are marked unavailable and cannot be activated. Availability is checked again
+when an action runs, and page refreshes or query changes dismiss the menu.
+
+Copying closes the menu but retains the search. A clipboard failure leaves the menu open with an
+announced error. Focus without activating closes KeyMove and gives the page control keyboard
+focus, allowing native Tab navigation without clicking it. Existing direct activation and copying
+shortcuts remain available from the search field.
+
+This is KeyMove's own menu; it does not contain browser commands or other extensions' entries.
+
+Example: type `pull`, press `Alt + 2` to select the second suggestion, then `↓` to open its
+actions. Only that selected suggestion remains visible above the menu. Press `Alt + 4` to run
+the action labelled **4** (Copy link address for a typical web link), without stepping through
+the menu or pressing Enter. The menu closes and the query remains. `Escape` instead closes
+the menu without running anything and restores the full shortlist. Action numbers follow the
+available menu entries, so use the displayed number rather than assuming every result has the
+same actions.
+
+### Copy what you found
+
+| Intent | Sequence | Clipboard content |
+| --- | --- | --- |
+| Copy a paragraph, heading, list item, or other text block | Search → select a text result → `Ctrl + C` | The complete selected block, not just the matching word. |
+| Copy a link address | Search → select an action that is a link → `Ctrl + C` | The selected link's URL. |
+| Copy the wording of a link rather than its address | Select its containing text result in Text mode → `Ctrl + C` | The whole text block containing that link. |
+
+Use `Command + C` on macOS. Copying does not activate the result or end the search, so you can
+continue navigating or return to where you started. Non-link actions have no link URL to copy.
+
+### Refine, replace, or retry a query
+
+Keep typing or use ordinary text editing in the search field to refine the query. Results update
+immediately; each changed query clears both result positions and selects the first fresh match,
+while retaining the chosen mode. Previously displayed suggestions may remain visible during the
+update but cannot be selected until they are ready.
+
+Press `Ctrl + Backspace` (`Command + Backspace` on macOS) to clear the entire query **without
+closing KeyMove**. Type a replacement query to continue. Refining or clearing the query does not
+replace the original return position for that search session.
+
+If there are no exact matches, approximate matching runs automatically; `~` beside the mode marks
+those results. Navigate them with the same shortcuts. If there are still no results, edit the
+query, clear it, or close KeyMove—there is nothing to activate.
+
+### Finish here or return to where you started
+
+| Intent | Keys while the search field has focus | Outcome |
+| --- | --- | --- |
+| Stay at the result | `Escape` | Clear the query and close KeyMove in one press, without scrolling back. |
+| Return to the original reading position | `Alt + Backspace` | Restore the search session's starting scroll position and close KeyMove. |
+| Keep searching with different words | `Ctrl + Backspace` | Clear only the query; keep KeyMove open and retain the return position. |
+
+The return position is captured when the search begins, before KeyMove moves the page. It covers
+the page and nested scrolling areas moved by result navigation. Multiple jumps and query edits
+still lead back to that same origin; it is one return point, not a history of jumps. No previously
+focused field is required, and neither closing shortcut restores an old field or caret.
+
+Moving focus to another page control or activating a result ends that return session. Once a page
+control has focus, `Escape` and `Alt + Backspace` belong to that control or the page. They do not
+restore an earlier position. After `Escape` closes KeyMove, a later `Alt + Backspace` cannot undo
+the closed search; choose the return shortcut **instead of** Escape if you want to go back.
+
+For example, on MDN's [What next?](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/What_next)
+page, when `improve` matches only “Help improve MDN”:
+
+| Start | Search | Jump | Finish | Result |
+| --- | --- | --- | --- | --- |
+| Reading near the top | Type `improve` | `Tab` or `Alt + 1` selects “Help improve MDN” below the viewport | `Escape` | Stay at “Help improve MDN.” |
+| Reading near the top | Type `improve` | `Tab` or `Alt + 1` selects “Help improve MDN” below the viewport | `Alt + Backspace` | Return to the original reading position. |
+
+### Navigate dialogs and changing pages
+
+When a modal dialog is open, both modes search inside that dialog automatically. Use the same
+search, selection, copy, and activation shortcuts; there is no scope switch to learn. When the
+dialog closes, whole-page search becomes available again. Nonmodal panels do not restrict search.
+`Escape` while the KeyMove search field has focus closes **KeyMove**, not the page's dialog;
+after focus moves into the dialog, its own keyboard behavior applies.
+
+If page content changes during a search, results refresh automatically. KeyMove retains the
+selected element if it still matches. If that element disappears, its selection is cleared rather
+than moving activation to an unrelated result; use `Tab`, `Shift + Tab`, or a ready numbered row
+to select another match. A full page navigation or reload starts a new page session, not a saved
+search history.

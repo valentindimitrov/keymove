@@ -1,6 +1,6 @@
 {
   "A": ["title", "aria-label"],
-  "INPUT": ["name", "placeholder", "value", "aria-label"],
+  "INPUT": ["name", "placeholder", "aria-label"],
   "SELECT": ["name"],
   "TEXTAREA": ["name", "placeholder", "title"],
   "BUTTON": ["name", "aria-label"],

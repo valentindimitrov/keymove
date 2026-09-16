@@ -5,6 +5,8 @@ import PopupLayoutActions from '../src/components/popup/popup_layout_actions.js'
 import popupStyles from '../src/popup.css?inline';
 import MatchesSummary from '../src/components/searchbar/matches_summary.js';
 import ResultsPanel from '../src/components/searchbar/results_panel.js';
+import ActionMenu from '../src/components/searchbar/action_menu.js';
+import { actionsForResult } from '../src/lib/result_actions.js';
 import SearchInput from '../src/components/searchbar/search_input.js';
 import { SEARCH_MODES } from '../src/hooks/use_search_navigation.js';
 import { KEYMOVE_CONTAINER_WIDTH } from '../src/constants.js';
@@ -14,6 +16,10 @@ import InfoPanelButtons from '../src/components/searchbar/info_panel/info_panel_
 import InfoPanelSettingRow from '../src/components/searchbar/info_panel/info_panel_setting_row.js';
 import useSuggestions, { type Suggestion } from '../src/hooks/use_suggestions.js';
 import type { SearchMode } from '../src/hooks/use_search_navigation.js';
+import { keepExtensionRootConnected } from '../src/lib/create_extension_root.js';
+import Selection from '../src/components/searchbar/selection.js';
+import { createModalFixture } from './modal_fixture.js';
+import { kindLabelForNode } from '../src/lib/suggestion_context.js';
 
 type BarProps = {
   searchText: string;
@@ -31,6 +37,7 @@ type BarProps = {
   onSearchTextChange?: (query: string) => void;
   suggestionsOpen?: boolean;
   onOpenSettings?: () => void;
+  showActionMenu?: boolean;
 };
 
 function suggestionNode(label: string) {
@@ -154,6 +161,8 @@ const Bar = (props: BarProps) => {
           suggestionCount={suggestions.length}
           suggestionsOpen={suggestionsOpen ?? suggestions.length > 0}
           activeSuggestionIndex={null}
+          actionMenuOpen={props.showActionMenu ?? false}
+          actionsAvailable={props.showActionMenu ?? false}
           onBlur={() => undefined}
           updateSearchText={onSearchTextChange}
         />
@@ -170,19 +179,83 @@ const Bar = (props: BarProps) => {
           resultCount={resultCount}
         />
       </div>
-      <ResultsPanel
-        open={suggestionsOpen ?? suggestions.length > 0}
-        pending={pending}
-        suggestions={suggestions}
-        selectedNode={selectedNode}
-        above={above}
-        onSelect={() => undefined}
-      />
+      {props.showActionMenu ? (
+        <ActionMenu
+          actions={actionsForResult(
+            Object.assign(document.createElement('a'), {
+              href: 'https://example.org/report',
+              textContent: 'Download report',
+            }),
+            null,
+          )}
+          suggestion={{
+            kind: 'action',
+            node: document.createElement('a'),
+            term: 'report',
+            label: 'Download report',
+            context: 'link · in Main content',
+          }}
+          above={above}
+          maxHeight={350}
+          searchInputRef={searchInputRef}
+          onClose={() => undefined}
+          onNavigate={() => undefined}
+          onAction={() => undefined}
+        />
+      ) : (
+        <ResultsPanel
+          open={suggestionsOpen ?? suggestions.length > 0}
+          pending={pending}
+          suggestions={suggestions}
+          selectedNode={selectedNode}
+          above={above}
+          onSelect={() => undefined}
+        />
+      )}
     </DraggableContainer>
   );
 };
 
 type Scenario = { name: string; description: string; render: () => React.ReactNode };
+
+const TransformedModalPreview = () => {
+  const [target, setTarget] = React.useState<Element | null>(null);
+  React.useEffect(() => {
+    const drawer = createModalFixture();
+    const host = document.getElementById('keymove-root')!;
+    const connection = keepExtensionRootConnected(host);
+    setTarget(drawer.querySelector('#price-low'));
+    return () => {
+      connection.disconnect();
+      if (host.matches(':popover-open')) host.hidePopover();
+      host.removeAttribute('popover');
+      document.body.append(host);
+      drawer.remove();
+    };
+  }, []);
+  return (
+    target && (
+      <>
+        <Selection node={target} isSelected color="#e69500" />
+        <Bar
+          searchText="prix"
+          mode={SEARCH_MODES.TEXT}
+          resultCount={2}
+          selectedNode={target}
+          suggestions={[
+            {
+              kind: 'text',
+              node: target,
+              term: 'Prix',
+              label: target.textContent ?? '',
+              context: 'list item · in Dialog',
+            },
+          ]}
+        />
+      </>
+    )
+  );
+};
 
 const LayoutLockPreview = () => {
   const [locked, setLocked] = React.useState(false);
@@ -268,6 +341,88 @@ const SearchControlsPreview = () => {
 };
 
 const SCENARIOS: Scenario[] = [
+  ...[false, true].map(narrow => ({
+    name: narrow ? 'control-states-narrow' : 'control-states',
+    description: 'Live control state descriptions at normal and minimum width',
+    render: () => {
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.indeterminate = true;
+      const radio = document.createElement('input');
+      radio.type = 'radio';
+      radio.checked = true;
+      const button = document.createElement('button');
+      button.setAttribute('aria-expanded', 'false');
+      button.disabled = true;
+      const nodes = [checkbox, radio, button];
+      const labels = ['Account notifications', 'Account delivery preference', 'Account options'];
+      return (
+        <Bar
+          searchText="account"
+          mode={SEARCH_MODES.ACTIONS}
+          resultCount={3}
+          width={narrow ? 260 : KEYMOVE_CONTAINER_WIDTH}
+          suggestions={nodes.map((node, i) => ({
+            kind: 'action',
+            node,
+            term: 'account',
+            label: labels[i]!,
+            context: `${kindLabelForNode(node, 'action')} · in Form`,
+          }))}
+        />
+      );
+    },
+  })),
+  {
+    name: 'action-menu',
+    description: 'Link actions with native keyboard focus and an above-bar menu.',
+    render: () => <Bar searchText="report" showActionMenu above y={0.85} />,
+  },
+  {
+    name: 'action-menu-narrow',
+    description: 'Action labels and keyboard hint at the minimum searchbar width.',
+    render: () => <Bar searchText="report" showActionMenu width={260} y={0.15} />,
+  },
+  {
+    name: 'transformed-modal',
+    description: 'Viewport-aligned UI inside a transformed, scrollable side drawer',
+    render: () => <TransformedModalPreview />,
+  },
+  {
+    name: 'control-names',
+    description: 'Control names and unavailable state in the action shortlist',
+    render: () => (
+      <Bar
+        searchText="account"
+        mode={SEARCH_MODES.ACTIONS}
+        resultCount={3}
+        y={0.25}
+        suggestions={[
+          {
+            kind: 'action',
+            node: suggestionNode('Account email'),
+            term: null,
+            label: 'Account email',
+            context: 'text field · in Form',
+          },
+          {
+            kind: 'action',
+            node: suggestionNode('Account notifications'),
+            term: null,
+            label: 'Account notifications',
+            context: 'switch · in Form',
+          },
+          {
+            kind: 'action',
+            node: suggestionNode('Account settings'),
+            term: null,
+            label: 'Account settings',
+            context: 'button · unavailable · in Form',
+          },
+        ]}
+      />
+    ),
+  },
   {
     name: 'help-viewport-fit',
     description: 'Open keyboard help, then shrink the viewport to check wrapping and scrolling',

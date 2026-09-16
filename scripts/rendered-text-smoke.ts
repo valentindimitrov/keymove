@@ -10,7 +10,11 @@ export async function checkRenderedText(client: ChromiumClient, origin: string) 
   const page = await openPage(client, `${origin}fixtures.html?rendered-text`);
   try {
     await page.activate();
-    await waitFor(page, `document.documentElement.dataset.fixtureReady && ${input}`);
+    // The renderer can expose the target before the DOM and stored settings are ready.
+    await waitFor(
+      page,
+      `document.documentElement?.dataset.fixtureReady && ${shadow}?.querySelector('#keymove-bar')?.dataset.alwaysOn === 'true'`,
+    );
     await waitFor(page, 'document.hasFocus()');
     const scenarios: {
       html: string;

@@ -1,5 +1,9 @@
 import { visibleText } from './visible_text.js';
 import { matchingTextSpans } from './search_text.js';
+import { controlName } from './control_name.js';
+import { inputDisplayValue } from './input_value.js';
+import { controlStateLabels } from './control_state.js';
+import { isActionDisabled, labelledToggle } from './searchable_attributes.js';
 
 const LANDMARK_LABELS: [string, string][] = [
   ['nav', 'Navigation'],
@@ -27,6 +31,11 @@ const CONTROL_LABELS: [string, string][] = [
   ['[role="tab"]', 'tab'],
   ['select', 'dropdown'],
   ['textarea', 'text field'],
+  ['summary', 'disclosure'],
+  ['[role="switch"]', 'switch'],
+  ['[role="radio"]', 'radio'],
+  ['[role="combobox"], [role="listbox"]', 'dropdown'],
+  ['[contenteditable]', 'editor'],
 ];
 
 const BLOCK_LABELS: [string, string][] = [
@@ -58,7 +67,15 @@ function inputLabel(node: Element) {
 /** What activating this result would do, in the words a person would use. */
 function kindLabelForNode(node: Element, kind: 'action' | 'text') {
   if (kind === 'action') {
-    return inputLabel(node) ?? firstMatchingLabel(node, CONTROL_LABELS) ?? 'control';
+    const label =
+      inputLabel(labelledToggle(node) ?? node) ??
+      firstMatchingLabel(node, CONTROL_LABELS) ??
+      'control';
+    return [
+      label,
+      ...controlStateLabels(node),
+      ...(isActionDisabled(node) ? ['unavailable'] : []),
+    ].join(' · ');
   }
   return firstMatchingLabel(node, BLOCK_LABELS) ?? 'paragraph';
 }
@@ -79,14 +96,12 @@ function landmarkForNode(node: Element) {
 
 /** The text shown for a result: an action's accessible name, or a text block's own words. */
 function labelForNode(node: Element, kind: 'action' | 'text') {
-  const text = visibleText(node).replace(/\s+/g, ' ').trim();
-  if (text) return text;
-  if (kind === 'text') return '';
-  for (const attribute of ['aria-label', 'title', 'placeholder', 'value', 'name']) {
-    const value = node.getAttribute(attribute)?.replace(/\s+/g, ' ').trim();
-    if (value) return value;
+  if (kind === 'action') {
+    const name = controlName(node);
+    const value = inputDisplayValue(node);
+    return value && name && value !== name ? `${name} — ${value}` : value || name;
   }
-  return '';
+  return visibleText(node).replace(/\s+/g, ' ').trim();
 }
 
 /**

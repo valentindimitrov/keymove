@@ -17,6 +17,7 @@ const KEYBOARD_SHORTCUT_NAMES = [
   'previous_action_match',
   'toggle_search_mode',
   'select_match',
+  'open_action_menu',
   'open_match_in_foreground_tab',
   'open_match_in_background_tab',
   'copy_selected_link',

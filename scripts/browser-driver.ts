@@ -50,6 +50,13 @@ export async function openPage(client: ChromiumClient, url: string) {
   return {
     activate: () => client.sendCommand('Target.activateTarget', { targetId }),
     close: () => client.sendCommand('Target.closeTarget', { targetId }),
+    async screenshot(): Promise<Buffer> {
+      const response = record(
+        await client.sendCommand('Page.captureScreenshot', { format: 'png' }, session),
+      );
+      assert.equal(typeof response['data'], 'string');
+      return Buffer.from(response['data'] as string, 'base64');
+    },
     async evaluate(expression: string): Promise<unknown> {
       const response = record(
         await client.sendCommand(
@@ -66,7 +73,16 @@ export async function openPage(client: ChromiumClient, url: string) {
       return record(response['result'])['value'];
     },
     async key(key: string, modifiers = 0) {
-      const codes: Record<string, number> = { Tab: 9, Enter: 13, Escape: 27, Backspace: 8 };
+      const codes: Record<string, number> = {
+        Tab: 9,
+        Enter: 13,
+        Escape: 27,
+        Backspace: 8,
+        ArrowDown: 40,
+        ArrowUp: 38,
+        Home: 36,
+        End: 35,
+      };
       const character = Array.from(key).length === 1;
       const ascii = /^[a-z0-9]$/i.test(key);
       const code = /^\d$/.test(key)
