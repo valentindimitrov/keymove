@@ -10,6 +10,7 @@ import { SEARCH_MODES } from '../src/hooks/use_search_navigation.js';
 import { KEYMOVE_CONTAINER_WIDTH } from '../src/constants.js';
 import SettingsButton from '../src/components/searchbar/settings_button.js';
 import SuggestionCountSetting from '../src/components/popup/suggestion_count_setting.js';
+import InfoPanelButtons from '../src/components/searchbar/info_panel/info_panel_buttons.js';
 import InfoPanelSettingRow from '../src/components/searchbar/info_panel/info_panel_setting_row.js';
 import useSuggestions, { type Suggestion } from '../src/hooks/use_suggestions.js';
 import type { SearchMode } from '../src/hooks/use_search_navigation.js';
@@ -300,6 +301,30 @@ const SCENARIOS: Scenario[] = [
             onChange={() => {}}
           />
           <SuggestionCountSetting value={3} onChange={() => {}} />
+        </div>
+      </>
+    ),
+  },
+  {
+    name: 'support-link',
+    description: 'Development-only Stripe support link alongside source and contact actions',
+    render: () => (
+      <>
+        <style>{popupStyles}</style>
+        <div
+          id="keymove-popup"
+          style={{
+            position: 'fixed',
+            top: 20,
+            left: 20,
+            width: 420,
+            padding: 18,
+            background: '#1c1c1c',
+          }}
+        >
+          <div className="keymove-popup-links">
+            <InfoPanelButtons />
+          </div>
         </div>
       </>
     ),

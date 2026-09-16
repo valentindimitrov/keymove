@@ -34,6 +34,13 @@ test('shows the settings the searchbar panel no longer carries', async () => {
     'href',
     'https://github.com/valentindimitrov/keymove',
   );
+  const supportLink = screen.getByRole('link', { name: 'Support KeyMove' });
+  expect(supportLink).toHaveAttribute(
+    'href',
+    'https://buy.stripe.com/test_cNieVe2GhbdMaeq6sd5os00',
+  );
+  expect(supportLink).toHaveAttribute('target', '_blank');
+  expect(supportLink).toHaveAttribute('rel', 'noreferrer');
   expect(screen.getByRole('link', { name: 'Contact KeyMove Developer' })).toBeInTheDocument();
 });
 
