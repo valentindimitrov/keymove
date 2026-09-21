@@ -10,6 +10,7 @@ import createExtensionRoot, {
 } from '../src/lib/create_extension_root.js';
 import { KEYMOVE_INPUT_ID, KEYMOVE_ROOT_ID } from '../src/constants.js';
 import contentStyles from '../src/content.css?inline';
+import onboardingStyles from './demo-onboarding.css?inline';
 import popupStyles from '../src/popup.css?inline';
 import '../src/highlights.css';
 import { browser } from './browser-adapter.js';
@@ -133,7 +134,7 @@ function SamplePage() {
 
 const page = document.getElementById('sample-page');
 if (page) flushSync(() => createRoot(page).render(<SamplePage />));
-const extension = createExtensionRoot(contentStyles);
+const extension = createExtensionRoot(`${contentStyles}\n${onboardingStyles}`);
 if (!extension) throw new Error('The demo searchbar could not be mounted.');
 const observer = keepExtensionRootConnected(extension.host);
 const root = createRoot(extension.app);

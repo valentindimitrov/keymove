@@ -4,6 +4,7 @@ import identity from '../src/extension_identity.js';
 import logo from '../assets/logo-64.png';
 import { LESSONS, type LessonId } from './protocol.js';
 import Shortcut from './shortcut.js';
+import { KEYMOVE_INPUT_ID, KEYMOVE_ROOT_ID } from '../src/constants.js';
 import './website.css';
 
 function Website() {
@@ -40,7 +41,24 @@ function Website() {
       { type: 'keymove-demo:lesson', lesson: id },
       window.location.origin,
     );
-    frame.current?.focus();
+    frame.current?.focus({ preventScroll: true });
+    const input = frame.current?.contentDocument
+      ?.getElementById(KEYMOVE_ROOT_ID)
+      ?.shadowRoot?.getElementById(KEYMOVE_INPUT_ID);
+    if (frame.current && input) {
+      // Bring the actual search field into view, including when the lessons stack
+      // above the sample page on a phone.
+      window.scrollTo({
+        top:
+          window.scrollY +
+          frame.current.getBoundingClientRect().top +
+          input.getBoundingClientRect().top -
+          window.innerHeight * 0.4,
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+          ? 'instant'
+          : 'smooth',
+      });
+    }
   }
 
   return (
@@ -87,16 +105,22 @@ function Website() {
                 KeyMove turns the page into a place
                 <br className="desktop-break" /> you can navigate with your keyboard.
               </p>
-              <a
-                className="primary-button"
-                href="#playground"
-                onClick={() => {
-                  if (ready) start('find');
-                }}
+              <button
+                className="primary-button demo-cta"
+                type="button"
+                disabled={!ready}
+                aria-describedby="demo-start-hint"
+                onClick={() => start('find')}
               >
-                Try it below <span aria-hidden="true">↓</span>
-              </a>
-              <span className="no-install">No installation needed</span>
+                Click to try the demo <span aria-hidden="true">↓</span>
+              </button>
+              <p className="demo-start-hint" id="demo-start-hint">
+                {ready
+                  ? 'Start with “coffee” in the highlighted search bar. No installation needed.'
+                  : failed
+                    ? 'Use Reset demo below to try loading again.'
+                    : 'Getting the search bar ready…'}
+              </p>
             </div>
           </div>
         </section>

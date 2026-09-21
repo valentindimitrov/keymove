@@ -1,0 +1,20 @@
+/* A website-only guide to the real extension UI. */
+#keymove-container {
+  outline: 2px solid #c779ef;
+  outline-offset: 3px;
+}
+#keymove-container::before {
+  content: 'KEYMOVE SEARCH · START HERE ↓';
+  position: absolute;
+  bottom: calc(100% + 14px);
+  left: 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: #7831aa;
+  color: white;
+  font:
+    700 12px/1.4 Arial,
+    sans-serif;
+  letter-spacing: 0.3px;
+  pointer-events: none;
+}

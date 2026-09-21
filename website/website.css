@@ -165,10 +165,27 @@ p {
 .primary-button:hover {
   background: var(--site-button-hover, #713396);
 }
-.no-install {
-  font-size: 12px;
+.demo-cta {
+  padding: 18px 24px;
+  background: #7831aa;
+  border-color: #7831aa;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+  box-shadow: 0 6px 22px rgba(120, 49, 170, 0.28);
+}
+.demo-cta:hover {
+  background: #63238f;
+}
+.demo-cta > span {
+  font-size: 24px;
+}
+.demo-start-hint {
+  max-width: 340px;
+  margin: 12px 0 0;
+  font-size: 14px;
+  line-height: 1.6;
   color: var(--site-muted, #777582);
-  margin-left: 15px;
 }
 .section-heading {
   display: flex;
@@ -653,10 +670,9 @@ h3 {
     font-size: 15px;
     max-width: 310px;
   }
-  .no-install {
-    display: inline;
-    margin-left: 12px;
-    font-size: 11px;
+  .demo-cta {
+    width: 100%;
+    gap: 16px;
   }
   .section-heading h2 {
     font-size: 23px;
