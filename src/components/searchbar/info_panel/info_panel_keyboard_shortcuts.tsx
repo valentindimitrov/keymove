@@ -32,7 +32,17 @@ const InfoPanelKeyboardShortcuts = ({
               displayKeys: { default: openingShortcutKeys(openingShortcut, isMacOS) },
             };
           }
-          return <InfoPanelShortcutRow key={shortcut.text} isMacOS={isMacOS} shortcut={shortcut} />;
+          return (
+            <React.Fragment key={shortcut.name}>
+              <InfoPanelShortcutRow isMacOS={isMacOS} shortcut={shortcut} />
+              {shortcut.name === 'toggle_search_mode' && (
+                <p className="keymove-info-panel-shortcut-note">
+                  Text mode temporarily uses actions when there are no text matches. It returns to
+                  text as soon as text matches reappear, including after Backspace.
+                </p>
+              )}
+            </React.Fragment>
+          );
         })}
     </>
   );

@@ -472,7 +472,8 @@ const SCENARIOS: Scenario[] = [
   },
   {
     name: 'help-viewport-fit',
-    description: 'Open keyboard help, then shrink the viewport to check wrapping and scrolling',
+    description:
+      'Open keyboard help, including temporary mode fallback, and check wrapping and scrolling',
     render: () => (
       <div style={{ position: 'fixed', bottom: 20, right: 20 }}>
         <InfoDropdown />

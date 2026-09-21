@@ -559,6 +559,14 @@
   row-gap: var(--keymove-space-1, 4px);
 }
 
+.keymove-info-panel-shortcut-note {
+  margin: 4px 0 10px;
+  padding-left: 15px;
+  color: var(--keymove-text-description, rgba(255, 255, 255, 0.7));
+  font-size: var(--keymove-font-small, 12px);
+  line-height: var(--keymove-line-height, 1.35);
+}
+
 .keymove-info-panel-shortcut-separator {
   margin-right: 5px;
   color: var(--keymove-text-tertiary, rgba(255, 255, 255, 0.65));
