@@ -23,10 +23,16 @@ input, text result navigation, button activation, the Arrow Down action menu and
 tooltip. Compact rounded key badges follow the right side of the search field, including while
 the menu opens above it. The recording omits the playground’s onboarding banner and outline;
 these remain available in the live demo. Its MP4 and first-frame poster are in `media/`.
+The extension uses its dark palette against a light sample page for contrast. The first query
+is deliberately only `cof`, demonstrating substring matching. Within the recording, inputs
+accumulate as separate, content-sized badges beside the searchbar, including both Tab presses.
+The stack resets at each chapter boundary. The sidebar contains explanations and chapter links;
+the expanded transcript preserves an accessible written account of the input sequence.
 The player starts paused and provides
 native play/pause, seeking/fullscreen, chapter links,
-optional captions and a text transcript. The adjacent key labels use the extension's platform
-shortcut definitions. Keep `walkthrough.tsx`, `media/walkthrough.vtt` and the recorded sequence
+optional captions and a text transcript. The transcript uses the extension's platform shortcut
+definitions; recorded badges show Alt / Option for both platforms. Keep `walkthrough.tsx`,
+`media/walkthrough.vtt` and the recorded sequence
 in sync when updating the video. Playback is independent of the interactive demo's state.
 
 The navigation-pattern library uses 19 click-to-play H.264 clips, each with native pause,
