@@ -140,7 +140,7 @@ function Website() {
             <h1 id="hero-title">
               Find your
               <br />
-              <span>next move.</span>
+              <span>next move</span>
             </h1>
             <div className="hero-copy">
               <p>
