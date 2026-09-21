@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import identity from '../src/extension_identity.js';
 import logo from '../assets/logo-64.png';
 import { LESSONS, type LessonId } from './protocol.js';
+import Shortcut from './shortcut.js';
 import './website.css';
 
 function Website() {
@@ -141,7 +142,7 @@ function Website() {
                 </p>
               </div>
               <div className="escape-note">
-                <kbd>Esc</kbd>
+                <Shortcut name="dismiss_search" />
                 <span>Clear the search. Press again to leave the demo.</span>
               </div>
             </aside>
@@ -183,13 +184,13 @@ function Website() {
               />
               <div className="browser-footer">
                 <span>
-                  <kbd>Tab</kbd> Next text match
+                  <Shortcut name="next_match" /> Next text match
                 </span>
                 <span>
-                  <kbd>Enter</kbd> Activate
+                  <Shortcut name="select_match" /> Activate
                 </span>
                 <span>
-                  <kbd>↓</kbd> Actions
+                  <Shortcut name="open_action_menu" /> Actions
                 </span>
               </div>
             </div>
@@ -211,19 +212,17 @@ function Website() {
           <div className="features">
             <article>
               <span className="feature-key">
-                <kbd>Tab</kbd>
+                <Shortcut name="next_match" />
               </span>
               <h3>More than a highlight.</h3>
               <p>
-                Move through complete text blocks. Copy the whole passage, without dragging across
-                the page.
+                Move through complete text blocks. Copy the selected passage with{' '}
+                <Shortcut name="copy_selected_link" />, without dragging across the page.
               </p>
             </article>
             <article>
               <span className="feature-key">
-                <kbd>Alt</kbd>
-                <span>+</span>
-                <kbd>S</kbd>
+                <Shortcut name="toggle_search_mode" />
               </span>
               <h3>Words or actions. Your call.</h3>
               <p>
@@ -233,7 +232,7 @@ function Website() {
             </article>
             <article>
               <span className="feature-key">
-                <kbd>↓</kbd>
+                <Shortcut name="open_action_menu" />
               </span>
               <h3>Your next step is right there.</h3>
               <p>
@@ -243,8 +242,8 @@ function Website() {
             </article>
           </div>
           <p className="shortcut-note">
-            On Mac, use Option in place of Alt. Some shortcuts, including Ctrl + Tab, are reserved
-            by your browser.
+            Some shortcuts, including <Shortcut name="next_action_match" />, may be reserved by your
+            browser.
           </p>
         </section>
 

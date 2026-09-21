@@ -287,6 +287,13 @@ kbd {
   color: var(--site-muted, #5c566a);
   white-space: nowrap;
 }
+.shortcut-keys {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  vertical-align: baseline;
+  white-space: nowrap;
+}
 .escape-note {
   display: flex;
   align-items: start;
