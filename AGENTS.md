@@ -165,6 +165,12 @@ highlight rules ship as a manifest stylesheet, and the toolbar popup loads both 
 and `popup.css` as ordinary documents. Rules shared between those contexts live in
 `content.css`; anything that applies to one of them is scoped, such as `#keymove-popup`.
 
+Theme colors, spacing, radii and typography are shared tokens in `content.css`, declared for
+the shadow host and popup document. `useTheme` applies the resolved `data-keymove-theme` only
+to those owned roots; never apply it to the host page's document. Keep both palettes on the
+same components and layout rules. Settings use a shared control/text grid. See
+`docs/appearance.md` for token conventions and preview scenarios.
+
 Never read a custom property without a fallback. An unresolved `var()` is invalid at
 computed-value time, which resets the whole declaration it appears in. Inside a shorthand
 that resets every longhand it controls, so `border: 2px solid rgb(var(--accent))` becomes
@@ -188,6 +194,17 @@ Setting `default_popup` means `browser.action.onClicked` never fires. The toolba
 the settings popup and cannot also summon the searchbar; `Alt + F` and always-on typing are
 the ways in.
 
+The popup has General, Appearance, Shortcuts and Sites tabs. General's Default activation
+keeps the existing `alwaysOn` boolean. `interaction_settings_schema.ts` validates the
+`openingShortcut` code/modifier object and `siteBehavior:<exact hostname>` keys (type,
+shortcut, paused). Removing a site key restores the default; never replace the entire site
+dictionary when editing one rule. `use_interaction_settings` subscribes before reading and
+ignores stale reads and failed-write rollbacks after newer changes. No interception occurs
+until this read succeeds, or while the site is paused. Except for explicit opening and
+permitted type-to-search, shortcuts and copying require the KeyMove input to own focus.
+Keep the current-site picker and all saved overrides in Sites, and the shared light/dark
+theme in Appearance. The real settings preview is `preview/settings_fixture.tsx`.
+
 ## Popup position and storage
 
 The default popup center is `{ x: 0.5, y: 0.75 }`, expressed as normalized viewport coordinates.
@@ -197,6 +214,7 @@ popup stays on-screen.
 
 Stored keys:
 
+- `theme`: `system` (default), `light`, or `dark`. System follows live OS appearance changes.
 - `autoHide`: boolean
 - `suggestionCount`: integer from 1 to 5, defaults to 3; larger saved counts clamp to 5. Limits displayed suggestions, never navigation results
 - `alwaysOn`: boolean

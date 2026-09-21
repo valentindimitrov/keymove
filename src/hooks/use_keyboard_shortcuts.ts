@@ -1,6 +1,11 @@
 import React from 'react';
 import { keyboardShortcuts } from '../lib/static_data.js';
 import Utils from '../lib/utils.js';
+import {
+  DEFAULT_OPENING_SHORTCUT,
+  matchesOpeningShortcut,
+} from '../lib/interaction_settings_schema.js';
+import type { OpeningShortcut } from '../lib/interaction_settings_schema.js';
 import type {
   KeyboardShortcut,
   KeyboardShortcutName,
@@ -10,7 +15,11 @@ import type {
 
 type ShortcutHandler = (shortcutName: KeyboardShortcutName, event: KeyboardEvent) => void;
 
-const useKeyboardShortcuts = (handleShortcut: ShortcutHandler) => {
+const useKeyboardShortcuts = (
+  handleShortcut: ShortcutHandler,
+  openingShortcut: OpeningShortcut = DEFAULT_OPENING_SHORTCUT,
+  enabled = true,
+) => {
   const isMacOS = React.useMemo(() => Utils.isMacOS(), []);
 
   const eventMatchesShortcutFlags = React.useCallback(
@@ -37,12 +46,16 @@ const useKeyboardShortcuts = (handleShortcut: ShortcutHandler) => {
 
   const findShortcutMatchingEvent = React.useCallback(
     (event: KeyboardEvent) => {
-      if (event.isComposing || event.defaultPrevented) {
+      if (event.isComposing || event.defaultPrevented || event.getModifierState('AltGraph')) {
         return;
       }
-      return keyboardShortcuts.find(shortcut => shortcutMatchesEvent(shortcut, event));
+      return keyboardShortcuts.find(shortcut =>
+        shortcut.name === 'focus_searchbar'
+          ? matchesOpeningShortcut(event, openingShortcut)
+          : shortcutMatchesEvent(shortcut, event),
+      );
     },
-    [shortcutMatchesEvent],
+    [shortcutMatchesEvent, openingShortcut],
   );
 
   const handleKeyEvent = React.useCallback(
@@ -58,9 +71,10 @@ const useKeyboardShortcuts = (handleShortcut: ShortcutHandler) => {
   // Register during commit so a freshly mounted or revealed bar cannot receive a shortcut
   // before its handler is ready. Capture also beats host controls that swallow key events.
   React.useLayoutEffect(() => {
+    if (!enabled) return;
     document.addEventListener('keydown', handleKeyEvent, true);
     return () => document.removeEventListener('keydown', handleKeyEvent, true);
-  }, [handleKeyEvent]);
+  }, [handleKeyEvent, enabled]);
 };
 
 export default useKeyboardShortcuts;

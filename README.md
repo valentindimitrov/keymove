@@ -39,7 +39,8 @@ a background tab.
 For contributor setup, isolated agent worktrees, visual previews, browser regression
 checks and search timing measurements, see [the development workflow](docs/development.md).
 
-Press `Alt + F` or simply begin typing while the page itself has focus and Always on is enabled.
+Press `Alt + F` (remappable in Shortcuts), or begin typing while the page itself has focus and
+**Type to search** is enabled for the site.
 The toolbar button opens settings. Matching
 page text is highlighted as the query changes.
 
@@ -205,12 +206,20 @@ it does not, and matches are highlighted using the page's own spelling rather th
 Click the colorful **K** logo or the browser toolbar icon to open settings. Click **Text** or
 **Actions** in the searchbar to switch mode, just like `Alt + S`.
 
+Settings are split into **General**, **Appearance**, **Shortcuts**, and **Sites** tabs.
+Use Left/Right, Home, and End while a tab is focused. The Appearance and Shortcuts contents
+scroll independently so the tabs stay accessible.
+
 Settings include:
 
 - **Tooltips mode:** show usage reminders and full `Alt + number` badges (`Option + number` on
-  macOS). On by default, above Always on. Turn it off for compact number badges and no automatic
+  macOS). On by default, in Appearance. Turn it off for compact number badges and no automatic
   hints; all keyboard shortcuts still work.
-- **Always on:** begin searching whenever you type while another input is not focused.
+- **Appearance:** System (default), Light, or Dark. System follows your device's appearance;
+  your choice applies to the searchbar, menus, and settings across open tabs.
+- **Default activation:** Type to search (the former Always on option) or Shortcut only.
+  Existing Always on preferences are preserved. Shortcut only leaves page typing and app
+  shortcuts alone until you explicitly open KeyMove.
 - **Start in action mode:** begin each search in action mode instead of text mode.
 - **Highlight matches:** tint matching text on the page, and mark the current one.
 - **Text highlight colour** and **Action highlight colour:** pick the colour used for each mode.
@@ -221,6 +230,18 @@ Settings include:
 - **Number of suggestions:** 1–5, defaulting to three. `Alt + 1` through `Alt + 5` select the corresponding displayed suggestion.
 - **Reset popup position:** return the interface to its default location—horizontally centered with
   its center 75% down the viewport.
+- **Open KeyMove** in Shortcuts: focus the field and press a modified letter, number, or function
+  key. Plain typing and conflicts with existing KeyMove commands are rejected. Browser or system
+  shortcuts may never reach the extension; use the toolbar to restore the default if needed.
+- **Sites:** choose Use default, Type to search, Shortcut only, or Paused for the current HTTP(S)
+  hostname. Overrides apply across its paths, not to other subdomains. Every saved override is
+  listed with its behavior and a Remove button. Removing it restores the General default.
+  No sites are paused automatically. Paused clears the current search and intercepts no keys,
+  including the opening shortcut; resume from the toolbar settings.
+
+Except for opening KeyMove or enabled type-to-search, navigation and copy shortcuts belong to
+the page whenever the KeyMove input is unfocused, even if its panel is visible. On GitHub, Jira,
+or Linear, choose **Shortcut only** to keep the site's shortcuts available between searches.
 
 Dragging the interface saves normalized screen coordinates in extension-local storage. This keeps
 the chosen position useful across different window sizes. Dragging its right edge resizes it, which

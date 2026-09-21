@@ -1,199 +1,243 @@
-/* The popup is an ordinary page, so it restates the surface the shadow root provides in
-   the content script. Panel rules themselves are shared with content.css. */
-/* One spacing scale keeps the pane's rhythm consistent without hand-picking a value per
-   element. */
-:root {
-  --keymove-gap-sm: 8px;
-  --keymove-gap-md: 16px;
-  --keymove-gap-lg: 24px;
-}
-
+/* Toolbar settings and the real-component Shadow DOM preview share this layout. */
 body {
-  width: 420px;
+  width: 456px;
+  max-width: 100%;
   margin: 0;
-  padding: var(--keymove-gap-md, 16px) 18px var(--keymove-gap-lg, 24px);
-  color: white;
-  font:
-    13px / 1.35 'Helvetica Neue',
-    Helvetica,
-    Arial,
-    sans-serif;
-  letter-spacing: normal;
-  background-color: rgb(28, 28, 28);
+  padding: 18px;
+  color: var(--keymove-text-primary, white);
+  background: var(--keymove-popup-surface, rgb(28, 28, 28));
+  font: 13px / 1.35 var(--keymove-font-ui, Helvetica, sans-serif);
 }
-
 #keymove-popup {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(600px - 36px);
+  --keymove-settings-column: 130px;
+  color: var(--keymove-text-primary, white);
+  font: 13px / 1.35 var(--keymove-font-ui, Helvetica, sans-serif);
 }
-
-/* Scoped to the popup so the in-page shortcuts panel keeps its own smaller heading. */
-#keymove-popup .keymove-info-panel-section-header {
-  margin-bottom: var(--keymove-gap-md, 16px);
-  color: white;
-  font-size: 15px;
-  text-align: center;
+.keymove-settings-panel {
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
 }
-
-#keymove-popup .keymove-info-panel-margin-top-section-header {
-  margin-top: var(--keymove-gap-lg, 24px);
-}
-
-/* The shortcut reminder is a caption for the heading, not one of the settings. */
-.keymove-popup-reminder {
-  margin-bottom: var(--keymove-gap-lg, 24px);
-}
-
-/* Sits under the shortcut row it explains. Takes the setting rows' type and their 15px
-   indent so it reads as part of the same list rather than as a footnote. */
-.keymove-popup-hint {
-  margin: var(--keymove-gap-sm, 8px) 0 0;
-  padding-left: 15px;
-  color: white;
-  font-size: 13px;
-  font-weight: 400;
-  letter-spacing: normal;
-  line-height: 1.35em;
-}
-
-/* Matches the gap above the position heading, so the grid sits evenly between them. */
+.keymove-settings-header,
+.keymove-settings-tabs,
 .keymove-popup-links {
-  margin-top: var(--keymove-gap-lg, 24px);
-}
-
-#keymove-popup .keymove-info-panel-setting-row {
-  padding: 6px 0;
-}
-
-/* Aligned with the setting labels so it reads as an action on the colour rows above, and
-   given a visible surface rather than sitting as bare text on the panel. */
-#keymove-popup .keymove-info-panel-reset-position-button {
-  margin: var(--keymove-gap-md, 16px) 0 0 28px;
-  border: 1px solid white;
-  background-color: rgba(255, 255, 255, 0.1);
-  color: white;
-}
-
-#keymove-popup .keymove-info-panel-reset-position-button:hover,
-#keymove-popup .keymove-info-panel-reset-position-button:focus-visible {
-  border-color: white;
-  background-color: rgba(255, 255, 255, 0.24);
-}
-
-/* Lives here rather than in content.css: the swatch only appears in the popup, and
-   ::-webkit-color-swatch is the only way to reach the colour area, which the shadow
-   stylesheet's no-vendor-prefix rule forbids. Without zeroing the wrapper's asymmetric
-   default padding the swatch renders as a rectangle inside a square control. */
-.keymove-info-panel-setting-color {
   flex-shrink: 0;
-  width: 16px;
-  height: 16px;
-  margin: 2px 12px 0 0;
-  padding: 0;
-  border: 1px solid white;
-  border-radius: 4px;
+}
+.keymove-settings-header > span:first-child {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.keymove-settings-header svg {
+  width: 20px;
+  height: 20px;
+}
+#keymove-popup [hidden] {
+  display: none;
+}
+.keymove-settings-header,
+.keymove-current-site {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+.keymove-settings-header {
+  margin-bottom: 18px;
+  font-size: 15px;
+}
+.keymove-settings-header span:last-child {
+  font-size: 12px;
+  color: var(--keymove-text-secondary, #ccc);
+}
+.keymove-settings-tabs {
+  display: flex;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--keymove-border, #444);
+}
+.keymove-settings-tabs button {
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
+  padding: 10px 3px;
+  border: 0;
+  border-bottom: 2px solid transparent;
   background: none;
+  font: inherit;
+  color: var(--keymove-text-secondary, #ccc);
   cursor: pointer;
 }
-
+.keymove-settings-tabs button[aria-selected='true'] {
+  border-bottom-color: var(--keymove-focus, white);
+  color: var(--keymove-text-primary, white);
+}
+#keymove-popup .keymove-info-panel-setting-row,
+.keymove-settings-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--keymove-settings-column, 130px);
+  align-items: center;
+  column-gap: 12px;
+  padding: 10px 0;
+  margin: 0;
+}
+#keymove-popup .keymove-info-panel-setting-text {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+  padding: 0;
+}
+#keymove-popup .keymove-info-panel-setting-row > input {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: center;
+  margin: 0;
+}
+#keymove-popup .keymove-info-panel-setting-description {
+  display: block;
+  margin-top: 3px;
+  color: var(--keymove-text-description, #bbb);
+  font-size: 12px;
+}
+#keymove-popup select,
+#keymove-popup input[type='text'],
+#keymove-popup input[type='number'] {
+  min-width: 0;
+  width: 100%;
+  min-height: 32px;
+  padding: 5px 8px;
+  font: inherit;
+  color: var(--keymove-text-primary, white);
+  background: var(--keymove-popup-surface, #1c1c1c);
+  border: 1px solid var(--keymove-border-strong, #666);
+  border-radius: var(--keymove-radius-control, 6px);
+}
+#keymove-popup .keymove-theme-setting select {
+  grid-column: 2;
+  grid-row: 1;
+}
+#keymove-popup .keymove-suggestion-count-setting input {
+  width: 54px;
+  text-align: center;
+  appearance: auto;
+}
+#keymove-popup input[type='number']::-webkit-inner-spin-button {
+  opacity: 1;
+}
+.keymove-info-panel-setting-color {
+  width: 26px;
+  height: 26px;
+  padding: 1px;
+  border: 1px solid var(--keymove-border-strong, #666);
+  background: none;
+}
 .keymove-info-panel-setting-color::-webkit-color-swatch-wrapper {
   padding: 0;
 }
-
 .keymove-info-panel-setting-color::-webkit-color-swatch {
-  border: none;
-  border-radius: 3px;
+  border: 0;
 }
-
-.keymove-position-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--keymove-gap-sm, 8px);
-  width: 150px;
-  margin: 0 auto;
+.keymove-popup-hint {
+  font-size: 12px;
+  color: var(--keymove-text-description, #bbb);
+  margin: 8px 0 12px;
 }
-
-.keymove-position-cell {
-  height: 32px;
-  padding: 0;
-  border: 2px solid white;
-  border-radius: 5px;
-  background-color: transparent;
+.keymove-settings-heading {
+  font-size: 13px;
+  font-weight: 500;
+  margin: 18px 0 10px;
+}
+.keymove-settings-button {
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid var(--keymove-border-strong, #666);
+  border-radius: var(--keymove-radius-control, 6px);
+  background: var(--keymove-control-bg, #333);
+  color: var(--keymove-text-primary, white);
+  font: inherit;
   cursor: pointer;
 }
-
-.keymove-position-cell:hover {
-  background-color: rgba(255, 255, 255, 0.3);
+.keymove-settings-button:hover {
+  background: var(--keymove-control-hover, #444);
 }
-
-.keymove-position-cell-selected,
-.keymove-position-cell-selected:hover {
-  background-color: white;
-}
-
-/* Each link gets its own row so the repository sits above the contact link. */
-#keymove-popup .keymove-info-panel-button-row {
-  margin: var(--keymove-gap-sm, 8px) 0 0;
-}
-
-.keymove-popup-links .keymove-info-panel-button-row:first-child {
-  margin-top: 0;
-}
-
-.keymove-popup-layout-actions {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin: 16px 0 0 28px;
-}
-
-#keymove-popup .keymove-popup-layout-actions button {
-  margin: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: 30px;
-}
-
-#keymove-popup .keymove-popup-layout-actions .keymove-info-panel-setting-row {
-  padding: 0;
-  align-items: center;
-}
-
-#keymove-popup .keymove-popup-layout-actions .keymove-info-panel-setting-checkbox {
-  flex-shrink: 0;
-  margin-top: 0;
-}
-
 #keymove-popup button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
-
-#keymove-popup .keymove-suggestion-count-setting {
-  margin-top: var(--keymove-gap-md, 16px);
+.keymove-position-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  width: 138px;
+  margin: 12px auto;
 }
-
-.keymove-suggestion-count-setting input {
-  flex-shrink: 0;
-  box-sizing: border-box;
-  width: 16px;
-  height: 20px;
-  margin: 0 12px 0 0;
+.keymove-position-cell {
+  height: 32px;
   padding: 0;
-  border: 1px solid white;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
-  font: inherit;
-  text-align: center;
-  appearance: textfield;
+  border: 1px solid var(--keymove-border-strong, #666);
+  border-radius: 5px;
+  background: var(--keymove-control-bg, #333);
+  cursor: pointer;
 }
-
-/* Only one digit is accepted; keep native arrow-key stepping without a spinner
-   widening the column shared with checkboxes and colour swatches. */
-.keymove-suggestion-count-setting input::-webkit-inner-spin-button,
-.keymove-suggestion-count-setting input::-webkit-outer-spin-button {
+.keymove-position-cell:hover {
+  background: var(--keymove-control-hover, #444);
+}
+.keymove-position-cell-selected,
+.keymove-position-cell-selected:hover {
+  background: var(--keymove-text-primary, white);
+}
+.keymove-popup-links {
+  display: flex;
+  gap: 6px;
+  justify-content: space-between;
+  border-top: 1px solid var(--keymove-border, #444);
+  padding-top: 12px;
+  margin-top: 12px;
+}
+#keymove-popup .keymove-popup-links a {
+  font-size: 12px;
+  padding: 6px;
   margin: 0;
-  appearance: none;
+}
+#keymove-popup .keymove-popup-links svg {
+  width: 15px;
+  height: 15px;
+}
+#keymove-popup .keymove-info-panel-button-row {
+  margin: 6px 0;
+}
+.keymove-current-site {
+  padding: 8px 0;
+}
+.keymove-current-site strong {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.keymove-site-overrides {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+}
+.keymove-site-overrides li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--keymove-border, #444);
+}
+.keymove-site-overrides li > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+#keymove-popup :is(select, input, button, a):focus-visible {
+  outline: 2px solid var(--keymove-focus, white);
+  outline-offset: 2px;
+}
+@media (max-width: 360px) {
+  body {
+    padding: 14px;
+  }
 }

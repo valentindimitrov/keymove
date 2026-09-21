@@ -3,13 +3,13 @@ import Searchbar from './searchbar.js';
 import createExtensionRoot from '../../lib/create_extension_root.js';
 import { makeSearchResult } from '../../test_support/factories.js';
 
-const mocks = vi.hoisted(() => ({ get: vi.fn(), findMatches: vi.fn() }));
+const mocks = vi.hoisted(() => ({ get: vi.fn(), findMatches: vi.fn(), addListener: vi.fn() }));
 
 vi.mock('wxt/browser', () => ({
   browser: {
     storage: {
       local: { get: mocks.get, set: vi.fn().mockResolvedValue(undefined) },
-      onChanged: { addListener: vi.fn(), removeListener: vi.fn() },
+      onChanged: { addListener: mocks.addListener, removeListener: vi.fn() },
     },
   },
 }));
@@ -38,9 +38,9 @@ test.each([false, true, undefined])(
       expect(input).toHaveValue('');
       expect(root.shadowRoot.activeElement).not.toBe(input);
 
-      // Explicit activation is available even before storage responds.
+      // Wait for saved pause and shortcut rules before intercepting anything.
       fireEvent.keyDown(document.body, { key: 'f', code: 'KeyF', altKey: true });
-      expect(root.shadowRoot.activeElement).toBe(input);
+      expect(root.shadowRoot.activeElement).not.toBe(input);
       fireEvent.keyDown(input, { key: 'Escape', code: 'Escape', composed: true });
 
       await act(async () => read.resolve(savedValue === undefined ? {} : { alwaysOn: savedValue }));
@@ -54,3 +54,56 @@ test.each([false, true, undefined])(
     }
   },
 );
+
+test('site pause releases keys, cancels the query and can be resumed live with a remapped shortcut', async () => {
+  mocks.addListener.mockClear();
+  mocks.get.mockResolvedValue({
+    autoHide: false,
+    alwaysOn: true,
+    openingShortcut: {
+      code: 'KeyK',
+      altKey: true,
+      ctrlKey: false,
+      metaKey: false,
+      shiftKey: false,
+    },
+    [`siteBehavior:${location.hostname}`]: 'shortcut',
+  });
+  mocks.findMatches.mockResolvedValue(makeSearchResult());
+  const root = createExtensionRoot('')!;
+  const view = render(<Searchbar />, { container: root.app });
+  const input = within(root.app).getByRole('combobox', { name: 'Search page', hidden: true });
+  const emit = async (value: unknown) =>
+    act(async () => {
+      for (const [listener] of mocks.addListener.mock.calls)
+        listener({ [`siteBehavior:${location.hostname}`]: { newValue: value } }, 'local');
+    });
+  try {
+    await act(async () => {});
+    expect(root.shadowRoot.activeElement).not.toBe(input);
+    for (const init of [
+      { key: 'g', code: 'KeyG' },
+      { key: 'f', code: 'KeyF', altKey: true },
+      { key: 'Tab', code: 'Tab' },
+      { key: 'Enter', code: 'Enter' },
+    ])
+      expect(fireEvent.keyDown(document.body, init)).toBe(true);
+    expect(input).toHaveValue('');
+    expect(fireEvent.keyDown(document.body, { key: 'k', code: 'KeyK', altKey: true })).toBe(false);
+    expect(root.shadowRoot.activeElement).toBe(input);
+    fireEvent.input(input, { target: { value: 'test' } });
+    await act(async () => {});
+    await emit('paused');
+    expect(input).toHaveValue('');
+    expect(root.shadowRoot.activeElement).not.toBe(input);
+    expect(fireEvent.keyDown(document.body, { key: 'k', code: 'KeyK', altKey: true })).toBe(true);
+    expect(fireEvent.keyDown(document.body, { key: 't', code: 'KeyT' })).toBe(true);
+    await emit(undefined);
+    expect(fireEvent.keyDown(document.body, { key: 't', code: 'KeyT' })).toBe(false);
+    expect(input).toHaveValue('t');
+    await act(async () => {});
+  } finally {
+    view.unmount();
+    root.host.remove();
+  }
+});

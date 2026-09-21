@@ -39,6 +39,48 @@ beforeEach(() => {
   storageMocks.removeListener.mockReset();
 });
 
+test('persists appearance and keeps a remote theme over an older read or failed write', async () => {
+  const initial = Promise.withResolvers<Record<string, unknown>>();
+  const write = Promise.withResolvers<void>();
+  storageMocks.get.mockReturnValueOnce(initial.promise);
+  storageMocks.set.mockReturnValueOnce(write.promise);
+  const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  render(<StoredSettingsHarness />);
+  expect(currentSettings?.theme).toBe('system');
+  act(() => currentSettings?.updateTheme('dark'));
+  expect(storageMocks.set).toHaveBeenCalledWith({ theme: 'dark' });
+  const changed = storageMocks.addListener.mock.calls[0]![0] as (
+    changes: unknown,
+    area: string,
+  ) => void;
+  act(() => changed({ theme: { newValue: 'light' } }, 'local'));
+  await act(async () => {
+    initial.resolve({ theme: 'dark' });
+    write.reject(new Error('old write failed'));
+  });
+  expect(currentSettings?.theme).toBe('light');
+  expect(error).toHaveBeenCalledWith(
+    `${EXTENSION_NAME} could not save the "theme" setting: old write failed`,
+  );
+  act(() => changed({ theme: { oldValue: 'light' } }, 'local'));
+  expect(currentSettings?.theme).toBe('system');
+  error.mockRestore();
+});
+
+test('restores the previous appearance when its latest save fails', async () => {
+  storageMocks.get.mockResolvedValue({ theme: 'light' });
+  storageMocks.set.mockRejectedValueOnce(new Error('write failed'));
+  const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  render(<StoredSettingsHarness />);
+  await waitFor(() => expect(currentSettings?.theme).toBe('light'));
+  await act(async () => currentSettings?.updateTheme('dark'));
+  expect(currentSettings?.theme).toBe('light');
+  expect(error).toHaveBeenCalledWith(
+    `${EXTENSION_NAME} could not save the "theme" setting: write failed`,
+  );
+  error.mockRestore();
+});
+
 test.each([false, true, undefined])(
   'keeps automatic typing capture off until the saved value %s is loaded',
   async savedValue => {

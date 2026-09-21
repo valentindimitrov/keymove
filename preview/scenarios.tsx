@@ -1,3 +1,4 @@
+import ThemeSettingsPreview from './settings_fixture.js';
 import React from 'react';
 import InfoDropdown from '../src/components/searchbar/info_dropdown.js';
 import DraggableContainer from '../src/components/searchbar/draggable_container.js';
@@ -349,6 +350,11 @@ const SearchControlsPreview = () => {
 };
 
 const SCENARIOS: Scenario[] = [
+  {
+    name: 'theme-settings',
+    description: 'Shared settings grid and live System, Light, and Dark appearance controls.',
+    render: () => <ThemeSettingsPreview />,
+  },
   ...[false, true].map(narrow => ({
     name: narrow ? 'control-states-narrow' : 'control-states',
     description: 'Live control state descriptions at normal and minimum width',

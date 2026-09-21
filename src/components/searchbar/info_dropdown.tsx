@@ -4,8 +4,15 @@ import useHover from '../../hooks/use_hover.js';
 import InfoPanel from './info_panel/info_panel.js';
 import Tooltip from './tooltip.js';
 import HelpIcon from '../../icons/help.svg?react';
+import type { OpeningShortcut } from '../../lib/interaction_settings_schema.js';
 
-const InfoDropdown = ({ tooltipsMode = true }: { tooltipsMode?: boolean }) => {
+const InfoDropdown = ({
+  tooltipsMode = true,
+  openingShortcut,
+}: {
+  tooltipsMode?: boolean;
+  openingShortcut?: OpeningShortcut;
+}) => {
   const containerRef = React.useRef<HTMLButtonElement>(null);
   const [hover, onMouseEnter, onMouseLeave] = useHover();
   const [isOpen, setIsOpen] = React.useState(false);
@@ -40,7 +47,7 @@ const InfoDropdown = ({ tooltipsMode = true }: { tooltipsMode?: boolean }) => {
       </button>
       {showInfoPanel && (
         <Tooltip containerRef={containerRef}>
-          <InfoPanel onDismiss={dismiss} />
+          <InfoPanel onDismiss={dismiss} openingShortcut={openingShortcut} />
         </Tooltip>
       )}
     </>

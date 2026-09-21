@@ -18,6 +18,7 @@ export async function checkReturnPosition(page: TestPage, popup: TestPage) {
   await popup.evaluate(`if (${autohide}.checked) ${autohide}.click()`);
   try {
     await page.activate();
+    await page.key('f', 1);
     await waitFor(page, `document.hasFocus() && ${shadow}.activeElement === ${input}`);
     await page.key('Escape');
     await page.evaluate(`(() => {

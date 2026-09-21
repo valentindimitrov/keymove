@@ -32,6 +32,19 @@ vi.mock('../../lib/find_in_page.js', () => ({
 
 vi.mock('../../hooks/use_highlights.js', () => ({ default: searchMocks.useHighlights }));
 vi.mock('../../hooks/use_extension_messaging.js', () => ({ default: vi.fn() }));
+vi.mock('../../hooks/use_interaction_settings.js', () => ({
+  default: () => ({
+    ready: true,
+    sites: {},
+    openingShortcut: {
+      code: 'KeyF',
+      altKey: true,
+      ctrlKey: false,
+      metaKey: false,
+      shiftKey: false,
+    },
+  }),
+}));
 const settingsMocks = vi.hoisted(() => ({
   tooltipsMode: true,
   suggestionCount: 3,
@@ -123,6 +136,7 @@ async function openLinkActionMenu() {
   render(<Searchbar />);
   const input = screen.getByRole('combobox', { name: 'Search page' });
   input.focus();
+  input.focus();
   fireEvent.input(input, { target: { value: 'report' } });
   await flushSearch();
   fireEvent.keyDown(input, { key: 'ArrowDown', code: 'ArrowDown' });
@@ -193,6 +207,7 @@ test('menu retains the selected suggestion and restores the full shortlist on Es
   );
   render(<Searchbar />);
   const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
   input.focus();
   fireEvent.input(input, { target: { value: 'report' } });
   await flushSearch();
@@ -266,6 +281,7 @@ test('Alt+6 copies linked text, and repeated shortcuts cannot duplicate a pendin
   );
   render(<Searchbar />);
   const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
   input.focus();
   fireEvent.input(input, { target: { value: 'report' } });
   await flushSearch();
@@ -479,6 +495,7 @@ test('pure text results offer copy text without link actions', async () => {
   render(<Searchbar />);
   const input = screen.getByRole('combobox', { name: 'Search page' });
   input.focus();
+  input.focus();
   fireEvent.input(input, { target: { value: 'report' } });
   await flushSearch();
   fireEvent.keyDown(input, { key: 'ArrowDown', code: 'ArrowDown' });
@@ -494,6 +511,7 @@ test('Down leaves pending queries, composition and unrelated form inputs alone',
   searchMocks.findMatches.mockReturnValue(pending.promise);
   render(<Searchbar />);
   const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
   input.focus();
   fireEvent.input(input, { target: { value: 'report' } });
   fireEvent.keyDown(input, { key: 'ArrowDown', code: 'ArrowDown' });
@@ -521,6 +539,7 @@ test('searches every keystroke immediately, including the first, and cancels sup
   render(<Searchbar />);
   const input = screen.getByRole('combobox', { name: 'Search page' });
   for (const [index, value] of ['s', 'sa', 'sav', 'save'].entries()) {
+    input.focus();
     fireEvent.input(input, { target: { value } });
     expect(searchMocks.findMatches).toHaveBeenCalledTimes(index + 1);
     const options = searchMocks.findMatches.mock.calls[index]![0] as { signal: AbortSignal };
@@ -531,6 +550,7 @@ test('searches every keystroke immediately, including the first, and cancels sup
     }
   }
   expect(searchMocks.subscribeToPageChanges).toHaveBeenCalledOnce();
+  input.focus();
   fireEvent.input(input, { target: { value: '' } });
   expect(searchMocks.findMatches).toHaveBeenCalledTimes(4);
   await act(async () => {
@@ -585,9 +605,11 @@ test('new typing and clearing cancel queued page refreshes as well as obsolete s
     .mockResolvedValue(makeSearchResult());
   render(<Searchbar />);
   const input = screen.getByRole('combobox');
+  input.focus();
   fireEvent.input(input, { target: { value: 'old' } });
   const notify = searchMocks.subscribeToPageChanges.mock.calls.at(-1)![0] as () => void;
   await act(async () => notify());
+  input.focus();
   fireEvent.input(input, { target: { value: 'new' } });
   expect(searchMocks.findMatches).toHaveBeenCalledTimes(2);
   expect(searchMocks.findMatches.mock.calls[0]![0].signal.aborted).toBe(true);
@@ -595,6 +617,7 @@ test('new typing and clearing cancel queued page refreshes as well as obsolete s
   await act(async () => obsolete.resolve(makeSearchResult()));
   expect(searchMocks.findMatches.mock.calls[1]![0].signal.aborted).toBe(false);
   await act(async () => current.resolve(makeSearchResult()));
+  input.focus();
   fireEvent.input(input, { target: { value: 'newer' } });
   await flushSearch();
   await act(async () => vi.advanceTimersByTime(100));
@@ -602,6 +625,7 @@ test('new typing and clearing cancel queued page refreshes as well as obsolete s
   act(notify);
   act(notify);
   await flushSearch();
+  input.focus();
   fireEvent.input(input, { target: { value: '' } });
   await act(async () => vi.advanceTimersByTime(500));
   expect(searchMocks.findMatches).toHaveBeenCalledTimes(4);
@@ -666,8 +690,8 @@ test('accepts a complete query in the shadow root despite host-page keyboard sho
         code: `Key${character.toUpperCase()}`,
         composed: true,
       });
-      if (accepted)
-        fireEvent.input(input, { target: { value: input.value + character }, composed: true });
+      if (accepted) input.focus();
+      fireEvent.input(input, { target: { value: input.value + character }, composed: true });
       fireEvent.keyPress(input, {
         key: character,
         charCode: character.charCodeAt(0),
@@ -704,6 +728,7 @@ test('preserves native block copying and restores query editing after Tab', asyn
   try {
     const input = within(root.app).getByRole<HTMLInputElement>('combobox', { name: 'Search page' });
     act(() => input.focus());
+    input.focus();
     fireEvent.input(input, { target: { value: 'save' }, composed: true });
     input.setSelectionRange(2, 2);
     await flushSearch();
@@ -715,6 +740,7 @@ test('preserves native block copying and restores query editing after Tab', asyn
     expect(fireEvent.keyDown(input, { key: 'x', code: 'KeyX', composed: true })).toBe(true);
     expect([input.selectionStart, input.selectionEnd]).toEqual([2, 2]);
     expect(window.getSelection()?.rangeCount).toBe(0);
+    input.focus();
     fireEvent.input(input, { target: { value: 'saxve' }, composed: true });
     expect(input).toHaveValue('saxve');
     await flushSearch();
@@ -741,6 +767,7 @@ test('refreshes a live query while retaining the selected block and clearing a r
   );
   render(<Searchbar />);
   const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
   fireEvent.change(input, { target: { value: 'save' } });
   await flushSearch();
   fireEvent.keyDown(input, { key: 'Tab', code: 'Tab' });
@@ -784,8 +811,10 @@ test('ignores an obsolete search response and resets both cursors on a new query
     .mockResolvedValue(makeSearchResult({ matchingLinksAndButtons: [newAction] }));
   render(<Searchbar />);
   const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
   fireEvent.change(input, { target: { value: 'old' } });
   await flushSearch();
+  input.focus();
   fireEvent.change(input, { target: { value: 'new' } });
   await flushSearch();
   fireEvent.keyDown(input, { key: 'Tab', code: 'Tab', ctrlKey: true });
@@ -794,6 +823,7 @@ test('ignores an obsolete search response and resets both cursors on a new query
     oldSearch.resolve(makeSearchResult({ matchingLinksAndButtons: [oldAction] }));
   });
   expect(screen.getByRole('status')).toHaveTextContent('Actions 1 / 1');
+  input.focus();
   fireEvent.change(input, { target: { value: 'another' } });
   await flushSearch();
   fireEvent.keyDown(input, { key: 'Tab', code: 'Tab', ctrlKey: true });
@@ -819,6 +849,7 @@ test('starts in action mode when the stored default says so', async () => {
   renderWithBothKinds();
   render(<Searchbar />);
   const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
   fireEvent.change(input, { target: { value: 'save' } });
   await flushSearch();
 
@@ -830,6 +861,7 @@ test('returns to the default mode once the search is over, but not while typing'
   render(<Searchbar />);
   const input = screen.getByRole('combobox', { name: 'Search page' });
   act(() => input.focus());
+  input.focus();
   fireEvent.change(input, { target: { value: 'sav' } });
   await flushSearch();
 
@@ -838,6 +870,7 @@ test('returns to the default mode once the search is over, but not while typing'
   expect(status).toHaveTextContent('Actions 1 / 1');
 
   // Still typing: the chosen mode survives.
+  input.focus();
   fireEvent.change(input, { target: { value: 'save' } });
   await flushSearch();
   expect(status).toHaveTextContent('Actions 1 / 1');
@@ -845,6 +878,7 @@ test('returns to the default mode once the search is over, but not while typing'
   // Escape ends the search and restores its default mode in one press.
   fireEvent.keyDown(input, { key: 'Escape', code: 'Escape' });
   fireEvent.keyDown(document.body, { key: 'f', code: 'KeyF', altKey: true });
+  input.focus();
   fireEvent.change(input, { target: { value: 'save' } });
   await flushSearch();
   expect(status).toHaveTextContent('Text 1 / 1');
@@ -865,6 +899,7 @@ test('colours the overlay from the chosen mode and respects the highlight settin
   );
   const { container } = render(<Searchbar />);
   const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
   fireEvent.change(input, { target: { value: 'save' } });
   await flushSearch();
 
@@ -909,6 +944,7 @@ test('Tab keeps navigating the active mode instead of falling back to text', asy
   );
   render(<Searchbar />);
   const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
   fireEvent.change(input, { target: { value: 'save' } });
   await flushSearch();
 
@@ -936,6 +972,7 @@ test('selects the first match as soon as results arrive and keeps the mode while
   );
   render(<Searchbar />);
   const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
   fireEvent.change(input, { target: { value: 'sav' } });
   await flushSearch();
 
@@ -947,6 +984,7 @@ test('selects the first match as soon as results arrive and keeps the mode while
   expect(status).toHaveTextContent('Actions 1 / 1');
 
   // Continuing to type must not drop the user back into text mode.
+  input.focus();
   fireEvent.change(input, { target: { value: 'save' } });
   await flushSearch();
   expect(status).toHaveTextContent('Actions 1 / 1');
@@ -970,6 +1008,7 @@ test('keeps the third row across pending and superseded queries and selects its 
   );
   render(<Searchbar />);
   const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
   fireEvent.change(input, { target: { value: 'sav' } });
   await flushSearch();
   expect(screen.getAllByRole('option')[2]).toHaveTextContent('gamma');
@@ -978,6 +1017,7 @@ test('keeps the third row across pending and superseded queries and selects its 
 
   const obsolete = Promise.withResolvers<SearchResult>();
   searchMocks.findMatches.mockReturnValueOnce(obsolete.promise);
+  input.focus();
   fireEvent.change(input, { target: { value: 'save' } });
   expect(screen.getByRole('listbox')).toBe(panel);
   expect(panel).toHaveAttribute('aria-busy', 'true');
@@ -989,6 +1029,7 @@ test('keeps the third row across pending and superseded queries and selects its 
   expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
   const current = Promise.withResolvers<SearchResult>();
   searchMocks.findMatches.mockReturnValueOnce(current.promise);
+  input.focus();
   fireEvent.change(input, { target: { value: 'saved' } });
   await act(async () =>
     current.resolve(
@@ -1029,6 +1070,7 @@ test('uses the configured count, switches mode by clicking, opens settings and m
   );
   render(<Searchbar />);
   const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
   fireEvent.change(input, { target: { value: 'save' } });
   await flushSearch();
   expect(screen.getAllByRole('option')).toHaveLength(5);
@@ -1077,6 +1119,7 @@ test('Alt+1 and Alt+2 jump to the numbered result, taking its mode with them', a
   );
   render(<Searchbar />);
   const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
   fireEvent.change(input, { target: { value: 'sav' } });
   await flushSearch();
 
@@ -1113,6 +1156,7 @@ test('clicking suggestion contents selects and scrolls without dragging or activ
   );
   render(<Searchbar />);
   const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
   fireEvent.change(input, { target: { value: 'sav' } });
   await flushSearch();
   input.focus();
@@ -1157,6 +1201,7 @@ test('Alt+3 does nothing when the list is shorter than three rows', async () => 
   );
   render(<Searchbar />);
   const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
   fireEvent.change(input, { target: { value: 'sav' } });
   await flushSearch();
 
@@ -1179,6 +1224,7 @@ test('Alt+S toggles the search mode without moving either selection', async () =
   );
   render(<Searchbar />);
   const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
   fireEvent.change(input, { target: { value: 'save' } });
   await flushSearch();
 
@@ -1199,6 +1245,7 @@ test('Alt+S keeps the mode label visible when nothing matches at all', async () 
   searchMocks.findMatches.mockResolvedValue(makeSearchResult());
   render(<Searchbar />);
   const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
   fireEvent.change(input, { target: { value: 'save' } });
   await flushSearch();
 
@@ -1279,6 +1326,7 @@ test.each(['default', 'shortcut'])(
     );
     render(<Searchbar />);
     const input = screen.getByRole('combobox', { name: 'Search page' });
+    input.focus();
     fireEvent.change(input, { target: { value: 'recher' } });
     await flushSearch();
     if (choice === 'shortcut') {
@@ -1310,6 +1358,7 @@ test('falls back to text when action mode is empty, and retries actions on the n
   );
   render(<Searchbar />);
   const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
   fireEvent.change(input, { target: { value: 'how' } });
   await flushSearch();
 
@@ -1325,6 +1374,7 @@ test('falls back to text when action mode is empty, and retries actions on the n
       matchingLinksAndButtons: [action],
     }),
   );
+  input.focus();
   fireEvent.change(input, { target: { value: 'how t' } });
   await flushSearch();
   expect(status).toHaveTextContent('Actions 1 / 1');
@@ -1337,6 +1387,7 @@ test('Escape closes the search in one press and Alt+F reopens it', async () => {
   act(() => {
     input.focus();
   });
+  input.focus();
   fireEvent.change(input, { target: { value: 'save' } });
   await flushSearch();
   fireEvent.keyDown(input, { key: 'Escape', code: 'Escape' });
@@ -1367,6 +1418,7 @@ test.each(['Tab', 'Alt+1'])(
       // Start from ordinary reading, with no focused page control.
       fireEvent.keyDown(document.body, { key: 'i', code: 'KeyI' });
       const input = screen.getByRole('combobox', { name: 'Search page' });
+      input.focus();
       fireEvent.change(input, { target: { value: 'improve' } });
       await flushSearch();
       fireEvent.keyDown(
@@ -1378,6 +1430,7 @@ test.each(['Tab', 'Alt+1'])(
       expect(paragraph.scrollIntoView).toHaveBeenCalled();
       vi.stubGlobal('scrollY', 1500);
       // Refining the same search must not replace the original position.
+      input.focus();
       fireEvent.change(input, { target: { value: 'improv' } });
       await flushSearch();
       fireEvent.keyDown(input, { key: 'Backspace', code: 'Backspace', altKey: true });
@@ -1405,6 +1458,7 @@ test('Escape keeps the current position and does not restore an earlier field', 
   fireEvent.keyDown(original, { key: 'f', code: 'KeyF', altKey: true });
   const input = screen.getByRole('combobox', { name: 'Search page' });
   expect(input).toHaveFocus();
+  input.focus();
   fireEvent.change(input, { target: { value: 'save' } });
   await flushSearch();
   const focus = vi.spyOn(original, 'focus');
@@ -1477,6 +1531,7 @@ test('activation discards the return position even if the action leaves search f
   act(() => original.focus());
   fireEvent.keyDown(original, { key: 'f', code: 'KeyF', altKey: true });
   const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
   fireEvent.change(input, { target: { value: 'save' } });
   await flushSearch();
   fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
@@ -1507,6 +1562,7 @@ test.each(['blur first', 'hidden first'])(
     );
     render(<Searchbar />);
     const input = screen.getByRole('combobox', { name: 'Search page' });
+    input.focus();
     fireEvent.change(input, { target: { value: 'save' } });
     await flushSearch();
     input.focus();
@@ -1537,6 +1593,7 @@ test('still clears a search when focus moves to a control on the same page', asy
   searchMocks.findMatches.mockResolvedValue(makeSearchResult());
   render(<Searchbar />);
   const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
   fireEvent.change(input, { target: { value: 'save' } });
   await flushSearch();
   const pageInput = document.createElement('input');
@@ -1559,6 +1616,7 @@ test('does not clear results or intercept Tab and Enter when focus moves to help
   act(() => {
     input.focus();
   });
+  input.focus();
   fireEvent.change(input, { target: { value: 'save' } });
   await flushSearch();
   fireEvent.keyDown(input, { key: 'Tab', code: 'Tab', ctrlKey: true });
@@ -1584,6 +1642,7 @@ test('leaves composition keys alone and never opens buttons with modified Enter'
   const input = screen.getByRole('combobox', { name: 'Search page' });
   fireEvent.keyDown(document.body, { key: 'a', code: 'KeyA', isComposing: true });
   expect(input).toHaveValue('');
+  input.focus();
   fireEvent.change(input, { target: { value: 'save' } });
   await flushSearch();
   fireEvent.keyDown(input, { key: 'Tab', code: 'Tab', ctrlKey: true });
@@ -1611,6 +1670,7 @@ test('Tab selects and copies a whole text block, and Enter opens its nested acti
 
   const { container } = render(<Searchbar />);
   const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
   fireEvent.change(input, { target: { value: 'documentation' } });
 
   await flushSearch();
@@ -1658,6 +1718,7 @@ test('Ctrl+Tab and Shift+Ctrl+Tab navigate only action elements', async () => {
 
   const { container } = render(<Searchbar />);
   const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
   fireEvent.change(input, { target: { value: 'save' } });
 
   await flushSearch();
@@ -1724,6 +1785,7 @@ test.each([
 
   render(<Searchbar />);
   const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
   fireEvent.change(input, { target: { value: 'result' } });
   await flushSearch();
   await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Text 1 / 1'));
@@ -1763,12 +1825,14 @@ test('stops marking results as approximate once the query changes', async () => 
   });
   render(<Searchbar />);
   const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
   fireEvent.change(input, { target: { value: 'setings' } });
   await flushSearch();
   expect(screen.getByRole('status')).toHaveTextContent('Text ~ 1 / 1');
 
   // The next query has not resolved yet, so nothing is known to be approximate.
   searchMocks.findMatches.mockReturnValue(new Promise(() => undefined));
+  input.focus();
   fireEvent.change(input, { target: { value: 'setingsx' } });
   expect(screen.getByRole('status')).toHaveTextContent('Text 0 / 0');
 });
@@ -1791,11 +1855,13 @@ test('shows a ranked slate only once the query is worth ranking', async () => {
   render(<Searchbar />);
   const input = screen.getByRole('combobox', { name: 'Search page' });
 
+  input.focus();
   fireEvent.change(input, { target: { value: 'sa' } });
   await flushSearch();
   expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
   expect(input).toHaveAttribute('aria-expanded', 'false');
 
+  input.focus();
   fireEvent.change(input, { target: { value: 'save' } });
   await flushSearch();
   const options = screen.getAllByRole('option');
@@ -1817,10 +1883,12 @@ test('drops the slate when the query is cleared', async () => {
   });
   render(<Searchbar />);
   const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
   fireEvent.change(input, { target: { value: 'save' } });
   await flushSearch();
   expect(screen.getAllByRole('option')).toHaveLength(1);
 
+  input.focus();
   fireEvent.change(input, { target: { value: '' } });
   expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
 });
@@ -1836,10 +1904,12 @@ test('keeps the suggestions frame through empty results and the next pending que
   searchMocks.findMatches.mockResolvedValueOnce(matches);
   render(<Searchbar />);
   const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
   fireEvent.change(input, { target: { value: 'save' } });
   await flushSearch();
   const panel = screen.getByRole('listbox');
   searchMocks.findMatches.mockResolvedValueOnce(makeSearchResult());
+  input.focus();
   fireEvent.change(input, { target: { value: 'savexyz' } });
   await flushSearch();
   expect(screen.getByRole('listbox')).toBe(panel);
@@ -1848,12 +1918,14 @@ test('keeps the suggestions frame through empty results and the next pending que
   expect(screen.queryAllByRole('option')).toHaveLength(0);
   const pending = Promise.withResolvers<SearchResult>();
   searchMocks.findMatches.mockReturnValueOnce(pending.promise);
+  input.focus();
   fireEvent.change(input, { target: { value: 'save' } });
   expect(screen.getByRole('listbox')).toBe(panel);
   await act(async () => pending.resolve(matches));
   expect(screen.getByRole('listbox')).toBe(panel);
   expect(screen.getAllByRole('option')).toHaveLength(1);
   searchMocks.findMatches.mockResolvedValueOnce(makeSearchResult());
+  input.focus();
   fireEvent.change(input, { target: { value: 'sa' } });
   await flushSearch();
   expect(screen.queryByRole('listbox')).not.toBeInTheDocument();

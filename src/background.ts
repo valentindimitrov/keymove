@@ -49,7 +49,11 @@ async function handleExtensionMessage(message: unknown, sender: Browser.runtime.
     } catch {
       // Older browsers may disallow opening the toolbar popup from a content-script request.
       try {
-        await browser.tabs.create({ url: browser.runtime.getURL('/popup.html'), active: true });
+        await browser.tabs.create({
+          url: browser.runtime.getURL('/popup.html'),
+          active: true,
+          openerTabId: sender.tab.id,
+        });
       } catch (error) {
         reportExtensionApiError('open settings', error);
       }
