@@ -65,7 +65,6 @@ const chapters = [
 export default function Walkthrough() {
   const video = useRef<HTMLVideoElement>(null);
   const [time, setTime] = useState(0);
-  const [playing, setPlaying] = useState(false);
   const [failed, setFailed] = useState(false);
   const step = steps.findLast(item => time >= item.time) ?? steps[0];
 
@@ -81,8 +80,7 @@ export default function Walkthrough() {
     <section className="walkthrough wrap" aria-labelledby="walkthrough-title">
       <div className="section-heading">
         <div>
-          <span className="eyebrow">WATCH IT WORK</span>
-          <h2 id="walkthrough-title">From a word to an action, in 24 seconds.</h2>
+          <h2 id="walkthrough-title">From finding something to doing something</h2>
         </div>
       </div>
       <div className="walkthrough-player">
@@ -97,9 +95,6 @@ export default function Walkthrough() {
             aria-describedby="walkthrough-help"
             onTimeUpdate={event => setTime(event.currentTarget.currentTime)}
             onSeeked={event => setTime(event.currentTarget.currentTime)}
-            onPlay={() => setPlaying(true)}
-            onPause={() => setPlaying(false)}
-            onEnded={() => setPlaying(false)}
             onError={() => setFailed(true)}
           >
             <source src={recording} type="video/mp4" />
@@ -111,26 +106,6 @@ export default function Walkthrough() {
               The recording could not load. <a href="#playground">Try the live demo below.</a>
             </p>
           )}
-          <div className="walkthrough-transport" role="group" aria-label="Walkthrough playback">
-            <button
-              type="button"
-              onClick={() => {
-                const player = video.current;
-                if (!player) return;
-                if (player.paused) void player.play().catch(() => setFailed(true));
-                else player.pause();
-              }}
-            >
-              {playing ? 'Pause' : 'Play'}
-            </button>
-            <button type="button" onClick={() => seek(0, true)}>
-              Restart
-            </button>
-            <button type="button" onClick={() => seek((video.current?.currentTime ?? 0) - 5)}>
-              Back 5 seconds
-            </button>
-            <span>24 sec · No audio</span>
-          </div>
         </div>
         <aside className="walkthrough-guide" aria-label="Walkthrough guide">
           <div className="walkthrough-caption" aria-live="polite" aria-atomic="true">
