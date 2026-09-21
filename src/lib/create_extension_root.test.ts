@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, waitFor } from '@testing-library/react';
+import { fireEvent, render, waitFor } from '@testing-library/react';
 import Portal, { PortalTargetProvider } from '../components/searchbar/portal.js';
 import createExtensionRoot from './create_extension_root.js';
 import { keepExtensionRootConnected } from './create_extension_root.js';
@@ -28,6 +28,39 @@ test('does not mount the extension twice', () => {
   createExtensionRoot('', 'chrome');
   expect(createExtensionRoot('', 'chrome')).toBeNull();
   expect(document.querySelectorAll(`#${KEYMOVE_ROOT_ID}`)).toHaveLength(1);
+});
+
+test('keeps interface clicks inside the shadow host while page activation still bubbles', () => {
+  const root = createExtensionRoot('')!;
+  const pageButton = document.createElement('button');
+  document.body.append(pageButton);
+  const pageClick = vi.fn();
+  const interfaceClick = vi.fn();
+  document.onclick = pageClick;
+  const view = render(
+    React.createElement(
+      PortalTargetProvider,
+      { target: root.portal },
+      React.createElement('button', { onClick: interfaceClick }, 'Interface'),
+      React.createElement(
+        Portal,
+        null,
+        React.createElement('button', { onClick: () => pageButton.click() }, 'Activate page'),
+      ),
+    ),
+    { container: root.app },
+  );
+  try {
+    expect(fireEvent.click(root.app.querySelector('button')!, { composed: true })).toBe(true);
+    expect(interfaceClick).toHaveBeenCalledOnce();
+    expect(pageClick).not.toHaveBeenCalled();
+    fireEvent.click(root.portal.querySelector('button')!, { composed: true });
+    expect(pageClick).toHaveBeenCalledOnce();
+    expect(pageClick.mock.calls[0]![0].target).toBe(pageButton);
+  } finally {
+    document.onclick = null;
+    view.unmount();
+  }
 });
 
 test('reattaches the same shadow root and portal target after document.body is replaced', async () => {

@@ -3,6 +3,7 @@ import Searchbar from './searchbar.js';
 import createExtensionRoot from '../../lib/create_extension_root.js';
 import { makeRankedMatch, makeSearchResult, makeTextMatch } from '../../test_support/factories.js';
 import type { SearchResult } from '../../lib/page_search_index.js';
+import { MODAL_CHANGED_EVENT } from '../../lib/modal_context.js';
 
 const searchMocks = vi.hoisted(() => ({
   findMatches: vi.fn(),
@@ -340,7 +341,37 @@ test('modified Enter and composition do not accidentally activate a menu action'
   expect(screen.queryByRole('menu')).not.toBeInTheDocument();
 });
 
-test('menu actions recheck removed and disabled nodes, and refresh dismisses the menu', async () => {
+test('Down opens during a background refresh and stays usable through page changes', async () => {
+  const { input, link } = await openLinkActionMenu();
+  fireEvent.keyDown(document.activeElement!, { key: 'Escape', code: 'Escape' });
+  const refresh = Promise.withResolvers<SearchResult>();
+  searchMocks.findMatches
+    .mockReturnValueOnce(refresh.promise)
+    .mockResolvedValue(makeSearchResult({ matchingLinksAndButtons: [link] }));
+  const notify = searchMocks.subscribeToPageChanges.mock.calls.at(-1)![0] as () => void;
+  act(notify);
+  const refreshSignal = searchMocks.findMatches.mock.calls.at(-1)![0].signal as AbortSignal;
+  fireEvent.keyDown(input, { key: 'ArrowDown', code: 'ArrowDown' });
+  const menu = screen.getByRole('menu');
+  expect(refreshSignal.aborted).toBe(true);
+  const calls = searchMocks.findMatches.mock.calls.length;
+  fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown', code: 'ArrowDown' });
+  const focusedAction = document.activeElement;
+  act(() => {
+    for (let i = 0; i < 10; i++) notify();
+  });
+  await act(async () => refresh.resolve(makeSearchResult()));
+  expect(screen.getByRole('menu')).toBe(menu);
+  expect(document.activeElement).toBe(focusedAction);
+  expect(searchMocks.findMatches).toHaveBeenCalledTimes(calls);
+  fireEvent.keyDown(document.activeElement!, { key: 'Escape', code: 'Escape' });
+  await flushSearch();
+  expect(input).toHaveFocus();
+  expect(input).toHaveValue('report');
+  expect(searchMocks.findMatches).toHaveBeenCalledTimes(calls + 1);
+});
+
+test('menu actions recheck removed and disabled nodes, and an invalidated target dismisses the menu', async () => {
   const { input, link } = await openLinkActionMenu();
   const click = vi.spyOn(link, 'click');
   link.setAttribute('aria-disabled', 'true');
@@ -356,6 +387,7 @@ test('menu actions recheck removed and disabled nodes, and refresh dismisses the
   expect(click).not.toHaveBeenCalled();
   document.body.append(link);
   fireEvent.keyDown(input, { key: 'ArrowDown', code: 'ArrowDown' });
+  link.remove();
   act(() => {
     searchMocks.subscribeToPageChanges.mock.calls.at(-1)![0]();
   });
@@ -431,6 +463,112 @@ test('searches every keystroke immediately, including the first, and cancels sup
   await act(async () => {
     pending.resolve(makeSearchResult());
   });
+});
+
+test('finishes a query during continuous page changes and coalesces one follow-up refresh', async () => {
+  vi.useFakeTimers();
+  const paragraph = document.createElement('p');
+  paragraph.textContent = 'Save changes';
+  document.body.append(paragraph);
+  const matches = makeSearchResult({ matchingText: [makeTextMatch({ node: paragraph })] });
+  const initial = Promise.withResolvers<SearchResult>();
+  const refresh = Promise.withResolvers<SearchResult>();
+  searchMocks.findMatches.mockReturnValueOnce(initial.promise).mockReturnValue(refresh.promise);
+  const view = render(<Searchbar />);
+  fireEvent.input(screen.getByRole('combobox'), { target: { value: 'save' } });
+  const notify = searchMocks.subscribeToPageChanges.mock.calls.at(-1)![0] as () => void;
+  act(() => {
+    for (let i = 0; i < 25; i++) notify();
+  });
+  expect(searchMocks.findMatches).toHaveBeenCalledOnce();
+  expect(searchMocks.findMatches.mock.calls[0]![0].signal.aborted).toBe(false);
+  await act(async () => initial.resolve(matches));
+  expect(screen.getByRole('status')).toHaveTextContent('Text 1 / 1');
+  expect(screen.getByRole('listbox')).toHaveAttribute('aria-busy', 'false');
+  act(() => {
+    for (let i = 0; i < 25; i++) notify();
+  });
+  expect(searchMocks.findMatches).toHaveBeenCalledOnce();
+  await act(async () => vi.advanceTimersByTime(100));
+  expect(searchMocks.findMatches).toHaveBeenCalledTimes(2);
+  act(() => {
+    for (let i = 0; i < 25; i++) notify();
+  });
+  expect(searchMocks.findMatches.mock.calls[1]![0].signal.aborted).toBe(false);
+  await act(async () => refresh.resolve(matches));
+  expect(screen.getByRole('status')).toHaveTextContent('Text 1 / 1');
+  view.unmount();
+  await act(async () => vi.advanceTimersByTime(500));
+  expect(searchMocks.findMatches).toHaveBeenCalledTimes(2);
+});
+
+test('new typing and clearing cancel queued page refreshes as well as obsolete searches', async () => {
+  vi.useFakeTimers();
+  const obsolete = Promise.withResolvers<SearchResult>();
+  const current = Promise.withResolvers<SearchResult>();
+  searchMocks.findMatches
+    .mockReturnValueOnce(obsolete.promise)
+    .mockReturnValueOnce(current.promise)
+    .mockResolvedValue(makeSearchResult());
+  render(<Searchbar />);
+  const input = screen.getByRole('combobox');
+  fireEvent.input(input, { target: { value: 'old' } });
+  const notify = searchMocks.subscribeToPageChanges.mock.calls.at(-1)![0] as () => void;
+  await act(async () => notify());
+  fireEvent.input(input, { target: { value: 'new' } });
+  expect(searchMocks.findMatches).toHaveBeenCalledTimes(2);
+  expect(searchMocks.findMatches.mock.calls[0]![0].signal.aborted).toBe(true);
+  act(notify);
+  await act(async () => obsolete.resolve(makeSearchResult()));
+  expect(searchMocks.findMatches.mock.calls[1]![0].signal.aborted).toBe(false);
+  await act(async () => current.resolve(makeSearchResult()));
+  fireEvent.input(input, { target: { value: 'newer' } });
+  await flushSearch();
+  await act(async () => vi.advanceTimersByTime(100));
+  expect(searchMocks.findMatches).toHaveBeenCalledTimes(3);
+  act(notify);
+  act(notify);
+  await flushSearch();
+  fireEvent.input(input, { target: { value: '' } });
+  await act(async () => vi.advanceTimersByTime(500));
+  expect(searchMocks.findMatches).toHaveBeenCalledTimes(4);
+});
+
+test('a modal transition supersedes an in-flight page search instead of queueing behind it', async () => {
+  vi.useFakeTimers();
+  const outside = document.createElement('p');
+  outside.textContent = 'Save outside';
+  document.body.append(outside);
+  const obsolete = Promise.withResolvers<SearchResult>();
+  const current = Promise.withResolvers<SearchResult>();
+  searchMocks.findMatches
+    .mockReturnValueOnce(obsolete.promise)
+    .mockReturnValueOnce(current.promise);
+  render(<Searchbar />);
+  fireEvent.input(screen.getByRole('combobox'), { target: { value: 'save' } });
+  const notify = searchMocks.subscribeToPageChanges.mock.calls.at(-1)![0] as () => void;
+  act(notify);
+  const modal = document.createElement('div');
+  modal.setAttribute('role', 'dialog');
+  modal.setAttribute('aria-modal', 'true');
+  const inside = document.createElement('p');
+  inside.textContent = 'Save inside';
+  modal.append(inside);
+  document.body.append(modal);
+  act(() => {
+    document.dispatchEvent(new Event(MODAL_CHANGED_EVENT));
+  });
+  expect(searchMocks.findMatches).toHaveBeenCalledTimes(2);
+  expect(searchMocks.findMatches.mock.calls[0]![0].signal.aborted).toBe(true);
+  await act(async () =>
+    current.resolve(makeSearchResult({ matchingText: [makeTextMatch({ node: inside })] })),
+  );
+  await act(async () =>
+    obsolete.resolve(makeSearchResult({ matchingText: [makeTextMatch({ node: outside })] })),
+  );
+  await act(async () => vi.advanceTimersByTime(100));
+  expect(searchMocks.findMatches).toHaveBeenCalledTimes(2);
+  expect(window.getSelection()?.toString()).toBe('Save inside');
 });
 
 test('accepts a complete query in the shadow root despite host-page keyboard shortcuts', async () => {

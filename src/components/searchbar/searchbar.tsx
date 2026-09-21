@@ -20,7 +20,7 @@ import useSearchOrigin from '../../hooks/use_search_origin.js';
 
 import Utils from '../../lib/utils.js';
 import { isActionDisabled } from '../../lib/searchable_attributes.js';
-import { activeModal, actionIsInScope } from '../../lib/modal_context.js';
+import { activeModal, actionIsInScope, MODAL_CHANGED_EVENT } from '../../lib/modal_context.js';
 import { isMovingExtensionRoot } from '../../lib/create_extension_root.js';
 import FindInPage, { subscribeToPageChanges } from '../../lib/find_in_page.js';
 import type { RankedMatch } from '../../lib/page_search_index.js';
@@ -46,12 +46,15 @@ import {
 } from '../../constants.js';
 
 const SCROLL_OR_RESIZE_UPDATE_TIMEOUT_DURATION = 100;
+const PAGE_REFRESH_PAUSE_MS = 100;
 type ShortcutHandler = (event: KeyboardEvent) => void;
 type ActionActivation = 'current' | 'foreground-tab' | 'background-tab';
 
 const Searchbar = () => {
   const scrollOrResizeUpdateTimeout = React.useRef<number | undefined>(undefined);
   const searchAbortController = React.useRef<AbortController | null>(null);
+  const pageRefreshQueued = React.useRef(false);
+  const pageRefreshTimeout = React.useRef<number | undefined>(undefined);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
   const {
@@ -97,6 +100,7 @@ const Searchbar = () => {
   const [searchPending, setSearchPending] = React.useState(false);
   const [suggestionsHeight, setSuggestionsHeight] = React.useState(0);
   const [menuTarget, setMenuTarget] = React.useState<Element | null>(null);
+  const previousMenuTarget = React.useRef<Element | null>(null);
   const menuGeneration = React.useRef(0);
   const previousSearchText = React.useRef(searchText);
   const [scrollOrResizeRefresh, setScrollOrResizeRefresh] = React.useState<boolean>(false);
@@ -158,8 +162,12 @@ const Searchbar = () => {
   }, [isInteractive, focusSearchInput]);
 
   const cancelPendingSearch = React.useCallback(() => {
+    window.clearTimeout(pageRefreshTimeout.current);
+    pageRefreshTimeout.current = undefined;
+    pageRefreshQueued.current = false;
     if (searchAbortController.current) {
       searchAbortController.current.abort();
+      searchAbortController.current = null;
     }
   }, []);
 
@@ -243,7 +251,7 @@ const Searchbar = () => {
   );
 
   const runSearch = React.useCallback(
-    async (preserveSelection = false) => {
+    async function search(preserveSelection = false) {
       const controller = new AbortController();
       searchAbortController.current = controller;
       setSearchPending(true);
@@ -272,6 +280,21 @@ const Searchbar = () => {
         if (!(error instanceof Error) || error.name !== 'AbortError') {
           console.error(`${EXTENSION_NAME} search failed:`, error);
         }
+      } finally {
+        // Only this query owns its queued refresh. A superseding keystroke or teardown
+        // cancels both; an obsolete promise must never restart the previous query.
+        if (searchAbortController.current === controller) {
+          searchAbortController.current = null;
+          if (pageRefreshQueued.current && !controller.signal.aborted) {
+            // Publish completed results before the next refresh, even on animated pages.
+            // This pause applies only to page mutations, never to typed input.
+            pageRefreshTimeout.current = window.setTimeout(() => {
+              pageRefreshTimeout.current = undefined;
+              pageRefreshQueued.current = false;
+              void search(true);
+            }, PAGE_REFRESH_PAUSE_MS);
+          }
+        }
       }
     },
     [searchText, setSearchResults, clearSearchResults],
@@ -290,7 +313,27 @@ const Searchbar = () => {
 
   const scheduleSearch = React.useCallback(
     (preserveSelection = false) => {
+      if (
+        preserveSelection &&
+        menuTarget?.isConnected &&
+        isTextVisible(menuTarget) &&
+        actionIsInScope(menuTarget, activeModal())
+      ) {
+        // The menu acts on the committed result, with live validation at execution.
+        // Animation elsewhere on the page must not take its keyboard focus away.
+        pageRefreshQueued.current = true;
+        return;
+      }
       setMenuTarget(null);
+      if (
+        preserveSelection &&
+        (searchAbortController.current || pageRefreshTimeout.current !== undefined)
+      ) {
+        // A page can mutate every animation frame. Let the current search finish and
+        // remember just one follow-up instead of repeatedly aborting its traversal.
+        pageRefreshQueued.current = true;
+        return;
+      }
       cancelPendingSearch();
       if (!preserveSelection) {
         clearSearchResults();
@@ -307,7 +350,7 @@ const Searchbar = () => {
       rememberOrigin();
       void runSearch(preserveSelection);
     },
-    [cancelPendingSearch, clearSearchResults, runSearch, searchText, rememberOrigin],
+    [cancelPendingSearch, clearSearchResults, runSearch, searchText, rememberOrigin, menuTarget],
   );
 
   // Query identity disables old rows before the search effect runs; the flag also covers
@@ -475,7 +518,7 @@ const Searchbar = () => {
     (event: KeyboardEvent) => {
       if (
         !isInteractive ||
-        suggestionsPending ||
+        resultsQuery !== searchText ||
         !Utils.elementIsActive(searchInputRef.current) ||
         !selectedResultNode?.isConnected ||
         !isTextVisible(selectedResultNode) ||
@@ -484,10 +527,19 @@ const Searchbar = () => {
         return;
       event.preventDefault();
       event.stopPropagation();
+      // A background refresh can be pending even though this query has a valid,
+      // selected result. Pause it while the user chooses an action, then catch up.
+      const needsRefresh =
+        searchAbortController.current !== null ||
+        pageRefreshTimeout.current !== undefined ||
+        pageRefreshQueued.current;
+      cancelPendingSearch();
+      pageRefreshQueued.current = needsRefresh;
+      setSearchPending(false);
       menuGeneration.current += 1;
       setMenuTarget(selectedResultNode);
     },
-    [isInteractive, suggestionsPending, selectedResultNode],
+    [isInteractive, resultsQuery, searchText, selectedResultNode, cancelPendingSearch],
   );
 
   const runMenuAction = React.useCallback(
@@ -704,10 +756,33 @@ const Searchbar = () => {
   }, [searchText, scheduleSearch]);
 
   const hasSearchQuery = searchText.trimStart().length > 0;
-  const refreshSearchOnPageChange = React.useEffectEvent(() => scheduleSearch(true));
+  const refreshSearchOnPageChange = React.useEffectEvent((preserveSelection = true) =>
+    scheduleSearch(preserveSelection),
+  );
+  React.useEffect(() => {
+    const closed = previousMenuTarget.current !== null && menuTarget === null;
+    previousMenuTarget.current = menuTarget;
+    if (
+      closed &&
+      isInteractive &&
+      hasSearchQuery &&
+      pageRefreshQueued.current &&
+      searchAbortController.current === null &&
+      pageRefreshTimeout.current === undefined
+    )
+      refreshSearchOnPageChange();
+  }, [menuTarget, isInteractive, hasSearchQuery]);
   React.useEffect(() => {
     if (!isInteractive || !hasSearchQuery) return undefined;
-    return subscribeToPageChanges(() => refreshSearchOnPageChange());
+    const unsubscribe = subscribeToPageChanges(() => refreshSearchOnPageChange());
+    // Scope changes invalidate the old result set immediately, unlike animation or
+    // content mutations. Never publish an in-flight search from the previous modal.
+    const onModalChanged = () => refreshSearchOnPageChange(false);
+    document.addEventListener(MODAL_CHANGED_EVENT, onModalChanged);
+    return () => {
+      unsubscribe();
+      document.removeEventListener(MODAL_CHANGED_EVENT, onModalChanged);
+    };
   }, [isInteractive, hasSearchQuery]);
 
   React.useEffect(() => {

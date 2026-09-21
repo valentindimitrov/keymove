@@ -11,6 +11,7 @@ import { checkRenderedText } from './rendered-text-smoke.ts';
 import { checkReturnPosition } from './return-position-smoke.ts';
 import { checkControlNavigation } from './control-navigation-smoke.ts';
 import { checkActionMenu } from './action-menu-smoke.ts';
+import { checkDynamicPage } from './dynamic-page-smoke.ts';
 
 const shadow = `document.getElementById('keymove-root')?.shadowRoot`;
 const input = `${shadow}?.querySelector('[aria-label="Search page"]')`;
@@ -68,6 +69,7 @@ export async function runBrowserSmoke(client: ChromiumClient, browser: string): 
     server: { host: '127.0.0.1', port: 0, open: false },
   });
   const measurements: { size: string; coldMs: number; warmMs: number[] }[] = [];
+  let dynamicPage: Awaited<ReturnType<typeof checkDynamicPage>> | null = null;
   const passed: string[] = [];
   let failure: string | null = null;
   const output = path.join(root, '.artifacts');
@@ -76,6 +78,11 @@ export async function runBrowserSmoke(client: ChromiumClient, browser: string): 
     await server.listen();
     const origin = server.resolvedUrls?.local[0];
     assert(origin, 'Fixture server did not expose its address');
+    dynamicPage = await checkDynamicPage(client, origin);
+    console.log('Dynamic-page search timing', dynamicPage);
+    passed.push(
+      'Search completes through continuous DOM changes; interface clicks stay isolated and page clicks work',
+    );
     await checkActionMenu(client, origin);
     passed.push(
       'Down action menu, arrow navigation, Escape/Tab return, copy/paste, activation, focus-only and real shadow-root preview layouts',
@@ -485,6 +492,7 @@ export async function runBrowserSmoke(client: ChromiumClient, browser: string): 
         ),
         passed,
         measurements,
+        dynamicPage,
         success: failure === null,
         failure,
       };

@@ -25,6 +25,10 @@ function createExtensionRoot(stylesText: string, browserName?: string): Extensio
   }
 
   const shadowRoot = host.attachShadow({ mode: 'open' });
+  // React handles clicks inside the shadow root first. Page listeners would see only
+  // this shallow host, not the clicked control, and can mistake it for page content.
+  // Do not prevent defaults or intercept clicks dispatched on actual page actions.
+  host.addEventListener('click', event => event.stopPropagation());
   const styles = document.createElement('style');
   styles.textContent = stylesText;
 
