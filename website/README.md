@@ -17,6 +17,15 @@ The standalone static output is `.output/public/`. Deploy the entire directory, 
 `demo.html`, assets, and `LICENSE.txt`, to a static host. Relative asset URLs support subpaths.
 The website build is independent from extension builds and adds no runtime dependencies.
 
+The walkthrough above the playground is a 24-second, silent H.264 recording of the actual
+Searchbar on `demo.html`, captured at 960 × 640 and 10 frames per second. It shows native key
+input, text result navigation and button activation; the key-press label is an explanatory
+overlay. Its MP4 and first-frame poster are in `media/`. The player starts paused and provides
+native seeking/fullscreen, explicit play/pause, restart, five-second rewind, chapter links,
+optional captions and a text transcript. The adjacent key labels use the extension's platform
+shortcut definitions. Keep `walkthrough.tsx`, `media/walkthrough.vtt` and the recorded sequence
+in sync when updating the video. Playback is independent of the interactive demo's state.
+
 Only the website Vite configuration aliases `wxt/browser` to `browser-adapter.ts`. Settings are
 session-only and never access extension storage. New-tab commands explain the installed-extension
 requirement instead of pretending to control browser tab activation. Link activation, controls,

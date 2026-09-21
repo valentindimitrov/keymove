@@ -1,0 +1,25 @@
+WEBVTT
+
+00:00.000 --> 00:02.000
+Focus the KeyMove search bar.
+
+00:02.000 --> 00:06.000
+Type “coffee” to find matching text on the page.
+
+00:06.000 --> 00:12.000
+Press Tab to select the next matching text block. Press it again to keep moving.
+
+00:12.000 --> 00:12.500
+Press Escape to clear the query.
+
+00:12.500 --> 00:13.000
+Focus the KeyMove search bar again.
+
+00:13.000 --> 00:14.000
+Switch to action mode.
+
+00:14.000 --> 00:20.000
+Type “Save this guide” to find the button.
+
+00:20.000 --> 00:24.000
+Press Enter to activate the button. The guide is saved.

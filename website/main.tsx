@@ -7,6 +7,7 @@ import edgeIcon from './browser-icons/edge.svg';
 import firefoxIcon from './browser-icons/firefox.svg';
 import { LESSONS, type LessonId } from './protocol.js';
 import Shortcut from './shortcut.js';
+import Walkthrough from './walkthrough.js';
 import { KEYMOVE_INPUT_ID, KEYMOVE_ROOT_ID } from '../src/constants.js';
 import './website.css';
 
@@ -162,6 +163,8 @@ function Website() {
             </div>
           </div>
         </section>
+
+        <Walkthrough />
 
         <section className="playground wrap" id="playground" aria-labelledby="playground-title">
           <div className="section-heading">
