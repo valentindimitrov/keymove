@@ -479,7 +479,7 @@ h3 {
   color: var(--site-muted, #8a8392);
   font-size: 12px;
 }
-.site-footer > a:last-child {
+.site-footer .footer-license {
   margin-left: auto;
   color: var(--site-muted, #7a7185);
   font-size: 12px;
