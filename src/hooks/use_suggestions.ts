@@ -106,8 +106,8 @@ const useSuggestions = ({
 }: SuggestionOptions) => {
   const previous = React.useRef<RankedMatch[]>([]);
   const displayed = React.useRef<Suggestion[]>([]);
-  // Below a few characters almost everything matches, and the order churns with every
-  // keystroke. There is nothing worth showing yet.
+  // Short queries still need mixed suggestions (for example a field displaying "40").
+  // Page-wide highlight density is controlled separately from this shortlist.
   const enabled = searchText.trim().length >= MIN_SUGGESTION_QUERY_LENGTH;
 
   const ordered = React.useMemo(
@@ -119,7 +119,7 @@ const useSuggestions = ({
     [enabled, pending, ordered, isFuzzy],
   );
   // Keep the committed presentation intact while searching, including fuzzy labels. The
-  // caller disables selection until fresh results arrive. Short or empty queries clear it.
+  // caller disables selection until fresh results arrive. Empty queries clear it.
   React.useLayoutEffect(() => {
     if (!enabled) previous.current = [];
     else if (!pending) previous.current = ordered;

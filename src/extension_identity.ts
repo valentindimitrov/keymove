@@ -11,6 +11,7 @@ const EXTENSION_IDENTITY = {
   contactUrl: `mailto:${CONTACT_EMAIL}`,
   sourceUrl: 'https://github.com/valentindimitrov/keymove',
   demoUrl: 'https://keymove.minddevops.eu',
+  supportUrl: 'https://buy.stripe.com/cNi4gAetW99C0Yq9YN5c400',
 } as const;
 
 export { EXTENSION_NAME };

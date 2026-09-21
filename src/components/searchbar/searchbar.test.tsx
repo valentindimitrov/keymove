@@ -925,6 +925,107 @@ test('returns to the default mode once the search is over, but not while typing'
   expect(status).toHaveTextContent('Text 1 / 1');
 });
 
+test('outlines only the selected action without reducing the navigable results', async () => {
+  const actions = ['Save', 'Send', 'Settings'].map(label => {
+    const node = document.createElement('button');
+    node.textContent = label;
+    document.body.append(node);
+    return node;
+  });
+  settingsMocks.startInActionMode = true;
+  searchMocks.findMatches.mockResolvedValue(makeSearchResult({ matchingLinksAndButtons: actions }));
+  const { container } = render(<Searchbar />);
+  const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
+  fireEvent.change(input, { target: { value: 's' } });
+  await flushSearch();
+  for (let index = 0; index < actions.length; index++) {
+    expect(screen.getByRole('status')).toHaveTextContent(`Actions ${index + 1} / 3`);
+    expect(container.querySelectorAll('.keymove-selection')).toHaveLength(1);
+    expect(container.querySelector('.keymove-selected-selection')).not.toBeNull();
+    fireEvent.keyDown(input, { key: 'Tab', code: 'Tab' });
+  }
+  expect(screen.getByRole('status')).toHaveTextContent('Actions 1 / 3');
+  searchMocks.findMatches.mockResolvedValue(makeSearchResult());
+  fireEvent.change(input, { target: { value: 'nothing' } });
+  await flushSearch();
+  expect(container.querySelector('.keymove-selection')).toBeNull();
+});
+
+test.each([false, true])(
+  'restores faint outlines at three characters (action mode: %s)',
+  async actionMode => {
+    settingsMocks.startInActionMode = actionMode;
+    const nodes = ['Send draft', 'Send now', 'Send later'].map(label => {
+      const node = document.createElement(actionMode ? 'button' : 'p');
+      node.textContent = label;
+      document.body.append(node);
+      return node;
+    });
+    searchMocks.findMatches.mockResolvedValue(
+      makeSearchResult({
+        matchingText: actionMode
+          ? []
+          : nodes.map(node => makeTextMatch({ node, action: null, term: 'sen' })),
+        matchingLinksAndButtons: actionMode ? nodes : [],
+      }),
+    );
+    const { container, rerender } = render(<Searchbar />);
+    const input = screen.getByRole('combobox', { name: 'Search page' });
+    input.focus();
+    for (const [query, count] of [
+      ['se', 1],
+      ['sen', 3],
+      ['se', 1],
+      ['send', 3],
+    ] as const) {
+      fireEvent.change(input, { target: { value: query } });
+      await flushSearch();
+      expect(container.querySelectorAll('.keymove-selection')).toHaveLength(count);
+      expect(container.querySelectorAll('.keymove-selected-selection')).toHaveLength(1);
+      for (const other of container.querySelectorAll<HTMLElement>(
+        '.keymove-selection:not(.keymove-selected-selection)',
+      )) {
+        expect(other.style.backgroundColor).toBe('');
+        expect(other.style.boxShadow).toBe('');
+      }
+    }
+    fireEvent.keyDown(input, { key: 'Tab', code: 'Tab' });
+    expect(screen.getByRole('status')).toHaveTextContent(
+      `${actionMode ? 'Actions' : 'Text'} 2 / 3`,
+    );
+    expect(container.querySelectorAll('.keymove-selected-selection')).toHaveLength(1);
+    settingsMocks.highlightMatches = false;
+    rerender(<Searchbar />);
+    expect(container.querySelectorAll('.keymove-selection')).toHaveLength(1);
+  },
+);
+
+test('page highlights follow the three-character threshold while short queries still search', async () => {
+  searchMocks.findMatches.mockResolvedValue(makeSearchResult());
+  render(<Searchbar />);
+  const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
+  for (const [query, enabled] of [
+    ['s', false],
+    ['sn', false],
+    ['sne', true],
+    ['sn', false],
+    ['  s  ', false],
+    ['\u{10400}a', false],
+    ['e\u0301a', false],
+    ['e\u0301ab', true],
+  ] as const) {
+    const calls = searchMocks.findMatches.mock.calls.length;
+    fireEvent.change(input, { target: { value: query } });
+    expect(searchMocks.findMatches).toHaveBeenCalledTimes(calls + 1);
+    await flushSearch();
+    expect(searchMocks.useHighlights).toHaveBeenLastCalledWith(
+      expect.objectContaining({ enabled }),
+    );
+  }
+});
+
 test('colours the overlay from the chosen mode and respects the highlight setting', async () => {
   settingsMocks.highlightMatches = false;
   const paragraph = document.createElement('p');
@@ -1776,6 +1877,7 @@ test('Ctrl+Tab and Shift+Ctrl+Tab navigate only action elements', async () => {
   let selections = container.querySelectorAll('.keymove-selection');
   expect(selections).toHaveLength(2);
   // The first action is already selected when results arrive, so Ctrl+Tab advances to the second.
+  expect(screen.getByRole('status')).toHaveTextContent('Actions 2 / 2');
   expect(selections[0]).not.toHaveClass('keymove-selected-selection');
   expect(selections[1]).toHaveClass('keymove-selected-selection');
 
@@ -1789,6 +1891,8 @@ test('Ctrl+Tab and Shift+Ctrl+Tab navigate only action elements', async () => {
   });
 
   selections = container.querySelectorAll('.keymove-selection');
+  expect(selections).toHaveLength(2);
+  expect(screen.getByRole('status')).toHaveTextContent('Actions 1 / 2');
   expect(selections[0]).toHaveClass('keymove-selected-selection');
   expect(selections[1]).not.toHaveClass('keymove-selected-selection');
   expect(window.getSelection()?.rangeCount).toBe(0);
@@ -1878,38 +1982,40 @@ test('stops marking results as approximate once the query changes', async () => 
   expect(screen.getByRole('status')).toHaveTextContent('Text 0 / 0');
 });
 
-test('shows a ranked slate only once the query is worth ranking', async () => {
+test('shows an input value as the first suggestion for a short query in text mode', async () => {
   const paragraph = document.createElement('p');
-  paragraph.textContent = 'Save your work';
-  const action = document.createElement('button');
-  action.textContent = 'Save';
+  paragraph.textContent = '40 €';
+  const action = document.createElement('input');
+  action.type = 'number';
+  action.value = '40';
+  action.setAttribute('aria-label', 'Minimum (EUR)');
   document.body.append(paragraph, action);
-  searchMocks.findMatches.mockResolvedValue({
-    matchingText: [makeTextMatch({ node: paragraph, action: null, term: 'save', score: 1 })],
-    matchingLinksAndButtons: [action],
-    suggestions: [
-      { kind: 'action', node: action, score: 2, term: 'save' },
-      { kind: 'text', node: paragraph, score: 1, term: 'save' },
-    ],
-    isFuzzy: false,
-  });
+  searchMocks.findMatches.mockResolvedValue(
+    makeSearchResult({
+      matchingText: [makeTextMatch({ node: paragraph, action: null, term: '40' })],
+      matchingLinksAndButtons: [action],
+      suggestions: [
+        makeRankedMatch({ node: action, score: 2, term: '40' }),
+        makeRankedMatch({ kind: 'text', node: paragraph, term: '40' }),
+      ],
+    }),
+  );
   render(<Searchbar />);
   const input = screen.getByRole('combobox', { name: 'Search page' });
 
   input.focus();
-  fireEvent.change(input, { target: { value: 'sa' } });
+  fireEvent.change(input, { target: { value: '40' } });
   await flushSearch();
-  expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
-  expect(input).toHaveAttribute('aria-expanded', 'false');
-
-  input.focus();
-  fireEvent.change(input, { target: { value: 'save' } });
-  await flushSearch();
+  expect(screen.getByRole('status')).toHaveTextContent('Text 1 / 1');
   const options = screen.getAllByRole('option');
   expect(options).toHaveLength(2);
-  expect(options[0]).toHaveTextContent('Save');
-  expect(options[0]).toHaveTextContent('button');
+  expect(options[0]).toHaveTextContent('Minimum (EUR) — 40');
+  expect(options[0]).toHaveTextContent('Action');
   expect(input).toHaveAttribute('aria-expanded', 'true');
+  fireEvent.keyDown(input, { key: '1', code: 'Digit1', altKey: true });
+  expect(screen.getByRole('status')).toHaveTextContent('Actions 1 / 1');
+  fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
+  expect(action).toHaveFocus();
 });
 
 test('drops the slate when the query is cleared', async () => {
@@ -1969,6 +2075,9 @@ test('keeps the suggestions frame through empty results and the next pending que
   input.focus();
   fireEvent.change(input, { target: { value: 'sa' } });
   await flushSearch();
+  expect(screen.getByRole('listbox')).toBe(panel);
+  expect(panel).toHaveTextContent('No matches');
+  fireEvent.change(input, { target: { value: '' } });
   expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
 });
 

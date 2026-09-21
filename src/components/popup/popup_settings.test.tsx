@@ -198,14 +198,16 @@ test('shows the settings the searchbar panel no longer carries', async () => {
     'href',
     'https://github.com/valentindimitrov/keymove',
   );
-  const supportLink = screen.getByRole('link', { name: 'Support KeyMove' });
+  const supportLink = screen.getByRole('link', { name: 'Leave a tip for KeyMove' });
   expect(supportLink).toHaveAttribute(
     'href',
     'https://buy.stripe.com/test_cNieVe2GhbdMaeq6sd5os00',
   );
   expect(supportLink).toHaveAttribute('target', '_blank');
   expect(supportLink).toHaveAttribute('rel', 'noreferrer');
-  expect(screen.getByRole('link', { name: 'Contact KeyMove Developer' })).toBeInTheDocument();
+  expect(supportLink).toHaveTextContent('Tip');
+  const contactLink = screen.getByRole('link', { name: 'Contact KeyMove Developer' });
+  expect(supportLink.parentElement?.nextElementSibling).toContainElement(contactLink);
   const demo = screen.getByRole('link', { name: 'KeyMove website' });
   expect(demo).toHaveTextContent('Website');
   expect(demo).toHaveAttribute('href', 'https://keymove.minddevops.eu');

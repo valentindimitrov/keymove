@@ -559,8 +559,8 @@ const SCENARIOS: Scenario[] = [
     ),
   },
   {
-    name: 'support-link',
-    description: 'Development-only Stripe support link alongside source and contact actions',
+    name: 'tip-link',
+    description: 'Stripe tip link beside Contact in the settings footer',
     render: () => (
       <>
         <style>{popupStyles}</style>
@@ -576,7 +576,7 @@ const SCENARIOS: Scenario[] = [
           }}
         >
           <div className="keymove-popup-links">
-            <InfoPanelButtons />
+            <InfoPanelButtons compact />
           </div>
         </div>
       </>

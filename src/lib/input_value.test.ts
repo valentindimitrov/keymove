@@ -23,6 +23,7 @@ test.each(['text', 'number'])(
     const result = await index.search(new NodeScorer('40'));
     expect(result.matchingLinksAndButtons).toEqual([input]);
     expect(result.matchingText.map(match => match.node.id)).toEqual(['caption']);
+    expect(result.suggestions[0]).toMatchObject({ kind: 'action', node: input });
     expect(labelForNode(input, 'action')).toBe('Minimum (EUR) — 40');
     expect((await index.search(new NodeScorer('10'))).matchingLinksAndButtons).toEqual([]);
     input.value = '65'; // Property-only assignments must be fresh on the next search too.

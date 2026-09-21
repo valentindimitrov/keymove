@@ -26,6 +26,7 @@ a background tab.
 - Copy the URL of a selected link directly from action mode.
 - Find controls through associated form labels, `aria-labelledby`, accessible labels, and image alternative text.
 - Search visible text and controls inside open Shadow DOM components, including nested components and slotted content.
+- Below three characters, only the selected result gets an outline. From three characters onward, other results get faint outlines and matching text is highlighted; the current selection keeps a stronger outline and fill. Shorter searches still find and navigate every match immediately.
 - Explicitly selecting a result with Tab or Alt+number sends best-effort hover events, so JavaScript hover menus can open without a click. Enter still activates the result. Automatic first matches do not hover; query edits retain the hover until you select elsewhere or end the search. CSS-only `:hover` menus and sites rejecting synthetic events are not supported by this feature.
 - Toggle checkboxes and switches, select radio buttons, submit native buttons, and expand disclosures with Enter.
 - Focus text editors and complex widgets to continue using their own keyboard controls. Disabled controls are marked unavailable and cannot be activated.
@@ -142,7 +143,7 @@ pressing `Tab` first.
 
 ### Ranked results
 
-Once a query is at least three characters long, the strongest results appear as part of the
+For every nonempty query, the strongest results appear as part of the
 searchbar itself, opening downwards when there is room below and upwards when there is not. The bar
 stays where you put it either way. Each row names what activating it would do and where on the page it lives, so a control
 buried in a sidebar is distinguishable from one with the same label in the main content. The part
@@ -153,18 +154,18 @@ to read, but when showing at least two suggestions the last place is reserved fo
 The panel reflects the current selection: automatic selection, navigation and clicking a row all
 mark the selected suggestion with a gray background. No row is highlighted when the selection is outside the visible list.
 
-Below three characters almost everything matches and the order churns on every keystroke, so
-nothing is shown. At three or more characters, stability is applied across all candidates before
+The mixed shortlist stays available even for one- or two-character queries, such as an input
+displaying `40`, regardless of the navigation mode. Stability is applied across all candidates before
 choosing the configured number. A matching result keeps its numbered place unless a challenger scores
 more than 15% higher, including when another candidate challenges the last row. The same rule
 applies to the row reserved for the other kind of result.
 
 While a query or page refresh is pending, the panel keeps its previous rows visible without
 collapsing and reopening. Those rows cannot be selected until the new results arrive.
-The frame retains its height while the query has at least three characters, including an empty
-result, which displays "No matches". Shortening or clearing the query closes the frame.
+The frame retains its height while the query is nonempty, including an empty
+result, which displays "No matches". Clearing the query closes the frame.
 Completed results use fresh scores, labels, and match spans; results that stopped matching leave
-immediately. Clearing the query, shortening it below three characters, or completing a search with
+immediately. Clearing the query or completing a search with
 no matches resets that history. Search still starts on every keystroke without a debounce.
 
 ### Approximate matching
@@ -501,7 +502,7 @@ position within the current results: switching from `Text 3 / 12` to actions and
 result 3 selected. If action mode has no matches but text does, KeyMove falls back to text;
 changing the query tries the chosen action mode again.
 
-The numbered panel appears for queries of at least three characters and shows 1–5 suggestions
+The numbered panel appears for every nonempty query and shows 1–5 suggestions
 (three by default). These are a mixed shortlist, not the first few results in either mode.
 `Alt + 2` therefore means **row 2 in the panel**, not text result 2. Only displayed, ready rows
 can be selected. `Tab` still reaches all matches, including those outside the shortlist.

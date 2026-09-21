@@ -48,6 +48,7 @@ import {
   SUGGESTION_PANEL_PADDING,
   SUGGESTION_ROW_HEIGHT,
   MIN_SUGGESTION_QUERY_LENGTH,
+  MIN_PAGE_HIGHLIGHT_QUERY_LENGTH,
 } from '../../constants.js';
 
 const SCROLL_OR_RESIZE_UPDATE_TIMEOUT_DURATION = 100;
@@ -939,10 +940,13 @@ const Searchbar = () => {
     true,
   );
   useKeyboardShortcuts(handleShortcut, interaction.openingShortcut, !paused);
+  const showOtherMatches =
+    highlightMatches &&
+    Array.from(searchText.trim().normalize('NFC')).length >= MIN_PAGE_HIGHLIGHT_QUERY_LENGTH;
   useHighlights({
     matches: matchingText,
     selectedMatch: selectedTextMatch,
-    enabled: highlightMatches,
+    enabled: showOtherMatches,
     color: highlightColors[SEARCH_MODES.TEXT],
   });
   useExtensionMessaging(
@@ -970,18 +974,9 @@ const Searchbar = () => {
         <Selections
           color={highlightColors[navigationMode]}
           refresh={scrollOrResizeRefresh}
-          selectedSelectionIndex={
-            navigationMode === SEARCH_MODES.TEXT && selectedSelectionIndex !== null
-              ? 0
-              : selectedSelectionIndex
-          }
-          matchingNodes={
-            navigationMode === SEARCH_MODES.TEXT
-              ? selectedTextMatch
-                ? [selectedTextMatch.node]
-                : []
-              : matchingLinksAndButtons
-          }
+          selectedSelectionIndex={selectedSelectionIndex}
+          matchingNodes={activeMatchingNodes}
+          showOtherMatches={showOtherMatches}
         />
       )}
       <DraggableContainer

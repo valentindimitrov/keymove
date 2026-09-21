@@ -34,9 +34,9 @@ not duplicate component markup or create a parallel set of layout rules.
 The header's Show KeyMove search bar action uses the standard control surface and focus token. It
 announces loading/errors and explains disabled states for paused or unsupported pages.
 Footer destinations use equal-width outlined links with 18px icons and a 36px minimum height:
-GitHub (source), Website (website), Contact (email). Web destinations open in a new tab. The
-development-only Support destination makes a balanced two-column grid. Both themes share
-the same markup, borders, hover states and visible keyboard focus treatment.
+GitHub (source), Website (website), Tip (Stripe) and Contact (email). Tip sits beside Contact in a
+balanced two-column grid. Web destinations open in a new tab. Both themes share the same markup,
+borders, hover states and visible keyboard focus treatment.
 The autohide-button setting has equal spacing around its complete label/description row.
 The position and resize instructions sit directly under the position-and-size heading, explaining
 the nine-square picker before the resize gesture; lock status stays with its control.

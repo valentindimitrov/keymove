@@ -428,12 +428,12 @@ test('matches a word the query is only a mistyped prefix of', async () => {
   }
 });
 
-test('skips picker ranking below three characters without limiting navigation', async () => {
+test('ranks short queries without limiting navigation', async () => {
   document.body.innerHTML = '<p>Save</p>'.repeat(65);
   index = new PageSearchIndex();
   const result = await index.search(scorerFor('sa'));
   expect(result.matchingText).toHaveLength(65);
-  expect(result.suggestions).toEqual([]);
+  expect(result.suggestions).toHaveLength(65);
 });
 
 test('ranks candidates with actions ahead of text', async () => {

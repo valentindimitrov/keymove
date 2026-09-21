@@ -62,10 +62,10 @@ artifacts are `.output/chrome-mv3` and `.output/firefox-mv3`.
 7. `page_search_index` also emits all distinct ranked candidates across both kinds. `useSuggestions`
    applies stability before selecting the configured number of mixed suggestions (three by default), retaining its history while a query
    or DOM refresh is pending. Pending rows stay visible but cannot be selected, keeping the pane
-   mounted until fresh results arrive. The frame stays open for queries of at least three
-   characters. Pending and completed empty results retain the last completed height; completed
+   mounted until fresh results arrive. The frame stays open for every nonempty query,
+   independently of the page-highlight threshold. Pending and completed empty results retain the last completed height; completed
    nonempty results fit their current rows so shorter descriptions leave no trailing gap.
-   Short queries and completed empty results
+   Cleared queries and completed empty results
    clear history. `ResultsPanel` is a view of the one selection, never a second cursor.
 8. `useSearchNavigation` retains an independent cursor for each mode.
 9. `useHighlights` uses the CSS Custom Highlight API without rewriting host-page DOM.
@@ -91,6 +91,10 @@ artifacts are `.output/chrome-mv3` and `.output/firefox-mv3`.
 - In text mode, native copy yields the whole selected block. In action mode, `Ctrl + C` (or
   `Command + C` on macOS) copies the selected link's normalized URL.
 - Keep text and action cursors independent and clear both while a new query is pending.
+- Below three characters, outline only the selected result in either mode. At three or more
+  NFC-normalized Unicode code points after trimming the query, show faint outlines on other
+  results and page-wide text highlights when highlighting is enabled. This presentation threshold
+  must never delay search, filter results or change counts, navigation, activation or native selection.
 - Automatically select the first result when a new query returns matches, so Enter works
   immediately. A DOM refresh retains the selected node, or clears it if that node disappeared.
 - Browsers may reserve `Ctrl + Tab` before content scripts receive it. Do not claim that page code

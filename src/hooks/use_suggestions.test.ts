@@ -111,16 +111,18 @@ test('keeps the last rendered slate unchanged through pending searches', () => {
   });
   expect(result.current.map(row => row.node.id)).toEqual(['a', 'b', 'c']);
   rerender({ ...props, searchText: 'sa', pending: true });
+  expect(result.current.map(row => row.node.id)).toEqual(['a', 'b', 'c']);
+  rerender({ ...props, searchText: '', pending: true });
   expect(result.current).toEqual([]);
   rerender({ ...props, searchText: 'sav', pending: true });
   expect(result.current).toEqual([]);
 });
 
-test.each(['short query', 'completed empty search'])('resets history after a %s', reset => {
+test.each(['cleared query', 'completed empty search'])('resets history after a %s', reset => {
   const first = [match('a', 10), match('b', 9.6), match('c', 9)];
   const props = { suggestions: first, searchText: 'save', isFuzzy: false, pending: false };
   const { result, rerender } = renderHook(props => useSuggestions(props), { initialProps: props });
-  rerender({ ...props, searchText: reset === 'short query' ? 'sa' : 'nothing', suggestions: [] });
+  rerender({ ...props, searchText: reset === 'cleared query' ? '' : 'nothing', suggestions: [] });
   expect(result.current).toEqual([]);
   rerender({ ...props, suggestions: withScores(first, { a: 9.8, b: 10, c: 9 }) });
   expect(result.current.map(row => row.node.id)).toEqual(['b', 'a', 'c']);

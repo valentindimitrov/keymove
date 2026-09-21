@@ -15,6 +15,7 @@ import { checkTooltipsMode } from './tooltips-mode-smoke.ts';
 import { checkDynamicPage } from './dynamic-page-smoke.ts';
 import { checkShadowSearch } from './shadow-search-smoke.ts';
 import { checkSelectionHover } from './selection-hover-smoke.ts';
+import { checkHighlightDensity } from './highlight-density-smoke.ts';
 import { checkActionFallback } from './action-fallback-smoke.ts';
 import { checkTheme, checkThemePreviews } from './theme-smoke.ts';
 import {
@@ -89,6 +90,10 @@ export async function runBrowserSmoke(client: ChromiumClient, browser: string): 
     await server.listen();
     const origin = server.resolvedUrls?.local[0];
     assert(origin, 'Fixture server did not expose its address');
+    await checkHighlightDensity(client, origin);
+    passed.push(
+      'Short-query mixed suggestions and input focus, selected-only short queries, faint outlines at three characters, full navigation and native selection',
+    );
     await checkSelectionHover(client, origin);
     passed.push(
       'Explicit keyboard hover, submenu search and activation, query retention, cleanup and shadow menus',
