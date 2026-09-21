@@ -395,6 +395,14 @@ this acknowledgement does not imply Comake's endorsement.
 
 Questions and feedback: [keymove.impulse550@passmail.com](mailto:keymove.impulse550@passmail.com)
 
+## Support KeyMove
+
+If KeyMove saves you time, you can support its continued development with an optional tip.
+
+[Leave a tip](https://buy.stripe.com/cNi4gAetW99C0Yq9YN5c400)
+
+Tips are voluntary and do not unlock features.
+
 ## Project status
 
 Store listings and permanent extension IDs, repository metadata, upstream relicensing permission
