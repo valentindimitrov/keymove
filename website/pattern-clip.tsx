@@ -55,7 +55,9 @@ export default function PatternClip({ id, title }: { id: string; title: string }
             void video.current?.play().catch(() => setFailed(true));
           }}
         >
-          <span aria-hidden="true">▶</span> Play clip
+          <span className="pattern-play-label">
+            <span aria-hidden="true">▶</span> Play clip
+          </span>
         </button>
       )}
       {failed && (
