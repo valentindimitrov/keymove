@@ -2,62 +2,55 @@
    the content script. Panel rules themselves are shared with content.css. */
 /* One spacing scale keeps the pane's rhythm consistent without hand-picking a value per
    element. */
-:root {
-  --keymove-gap-sm: 8px;
-  --keymove-gap-md: 16px;
-  --keymove-gap-lg: 24px;
-}
-
 body {
   width: 420px;
+  max-width: 100%;
   margin: 0;
-  padding: var(--keymove-gap-md, 16px) 18px var(--keymove-gap-lg, 24px);
-  color: white;
-  font:
-    13px / 1.35 'Helvetica Neue',
-    Helvetica,
-    Arial,
-    sans-serif;
+  padding: var(--keymove-space-4, 16px) 18px var(--keymove-space-6, 24px);
+  color: var(--keymove-text-primary, white);
+  font: var(--keymove-font-size, 13px) / var(--keymove-line-height, 1.35)
+    var(--keymove-font-ui, 'Helvetica Neue', Helvetica, Arial, 'Lucida Grande', sans-serif);
   letter-spacing: normal;
-  background-color: rgb(28, 28, 28);
+  background-color: var(--keymove-popup-surface, rgb(28, 28, 28));
 }
 
 #keymove-popup {
   display: block;
+  color: var(--keymove-text-primary, white);
 }
 
 /* Scoped to the popup so the in-page shortcuts panel keeps its own smaller heading. */
 #keymove-popup .keymove-info-panel-section-header {
-  margin-bottom: var(--keymove-gap-md, 16px);
-  color: white;
-  font-size: 15px;
+  margin-bottom: var(--keymove-space-4, 16px);
+  color: var(--keymove-text-primary, white);
+  font-size: var(--keymove-font-heading, 15px);
   text-align: center;
 }
 
 #keymove-popup .keymove-info-panel-margin-top-section-header {
-  margin-top: var(--keymove-gap-lg, 24px);
+  margin-top: var(--keymove-space-6, 24px);
 }
 
 /* The shortcut reminder is a caption for the heading, not one of the settings. */
 .keymove-popup-reminder {
-  margin-bottom: var(--keymove-gap-lg, 24px);
+  margin-bottom: var(--keymove-space-6, 24px);
 }
 
 /* Sits under the shortcut row it explains. Takes the setting rows' type and their 15px
    indent so it reads as part of the same list rather than as a footnote. */
 .keymove-popup-hint {
-  margin: var(--keymove-gap-sm, 8px) 0 0;
+  margin: var(--keymove-space-2, 8px) 0 0;
   padding-left: 15px;
-  color: white;
-  font-size: 13px;
+  color: var(--keymove-text-primary, white);
+  font-size: var(--keymove-font-size, 13px);
   font-weight: 400;
   letter-spacing: normal;
-  line-height: 1.35em;
+  line-height: var(--keymove-line-height, 1.35);
 }
 
 /* Matches the gap above the position heading, so the grid sits evenly between them. */
 .keymove-popup-links {
-  margin-top: var(--keymove-gap-lg, 24px);
+  margin-top: var(--keymove-space-6, 24px);
 }
 
 #keymove-popup .keymove-info-panel-setting-row {
@@ -67,16 +60,17 @@ body {
 /* Aligned with the setting labels so it reads as an action on the colour rows above, and
    given a visible surface rather than sitting as bare text on the panel. */
 #keymove-popup .keymove-info-panel-reset-position-button {
-  margin: var(--keymove-gap-md, 16px) 0 0 28px;
-  border: 1px solid white;
-  background-color: rgba(255, 255, 255, 0.1);
-  color: white;
+  margin: var(--keymove-space-4, 16px) 0 0
+    calc(var(--keymove-setting-control, 16px) + var(--keymove-setting-gap, 12px));
+  border: 1px solid var(--keymove-text-primary, white);
+  background-color: var(--keymove-control-subtle, rgba(255, 255, 255, 0.1));
+  color: var(--keymove-text-primary, white);
 }
 
 #keymove-popup .keymove-info-panel-reset-position-button:hover,
 #keymove-popup .keymove-info-panel-reset-position-button:focus-visible {
-  border-color: white;
-  background-color: rgba(255, 255, 255, 0.24);
+  border-color: var(--keymove-text-primary, white);
+  background-color: var(--keymove-control-hover, rgba(255, 255, 255, 0.22));
 }
 
 /* Lives here rather than in content.css: the swatch only appears in the popup, and
@@ -87,10 +81,10 @@ body {
   flex-shrink: 0;
   width: 16px;
   height: 16px;
-  margin: 2px 12px 0 0;
+  margin: 2px 0 0;
   padding: 0;
-  border: 1px solid white;
-  border-radius: 4px;
+  border: 1px solid var(--keymove-text-primary, white);
+  border-radius: var(--keymove-radius-small, 4px);
   background: none;
   cursor: pointer;
 }
@@ -101,13 +95,13 @@ body {
 
 .keymove-info-panel-setting-color::-webkit-color-swatch {
   border: none;
-  border-radius: 3px;
+  border-radius: var(--keymove-radius-badge, 3px);
 }
 
 .keymove-position-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: var(--keymove-gap-sm, 8px);
+  gap: var(--keymove-space-2, 8px);
   width: 150px;
   margin: 0 auto;
 }
@@ -115,24 +109,24 @@ body {
 .keymove-position-cell {
   height: 32px;
   padding: 0;
-  border: 2px solid white;
-  border-radius: 5px;
+  border: 2px solid var(--keymove-text-primary, white);
+  border-radius: var(--keymove-radius-control, 6px);
   background-color: transparent;
   cursor: pointer;
 }
 
 .keymove-position-cell:hover {
-  background-color: rgba(255, 255, 255, 0.3);
+  background-color: var(--keymove-control-hover, rgba(255, 255, 255, 0.22));
 }
 
 .keymove-position-cell-selected,
 .keymove-position-cell-selected:hover {
-  background-color: white;
+  background-color: var(--keymove-text-primary, white);
 }
 
 /* Each link gets its own row so the repository sits above the contact link. */
 #keymove-popup .keymove-info-panel-button-row {
-  margin: var(--keymove-gap-sm, 8px) 0 0;
+  margin: var(--keymove-space-2, 8px) 0 0;
 }
 
 .keymove-popup-links .keymove-info-panel-button-row:first-child {
@@ -141,9 +135,11 @@ body {
 
 .keymove-popup-layout-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 16px;
-  margin: 16px 0 0 28px;
+  gap: var(--keymove-space-4, 16px);
+  margin: var(--keymove-space-4, 16px) 0 0
+    calc(var(--keymove-setting-control, 16px) + var(--keymove-setting-gap, 12px));
 }
 
 #keymove-popup .keymove-popup-layout-actions button {
@@ -171,7 +167,7 @@ body {
 }
 
 #keymove-popup .keymove-suggestion-count-setting {
-  margin-top: var(--keymove-gap-md, 16px);
+  margin-top: var(--keymove-space-4, 16px);
 }
 
 .keymove-suggestion-count-setting input {
@@ -179,12 +175,12 @@ body {
   box-sizing: border-box;
   width: 16px;
   height: 20px;
-  margin: 0 12px 0 0;
+  margin: 0;
   padding: 0;
-  border: 1px solid white;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
+  border: 1px solid var(--keymove-text-primary, white);
+  border-radius: var(--keymove-radius-small, 4px);
+  background: var(--keymove-control-subtle, rgba(255, 255, 255, 0.1));
+  color: var(--keymove-text-primary, white);
   font: inherit;
   text-align: center;
   appearance: textfield;
@@ -196,4 +192,27 @@ body {
 .keymove-suggestion-count-setting input::-webkit-outer-spin-button {
   margin: 0;
   appearance: none;
+}
+
+.keymove-theme-setting .keymove-info-panel-setting-text {
+  grid-column: 2;
+}
+
+.keymove-theme-setting select {
+  display: block;
+  width: 100%;
+  max-width: 240px;
+  min-height: 32px;
+  margin: var(--keymove-space-2, 8px) 0;
+  padding: 5px var(--keymove-space-2, 8px);
+  border: 1px solid var(--keymove-border-strong, rgba(180, 180, 180, 0.4));
+  border-radius: var(--keymove-radius-control, 6px);
+  color: var(--keymove-text-primary, white);
+  background: var(--keymove-popup-surface, rgb(28, 28, 28));
+  font: inherit;
+}
+
+#keymove-popup :is(select, input, button, a):focus-visible {
+  outline: 2px solid var(--keymove-focus, rgba(255, 255, 255, 0.85));
+  outline-offset: 2px;
 }

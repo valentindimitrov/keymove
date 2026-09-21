@@ -22,6 +22,20 @@ beforeEach(() => {
   storage.get.mockReset().mockResolvedValue({});
 });
 
+test('offers an accessible appearance selector and applies saved choices to the popup', async () => {
+  storage.get.mockResolvedValue({ theme: 'dark' });
+  render(<PopupSettings />);
+  const appearance = screen.getByRole('combobox', { name: 'Appearance' });
+  await waitFor(() => expect(appearance).toHaveValue('dark'));
+  expect(appearance).toHaveAccessibleDescription(
+    'System follows your device’s light or dark appearance.',
+  );
+  expect(document.documentElement).toHaveAttribute('data-keymove-theme', 'dark');
+  fireEvent.change(appearance, { target: { value: 'light' } });
+  expect(storage.set).toHaveBeenCalledWith({ theme: 'light' });
+  expect(document.documentElement).toHaveAttribute('data-keymove-theme', 'light');
+});
+
 test('shows the settings the searchbar panel no longer carries', async () => {
   render(<PopupSettings />);
 

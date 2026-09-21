@@ -13,6 +13,7 @@ import { checkControlNavigation } from './control-navigation-smoke.ts';
 import { checkActionMenu } from './action-menu-smoke.ts';
 import { checkTooltipsMode } from './tooltips-mode-smoke.ts';
 import { checkDynamicPage } from './dynamic-page-smoke.ts';
+import { checkTheme, checkThemePreviews } from './theme-smoke.ts';
 
 const shadow = `document.getElementById('keymove-root')?.shadowRoot`;
 const input = `${shadow}?.querySelector('[aria-label="Search page"]')`;
@@ -83,6 +84,10 @@ export async function runBrowserSmoke(client: ChromiumClient, browser: string): 
     console.log('Dynamic-page search timing', dynamicPage);
     passed.push(
       'Search completes through continuous DOM changes; interface clicks stay isolated and page clicks work',
+    );
+    await checkThemePreviews(client, origin);
+    passed.push(
+      'Light/dark shadow-root previews: narrow and desktop layouts, shared settings columns, and above/below suggestions',
     );
     await checkActionMenu(client, origin);
     passed.push(
@@ -337,6 +342,10 @@ export async function runBrowserSmoke(client: ChromiumClient, browser: string): 
       passed.push('The color K logo opens the actual extension settings');
       const popup = await openPage(client, new URL('popup.html', worker.url).href);
       await waitFor(popup, `document.querySelector('label')`);
+      await checkTheme(page, popup);
+      passed.push(
+        'Appearance persists, syncs to an open page, follows system changes, and keeps explicit overrides',
+      );
       assert.equal(
         await popup.evaluate(
           `Array.from(document.querySelectorAll('label')).find(label => label.textContent === 'Autohide').control.checked`,

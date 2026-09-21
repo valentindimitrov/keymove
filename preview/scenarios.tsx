@@ -3,6 +3,7 @@ import InfoDropdown from '../src/components/searchbar/info_dropdown.js';
 import DraggableContainer from '../src/components/searchbar/draggable_container.js';
 import PopupLayoutActions from '../src/components/popup/popup_layout_actions.js';
 import popupStyles from '../src/popup.css?inline';
+import themePreviewStyles from './theme.css?inline';
 import MatchesSummary from '../src/components/searchbar/matches_summary.js';
 import ResultsPanel from '../src/components/searchbar/results_panel.js';
 import ActionMenu from '../src/components/searchbar/action_menu.js';
@@ -21,6 +22,13 @@ import { keepExtensionRootConnected } from '../src/lib/create_extension_root.js'
 import Selection from '../src/components/searchbar/selection.js';
 import { createModalFixture } from './modal_fixture.js';
 import { kindLabelForNode } from '../src/lib/suggestion_context.js';
+import ThemeSetting from '../src/components/popup/theme_setting.js';
+import InfoPanelSettings from '../src/components/searchbar/info_panel/info_panel_settings.js';
+import InfoPanelSectionHeader from '../src/components/searchbar/info_panel/info_panel_section_header.js';
+import PopupPositionGrid from '../src/components/popup/popup_position_grid.js';
+import { usePortalTarget } from '../src/components/searchbar/portal.js';
+import useTheme from '../src/hooks/use_theme.js';
+import { validateStoredSetting } from '../src/lib/stored_settings_schema.js';
 
 type BarProps = {
   searchText: string;
@@ -41,6 +49,59 @@ type BarProps = {
   showActionMenu?: boolean;
   tooltipsMode?: boolean;
 };
+
+function ThemeSettingsPreview() {
+  const [theme, setTheme] = React.useState(
+    () =>
+      validateStoredSetting('theme', new URLSearchParams(location.search).get('theme') ?? 'system')
+        .value,
+  );
+  const [count, setCount] = React.useState(3);
+  const [autoHide, setAutoHide] = React.useState(true);
+  const [tooltipsMode, setTooltipsMode] = React.useState(true);
+  const [locked, setLocked] = React.useState(false);
+  const [position, setPosition] = React.useState({ x: 0.5, y: 0.75 });
+  const root = usePortalTarget()?.getRootNode();
+  useTheme(theme, root instanceof ShadowRoot ? root.host : null);
+  return (
+    <>
+      <style>{popupStyles}</style>
+      <style>{themePreviewStyles}</style>
+      <div id="keymove-popup" className="keymove-theme-preview">
+        <InfoPanelSectionHeader text="Settings" />
+        <ThemeSetting value={theme} onChange={setTheme} />
+        <InfoPanelSettings
+          tooltipsMode={tooltipsMode}
+          toggleTooltipsMode={() => setTooltipsMode(!tooltipsMode)}
+          autoHide={autoHide}
+          toggleAutoHide={() => setAutoHide(!autoHide)}
+          alwaysOn={true}
+          toggleAlwaysOn={() => {}}
+          startInActionMode={false}
+          toggleStartInActionMode={() => {}}
+          highlightMatches={true}
+          toggleHighlightMatches={() => {}}
+          showAutohideButton={false}
+          toggleShowAutohideButton={() => {}}
+          highlightColors={{ text: '#f59e0b', actions: '#a78bfa' }}
+          updateHighlightColor={() => {}}
+          resetHighlightColors={() => {}}
+        />
+        <SuggestionCountSetting value={count} onChange={setCount} />
+        <InfoPanelSectionHeader text="Searchbar position and size" marginTop />
+        <PopupPositionGrid position={position} updatePosition={setPosition} disabled={locked} />
+        <PopupLayoutActions
+          locked={locked}
+          onToggleLock={() => setLocked(!locked)}
+          onReset={() => setPosition({ x: 0.5, y: 0.75 })}
+        />
+        <div className="keymove-popup-links">
+          <InfoPanelButtons />
+        </div>
+      </div>
+    </>
+  );
+}
 
 function suggestionNode(label: string) {
   const node = document.createElement('a');
@@ -349,6 +410,11 @@ const SearchControlsPreview = () => {
 };
 
 const SCENARIOS: Scenario[] = [
+  {
+    name: 'theme-settings',
+    description: 'Shared settings grid and live System, Light, and Dark appearance controls.',
+    render: () => <ThemeSettingsPreview />,
+  },
   ...[false, true].map(narrow => ({
     name: narrow ? 'control-states-narrow' : 'control-states',
     description: 'Live control state descriptions at normal and minimum width',

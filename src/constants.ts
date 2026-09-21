@@ -69,6 +69,7 @@ export const ACTION_MENU_RESULT_HEIGHT = 44;
 
 export const SETTINGS_KEYS = {
   TOOLTIPS_MODE: 'tooltipsMode',
+  THEME: 'theme',
   SUGGESTION_COUNT: 'suggestionCount',
   LOCK_POSITION_AND_SIZE: 'lockPositionAndSize',
   AUTO_HIDE: 'autoHide',

@@ -29,9 +29,9 @@ export async function checkTooltipsMode(client: ChromiumClient, origin: string, 
   assert.equal(await popup.evaluate(`${toggle}.checked`), true);
   assert.deepEqual(
     await popup.evaluate(
-      `Array.from(document.querySelectorAll('label')).slice(0, 2).map(label => label.textContent)`,
+      `Array.from(document.querySelectorAll('label')).slice(0, 3).map(label => label.textContent)`,
     ),
-    ['Tooltips mode', 'Always on'],
+    ['Appearance', 'Tooltips mode', 'Always on'],
   );
   const page = await openPage(client, `${origin}fixtures.html?tooltips`);
   try {

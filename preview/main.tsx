@@ -4,6 +4,8 @@ import createExtensionRoot from '../src/lib/create_extension_root.js';
 import contentStyles from '../src/content.css?inline';
 import { SCENARIOS } from './scenarios.js';
 import './page.css';
+import useTheme from '../src/hooks/use_theme.js';
+import { validateStoredSetting } from '../src/lib/stored_settings_schema.js';
 
 // Renders the real components through the real shadow root, with the real stylesheet, so a
 // visual check here is a check of what ships. `:host { all: initial }` inside that root is
@@ -13,6 +15,12 @@ const requested = parameters.get('scenario');
 const browserName = parameters.get('browser') ?? undefined;
 const scenario = SCENARIOS.find(entry => entry.name === requested);
 const page = document.getElementById('preview-page')!;
+const theme = validateStoredSetting('theme', parameters.get('theme') ?? 'dark').value;
+
+function PreviewTheme({ host, children }: React.PropsWithChildren<{ host: HTMLElement }>) {
+  useTheme(theme, host);
+  return children;
+}
 
 function renderIndex() {
   document.title = 'KeyMove interface preview';
@@ -26,6 +34,7 @@ function renderIndex() {
     ).join('')}</ul>
     <p class="preview-note">
       Add <code>&amp;browser=firefox</code> to any of these to see the Firefox surface colours.
+      Add <code>&amp;theme=light</code>, <code>&amp;theme=dark</code>, or <code>&amp;theme=system</code> to compare appearances.
     </p>`;
 }
 
@@ -41,7 +50,13 @@ function renderScenario(name: string, node: React.ReactNode) {
   const extensionRoot = createExtensionRoot(contentStyles, browserName);
   if (!extensionRoot) throw new Error('The preview could not create an extension root.');
   createRoot(extensionRoot.app).render(
-    <PortalTargetProvider target={extensionRoot.portal}>{node}</PortalTargetProvider>,
+    <PortalTargetProvider target={extensionRoot.portal}>
+      {name === 'theme-settings' ? (
+        node
+      ) : (
+        <PreviewTheme host={extensionRoot.host}>{node}</PreviewTheme>
+      )}
+    </PortalTargetProvider>,
   );
 }
 

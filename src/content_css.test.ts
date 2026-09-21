@@ -13,7 +13,8 @@ test('never reads a custom property without a fallback', () => {
   // shorthand that resets every longhand it controls, so `border: 2px solid rgb(var(--x))`
   // turns into border-style: none and the element vanishes rather than turning an odd
   // colour. A fallback keeps the declaration valid whatever happens to the property.
-  const readsWithoutFallback = contentStyles.match(/var\(\s*--[\w-]+\s*\)/g);
+  const popupStyles = readFileSync(path.resolve(process.cwd(), 'src/popup.css'), 'utf8');
+  const readsWithoutFallback = (contentStyles + popupStyles).match(/var\(\s*--[\w-]+\s*\)/g);
 
   expect(readsWithoutFallback).toBeNull();
 });

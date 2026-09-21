@@ -201,6 +201,8 @@ Settings include:
 - **Tooltips mode:** show usage reminders and full `Alt + number` badges (`Option + number` on
   macOS). On by default, above Always on. Turn it off for compact number badges and no automatic
   hints; all keyboard shortcuts still work.
+- **Appearance:** System (default), Light, or Dark. System follows your device's appearance;
+  your choice applies to the searchbar, menus, and settings across open tabs.
 - **Always on:** begin searching whenever you type while another input is not focused.
 - **Start in action mode:** begin each search in action mode instead of text mode.
 - **Highlight matches:** tint matching text on the page, and mark the current one.

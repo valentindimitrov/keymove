@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 
 const PortalTargetContext = React.createContext<HTMLElement | null>(null);
 
+export const usePortalTarget = () => React.useContext(PortalTargetContext);
+
 type PortalTargetProviderProps = React.PropsWithChildren<{ target: HTMLElement }>;
 
 const PortalTargetProvider = ({ children, target }: PortalTargetProviderProps) => {

@@ -19,6 +19,7 @@ test('accepts boolean values returned by extension storage', () => {
   expect(result).toEqual({
     settings: {
       tooltipsMode: true,
+      theme: 'system',
       suggestionCount: 3,
       [SETTINGS_KEYS.AUTO_HIDE]: true,
       [SETTINGS_KEYS.ALWAYS_ON]: false,
@@ -27,6 +28,21 @@ test('accepts boolean values returned by extension storage', () => {
       [SETTINGS_KEYS.SHOW_AUTOHIDE_BUTTON]: true,
       [SETTINGS_KEYS.LOCK_POSITION_AND_SIZE]: true,
     },
+    issues: [],
+  });
+});
+
+test('validates theme preferences and resets removed or invalid themes to system', () => {
+  for (const theme of ['system', 'light', 'dark']) {
+    expect(validateStoredSettings({ theme }).settings.theme).toBe(theme);
+  }
+  for (const theme of ['auto', '', true, null, {}, 1]) {
+    const result = validateStoredSettings({ theme });
+    expect(result.settings.theme).toBe('system');
+    expect(result.issues).toEqual(['Stored setting "theme" must be system, light, or dark.']);
+  }
+  expect(validateStoredSettingChange('theme', { oldValue: 'dark' })).toEqual({
+    value: 'system',
     issues: [],
   });
 });

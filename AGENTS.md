@@ -150,6 +150,12 @@ highlight rules ship as a manifest stylesheet, and the toolbar popup loads both 
 and `popup.css` as ordinary documents. Rules shared between those contexts live in
 `content.css`; anything that applies to one of them is scoped, such as `#keymove-popup`.
 
+Theme colors, spacing, radii and typography are shared tokens in `content.css`, declared for
+the shadow host and popup document. `useTheme` applies the resolved `data-keymove-theme` only
+to those owned roots; never apply it to the host page's document. Keep both palettes on the
+same components and layout rules. Settings use a shared control/text grid. See
+`docs/appearance.md` for token conventions and preview scenarios.
+
 Never read a custom property without a fallback. An unresolved `var()` is invalid at
 computed-value time, which resets the whole declaration it appears in. Inside a shorthand
 that resets every longhand it controls, so `border: 2px solid rgb(var(--accent))` becomes
@@ -182,6 +188,7 @@ popup stays on-screen.
 
 Stored keys:
 
+- `theme`: `system` (default), `light`, or `dark`. System follows live OS appearance changes.
 - `autoHide`: boolean
 - `suggestionCount`: integer from 1 to 5, defaults to 3; larger saved counts clamp to 5. Limits displayed suggestions, never navigation results
 - `alwaysOn`: boolean

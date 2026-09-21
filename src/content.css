@@ -23,12 +23,86 @@
   display: none;
 }
 
-/* Secondary text tones, which repeat across the searchbar, the panel and the icons. Every
-   read of these carries a fallback: whether a custom property resolves inside this shadow
-   root has burned us before, and a fallback keeps the declaration valid either way. */
-:host {
+/* Semantic colors are shared by the shadow host and the toolbar document.
+   Every use has a literal fallback, including borders and other shorthands. */
+:host,
+:root {
+  color-scheme: dark;
+  --keymove-font-ui: 'Helvetica Neue', Helvetica, Arial, 'Lucida Grande', sans-serif;
+  --keymove-font-size: 13px;
+  --keymove-font-small: 12px;
+  --keymove-font-caption: 11px;
+  --keymove-font-badge: 10px;
+  --keymove-font-heading: 15px;
+  --keymove-line-height: 1.35;
+  --keymove-radius-badge: 3px;
+  --keymove-radius-small: 4px;
+  --keymove-radius-control: 6px;
+  --keymove-radius-button: 7px;
+  --keymove-radius-surface: 12px;
+  --keymove-space-1: 4px;
+  --keymove-space-2: 8px;
+  --keymove-space-3: 12px;
+  --keymove-space-4: 16px;
+  --keymove-space-5: 20px;
+  --keymove-space-6: 24px;
+  --keymove-setting-control: 16px;
+  --keymove-setting-gap: var(--keymove-space-3, 12px);
+  --keymove-surface: rgba(30, 30, 30, 0.92);
+  --keymove-surface-firefox: rgba(30, 30, 30, 0.95);
+  --keymove-popup-surface: rgb(28, 28, 28);
   --keymove-text-secondary: rgba(255, 255, 255, 0.75);
   --keymove-text-tertiary: rgba(255, 255, 255, 0.65);
+  --keymove-text-description: rgba(255, 255, 255, 0.7);
+  --keymove-text-muted: rgba(255, 255, 255, 0.5);
+  --keymove-border: rgba(180, 180, 180, 0.2);
+  --keymove-border-strong: rgba(180, 180, 180, 0.4);
+  --keymove-selected: rgb(65, 65, 65);
+  --keymove-icon-hover: rgba(45, 45, 45, 0.25);
+  --keymove-focus: rgba(255, 255, 255, 0.85);
+  --keymove-control-bg: rgba(255, 255, 255, 0.15);
+  --keymove-control-hover: rgba(255, 255, 255, 0.22);
+  --keymove-control-subtle: rgba(255, 255, 255, 0.1);
+  --keymove-badge-bg: rgba(255, 255, 255, 0.14);
+  --keymove-badge-text: rgba(255, 255, 255, 0.8);
+  --keymove-action-bg: rgba(29, 79, 60, 0.9);
+  --keymove-action-text: rgb(143, 224, 189);
+  --keymove-text-badge-bg: rgb(66, 66, 66);
+  --keymove-text-badge-border: rgb(100, 100, 100);
+  --keymove-text-badge-text: rgb(235, 235, 235);
+  --keymove-match-bg: rgba(122, 98, 18, 0.9);
+  --keymove-match-text: rgb(255, 233, 163);
+  --keymove-text-primary: white;
+}
+
+:host([data-keymove-theme='light']),
+:root[data-keymove-theme='light'] {
+  color-scheme: light;
+  --keymove-surface: rgba(250, 250, 252, 0.96);
+  --keymove-surface-firefox: rgba(250, 250, 252, 0.98);
+  --keymove-popup-surface: rgb(250, 250, 252);
+  --keymove-text-secondary: rgb(65, 69, 78);
+  --keymove-text-tertiary: rgb(86, 91, 101);
+  --keymove-text-description: rgb(76, 81, 91);
+  --keymove-text-muted: rgb(86, 91, 101);
+  --keymove-border: rgba(45, 52, 65, 0.2);
+  --keymove-border-strong: rgba(45, 52, 65, 0.4);
+  --keymove-selected: rgb(225, 229, 237);
+  --keymove-icon-hover: rgba(30, 40, 60, 0.08);
+  --keymove-focus: rgb(40, 70, 150);
+  --keymove-control-bg: rgba(30, 40, 60, 0.07);
+  --keymove-control-hover: rgba(30, 40, 60, 0.13);
+  --keymove-control-subtle: rgba(30, 40, 60, 0.05);
+  --keymove-badge-bg: rgba(30, 40, 60, 0.1);
+  --keymove-badge-text: rgb(48, 53, 65);
+  --keymove-action-bg: rgb(210, 239, 225);
+  --keymove-action-text: rgb(22, 87, 58);
+  --keymove-text-badge-bg: rgb(232, 234, 239);
+  --keymove-text-badge-border: rgb(160, 168, 182);
+  --keymove-text-badge-text: rgb(50, 56, 68);
+  --keymove-match-bg: rgb(255, 232, 151);
+  --keymove-match-text: rgb(78, 55, 0);
+  --keymove-text-primary: rgb(30, 34, 43);
 }
 
 *,
@@ -44,10 +118,18 @@
 #keymove-app,
 #keymove-portal {
   pointer-events: auto;
-  font-family: 'Helvetica Neue', Helvetica, Arial, 'Lucida Grande', sans-serif;
-  font-size: 13px;
+  color: var(--keymove-text-primary, white);
+  font-family: var(
+    --keymove-font-ui,
+    'Helvetica Neue',
+    Helvetica,
+    Arial,
+    'Lucida Grande',
+    sans-serif
+  );
+  font-size: var(--keymove-font-size, 13px);
   font-weight: 400;
-  line-height: 1.35em;
+  line-height: var(--keymove-line-height, 1.35);
   letter-spacing: normal;
 }
 
@@ -63,31 +145,28 @@
   display: flex;
   gap: 10px;
   align-items: center;
-  padding: 12px 16px;
-  border: 1px solid rgba(180, 180, 180, 0.4);
-  border-radius: 12px;
-  color: white;
-  font:
-    13px / 1.35 'Helvetica Neue',
-    Helvetica,
-    Arial,
-    sans-serif;
-  background: rgba(35, 35, 35, 0.9);
+  padding: var(--keymove-space-3, 12px) var(--keymove-space-4, 16px);
+  border: 1px solid var(--keymove-border-strong, rgba(180, 180, 180, 0.4));
+  border-radius: var(--keymove-radius-surface, 12px);
+  color: var(--keymove-text-primary, white);
+  font: var(--keymove-font-size, 13px) / var(--keymove-line-height, 1.35)
+    var(--keymove-font-ui, 'Helvetica Neue', Helvetica, Arial, 'Lucida Grande', sans-serif);
+  background: var(--keymove-surface, rgba(30, 30, 30, 0.92));
   transform: translate(-50%, -50%);
 }
 
 .keymove-error-fallback button {
-  padding: 4px 8px;
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  border-radius: 4px;
-  color: white;
+  padding: var(--keymove-space-1, 4px) var(--keymove-space-2, 8px);
+  border: 1px solid var(--keymove-border-strong, rgba(180, 180, 180, 0.4));
+  border-radius: var(--keymove-radius-small, 4px);
+  color: var(--keymove-text-primary, white);
   font: inherit;
   background: transparent;
   cursor: pointer;
 }
 
 .keymove-error-fallback button:focus-visible {
-  outline: 2px solid white;
+  outline: 2px solid var(--keymove-text-primary, white);
   outline-offset: 2px;
 }
 
@@ -99,9 +178,9 @@
      A nested backdrop-filter would filter its parent instead of the page, so a separate
      list could never be given the same transparency as the bar. */
   flex-direction: column;
-  border: 1px solid rgba(180, 180, 180, 0.2);
-  border-radius: 12px;
-  background-color: rgba(30, 30, 30, 0.92);
+  border: 1px solid var(--keymove-border, rgba(180, 180, 180, 0.2));
+  border-radius: var(--keymove-radius-surface, 12px);
+  background-color: var(--keymove-surface, rgba(30, 30, 30, 0.92));
   box-shadow: none;
   backdrop-filter: blur(16px);
   cursor: grab;
@@ -120,14 +199,14 @@
 
 .keymove-resize-handle-left {
   left: 0;
-  border-top-left-radius: 12px;
-  border-bottom-left-radius: 12px;
+  border-top-left-radius: var(--keymove-radius-surface, 12px);
+  border-bottom-left-radius: var(--keymove-radius-surface, 12px);
 }
 
 .keymove-resize-handle-right {
   right: 0;
-  border-top-right-radius: 12px;
-  border-bottom-right-radius: 12px;
+  border-top-right-radius: var(--keymove-radius-surface, 12px);
+  border-bottom-right-radius: var(--keymove-radius-surface, 12px);
 }
 
 /* Lifts the element so the bar itself stays where it was put, and the list grows upwards. */
@@ -171,9 +250,9 @@
 
 .keymove-settings-button:focus-visible,
 .keymove-mode-button:focus-visible {
-  outline: 2px solid white;
+  outline: 2px solid var(--keymove-text-primary, white);
   outline-offset: 3px;
-  border-radius: 3px;
+  border-radius: var(--keymove-radius-badge, 3px);
 }
 
 #keymove-input-container {
@@ -183,17 +262,24 @@
   flex: 1;
   height: 60%;
   margin-left: 15px;
-  font-size: 13px;
-  line-height: 1.35em;
+  font-size: var(--keymove-font-size, 13px);
+  line-height: var(--keymove-line-height, 1.35);
 }
 
 #keymove-input,
 #keymove-matches-summary,
 .keymove-tooltip-panel {
-  color: white;
-  font-family: 'Helvetica Neue', Helvetica, Arial, 'Lucida Grande', sans-serif;
-  font-size: 13px;
-  line-height: 1.35em;
+  color: var(--keymove-text-primary, white);
+  font-family: var(
+    --keymove-font-ui,
+    'Helvetica Neue',
+    Helvetica,
+    Arial,
+    'Lucida Grande',
+    sans-serif
+  );
+  font-size: var(--keymove-font-size, 13px);
+  line-height: var(--keymove-line-height, 1.35);
 }
 
 #keymove-input {
@@ -215,23 +301,23 @@
   flex: none;
   margin-left: 6px;
   color: var(--keymove-text-secondary, rgba(255, 255, 255, 0.75));
-  font-size: 11px;
+  font-size: var(--keymove-font-caption, 11px);
   white-space: nowrap;
 }
 
 .keymove-action-menu {
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 8px;
-  color: white;
-  border-top: 1px solid rgba(180, 180, 180, 0.2);
+  padding: var(--keymove-space-2, 8px);
+  color: var(--keymove-text-primary, white);
+  border-top: 1px solid var(--keymove-border, rgba(180, 180, 180, 0.2));
   cursor: default;
 }
 
 .keymove-action-menu-above {
   order: -1;
   border-top: none;
-  border-bottom: 1px solid rgba(180, 180, 180, 0.2);
+  border-bottom: 1px solid var(--keymove-border, rgba(180, 180, 180, 0.2));
 }
 
 .keymove-action-menu-footer {
@@ -241,7 +327,7 @@
 }
 
 .keymove-action-menu-footer {
-  font-size: 11px;
+  font-size: var(--keymove-font-caption, 11px);
 }
 
 .keymove-action-menu [role='menuitem'] {
@@ -250,10 +336,10 @@
   gap: 9px;
   width: 100%;
   min-height: 36px;
-  padding: 8px 10px;
+  padding: var(--keymove-space-2, 8px) 10px;
   border: none;
-  border-radius: 5px;
-  color: white;
+  border-radius: var(--keymove-radius-control, 6px);
+  color: var(--keymove-text-primary, white);
   background: transparent;
   font: inherit;
   text-align: left;
@@ -282,8 +368,8 @@
   flex: none;
   box-sizing: border-box;
   height: 44px;
-  padding: 4px 5px 5px;
-  border-top: 1px solid rgba(180, 180, 180, 0.2);
+  padding: var(--keymove-space-1, 4px) 5px 5px;
+  border-top: 1px solid var(--keymove-border, rgba(180, 180, 180, 0.2));
 }
 
 .keymove-action-menu-result .keymove-suggestion-body {
@@ -299,11 +385,11 @@
 
 .keymove-action-menu [role='menuitem']:hover,
 .keymove-action-menu [role='menuitem']:focus {
-  background: rgb(65, 65, 65);
+  background: var(--keymove-selected, rgb(65, 65, 65));
 }
 
 .keymove-action-menu [role='menuitem']:focus-visible {
-  outline: 2px solid rgba(255, 255, 255, 0.8);
+  outline: 2px solid var(--keymove-focus, rgba(255, 255, 255, 0.85));
   outline-offset: -2px;
 }
 
@@ -313,7 +399,7 @@
 }
 
 .keymove-action-menu [role='status']:not(:empty) {
-  padding: 8px 10px;
+  padding: var(--keymove-space-2, 8px) 10px;
 }
 
 #keymove-matches-summary {
@@ -334,7 +420,7 @@
   z-index: 2147483003;
   display: block;
   border: 2px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--keymove-radius-control, 6px);
   pointer-events: none;
 }
 
@@ -364,7 +450,7 @@
   height: 36px;
   padding: 0;
   border: none;
-  border-radius: 7px;
+  border-radius: var(--keymove-radius-button, 7px);
   background: transparent;
   color: var(--keymove-text-tertiary, rgba(255, 255, 255, 0.65));
   cursor: pointer;
@@ -373,11 +459,11 @@
 
 .keymove-icon-button:hover,
 .keymove-icon-button:focus-visible {
-  background-color: rgba(45, 45, 45, 0.25);
+  background-color: var(--keymove-icon-hover, rgba(45, 45, 45, 0.25));
 }
 
 .keymove-icon-button:focus-visible {
-  outline: 2px solid rgba(255, 255, 255, 0.85);
+  outline: 2px solid var(--keymove-focus, rgba(255, 255, 255, 0.85));
   outline-offset: 1px;
 }
 
@@ -391,8 +477,8 @@
   max-height: calc(100vh - 16px);
   overflow: auto;
   z-index: 2147483004;
-  border-radius: 12px;
-  background-color: rgba(30, 30, 30, 0.92);
+  border-radius: var(--keymove-radius-surface, 12px);
+  background-color: var(--keymove-surface, rgba(30, 30, 30, 0.92));
   backdrop-filter: blur(16px);
 }
 
@@ -400,18 +486,18 @@
   position: fixed;
   z-index: 2147483004;
   border-style: solid;
-  border-color: rgba(30, 30, 30, 0.92) transparent;
+  border-color: var(--keymove-surface, rgba(30, 30, 30, 0.92)) transparent;
 }
 
 #keymove-info-panel {
   width: 100%;
-  padding: 20px;
+  padding: var(--keymove-space-5, 20px);
 }
 
 .keymove-info-panel-section-header {
   margin-bottom: 10px;
   color: var(--keymove-text-tertiary, rgba(255, 255, 255, 0.65));
-  font-size: 13px;
+  font-size: var(--keymove-font-size, 13px);
   font-weight: 500;
 }
 
@@ -426,19 +512,22 @@
 }
 
 .keymove-info-panel-row {
-  padding: 4px 0;
-  color: white;
-  font-size: 13px;
+  padding: var(--keymove-space-1, 4px) 0;
+  color: var(--keymove-text-primary, white);
+  font-size: var(--keymove-font-size, 13px);
   font-weight: 400;
   letter-spacing: normal;
-  line-height: 1.35em;
+  line-height: var(--keymove-line-height, 1.35);
   display: flex;
   align-items: center;
   padding-left: 15px;
 }
 
 .keymove-info-panel-setting-row {
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: var(--keymove-setting-control, 16px) minmax(0, 1fr);
+  column-gap: var(--keymove-setting-gap, 12px);
+  align-items: start;
 }
 
 .keymove-info-panel-shortcut-key {
@@ -447,11 +536,11 @@
   height: 22px;
   margin-right: 5px;
   margin-left: 0;
-  padding: 0 4px;
-  border: 2px solid white;
-  border-radius: 4px;
-  color: white;
-  font-size: 12px;
+  padding: 0 var(--keymove-space-1, 4px);
+  border: 2px solid var(--keymove-text-primary, white);
+  border-radius: var(--keymove-radius-small, 4px);
+  color: var(--keymove-text-primary, white);
+  font-size: var(--keymove-font-small, 12px);
   font-weight: 500;
   line-height: 18px;
   text-align: center;
@@ -467,55 +556,55 @@
 
 .keymove-info-panel-shortcut-row {
   flex-wrap: wrap;
-  row-gap: 4px;
+  row-gap: var(--keymove-space-1, 4px);
 }
 
 .keymove-info-panel-shortcut-separator {
   margin-right: 5px;
   color: var(--keymove-text-tertiary, rgba(255, 255, 255, 0.65));
-  font-size: 12px;
+  font-size: var(--keymove-font-small, 12px);
   line-height: 22px;
 }
 
 .keymove-info-panel-setting-text {
-  flex: 1;
+  min-width: 0;
 }
 
 .keymove-info-panel-setting-description {
   margin-top: 5px;
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 12px;
+  color: var(--keymove-text-description, rgba(255, 255, 255, 0.7));
+  font-size: var(--keymove-font-small, 12px);
 }
 
 .keymove-info-panel-setting-checkbox {
   width: 16px;
   height: 16px;
-  margin: 2px 12px 0 0;
+  margin: 2px 0 0;
   appearance: auto;
   cursor: pointer;
 }
 
 .keymove-info-panel-reset-position-button {
   margin: 10px 0 0 15px;
-  padding: 7px 12px;
+  padding: 7px var(--keymove-space-3, 12px);
   border: none;
-  border-radius: 6px;
-  background-color: rgba(255, 255, 255, 0.15);
-  color: white;
+  border-radius: var(--keymove-radius-control, 6px);
+  background-color: var(--keymove-control-bg, rgba(255, 255, 255, 0.15));
+  color: var(--keymove-text-primary, white);
   cursor: pointer;
   font: inherit;
 }
 
 .keymove-info-panel-reset-position-button:hover,
 .keymove-info-panel-reset-position-button:focus-visible {
-  background-color: rgba(255, 255, 255, 0.22);
-  outline: 2px solid rgba(255, 255, 255, 0.85);
+  background-color: var(--keymove-control-hover, rgba(255, 255, 255, 0.22));
+  outline: 2px solid var(--keymove-focus, rgba(255, 255, 255, 0.85));
 }
 
 .keymove-info-panel-button-row {
   display: flex;
   align-items: center;
-  margin: 12px 9px 0;
+  margin: var(--keymove-space-3, 12px) 9px 0;
 }
 
 .keymove-info-panel-button {
@@ -525,22 +614,22 @@
   margin: 0 6px;
   padding: 7px 15px;
   border: none;
-  border-radius: 7px;
+  border-radius: var(--keymove-radius-button, 7px);
   outline: none;
   appearance: none;
-  background-color: rgba(255, 255, 255, 0.15);
-  color: white;
-  font-size: 13px;
+  background-color: var(--keymove-control-bg, rgba(255, 255, 255, 0.15));
+  color: var(--keymove-text-primary, white);
+  font-size: var(--keymove-font-size, 13px);
   font-weight: 500;
   letter-spacing: normal;
-  line-height: 1.35em;
+  line-height: var(--keymove-line-height, 1.35);
   text-decoration: none;
   white-space: nowrap;
 }
 
 .keymove-info-panel-button:hover {
-  background-color: rgba(255, 255, 255, 0.22);
-  color: white;
+  background-color: var(--keymove-control-hover, rgba(255, 255, 255, 0.22));
+  color: var(--keymove-text-primary, white);
   text-decoration: none;
 }
 
@@ -562,7 +651,7 @@
 
 .keymove-info-panel-button:hover svg,
 .keymove-icon-button:hover svg {
-  fill: white;
+  fill: var(--keymove-text-primary, white);
 }
 
 #keymove-visibility-tooltip {
@@ -570,19 +659,19 @@
   flex-direction: column;
   align-items: center;
   padding: 15px;
-  color: white;
-  font-size: 13px;
+  color: var(--keymove-text-primary, white);
+  font-size: var(--keymove-font-size, 13px);
   font-weight: 400;
   text-align: center;
 }
 
 :host(.keymove-firefox) #keymove-container,
 :host(.keymove-firefox) .keymove-tooltip-panel {
-  background-color: rgba(30, 30, 30, 0.95);
+  background-color: var(--keymove-surface-firefox, rgba(30, 30, 30, 0.95));
 }
 
 :host(.keymove-firefox) .keymove-tooltip-arrow {
-  border-color: rgba(30, 30, 30, 0.95) transparent;
+  border-color: var(--keymove-surface-firefox, rgba(30, 30, 30, 0.95)) transparent;
 }
 
 .keymove-suggestions {
@@ -590,20 +679,20 @@
   overscroll-behavior: contain;
   padding: 5px;
   /* No background of its own: it sits inside the bar's, which is what keeps them identical. */
-  border-top: 1px solid rgba(180, 180, 180, 0.2);
+  border-top: 1px solid var(--keymove-border, rgba(180, 180, 180, 0.2));
   cursor: default;
 }
 
 .keymove-suggestions-above {
   order: -1;
   border-top: none;
-  border-bottom: 1px solid rgba(180, 180, 180, 0.2);
+  border-bottom: 1px solid var(--keymove-border, rgba(180, 180, 180, 0.2));
 }
 
 .keymove-suggestions-empty {
   min-height: 34px;
-  padding: 7px 8px;
-  color: rgba(255, 255, 255, 0.5);
+  padding: 7px var(--keymove-space-2, 8px);
+  color: var(--keymove-text-muted, rgba(255, 255, 255, 0.5));
 }
 
 .keymove-suggestion {
@@ -611,13 +700,13 @@
   grid-template-columns: 18px 44px minmax(0, 1fr);
   gap: 9px;
   align-items: center;
-  padding: 7px 8px;
-  border-radius: 6px;
-  color: white;
+  padding: 7px var(--keymove-space-2, 8px);
+  border-radius: var(--keymove-radius-control, 6px);
+  color: var(--keymove-text-primary, white);
 }
 
 .keymove-suggestion-selected {
-  background-color: rgb(65, 65, 65);
+  background-color: var(--keymove-selected, rgb(65, 65, 65));
 }
 
 .keymove-suggestions-with-hints .keymove-suggestion {
@@ -634,10 +723,10 @@
   align-items: center;
   justify-content: center;
   height: 20px;
-  border-radius: 4px;
-  background-color: rgba(255, 255, 255, 0.14);
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 11px;
+  border-radius: var(--keymove-radius-small, 4px);
+  background-color: var(--keymove-badge-bg, rgba(255, 255, 255, 0.14));
+  color: var(--keymove-badge-text, rgba(255, 255, 255, 0.8));
+  font-size: var(--keymove-font-caption, 11px);
   font-weight: 700;
   line-height: 1;
 }
@@ -648,22 +737,22 @@
   justify-content: center;
   height: 20px;
   padding: 0 5px;
-  border-radius: 3px;
-  font-size: 10px;
+  border-radius: var(--keymove-radius-badge, 3px);
+  font-size: var(--keymove-font-badge, 10px);
   line-height: 1;
   letter-spacing: 0.4px;
   white-space: nowrap;
 }
 
 .keymove-suggestion-kind-action {
-  background-color: rgba(29, 79, 60, 0.9);
-  color: rgb(143, 224, 189);
+  background-color: var(--keymove-action-bg, rgba(29, 79, 60, 0.9));
+  color: var(--keymove-action-text, rgb(143, 224, 189));
 }
 
 .keymove-suggestion-kind-text {
-  background-color: rgb(66, 66, 66);
-  border: 1px solid rgb(100, 100, 100);
-  color: rgb(235, 235, 235);
+  background-color: var(--keymove-text-badge-bg, rgb(66, 66, 66));
+  border: 1px solid var(--keymove-text-badge-border, rgb(100, 100, 100));
+  color: var(--keymove-text-badge-text, rgb(235, 235, 235));
 }
 
 #keymove-container[data-layout-locked='true'] {
@@ -675,13 +764,13 @@
 }
 
 .keymove-suggestion-label {
-  color: white;
+  color: var(--keymove-text-primary, white);
 }
 
 .keymove-suggestion-match {
   padding: 0;
-  background-color: rgba(122, 98, 18, 0.9);
-  color: rgb(255, 233, 163);
+  background-color: var(--keymove-match-bg, rgba(122, 98, 18, 0.9));
+  color: var(--keymove-match-text, rgb(255, 233, 163));
 }
 
 /* Keep short descriptions together beside the label. Longer state/landmark descriptions
@@ -691,7 +780,7 @@
   max-width: calc(100% - 7px);
   vertical-align: top;
   margin-left: 7px;
-  color: rgba(255, 255, 255, 0.5);
-  font-size: 11px;
+  color: var(--keymove-text-muted, rgba(255, 255, 255, 0.5));
+  font-size: var(--keymove-font-caption, 11px);
   white-space: normal;
 }

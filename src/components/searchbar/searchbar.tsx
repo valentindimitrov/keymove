@@ -5,6 +5,8 @@ import useDocumentEvent from '../../hooks/use_document_event.js';
 import useHighlights from '../../hooks/use_highlights.js';
 import useKeyboardShortcuts from '../../hooks/use_keyboard_shortcuts.js';
 import useStoredSettings from '../../hooks/use_stored_settings.js';
+import useTheme from '../../hooks/use_theme.js';
+import { usePortalTarget } from './portal.js';
 import useExtensionMessaging from '../../hooks/use_extension_messaging.js';
 import useSearchNavigation, {
   effectiveSearchMode,
@@ -66,6 +68,7 @@ const Searchbar = () => {
   const focusRequested = React.useRef(false);
 
   const {
+    theme,
     suggestionCount,
     autoHide,
     updateAutoHide,
@@ -76,6 +79,8 @@ const Searchbar = () => {
     showAutohideButton,
     lockPositionAndSize,
   } = useStoredSettings();
+  const portalRoot = usePortalTarget()?.getRootNode();
+  useTheme(theme, portalRoot instanceof ShadowRoot ? portalRoot.host : null);
   const defaultSearchMode = startInActionMode ? SEARCH_MODES.ACTIONS : SEARCH_MODES.TEXT;
   // Seeded with the reducer's initial mode, not the first computed default, so a stored
   // default that is already loaded on the first render still gets adopted.

@@ -1,5 +1,7 @@
 import React from 'react';
 import useStoredSettings from '../../hooks/use_stored_settings.js';
+import useTheme from '../../hooks/use_theme.js';
+import ThemeSetting from './theme_setting.js';
 import useHighlightColors from '../../hooks/use_highlight_colors.js';
 import usePopupPosition from '../../hooks/use_popup_position.js';
 import usePopupWidth from '../../hooks/use_popup_width.js';
@@ -21,6 +23,8 @@ const PopupSettings = () => {
   const {
     tooltipsMode,
     updateTooltipsMode,
+    theme,
+    updateTheme,
     suggestionCount,
     updateSuggestionCount,
     autoHide,
@@ -36,6 +40,7 @@ const PopupSettings = () => {
     lockPositionAndSize,
     updateLockPositionAndSize,
   } = useStoredSettings();
+  useTheme(theme, document.documentElement);
   const { position, updatePosition, resetPosition } = usePopupPosition();
   const { width: popupWidth, resetWidth } = usePopupWidth();
   const {
@@ -81,6 +86,7 @@ const PopupSettings = () => {
           </p>
         </div>
       )}
+      <ThemeSetting value={theme} onChange={updateTheme} />
       <InfoPanelSettings
         tooltipsMode={tooltipsMode}
         toggleTooltipsMode={() => updateTooltipsMode(!tooltipsMode)}
