@@ -144,6 +144,45 @@ async function openLinkActionMenu() {
   return { input, link };
 }
 
+test('explicit selection hovers without clicking, survives query edits, and ends on Escape', async () => {
+  const link = document.createElement('a');
+  link.href = '#men';
+  link.textContent = 'Hommes';
+  document.body.append(link);
+  const enter = vi.fn();
+  const leave = vi.fn();
+  const click = vi.fn(event => event.preventDefault());
+  link.addEventListener('mouseenter', enter);
+  link.addEventListener('mouseleave', leave);
+  link.addEventListener('click', click);
+  settingsMocks.startInActionMode = true;
+  searchMocks.findMatches.mockResolvedValue(
+    makeSearchResult({
+      matchingLinksAndButtons: [link],
+      suggestions: [makeRankedMatch({ node: link, term: 'hommes' })],
+    }),
+  );
+  render(<Searchbar />);
+  const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
+  fireEvent.input(input, { target: { value: 'hommes' } });
+  await flushSearch();
+  expect(enter).not.toHaveBeenCalled();
+  fireEvent.keyDown(input, { key: '1', code: 'Digit1', altKey: true });
+  expect(enter).toHaveBeenCalledTimes(1);
+  expect(input).toHaveFocus();
+  expect(click).not.toHaveBeenCalled();
+  fireEvent.keyDown(input, { key: 'Tab', code: 'Tab' });
+  expect(enter).toHaveBeenCalledTimes(1);
+  searchMocks.findMatches.mockResolvedValue(makeSearchResult());
+  fireEvent.input(input, { target: { value: '' } });
+  fireEvent.input(input, { target: { value: 'sneakers' } });
+  await flushSearch();
+  expect(leave).not.toHaveBeenCalled();
+  fireEvent.keyDown(input, { key: 'Escape', code: 'Escape' });
+  expect(leave).toHaveBeenCalledTimes(1);
+});
+
 test('Down opens actions, Up navigates only inside the menu and Escape returns to the query', async () => {
   const { input } = await openLinkActionMenu();
   expect(screen.getByRole('menuitem', { name: 'Open link' })).toHaveFocus();

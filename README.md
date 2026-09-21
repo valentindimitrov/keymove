@@ -26,6 +26,7 @@ a background tab.
 - Copy the URL of a selected link directly from action mode.
 - Find controls through associated form labels, `aria-labelledby`, accessible labels, and image alternative text.
 - Search visible text and controls inside open Shadow DOM components, including nested components and slotted content.
+- Explicitly selecting a result with Tab or Alt+number sends best-effort hover events, so JavaScript hover menus can open without a click. Enter still activates the result. Automatic first matches do not hover; query edits retain the hover until you select elsewhere or end the search. CSS-only `:hover` menus and sites rejecting synthetic events are not supported by this feature.
 - Toggle checkboxes and switches, select radio buttons, submit native buttons, and expand disclosures with Enter.
 - Focus text editors and complex widgets to continue using their own keyboard controls. Disabled controls are marked unavailable and cannot be activated.
 - Search inside an open modal automatically; closing it restores whole-page search without changing a setting.

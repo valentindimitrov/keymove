@@ -50,6 +50,8 @@ export async function openPage(client: ChromiumClient, url: string) {
   return {
     activate: () => client.sendCommand('Target.activateTarget', { targetId }),
     close: () => client.sendCommand('Target.closeTarget', { targetId }),
+    movePointer: (x: number, y: number) =>
+      client.sendCommand('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y }, session),
     setColorScheme: (value: 'light' | 'dark' | '') =>
       client.sendCommand(
         'Emulation.setEmulatedMedia',

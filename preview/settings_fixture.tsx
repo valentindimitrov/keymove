@@ -45,6 +45,10 @@ export default function SettingsPreview() {
       <div className="keymove-theme-preview">
         <PopupSettingsView
           hostname="github.com"
+          onShowSearch={async () => {}}
+          searchUnavailable={
+            sites['github.com'] === 'paused' ? 'Paused on this site. Resume in Sites.' : null
+          }
           settings={{
             ...settings,
             updateAlwaysOn: update('alwaysOn'),

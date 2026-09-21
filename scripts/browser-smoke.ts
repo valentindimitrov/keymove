@@ -14,9 +14,15 @@ import { checkActionMenu } from './action-menu-smoke.ts';
 import { checkTooltipsMode } from './tooltips-mode-smoke.ts';
 import { checkDynamicPage } from './dynamic-page-smoke.ts';
 import { checkShadowSearch } from './shadow-search-smoke.ts';
+import { checkSelectionHover } from './selection-hover-smoke.ts';
 import { checkActionFallback } from './action-fallback-smoke.ts';
 import { checkTheme, checkThemePreviews } from './theme-smoke.ts';
-import { settingsTab, setActivation, checkSiteSettings } from './settings-smoke.ts';
+import {
+  settingsTab,
+  setActivation,
+  checkSiteSettings,
+  checkShowSearch,
+} from './settings-smoke.ts';
 
 const shadow = `document.getElementById('keymove-root')?.shadowRoot`;
 const input = `${shadow}?.querySelector('[aria-label="Search page"]')`;
@@ -83,6 +89,10 @@ export async function runBrowserSmoke(client: ChromiumClient, browser: string): 
     await server.listen();
     const origin = server.resolvedUrls?.local[0];
     assert(origin, 'Fixture server did not expose its address');
+    await checkSelectionHover(client, origin);
+    passed.push(
+      'Explicit keyboard hover, submenu search and activation, query retention, cleanup and shadow menus',
+    );
     await checkActionFallback(client, origin);
     passed.push(
       'Temporary text-to-action fallback, Tab/menu navigation, Backspace restoration and Enter focus',
@@ -502,6 +512,10 @@ export async function runBrowserSmoke(client: ChromiumClient, browser: string): 
       await checkSiteSettings(page, popup);
       passed.push(
         'Opening shortcut remaps live; shortcut-only sites preserve page typing; paused sites release all keys; saved overrides can be removed to resume defaults',
+      );
+      await checkShowSearch(page, popup);
+      passed.push(
+        'Settings header opens and focuses the source page searchbar; footer links have equal widths and the website destination',
       );
     }
     console.log(JSON.stringify({ passed, measurements }, null, 2));

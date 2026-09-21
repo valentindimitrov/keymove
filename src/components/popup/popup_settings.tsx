@@ -16,6 +16,10 @@ import ThemeSetting from './theme_setting.js';
 import SettingsTabs from './settings_tabs.js';
 import OpeningShortcutSetting from './opening_shortcut_setting.js';
 import SiteSettings from './site_settings.js';
+import ShowSearchButton from './show_search_button.js';
+import ExtensionMessageTypes from '../../extension_message_types.js';
+import { isRecord } from '../../lib/runtime_schema.js';
+import { isInjectableUrl } from '../../lib/extension_tabs.js';
 import { openingShortcutKeys, siteHostname } from '../../lib/interaction_settings_schema.js';
 import Utils from '../../lib/utils.js';
 import { EXTENSION_NAME } from '../../extension_identity.js';
@@ -28,6 +32,8 @@ export type PopupSettingsModel = {
   position: ReturnType<typeof usePopupPosition>;
   width: ReturnType<typeof usePopupWidth>;
   hostname: string | null;
+  onShowSearch: () => Promise<void>;
+  searchUnavailable: string | null;
 };
 
 export function PopupSettingsView({
@@ -37,6 +43,8 @@ export function PopupSettingsView({
   position,
   width,
   hostname,
+  onShowSearch,
+  searchUnavailable,
 }: PopupSettingsModel) {
   const activationId = React.useId();
   return (
@@ -46,7 +54,7 @@ export function PopupSettingsView({
           <Logo aria-hidden="true" />
           {EXTENSION_NAME}
         </span>
-        <span>Settings</span>
+        <ShowSearchButton onShow={onShowSearch} unavailable={searchUnavailable} />
       </header>
       {interaction.error && <p role="alert">{interaction.error}</p>}
       <SettingsTabs>
@@ -127,13 +135,23 @@ export function PopupSettingsView({
                 >
                   Reset highlight colours
                 </button>
-                <InfoPanelSettingRow
-                  label="Show autohide button"
-                  description="Keep the eye icon in the searchbar."
-                  value={s.showAutohideButton}
-                  onChange={() => s.updateShowAutohideButton(!s.showAutohideButton)}
-                />
-                <h2 className="keymove-settings-heading">Searchbar position and size</h2>
+                <div className="keymove-autohide-setting">
+                  <InfoPanelSettingRow
+                    label="Show autohide button"
+                    description="Keep the eye icon in the searchbar."
+                    value={s.showAutohideButton}
+                    onChange={() => s.updateShowAutohideButton(!s.showAutohideButton)}
+                  />
+                </div>
+                <h2 className="keymove-settings-heading keymove-layout-heading">
+                  Searchbar position and size
+                </h2>
+                <p className="keymove-popup-hint keymove-layout-hint">
+                  Choose where the search bar appears using the nine squares.
+                  {s.tooltipsMode &&
+                    !s.lockPositionAndSize &&
+                    ' Drag the right edge of the searchbar to resize it.'}
+                </p>
                 <PopupPositionGrid
                   position={position.position}
                   updatePosition={position.updatePosition}
@@ -145,11 +163,9 @@ export function PopupSettingsView({
                   value={s.lockPositionAndSize}
                   onChange={() => s.updateLockPositionAndSize(!s.lockPositionAndSize)}
                 />
-                {(s.tooltipsMode || s.lockPositionAndSize) && (
+                {s.lockPositionAndSize && (
                   <p className="keymove-popup-hint">
-                    {s.lockPositionAndSize
-                      ? 'Position and size are locked. Currently ' + width.width + ' pixels wide.'
-                      : 'Drag the right edge of the searchbar to resize it.'}
+                    {'Position and size are locked. Currently ' + width.width + ' pixels wide.'}
                   </p>
                 )}
                 <button
@@ -210,6 +226,8 @@ export default function PopupSettings() {
   const width = usePopupWidth();
   useTheme(settings.theme, document.documentElement);
   const [hostname, setHostname] = React.useState<string | null>(null);
+  const [targetId, setTargetId] = React.useState<number | null>(null);
+  const [targetReady, setTargetReady] = React.useState(false);
   React.useEffect(() => {
     let active = true;
     void Promise.all([
@@ -219,15 +237,28 @@ export default function PopupSettings() {
       .then(async ([tabs, settingsTab]) => {
         // A toolbar popup has no owning tab. A fallback settings tab does, but its URL
         // is withheld without the broad tabs permission; use its own opener instead.
-        let current = settingsTab ? null : siteHostname(tabs[0]?.url ?? '');
-        if (typeof settingsTab?.openerTabId === 'number') {
-          const opener = await browser.tabs.get(settingsTab.openerTabId);
-          current = siteHostname(opener.url ?? '');
+        let target: unknown = settingsTab ? null : Array.isArray(tabs) ? tabs[0] : null;
+        if (isRecord(settingsTab) && validTabId(settingsTab['openerTabId'])) {
+          target = await browser.tabs.get(settingsTab['openerTabId']);
         }
-        if (active) setHostname(current);
+        if (active) {
+          const url = isRecord(target) && typeof target['url'] === 'string' ? target['url'] : '';
+          setHostname(siteHostname(url));
+          setTargetId(
+            isRecord(target) && validTabId(target['id']) && isInjectableUrl(url)
+              ? target['id']
+              : null,
+          );
+        }
       })
       .catch(() => {
-        if (active) setHostname(null);
+        if (active) {
+          setHostname(null);
+          setTargetId(null);
+        }
+      })
+      .finally(() => {
+        if (active) setTargetReady(true);
       });
     return () => {
       active = false;
@@ -241,6 +272,50 @@ export default function PopupSettings() {
       position={position}
       width={width}
       hostname={hostname}
+      searchUnavailable={
+        !targetReady || !interaction.ready
+          ? 'Loading page settings…'
+          : targetId === null
+            ? 'KeyMove is not available on this page.'
+            : hostname &&
+                Object.hasOwn(interaction.sites, hostname) &&
+                interaction.sites[hostname] === 'paused'
+              ? 'Paused on this site. Resume in Sites.'
+              : null
+      }
+      onShowSearch={async () => {
+        if (targetId === null) throw new Error('KeyMove is not available on this page.');
+        let response: unknown;
+        try {
+          const tab: unknown = await browser.tabs.get(targetId);
+          if (!isRecord(tab) || typeof tab['url'] !== 'string' || !isInjectableUrl(tab['url'])) {
+            throw new Error('Unsupported page');
+          }
+          response = await browser.tabs.sendMessage(
+            targetId,
+            { type: ExtensionMessageTypes.SHOW_SEARCHBAR },
+            { frameId: 0 },
+          );
+        } catch {
+          throw new Error('Could not reach KeyMove on this page. Refresh the page and try again.');
+        }
+        if (isRecord(response) && Object.hasOwn(response, 'status')) {
+          if (response['status'] === 'paused')
+            throw new Error('Paused on this site. Resume in Sites.');
+          if (response['status'] === 'loading')
+            throw new Error('KeyMove is still loading. Try again.');
+          if (response['status'] === 'shown') {
+            await browser.tabs.update(targetId, { active: true });
+            window.close();
+            return;
+          }
+        }
+        throw new Error('KeyMove could not open. Refresh the page and try again.');
+      }}
     />
   );
+}
+
+function validTabId(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0;
 }

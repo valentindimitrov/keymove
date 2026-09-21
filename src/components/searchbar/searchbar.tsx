@@ -20,6 +20,7 @@ import usePopupWidth from '../../hooks/use_popup_width.js';
 import useSuggestions, { describeAll } from '../../hooks/use_suggestions.js';
 import useHighlightColors from '../../hooks/use_highlight_colors.js';
 import useSearchOrigin from '../../hooks/use_search_origin.js';
+import useSelectionHover from '../../hooks/use_selection_hover.js';
 
 import Utils from '../../lib/utils.js';
 import { isActionDisabled } from '../../lib/searchable_attributes.js';
@@ -67,6 +68,7 @@ const Searchbar = () => {
     discard: discardOrigin,
   } = useSearchOrigin();
   const focusRequested = React.useRef(false);
+  const selectionHover = useSelectionHover();
 
   const {
     theme,
@@ -187,12 +189,13 @@ const Searchbar = () => {
   }, []);
 
   const resetSearchTextAndMatches = React.useCallback(() => {
+    selectionHover.clear();
     setMenuTarget(null);
     cancelPendingSearch();
     setSearchText('');
     resetSearchNavigation(defaultSearchMode);
     Utils.clearPageSelection();
-  }, [cancelPendingSearch, resetSearchNavigation, defaultSearchMode]);
+  }, [cancelPendingSearch, resetSearchNavigation, defaultSearchMode, selectionHover]);
 
   const hide = React.useCallback(() => {
     discardOrigin();
@@ -404,8 +407,22 @@ const Searchbar = () => {
         Utils.clearPageSelection();
       }
       setScrollOrResizeRefresh(refresh => !refresh);
+      // Only explicit navigation comes through here; automatic query results never hover.
+      selectionHover.select(
+        mode === SEARCH_MODES.TEXT
+          ? (matchingText[index]?.action ?? matches[index] ?? null)
+          : (matches[index] ?? null),
+      );
     },
-    [matchingTextNodes, matchingLinksAndButtons, setMode, setSelectedIndex, rememberOrigin],
+    [
+      matchingTextNodes,
+      matchingText,
+      matchingLinksAndButtons,
+      setMode,
+      setSelectedIndex,
+      rememberOrigin,
+      selectionHover,
+    ],
   );
 
   const selectNextMatchingNode = React.useCallback(
@@ -786,9 +803,10 @@ const Searchbar = () => {
   }, [searchText, scheduleSearch]);
 
   const hasSearchQuery = searchText.trimStart().length > 0;
-  const refreshSearchOnPageChange = React.useEffectEvent((preserveSelection = true) =>
-    scheduleSearch(preserveSelection),
-  );
+  const refreshSearchOnPageChange = React.useEffectEvent((preserveSelection = true) => {
+    selectionHover.reconcile();
+    scheduleSearch(preserveSelection);
+  });
   React.useEffect(() => {
     const closed = previousMenuTarget.current !== null && menuTarget === null;
     previousMenuTarget.current = menuTarget;
@@ -927,7 +945,15 @@ const Searchbar = () => {
     enabled: highlightMatches,
     color: highlightColors[SEARCH_MODES.TEXT],
   });
-  useExtensionMessaging();
+  useExtensionMessaging(
+    React.useCallback(() => {
+      if (!interaction.ready) return 'loading';
+      if (paused) return 'paused';
+      setMenuTarget(null);
+      revealAndFocus();
+      return 'shown';
+    }, [interaction.ready, paused, revealAndFocus]),
+  );
 
   React.useEffect(() => {
     if (!actionMenuOpen) return undefined;

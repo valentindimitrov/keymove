@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { writeFileSync } from 'node:fs';
+import path from 'node:path';
 import { waitFor, type TestPage } from './browser-driver.ts';
 
 export async function settingsTab(popup: TestPage, name: string) {
@@ -28,11 +30,13 @@ export async function checkSiteSettings(page: TestPage, popup: TestPage) {
     const current=await chrome.tabs.getCurrent();const tabs=await chrome.tabs.query({});
     const source=tabs.find(tab => tab.url === ${JSON.stringify(pageUrl)});
     await chrome.tabs.update(current.id,{openerTabId:source.id});
-    document.documentElement.dataset.reloading='true';location.reload();
+    document.documentElement.dataset.reloading='true';
+    // Let this awaited browser-API evaluation return before destroying its context.
+    setTimeout(() => location.reload(), 50);
   })()`);
   await waitFor(
     popup,
-    `!document.documentElement.dataset.reloading && document.querySelector('[role="tab"]')`,
+    `!document.documentElement?.dataset.reloading && document.querySelector('[role="tab"]')`,
   );
   await settingsTab(popup, 'Sites');
   await waitFor(
@@ -79,6 +83,10 @@ export async function checkSiteSettings(page: TestPage, popup: TestPage) {
     await waitFor(page, `${input}.value === 'q'`);
     await chooseSite('paused');
     await waitFor(page, `${container}.dataset.siteBehavior === 'paused' && ${input}.value === ''`);
+    await waitFor(
+      popup,
+      `document.querySelector('.keymove-show-search-button').disabled && document.querySelector('.keymove-show-search').textContent.includes('Resume in Sites')`,
+    );
     await page.key('k', 1);
     await page.key('g');
     assert.equal(await page.evaluate(`${shadow}.activeElement === ${input}`), false);
@@ -101,4 +109,41 @@ export async function checkSiteSettings(page: TestPage, popup: TestPage) {
     );
     await settingsTab(popup, 'General');
   }
+}
+
+export async function checkShowSearch(page: TestPage, popup: TestPage) {
+  const shadow = `document.getElementById('keymove-root').shadowRoot`;
+  const input = `${shadow}.querySelector('[aria-label="Search page"]')`;
+  await page.activate();
+  await waitFor(page, 'document.hasFocus()');
+  await page.key('Escape');
+  await waitFor(page, `${input}.getClientRects().length === 0`);
+  await popup.activate();
+  await waitFor(popup, 'document.hasFocus()');
+  await settingsTab(popup, 'General');
+  await waitFor(popup, `!document.querySelector('.keymove-show-search-button').disabled`);
+  await popup.setViewport(456, 600);
+  const links = await popup.evaluate(
+    `Array.from(document.querySelectorAll('.keymove-popup-links a')).map(a => ({href:a.href, target:a.target, width:a.getBoundingClientRect().width}))`,
+  );
+  assert(Array.isArray(links) && links.length === 3);
+  assert.equal(links[1].href, 'https://keymove.minddevops.eu/');
+  assert.equal(links[0].target, '_blank');
+  assert.equal(links[1].target, '_blank');
+  assert(links.every(link => Math.abs(link.width - links[0].width) < 1));
+  writeFileSync(
+    path.resolve(import.meta.dirname, '../.artifacts/settings-show-search.png'),
+    await popup.screenshot(),
+  );
+  // Return from evaluation before this settings document closes itself.
+  await popup.evaluate(
+    `setTimeout(() => document.querySelector('.keymove-show-search-button').click(), 0)`,
+  );
+  await waitFor(
+    page,
+    `document.hasFocus() && ${input}.getClientRects().length > 0 && ${shadow}.activeElement === ${input}`,
+  );
+  await page.key('q');
+  await waitFor(page, `${input}.value === 'q'`);
+  await page.key('Escape');
 }

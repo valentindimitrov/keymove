@@ -256,15 +256,14 @@ async function checkInputValues(page: TestPage, artifacts: string, native: boole
   await page.key('5');
   assert.equal(await page.evaluate(`document.getElementById('price-minimum').value`), '55');
   await searchAction(page, '55');
-  // This value-only match uses the temporary action fallback. Explicitly choose
-  // actions so the empty-result assertion below tests that mode after mutation.
-  await page.key('s', 1);
   await page.evaluate(`(() => {
     const minimum = document.getElementById('price-minimum');
     minimum.value = '60';
     minimum.dispatchEvent(new Event('input', { bubbles: true }));
   })()`);
-  await waitFor(page, `${status} === 'Actions 0 / 0'`);
+  // This checks value invalidation, whether searchAction explicitly selected actions
+  // or used the temporary fallback. Mode restoration has its own browser regression.
+  await waitFor(page, `${status} === 'Actions 0 / 0' || ${status} === 'Text 0 / 0'`);
   await searchAction(page, '60', 2); // Also matches the visible maximum value, 160.
   await searchAction(page, 'minimum');
   assert.match(

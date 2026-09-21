@@ -2,6 +2,7 @@ import { isRecord } from './lib/runtime_schema.js';
 
 const ExtensionMessageTypes = {
   OPEN_SETTINGS: 'KEYMOVE_OPEN_SETTINGS',
+  SHOW_SEARCHBAR: 'KEYMOVE_SHOW_SEARCHBAR',
   CONTENT_SCRIPT_INSTALLED: 'KEYMOVE_CONTENT_SCRIPT_INSTALLED',
   OPEN_LINK_IN_NEW_TAB: 'KEYMOVE_OPEN_LINK_IN_NEW_TAB',
 } as const;
@@ -13,6 +14,7 @@ type OpenLinkInNewTabMessage = {
 };
 type ExtensionMessage =
   | { type: typeof ExtensionMessageTypes.OPEN_SETTINGS }
+  | { type: typeof ExtensionMessageTypes.SHOW_SEARCHBAR }
   | { type: typeof ExtensionMessageTypes.CONTENT_SCRIPT_INSTALLED }
   | OpenLinkInNewTabMessage;
 
@@ -31,7 +33,8 @@ function isExtensionMessage(value: unknown): value is ExtensionMessage {
   }
   return (
     message['type'] === ExtensionMessageTypes.CONTENT_SCRIPT_INSTALLED ||
-    message['type'] === ExtensionMessageTypes.OPEN_SETTINGS
+    message['type'] === ExtensionMessageTypes.OPEN_SETTINGS ||
+    message['type'] === ExtensionMessageTypes.SHOW_SEARCHBAR
   );
 }
 

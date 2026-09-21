@@ -108,6 +108,16 @@ modes remain inside the active modal; nonmodal panels do not scope search. The e
 host moves inside the modal so native inertness does not block the UI, and returns on close.
 Recheck action availability at activation time, including for actions attached to text results.
 
+## Selection hover
+
+Explicit result navigation sends best-effort pointer/mouse over, enter, out and leave events
+through `SelectionHover`; automatic selection and DOM refreshes must never initiate hover.
+Retain hover during query edits (including an empty query), release shared ancestors only when
+leaving their subtree, and clean up on search reset, unmount, invalid targets or modal changes.
+Use rendered ancestry for slots/open roots and correct related targets. Never click, focus,
+rewrite page CSS or simulate trusted input as a hover fallback. CSS-only `:hover` and handlers
+rejecting synthetic events remain unsupported. Verify with `preview/hover.html` and browser smoke.
+
 ## Open Shadow DOM
 
 `dom_tree.ts` distinguishes DOM ownership (including shadow hosts) from rendered ancestry through
@@ -191,8 +201,10 @@ reaches every open tab on its own. Add settings by extending the stored settings
 the hook, never by sending messages between the popup and content scripts.
 
 Setting `default_popup` means `browser.action.onClicked` never fires. The toolbar icon opens
-the settings popup and cannot also summon the searchbar; `Alt + F` and always-on typing are
-the ways in.
+the settings popup. Its Show KeyMove search bar button sends a validated, top-frame-only request to
+the current page (or the opener of fallback settings tabs), focuses it and closes settings.
+It never overrides a site pause. Settings still persist through storage, not messages.
+`Alt + F` and always-on typing remain the other ways in.
 
 The popup has General, Appearance, Shortcuts and Sites tabs. General's Default activation
 keeps the existing `alwaysOn` boolean. `interaction_settings_schema.ts` validates the
