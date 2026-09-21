@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Shortcut from './shortcut.js';
 import recording from './media/walkthrough.mp4';
 import poster from './media/walkthrough-poster.jpg';
@@ -103,8 +103,33 @@ const chapters = [
 export default function Walkthrough() {
   const video = useRef<HTMLVideoElement>(null);
   const pendingSeek = useRef<number | null>(null);
+  const [recordingUrl, setRecordingUrl] = useState<string>();
   const [time, setTime] = useState(0);
   const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let objectUrl: string | undefined;
+    // The hosted asset can report a zero-length seekable range. A complete local
+    // Blob supports native seeking independently of HTTP byte-range support.
+    async function loadRecording() {
+      try {
+        const response = await fetch(recording, { signal: controller.signal });
+        if (!response.ok) throw new Error('Recording request failed');
+        const blob = await response.blob();
+        if (controller.signal.aborted) return;
+        objectUrl = URL.createObjectURL(blob);
+        setRecordingUrl(objectUrl);
+      } catch {
+        if (!controller.signal.aborted) setFailed(true);
+      }
+    }
+    void loadRecording();
+    return () => {
+      controller.abort();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, []);
   const step = steps.findLast(item => time >= item.time) ?? steps[0];
   const chapterIndex = Math.max(
     0,
@@ -145,6 +170,7 @@ export default function Walkthrough() {
         <div className="walkthrough-screen">
           <video
             ref={video}
+            src={recordingUrl}
             controls
             playsInline
             preload="auto"
@@ -165,10 +191,14 @@ export default function Walkthrough() {
             onSeeked={event => syncTime(event.currentTarget, true)}
             onError={() => setFailed(true)}
           >
-            <source src={recording} type="video/mp4" />
             <track kind="captions" src={captions} srcLang="en" label="English walkthrough" />
             Your browser cannot play this video. Try the interactive demo below.
           </video>
+          {!recordingUrl && !failed && (
+            <p className="walkthrough-loading" role="status">
+              Preparing video…
+            </p>
+          )}
           {failed && (
             <p role="status">
               The recording could not load. <a href="#playground">Try the live demo below.</a>

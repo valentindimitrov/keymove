@@ -31,6 +31,8 @@ the expanded transcript preserves an accessible written account of the input seq
 The player starts paused. Chapter jumps retain the playing or paused state, including requests
 made before metadata loads. The recording leaves two seconds between the opening shortcuts
 in the button chapter and includes a keyframe each second for responsive seeking. It provides
+the video through a fully downloaded Blob URL because the hosted asset can expose only a
+zero-length seekable range. The request is aborted and the URL revoked on unmount. It provides
 native play/pause, seeking/fullscreen, chapter links,
 optional captions and a text transcript. The transcript uses the extension's platform shortcut
 definitions; recorded badges show Alt / Option for both platforms. Keep `walkthrough.tsx`,

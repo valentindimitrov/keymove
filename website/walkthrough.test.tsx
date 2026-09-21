@@ -1,8 +1,41 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import Walkthrough from './walkthrough.js';
 
-afterEach(cleanup);
+const createObjectURL = vi.fn(() => 'blob:walkthrough');
+const revokeObjectURL = vi.fn();
+
+beforeEach(() => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(() => new Promise(() => {})),
+  );
+  vi.stubGlobal('URL', Object.assign(class extends URL {}, { createObjectURL, revokeObjectURL }));
+});
+
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+  vi.clearAllMocks();
+});
+
+it('loads a complete local video for seeking even when the host does not support ranges', async () => {
+  const blob = new Blob(['video'], { type: 'video/mp4' });
+  vi.mocked(fetch).mockResolvedValue({ ok: true, blob: async () => blob } as Response);
+  const video = setup();
+  await waitFor(() => expect(video.getAttribute('src')).toBe('blob:walkthrough'));
+  expect(createObjectURL).toHaveBeenCalledWith(blob);
+  cleanup();
+  expect(revokeObjectURL).toHaveBeenCalledWith('blob:walkthrough');
+});
+
+it('shows the demo fallback if loading the complete recording fails', async () => {
+  vi.mocked(fetch).mockResolvedValue({ ok: false } as Response);
+  setup();
+  await waitFor(() =>
+    expect(screen.getByRole('status')).toHaveTextContent('The recording could not load'),
+  );
+});
 
 it('lets timeline scrubbing supersede an unfinished chapter jump', () => {
   const video = setup();

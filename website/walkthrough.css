@@ -14,9 +14,19 @@
   background: var(--site-panel, #ececf4);
 }
 .walkthrough-screen {
+  position: relative;
   grid-area: screen;
   min-width: 0;
   background: var(--site-page, #f7f7fb);
+}
+.walkthrough-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  background: rgb(255 255 255 / 85%);
+  color: #303030;
 }
 .walkthrough-screen video {
   display: block;
