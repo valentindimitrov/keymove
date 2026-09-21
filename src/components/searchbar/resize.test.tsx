@@ -3,6 +3,31 @@ import React from 'react';
 import DraggableContainer from './draggable_container.js';
 import { MAX_CONTAINER_WIDTH, MIN_CONTAINER_WIDTH } from '../../constants.js';
 
+test.each(['', 'coffee'])(
+  'clicking the search input containing %j preserves native focus and selection',
+  value => {
+    const inputRef = React.createRef<HTMLInputElement>();
+    const updatePosition = vi.fn();
+    const view = render(
+      <DraggableContainer
+        width={420}
+        updateWidth={vi.fn()}
+        position={{ x: 0.5, y: 0.5 }}
+        updatePosition={updatePosition}
+        containerRef={React.createRef<HTMLDivElement>()}
+        searchInputRef={inputRef}
+      >
+        <input ref={inputRef} defaultValue={value} aria-label="Search page" />
+      </DraggableContainer>,
+    );
+    const input = view.getByRole('textbox');
+    expect(fireEvent.mouseDown(input, { clientX: 200, clientY: 200 })).toBe(true);
+    fireEvent.mouseMove(document, { clientX: 240, clientY: 210 });
+    fireEvent.mouseUp(document);
+    expect(updatePosition).not.toHaveBeenCalled();
+  },
+);
+
 function renderContainer(width = 420, position = { x: 0.5, y: 0.5 }) {
   const updateWidth = vi.fn();
   const updatePosition = vi.fn();
