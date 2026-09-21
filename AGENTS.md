@@ -62,8 +62,10 @@ artifacts are `.output/chrome-mv3` and `.output/firefox-mv3`.
 7. `page_search_index` also emits all distinct ranked candidates across both kinds. `useSuggestions`
    applies stability before selecting the configured number of mixed suggestions (three by default), retaining its history while a query
    or DOM refresh is pending. Pending rows stay visible but cannot be selected, keeping the pane
-   mounted until fresh results arrive. The frame stays open without shrinking for queries of at
-   least three characters, including completed empty results. Short queries and completed empty results
+   mounted until fresh results arrive. The frame stays open for queries of at least three
+   characters. Pending and completed empty results retain the last completed height; completed
+   nonempty results fit their current rows so shorter descriptions leave no trailing gap.
+   Short queries and completed empty results
    clear history. `ResultsPanel` is a view of the one selection, never a second cursor.
 8. `useSearchNavigation` retains an independent cursor for each mode.
 9. `useHighlights` uses the CSS Custom Highlight API without rewriting host-page DOM.

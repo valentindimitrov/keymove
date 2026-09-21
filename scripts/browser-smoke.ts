@@ -180,7 +180,7 @@ export async function runBrowserSmoke(client: ChromiumClient, browser: string): 
         const observer = new MutationObserver(records => {
           if (records.some(record => Array.from(record.removedNodes).some(node => node === panel || node.contains(panel)))) check.removed = true;
           if (panel.getAttribute('aria-busy') === 'true' && Math.abs(bar.getBoundingClientRect().top - top) > 1) check.shifted = true;
-          if (panel.getBoundingClientRect().height < height - 1) check.collapsed = true;
+          if ((panel.getAttribute('aria-busy') === 'true' || panel.querySelector('.keymove-suggestions-empty')) && panel.getBoundingClientRect().height < height - 1) check.collapsed = true;
         });
         observer.observe(root, { subtree: true, childList: true, attributes: true });
         globalThis.__keymoveStopPanelCheck = () => {
@@ -207,7 +207,7 @@ export async function runBrowserSmoke(client: ChromiumClient, browser: string): 
         samePanel: true,
       });
       passed.push(
-        `${size}: suggestion frame stays mounted without shrinking through typing, deletion and empty results`,
+        `${size}: suggestion frame stays mounted and preserves height for pending and empty results`,
       );
       if (size === 'large') continue;
 

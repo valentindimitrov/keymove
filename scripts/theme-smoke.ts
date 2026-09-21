@@ -98,6 +98,7 @@ export async function checkThemePreviews(client: ChromiumClient, origin: string)
         'theme-settings',
         'slate-above',
         'slate-below',
+        'suggestion-spacing',
         'action-menu-narrow',
       ]) {
         const page = await openPage(client, `${origin}?scenario=${scenario}&theme=${theme}`);
@@ -147,6 +148,30 @@ export async function checkThemePreviews(client: ChromiumClient, origin: string)
           );
           if (scenario === 'slate-above') assert(state.slate!.bottom <= state.bar!.top + 1);
           if (scenario === 'slate-below') assert(state.slate!.top >= state.bar!.bottom - 1);
+          if (scenario === 'suggestion-spacing') {
+            await page.evaluate(
+              `Array.from(${shadow}.querySelectorAll('button')).find(button => button.textContent === 'Use short descriptions').click()`,
+            );
+            for (const count of [5, 4, 3, 2, 1]) {
+              await page.evaluate(`(() => {
+                const select = ${shadow}.querySelector('[aria-label="Results"]');
+                select.value = '${count}';
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+              })()`);
+              await waitFor(
+                page,
+                `${shadow}.querySelectorAll('[role="option"]').length === ${count}`,
+              );
+              const gap = await page.evaluate(`(() => {
+                const panel = ${shadow}.querySelector('.keymove-suggestions');
+                return panel.getBoundingClientRect().bottom - panel.lastElementChild.getBoundingClientRect().bottom;
+              })()`);
+              assert(
+                typeof gap === 'number' && gap >= 4 && gap <= 6,
+                `${count} compact rows must leave only bottom padding at ${width}px; got ${gap}`,
+              );
+            }
+          }
           writeFileSync(
             path.join(artifacts, `${scenario}-${theme}-${width}.png`),
             await page.screenshot(),

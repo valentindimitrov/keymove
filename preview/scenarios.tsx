@@ -349,7 +349,57 @@ const SearchControlsPreview = () => {
   );
 };
 
+const SuggestionSpacingPreview = () => {
+  const [long, setLong] = React.useState(true);
+  const [count, setCount] = React.useState(3);
+  const nodes = React.useMemo(
+    () => Array.from({ length: 5 }, (_, i) => suggestionNode(`Result ${i + 1}`)),
+    [],
+  );
+  return (
+    <>
+      <div style={{ position: 'fixed', top: 20, left: 20 }}>
+        <button onClick={() => setLong(value => !value)}>
+          {long ? 'Use short descriptions' : 'Use long descriptions'}
+        </button>
+        <label>
+          Results
+          <select
+            aria-label="Results"
+            value={count}
+            onChange={event => setCount(Number(event.target.value))}
+          >
+            {[1, 2, 3, 4, 5].map(value => (
+              <option key={value}>{value}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <Bar
+        searchText="result"
+        resultCount={count}
+        y={0.25}
+        suggestions={nodes.slice(0, count).map(node => ({
+          kind: 'action',
+          node,
+          term: 'Result',
+          label: node.textContent!,
+          context: long
+            ? 'link · in Navigation with a long description covering account preferences, notifications, delivery options and instructions that must wrap onto additional lines'
+            : 'link',
+        }))}
+      />
+    </>
+  );
+};
+
 const SCENARIOS: Scenario[] = [
+  {
+    name: 'suggestion-spacing',
+    description:
+      'Switch between tall and compact results and vary the row count to check trailing space.',
+    render: () => <SuggestionSpacingPreview />,
+  },
   {
     name: 'theme-settings',
     description: 'Shared settings grid and live System, Light, and Dark appearance controls.',
