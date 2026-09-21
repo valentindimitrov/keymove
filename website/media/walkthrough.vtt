@@ -4,7 +4,7 @@ WEBVTT
 Focus the KeyMove search bar.
 
 00:02.000 --> 00:06.000
-Type “coffee” to find matching text on the page.
+Type just “cof” to match “coffee” on the page. The whole word is not needed.
 
 00:06.000 --> 00:12.000
 Press Tab to select the next matching text block. Press it again to keep moving.

@@ -15,13 +15,19 @@ const steps = [
   {
     time: 2,
     title: 'Type what you see',
-    detail: '“coffee” finds matching text on the page.',
-    text: 'coffee',
+    detail: 'Just “cof” finds “coffee” on the page. You do not need the whole word.',
+    text: 'cof',
   },
   {
     time: 6,
     title: 'Jump between matches',
     detail: 'Each press of Tab selects the next complete text block.',
+    shortcut: 'next_match',
+  },
+  {
+    time: 9,
+    title: 'Keep moving',
+    detail: 'Press Tab again to select the third matching text block.',
     shortcut: 'next_match',
   },
   {
@@ -87,10 +93,10 @@ const steps = [
 ] as const;
 
 const chapters = [
-  { time: 0, label: 'Open & search' },
+  { time: 0, label: 'Open and search' },
   { time: 6, label: 'Move through the page' },
-  { time: 12, label: 'Find & activate a button' },
-  { time: 28, label: 'Explore the action menu' },
+  { time: 12, label: 'Find and activate a button' },
+  { time: 24, label: 'Explore the action menu' },
   { time: 34, label: 'Open shortcut help' },
 ] as const;
 
@@ -99,6 +105,14 @@ export default function Walkthrough() {
   const [time, setTime] = useState(0);
   const [failed, setFailed] = useState(false);
   const step = steps.findLast(item => time >= item.time) ?? steps[0];
+  const chapterIndex = Math.max(
+    0,
+    chapters.findLastIndex(item => time >= item.time),
+  );
+  const chapter = chapters[chapterIndex] ?? chapters[0];
+  const chapterSteps = steps.filter(
+    item => item.time >= chapter.time && item.time < (chapters[chapterIndex + 1]?.time ?? Infinity),
+  );
 
   function seek(seconds: number, pause = false) {
     const player = video.current;
@@ -140,13 +154,18 @@ export default function Walkthrough() {
           )}
         </div>
         <aside className="walkthrough-guide" aria-label="Walkthrough guide">
-          <div className="walkthrough-caption" aria-live="polite" aria-atomic="true">
-            <span className="eyebrow">ON THE KEYBOARD</span>
-            <div className="walkthrough-keys">
-              {'shortcut' in step ? <Shortcut name={step.shortcut} /> : <kbd>{step.text}</kbd>}
-            </div>
-            <h3>{step.title}</h3>
-            <p>{step.detail}</p>
+          <div className="walkthrough-caption">
+            <h3>{chapter.label}</h3>
+            <ol className="walkthrough-keystrokes" aria-label={`${chapter.label}: input sequence`}>
+              {chapterSteps.map(item => (
+                <li key={item.time} aria-current={item === step ? 'step' : undefined}>
+                  {'shortcut' in item ? <Shortcut name={item.shortcut} /> : <kbd>{item.text}</kbd>}
+                </li>
+              ))}
+            </ol>
+            <p aria-live="polite" aria-atomic="true">
+              {step.detail}
+            </p>
           </div>
           <div className="walkthrough-chapters" role="group" aria-label="Jump to a chapter">
             {chapters.map((chapter, index) => (
@@ -174,8 +193,8 @@ export default function Walkthrough() {
         <summary>Read the walkthrough</summary>
         <ol>
           <li>
-            Open KeyMove with <Shortcut name="focus_searchbar" /> and type “coffee”. The first
-            matching text block is selected.
+            Open KeyMove with <Shortcut name="focus_searchbar" /> and type just “cof”. It matches
+            “coffee” without typing the whole word. The first matching text block is selected.
           </li>
           <li>
             Press <Shortcut name="next_match" /> twice to move through the next two text matches.

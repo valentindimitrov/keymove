@@ -23,6 +23,9 @@ input, text result navigation, button activation, the Arrow Down action menu and
 tooltip. Compact rounded key badges follow the right side of the search field, including while
 the menu opens above it. The recording omits the playground’s onboarding banner and outline;
 these remain available in the live demo. Its MP4 and first-frame poster are in `media/`.
+The extension uses its dark palette against a light sample page for contrast. The first query
+is deliberately only `cof`, demonstrating substring matching. Each chapter lists its complete
+input sequence and marks the current input, including both separate Tab presses.
 The player starts paused and provides
 native play/pause, seeking/fullscreen, chapter links,
 optional captions and a text transcript. The adjacent key labels use the extension's platform

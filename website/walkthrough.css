@@ -26,7 +26,7 @@
 }
 .walkthrough-guide {
   grid-area: guide;
-  padding: 28px 24px;
+  padding: 24px 20px;
   border-right: 1px solid var(--site-line, #d6c5e4);
   display: flex;
   flex-direction: column;
@@ -34,21 +34,31 @@
 .walkthrough-caption {
   min-height: 220px;
 }
-.walkthrough-keys {
-  display: flex;
-  align-items: center;
-  min-height: 66px;
+.walkthrough-keystrokes {
+  padding-left: 26px;
   margin: 12px 0;
+  font-variant-numeric: tabular-nums;
+}
+.walkthrough-keystrokes li {
+  padding: 2px 6px;
+  margin: 2px 0;
+  border-radius: 6px;
+}
+.walkthrough-keystrokes li::marker {
+  color: var(--site-muted, #686878);
+}
+.walkthrough-keystrokes li[aria-current='step'] {
+  background: var(--site-page, #f7f7fb);
   color: var(--site-accent, #933bbf);
 }
-.walkthrough-keys kbd {
-  font-size: 18px;
-  padding: 9px 12px;
+.walkthrough-keystrokes kbd {
+  font-size: 15px;
+  padding: 4px 7px;
   line-height: 1.4;
   white-space: normal;
 }
 .walkthrough-caption h3 {
-  font-size: 20px;
+  font-size: 18px;
   line-height: 1.3;
   margin-bottom: 10px;
 }
@@ -69,7 +79,7 @@
   align-items: baseline;
   gap: 10px;
   text-align: left;
-  padding: 12px 10px;
+  padding: 8px 10px;
   color: inherit;
   font: inherit;
   font-size: 14px;
