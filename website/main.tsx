@@ -144,13 +144,10 @@ function Website() {
             </h1>
             <div className="hero-copy">
               <p>
-                Find the words. Reach the button.
-                <br />
-                Follow the link. Keep your flow.
+                KeyMove is a browser extension that lets you navigate the page with your keyboard.
               </p>
               <p className="muted">
-                KeyMove turns the page into a place
-                <br className="desktop-break" /> you can navigate with your keyboard.
+                Type what you see to jump to text, follow links, or activate buttons.
               </p>
               <button
                 className="primary-button demo-cta"
@@ -318,7 +315,7 @@ function Website() {
           <img src={logo} width="26" height="26" alt="" />
           {identity.name}
         </a>
-        <span>A keyboard-first way through the web. Powered by Comake.</span>
+        <span>A browser extension for in-page keyboard navigation. Powered by Comake.</span>
         <a href="./LICENSE.txt">License & attribution</a>
       </footer>
     </>
