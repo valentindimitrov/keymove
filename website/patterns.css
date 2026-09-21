@@ -1,0 +1,194 @@
+.patterns-page {
+  padding-top: 32px;
+}
+.patterns-back {
+  display: inline-block;
+  margin-bottom: 28px;
+  font-size: 14px;
+  text-underline-offset: 4px;
+  color: var(--site-muted, #686878);
+}
+.patterns-intro .eyebrow {
+  color: var(--site-accent, #933bbf);
+}
+.patterns-intro h1 {
+  font-family: 'Manrope', sans-serif;
+  font-size: clamp(36px, 5vw, 64px);
+  letter-spacing: -2px;
+  line-height: 1.1;
+  margin: 16px 0;
+}
+.patterns-intro > p {
+  max-width: 640px;
+  font-size: 19px;
+  line-height: 1.6;
+  margin-bottom: 18px;
+  color: var(--site-muted, #686878);
+}
+.patterns-status {
+  font-size: 14px;
+  color: var(--site-muted, #686878);
+}
+.patterns-index {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-block: 32px 48px;
+}
+.patterns-index a {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--site-line, #d6c5e4);
+  border-radius: 7px;
+  text-decoration: none;
+  font-size: 14px;
+  background: var(--site-panel, #ececf4);
+}
+.patterns-index a:hover {
+  border-color: var(--site-accent, #933bbf);
+}
+.patterns-index span {
+  color: var(--site-muted, #686878);
+  font-variant-numeric: tabular-nums;
+}
+.pattern-group {
+  margin-bottom: 56px;
+}
+.pattern-group-heading {
+  margin-bottom: 22px;
+}
+.pattern-group-heading p {
+  margin: 10px 0 0;
+  color: var(--site-muted, #686878);
+  line-height: 1.6;
+}
+.pattern-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 22px;
+}
+.pattern-card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--site-line, #d6c5e4);
+  border-radius: 12px;
+  background: var(--site-panel, #ececf4);
+}
+.pattern-placeholder {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--site-page, #f7f7fb);
+  color: var(--site-muted, #686878);
+  border-bottom: 1px dashed var(--site-line, #d6c5e4);
+}
+.pattern-placeholder svg {
+  color: var(--site-accent, #933bbf);
+  margin-bottom: 2px;
+}
+.pattern-placeholder strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+.pattern-placeholder > span:last-child {
+  font-size: 13px;
+}
+.pattern-number {
+  position: absolute;
+  top: 16px;
+  left: 18px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.pattern-content {
+  padding: 24px;
+}
+.pattern-card-title {
+  font-size: 21px;
+  letter-spacing: -0.5px;
+  line-height: 1.3;
+  margin: 0;
+  padding: 20px 24px;
+}
+.pattern-content > p {
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--site-muted, #686878);
+  margin-bottom: 20px;
+}
+.pattern-content ol {
+  padding-left: 20px;
+  font-size: 14px;
+  line-height: 1.7;
+  margin: 0 0 22px;
+}
+.pattern-content li + li {
+  margin-top: 10px;
+}
+.pattern-content li::marker {
+  color: var(--site-accent, #933bbf);
+}
+.pattern-shortcuts {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+}
+.pattern-shortcuts .shortcut-keys {
+  flex-wrap: wrap;
+}
+.pattern-content .pattern-note {
+  border-top: 1px solid var(--site-line, #d6c5e4);
+  padding-top: 16px;
+  margin: 20px 0 0;
+  font-size: 13px;
+  line-height: 1.65;
+}
+.patterns-outro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 28px 0 40px;
+  border-top: 1px solid var(--site-line, #d6c5e4);
+}
+.patterns-outro p {
+  margin: 0;
+  font-size: 20px;
+}
+.site-header [aria-current='page'] {
+  color: var(--site-accent, #933bbf);
+}
+@media (max-width: 1100px) {
+  .pattern-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .site-header nav {
+    gap: 16px;
+  }
+}
+@media (max-width: 600px) {
+  .pattern-grid {
+    grid-template-columns: 1fr;
+  }
+  .patterns-index {
+    margin-bottom: 36px;
+  }
+  .patterns-index a {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .patterns-outro {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .pattern-content {
+    padding: 22px;
+  }
+}

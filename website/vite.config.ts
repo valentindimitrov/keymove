@@ -36,7 +36,11 @@ export default defineConfig({
     outDir: fromHere('../.output/public'),
     emptyOutDir: true,
     rolldownOptions: {
-      input: { main: fromHere('./index.html'), demo: fromHere('./demo.html') },
+      input: {
+        main: fromHere('./index.html'),
+        demo: fromHere('./demo.html'),
+        patterns: fromHere('./patterns.html'),
+      },
     },
   },
 });
