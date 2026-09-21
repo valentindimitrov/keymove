@@ -1,16 +1,6 @@
 .patterns-page {
   padding-top: 32px;
 }
-.patterns-back {
-  display: inline-block;
-  margin-bottom: 28px;
-  font-size: 14px;
-  text-underline-offset: 4px;
-  color: var(--site-muted, #686878);
-}
-.patterns-intro .eyebrow {
-  color: var(--site-accent, #933bbf);
-}
 .patterns-intro h1 {
   font-family: 'Manrope', sans-serif;
   font-size: clamp(36px, 5vw, 64px);
@@ -19,14 +9,9 @@
   margin: 16px 0;
 }
 .patterns-intro > p {
-  max-width: 640px;
   font-size: 19px;
   line-height: 1.6;
   margin-bottom: 18px;
-  color: var(--site-muted, #686878);
-}
-.patterns-status {
-  font-size: 14px;
   color: var(--site-muted, #686878);
 }
 .patterns-index {

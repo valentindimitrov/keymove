@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client';
 import SiteHeader from './site-header.js';
+import SiteFooter from './site-footer.js';
 import Shortcut from './shortcut.js';
 import { patternGroups } from './patterns-data.js';
 import './website.css';
@@ -15,13 +16,8 @@ function PatternsPage() {
       <SiteHeader patterns />
       <main className="patterns-page wrap">
         <div className="patterns-intro">
-          <a className="patterns-back" href="./#playground">
-            Back to the live demo
-          </a>
-          <span className="eyebrow">THE KEYMOVE FIELD GUIDE</span>
           <h1>Navigation patterns</h1>
           <p>Find what you see. Go where you need. Turn a selected word into your next action.</p>
-          <div className="patterns-status">19 patterns · Animated clips coming soon</div>
         </div>
         <nav className="patterns-index" aria-label="Pattern categories">
           {patternGroups.map(group => (
@@ -109,11 +105,7 @@ function PatternsPage() {
           </a>
         </div>
       </main>
-      <footer className="site-footer wrap">
-        <a href="./">KeyMove home</a>
-        <span>Powered by Comake.</span>
-        <a href="./LICENSE.txt">License &amp; attribution</a>
-      </footer>
+      <SiteFooter />
     </>
   );
 }

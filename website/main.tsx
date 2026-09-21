@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import identity from '../src/extension_identity.js';
-import logo from '../assets/logo-64.png';
 
 import { LESSONS, type LessonId } from './protocol.js';
 import Shortcut from './shortcut.js';
 import Walkthrough from './walkthrough.js';
 import SiteHeader from './site-header.js';
+import SiteFooter from './site-footer.js';
 import { KEYMOVE_INPUT_ID, KEYMOVE_ROOT_ID } from '../src/constants.js';
 import './website.css';
 
@@ -248,15 +247,7 @@ function Website() {
           </div>
         </section>
       </main>
-      <footer className="site-footer wrap">
-        <a className="wordmark" href="#">
-          <img src={logo} width="26" height="26" alt="" />
-          {identity.name}
-        </a>
-        <span>A browser extension for in-page keyboard navigation. Powered by Comake.</span>
-        <a href="./LICENSE.txt">License & attribution</a>
-        <a href="./patterns.html">Navigation patterns</a>
-      </footer>
+      <SiteFooter />
     </>
   );
 }
