@@ -29,6 +29,27 @@ optional captions and a text transcript. The adjacent key labels use the extensi
 shortcut definitions. Keep `walkthrough.tsx`, `media/walkthrough.vtt` and the recorded sequence
 in sync when updating the video. Playback is independent of the interactive demo's state.
 
+The navigation-pattern library uses 19 click-to-play H.264 clips, each with native pause,
+seeking, fullscreen, a poster, and WebVTT captions. Starting a clip pauses the others. Video
+data is not preloaded. The steps beneath each player also provide a readable description.
+All clips use this same sample guide, including its planner, labelled checkbox, fields,
+dropdown, disclosure, JavaScript hover menu, native modal, notes area, and walking route.
+
+To record them again, build the Chromium extension, build and serve the website, then run:
+
+```sh
+node scripts/record-patterns.mjs http://127.0.0.1:5182/
+```
+
+The recorder requires installed Vivaldi and FFmpeg on PATH. An optional third argument is a
+comma-separated list of pattern IDs. It runs a temporary copy of the actual production
+extension in an isolated browser profile against `demo.html?extension=installed`; this query
+omits the website-mounted extension so only the installed one handles keys. It records real
+browser screenshots with short reading holds, adds the key/caption band, and checks each
+outcome before encoding. Clipboard clips use native copy/paste; the tab clip verifies the
+extension-created tabs and their active state. Raw frames and verification results stay in
+ignored `.artifacts/pattern-recordings/`; only encoded media is shipped in `media/patterns/`.
+
 Only the website Vite configuration aliases `wxt/browser` to `browser-adapter.ts`. Settings are
 session-only and never access extension storage. New-tab commands explain the installed-extension
 requirement instead of pretending to control browser tab activation. Link activation, controls,

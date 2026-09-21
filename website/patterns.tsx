@@ -2,12 +2,12 @@ import { createRoot } from 'react-dom/client';
 import SiteHeader from './site-header.js';
 import SiteFooter from './site-footer.js';
 import Shortcut from './shortcut.js';
+import PatternClip from './pattern-clip.js';
 import { patternGroups } from './patterns-data.js';
 import './website.css';
 import './patterns.css';
 
 function PatternsPage() {
-  let number = 0;
   return (
     <>
       <a className="skip-link" href="#pattern-library">
@@ -41,7 +41,6 @@ function PatternsPage() {
               </div>
               <div className="pattern-grid">
                 {group.patterns.map(pattern => {
-                  number++;
                   return (
                     <article
                       className="pattern-card"
@@ -52,29 +51,7 @@ function PatternsPage() {
                       <h3 className="pattern-card-title" id={`${pattern.id}-title`}>
                         {pattern.title}
                       </h3>
-                      <div
-                        className="pattern-placeholder"
-                        role="img"
-                        aria-label={`GIF placeholder for ${pattern.title}; animation not yet available`}
-                      >
-                        <span className="pattern-number" aria-hidden="true">
-                          {String(number).padStart(2, '0')}
-                        </span>
-                        <svg
-                          width="32"
-                          height="32"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.4"
-                          aria-hidden="true"
-                        >
-                          <rect x="3" y="4" width="18" height="16" rx="2" />
-                          <path d="M3 8h18M7 4v4M12 4v4M17 4v4M10 12l5 3-5 3z" />
-                        </svg>
-                        <strong>GIF placeholder</strong>
-                        <span>Clip coming soon</span>
-                      </div>
+                      <PatternClip id={pattern.id} title={pattern.title} />
                       <div className="pattern-content">
                         <p>{pattern.description}</p>
                         <ol>

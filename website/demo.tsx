@@ -58,6 +58,24 @@ function SamplePage() {
   const [notice, setNotice] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsHost = useRef<HTMLDivElement>(null);
+  const visitDialog = useRef<HTMLDialogElement>(null);
+  const detours = useRef<HTMLDivElement>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [picnic, setPicnic] = useState(false);
+  const [pace, setPace] = useState('Unhurried');
+  const [visitBooked, setVisitBooked] = useState(false);
+  useEffect(() => {
+    const owner = detours.current;
+    if (!owner) return;
+    const enter = () => setMenuOpen(true);
+    const leave = () => setMenuOpen(false);
+    owner.addEventListener('mouseenter', enter);
+    owner.addEventListener('mouseleave', leave);
+    return () => {
+      owner.removeEventListener('mouseenter', enter);
+      owner.removeEventListener('mouseleave', leave);
+    };
+  }, []);
   useEffect(() => {
     const onNotice = (event: Event) => {
       if (event instanceof CustomEvent && typeof event.detail === 'string') setNotice(event.detail);
@@ -153,6 +171,125 @@ function SamplePage() {
         <div id="checklist" className="sample-status" role="status" aria-live="polite">
           {notice || 'Your next great idea can wait until after coffee.'}
         </div>
+        <section className="sample-planner" aria-labelledby="planner-title">
+          <span className="sample-label">A DAY OF YOUR OWN</span>
+          <h2 id="planner-title">Make it your Saturday.</h2>
+          <div className="sample-planner-grid">
+            <div className="sample-planner-fields">
+              <label className="sample-tick">
+                <input
+                  id="picnic"
+                  type="checkbox"
+                  checked={picnic}
+                  onChange={event => setPicnic(event.target.checked)}
+                />
+                Pack a picnic
+              </label>
+              <label htmlFor="visitor-name">Your name</label>
+              <input id="visitor-name" placeholder="Add your name" autoComplete="off" />
+              <label htmlFor="walking-pace">Walking pace</label>
+              <select
+                id="walking-pace"
+                value={pace}
+                onChange={event => setPace(event.target.value)}
+              >
+                <option>Unhurried</option>
+                <option>Leisurely</option>
+                <option>Brisk</option>
+              </select>
+              <p className="sample-status" aria-live="polite">
+                {picnic ? 'Picnic packed. ' : ''}Today’s pace: {pace.toLowerCase()}.
+              </p>
+            </div>
+            <div className="sample-planner-explore">
+              <details id="rainy-day">
+                <summary>Rainy day ideas</summary>
+                <p>The glasshouse is a quiet spot to read while the rain passes.</p>
+              </details>
+              <div className="sample-detours" ref={detours}>
+                <button
+                  type="button"
+                  aria-expanded={menuOpen}
+                  aria-controls="detour-options"
+                  onClick={() => setMenuOpen(value => !value)}
+                >
+                  Browse detours
+                </button>
+                <div id="detour-options" hidden={!menuOpen}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNotice('Garden detour added to your Saturday.');
+                      setMenuOpen(false);
+                    }}
+                  >
+                    Garden detour
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNotice('Market detour added to your Saturday.');
+                      setMenuOpen(false);
+                    }}
+                  >
+                    Market detour
+                  </button>
+                </div>
+              </div>
+              <button
+                type="button"
+                id="plan-visit"
+                onClick={() => visitDialog.current?.showModal()}
+              >
+                Plan a visit
+              </button>
+              <p className="sample-status" id="visit-status" aria-live="polite">
+                {visitBooked
+                  ? 'Visit confirmed. See you on Saturday.'
+                  : 'A small table, a little time to yourself.'}
+              </p>
+              <a id="route-link" href="#riverside">
+                Read the walking route
+              </a>
+            </div>
+          </div>
+          <label htmlFor="weekend-notes">Weekend notes</label>
+          <textarea id="weekend-notes" rows={3} placeholder="Keep a passage or a link for later…" />
+        </section>
+        <section className="sample-route" id="riverside" aria-labelledby="route-title">
+          <span className="sample-label">THE LONG WAY HOME</span>
+          <h2 id="route-title">At the river bend.</h2>
+          <p>
+            Follow the towpath until the old stone bridge comes into view. The river bend is where
+            the city begins to feel a little further away.
+          </p>
+          <p>
+            Choose a bench beneath the willow, open your book, and stay for one more chapter. Some
+            afternoons are better left unplanned.
+          </p>
+          <a href="#planner-title">Back to your Saturday plan</a>
+        </section>
+        <dialog ref={visitDialog} className="sample-dialog" aria-labelledby="visit-title">
+          <h2 id="visit-title">Your Saturday visit</h2>
+          <p>A table by the window is waiting.</p>
+          <label htmlFor="visit-name">Booking name</label>
+          <input id="visit-name" autoComplete="off" placeholder="Your name" />
+          <div className="sample-dialog-actions">
+            <button
+              type="button"
+              id="confirm-visit"
+              onClick={() => {
+                setVisitBooked(true);
+                visitDialog.current?.close();
+              }}
+            >
+              Confirm visit
+            </button>
+            <button type="button" onClick={() => visitDialog.current?.close()}>
+              Cancel
+            </button>
+          </div>
+        </dialog>
       </main>
       {settingsOpen && (
         <section className="demo-settings" aria-label="Demo settings">
@@ -172,92 +309,98 @@ function SamplePage() {
 
 const page = document.getElementById('sample-page');
 if (page) flushSync(() => createRoot(page).render(<SamplePage />));
-const extension = createExtensionRoot(`${contentStyles}\n${onboardingStyles}`);
-if (!extension) throw new Error('The demo searchbar could not be mounted.');
-const observer = keepExtensionRootConnected(extension.host);
-// Keep onboarding out of the extension runtime and dismiss it for this demo session.
-extension.shadowRoot.addEventListener('input', event => {
-  if (
-    event.target instanceof HTMLInputElement &&
-    event.target.id === KEYMOVE_INPUT_ID &&
-    event.target.value
-  ) {
-    extension.host.setAttribute('data-demo-started', '');
-  }
-});
-const root = createRoot(extension.app);
-flushSync(() =>
-  root.render(
-    <PortalTargetProvider target={extension.portal}>
-      <ExtensionErrorBoundary>
-        <Searchbar />
-      </ExtensionErrorBoundary>
-    </PortalTargetProvider>,
-  ),
-);
-
-function searchInput() {
-  return document
-    .getElementById(KEYMOVE_ROOT_ID)
-    ?.shadowRoot?.querySelector<HTMLInputElement>(`#${KEYMOVE_INPUT_ID}`);
-}
-
-function key(key: string, code: string, altKey = false) {
-  document.dispatchEvent(
-    new KeyboardEvent('keydown', { key, code, altKey, bubbles: true, cancelable: true }),
-  );
-}
-
-window.addEventListener('message', event => {
-  if (
-    event.origin !== location.origin ||
-    event.source !== window.parent ||
-    !isDemoCommand(event.data)
-  )
-    return;
-  const lesson = LESSONS.find(item => item.id === event.data.lesson);
-  if (!lesson) return;
-  void browser.storage.local
-    .set({ startInActionMode: lesson.mode === 'actions', autoHide: false })
-    .then(() => {
-      // Exercise the real input path, including cancellation and highlighting, without
-      // exposing test-only props or a website dependency in the extension runtime.
-      key('Escape', 'Escape');
-      requestAnimationFrame(() => {
-        void showDemoSearch()
-          .then(() => {
-            const input = searchInput();
-            if (!input) return;
-            input.focus({ preventScroll: true });
-            Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(
-              input,
-              lesson.query,
-            );
-            input.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
-          })
-          .catch((error: unknown) =>
-            notifyDemo(
-              error instanceof Error ? error.message : 'Could not open the demo searchbar.',
-            ),
-          );
-      });
-    });
-});
-
-// An explicit exit prevents result navigation from trapping keyboard-only visitors.
-window.addEventListener(
-  'keydown',
-  event => {
+function mountPlayground() {
+  const extension = createExtensionRoot(`${contentStyles}\n${onboardingStyles}`);
+  if (!extension) throw new Error('The demo searchbar could not be mounted.');
+  const observer = keepExtensionRootConnected(extension.host);
+  // Keep onboarding out of the extension runtime and dismiss it for this demo session.
+  extension.shadowRoot.addEventListener('input', event => {
     if (
-      event.isTrusted &&
-      event.key === 'Escape' &&
-      !searchInput()?.value &&
-      !document.querySelector('.demo-settings')
+      event.target instanceof HTMLInputElement &&
+      event.target.id === KEYMOVE_INPUT_ID &&
+      event.target.value
     ) {
-      window.parent.postMessage('keymove-demo:exit', location.origin);
+      extension.host.setAttribute('data-demo-started', '');
     }
-  },
-  true,
-);
-window.addEventListener('pagehide', () => observer.disconnect(), { once: true });
-requestAnimationFrame(() => window.parent.postMessage('keymove-demo:ready', location.origin));
+  });
+  const root = createRoot(extension.app);
+  flushSync(() =>
+    root.render(
+      <PortalTargetProvider target={extension.portal}>
+        <ExtensionErrorBoundary>
+          <Searchbar />
+        </ExtensionErrorBoundary>
+      </PortalTargetProvider>,
+    ),
+  );
+
+  function searchInput() {
+    return document
+      .getElementById(KEYMOVE_ROOT_ID)
+      ?.shadowRoot?.querySelector<HTMLInputElement>(`#${KEYMOVE_INPUT_ID}`);
+  }
+
+  function key(key: string, code: string, altKey = false) {
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key, code, altKey, bubbles: true, cancelable: true }),
+    );
+  }
+
+  window.addEventListener('message', event => {
+    if (
+      event.origin !== location.origin ||
+      event.source !== window.parent ||
+      !isDemoCommand(event.data)
+    )
+      return;
+    const lesson = LESSONS.find(item => item.id === event.data.lesson);
+    if (!lesson) return;
+    void browser.storage.local
+      .set({ startInActionMode: lesson.mode === 'actions', autoHide: false })
+      .then(() => {
+        // Exercise the real input path, including cancellation and highlighting, without
+        // exposing test-only props or a website dependency in the extension runtime.
+        key('Escape', 'Escape');
+        requestAnimationFrame(() => {
+          void showDemoSearch()
+            .then(() => {
+              const input = searchInput();
+              if (!input) return;
+              input.focus({ preventScroll: true });
+              Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(
+                input,
+                lesson.query,
+              );
+              input.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+            })
+            .catch((error: unknown) =>
+              notifyDemo(
+                error instanceof Error ? error.message : 'Could not open the demo searchbar.',
+              ),
+            );
+        });
+      });
+  });
+
+  // An explicit exit prevents result navigation from trapping keyboard-only visitors.
+  window.addEventListener(
+    'keydown',
+    event => {
+      if (
+        event.isTrusted &&
+        event.key === 'Escape' &&
+        !searchInput()?.value &&
+        !document.querySelector('dialog[open]') &&
+        !document.querySelector('.demo-settings')
+      ) {
+        window.parent.postMessage('keymove-demo:exit', location.origin);
+      }
+    },
+    true,
+  );
+  window.addEventListener('pagehide', () => observer.disconnect(), { once: true });
+  requestAnimationFrame(() => window.parent.postMessage('keymove-demo:ready', location.origin));
+}
+
+// Record the same sample page with a separately installed production extension.
+if (new URLSearchParams(location.search).get('extension') !== 'installed') mountPlayground();

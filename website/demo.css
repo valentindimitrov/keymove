@@ -146,6 +146,125 @@ body {
     14px Arial,
     sans-serif;
 }
+.sample-planner,
+.sample-route {
+  margin-top: 80px;
+  padding-top: 30px;
+  border-top: 1px solid var(--demo-line, #e8e7df);
+  scroll-margin-top: 28px;
+}
+.sample-planner h2,
+.sample-route h2,
+.sample-dialog h2 {
+  font-size: 28px;
+  font-weight: normal;
+  margin: 12px 0 24px;
+}
+.sample-planner-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 36px;
+  margin-bottom: 24px;
+}
+.sample-planner label,
+.sample-dialog label {
+  display: block;
+  font:
+    14px/1.5 Arial,
+    sans-serif;
+  margin: 12px 0 7px;
+}
+.sample-planner input:not([type='checkbox']),
+.sample-planner select,
+.sample-planner textarea,
+.sample-dialog input {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid var(--demo-line, #bdc7b6);
+  border-radius: 5px;
+  background: var(--demo-surface, white);
+  color: var(--demo-ink, #333b38);
+  font:
+    15px/1.5 Arial,
+    sans-serif;
+}
+.sample-planner textarea {
+  resize: vertical;
+}
+.sample-planner .sample-tick {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 0;
+}
+.sample-tick input {
+  width: 18px;
+  height: 18px;
+  accent-color: #637e58;
+}
+.sample-planner button,
+.sample-dialog button {
+  padding: 10px 14px;
+  border: 1px solid var(--demo-line, #bdc7b6);
+  border-radius: 5px;
+  background: var(--demo-button, #52684e);
+  color: white;
+  font:
+    14px/1.4 Arial,
+    sans-serif;
+  cursor: pointer;
+}
+.sample-planner details {
+  margin-bottom: 18px;
+}
+.sample-planner summary {
+  padding: 12px 0;
+  cursor: pointer;
+}
+.sample-planner details p,
+.sample-route p {
+  font-size: 16px;
+  line-height: 1.7;
+}
+.sample-detours {
+  margin: 0 0 18px;
+}
+#detour-options:not([hidden]) {
+  display: flex;
+  gap: 8px;
+  padding-top: 10px;
+  flex-wrap: wrap;
+}
+.sample-planner a,
+.sample-route a {
+  color: var(--demo-accent, #5c7356);
+  font:
+    14px/1.5 Arial,
+    sans-serif;
+}
+.sample-dialog {
+  width: min(620px, calc(100% - 32px));
+  min-height: 420px;
+  padding: 30px;
+  border: 1px solid var(--demo-line, #bdc7b6);
+  border-radius: 12px;
+  background: var(--demo-page, #fffefd);
+  color: var(--demo-ink, #333b38);
+}
+.sample-dialog::backdrop {
+  background: #14201780;
+}
+.sample-dialog-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+@media (max-width: 600px) {
+  .sample-planner-grid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+}
 .settings-heading {
   display: flex;
   justify-content: space-between;

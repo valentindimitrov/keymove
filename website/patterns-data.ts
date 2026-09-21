@@ -22,9 +22,9 @@ export const patternGroups: PatternGroup[] = [
         description: 'Find a passage without scanning or scrolling through the whole page.',
         sequence: [
           'Open KeyMove and type a visible phrase.',
-          'The first matching text block is selected and brought into view.',
+          'Use the result’s numbered shortcut to bring the complete text block into view.',
         ],
-        shortcuts: ['focus_searchbar'],
+        shortcuts: ['focus_searchbar', 'select_listed_match_1'],
       },
       {
         id: 'move-between-matches',
@@ -139,8 +139,8 @@ export const patternGroups: PatternGroup[] = [
         title: 'Search inside a hover menu',
         description: 'Open a menu, then find an item inside it without reaching for the mouse.',
         sequence: [
-          'Search for the menu label, such as “Hommes”. The first result’s action receives hover automatically; if needed, select the trigger with its numbered suggestion.',
-          'With the search bar focused, clear or replace the query with an item name, such as “Sneakers”. The menu stays open while you type, even if a partial query matches something elsewhere.',
+          'Search for “Browse detours” and explicitly select the trigger with its numbered suggestion to reveal the menu.',
+          'With the search bar focused, select and replace the query with “Garden detour”. The menu stays open while you type.',
           'Press Enter to activate the selected item. To reveal another submenu, select its numbered suggestion; Tab moves to the next match and Shift + Tab goes back.',
           'Repeat for nested menus. Press Escape to end the search and release keyboard hover.',
         ],
