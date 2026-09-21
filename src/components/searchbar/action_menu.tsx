@@ -112,7 +112,7 @@ const ActionMenu = ({
             if (event.key === 'Enter' || event.key === ' ') event.preventDefault();
             return;
           }
-          if (event.key === 'Escape') {
+          if (event.key === 'Escape' || event.key === 'ArrowLeft') {
             event.preventDefault();
             onClose();
           } else if (event.key === 'Tab') {
@@ -129,7 +129,7 @@ const ActionMenu = ({
                     : (selected + (event.key === 'ArrowDown' ? 1 : actions.length - 1)) %
                       actions.length,
               );
-            } else if (event.key === 'Enter' || event.key === ' ') {
+            } else if (event.key === 'Enter' || event.key === ' ' || event.key === 'ArrowRight') {
               event.preventDefault();
               const action = actions[selected];
               if (action) void execute(action.id);
@@ -161,7 +161,9 @@ const ActionMenu = ({
           ))}
         </div>
         {tooltipsMode && (
-          <div className="keymove-action-menu-footer">↑ ↓ choose · Enter run · Esc back</div>
+          <div className="keymove-action-menu-footer">
+            ↑ ↓ choose · → / Enter run · ← / Esc back
+          </div>
         )}
         {tooltipsMode && (
           <div className="keymove-action-menu-footer">

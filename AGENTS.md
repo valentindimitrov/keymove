@@ -121,8 +121,9 @@ Measure browser timings when changing normalization, and report significant regr
 ## Result action menu
 
 Down opens the custom action menu only from the focused search input with a current result.
-Up is reserved outside the menu. Inside it, Up/Down navigate actions, Enter/Space execute,
-Escape returns to the unchanged query, and Tab/Shift+Tab resume result navigation. The menu
+Up is reserved outside the menu. Inside it, Up/Down navigate actions, Right/Enter/Space execute,
+Left/Escape returns to the unchanged query, and Tab/Shift+Tab resume result navigation. Left/Right
+keep their normal text-editing behavior in the search input. The menu
 uses native focus on menu items and is not a second result cursor. Query changes, modal transitions
 and unavailable targets dismiss it. Ordinary background DOM refreshes wait until the menu closes;
 Down can use a valid committed result during a refresh of the same query, but never an older query.

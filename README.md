@@ -500,10 +500,10 @@ to an action menu with only that result's suggestion retained in a single line a
 navigation position are kept.
 
 - **↑ / ↓:** move through menu actions. Up has no assigned KeyMove action when the menu is closed.
-- **Enter** or **Space:** run the chosen action. Home/End select the first/last action.
+- **→**, **Enter** or **Space:** run the chosen action. Home/End select the first/last action.
 - **Alt + number** (Option on Mac): immediately run the numbered action. Numbers belong only
   to actions while the menu is open; outside it, Alt + number still selects suggestions.
-- **Escape:** close only the menu and return focus to the unchanged search.
+- **←** or **Escape:** close only the menu and return focus to the unchanged search.
 - **Tab / Shift+Tab:** close the menu and select the next/previous search result.
 
 Links offer Open link, Open in new tab, Open in background tab, Copy link address, and Focus

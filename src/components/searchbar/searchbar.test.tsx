@@ -145,6 +145,37 @@ test('Down opens actions, Up navigates only inside the menu and Escape returns t
   expect(screen.queryByRole('menu')).not.toBeInTheDocument();
 });
 
+test.each([true, false])(
+  'menu Left returns and Right executes with tooltips %s',
+  async tooltipsMode => {
+    settingsMocks.tooltipsMode = tooltipsMode;
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    const { input, link } = await openLinkActionMenu();
+    const click = vi.spyOn(link, 'click');
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowLeft', code: 'ArrowLeft' });
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue('report');
+    for (const key of ['ArrowLeft', 'ArrowRight']) {
+      expect(fireEvent.keyDown(input, { key, code: key })).toBe(true);
+    }
+    expect(click).not.toHaveBeenCalled();
+    expect(input).toHaveValue('report');
+    fireEvent.keyDown(input, { key: 'ArrowDown', code: 'ArrowDown' });
+    for (let i = 0; i < 3; i++) {
+      fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown', code: 'ArrowDown' });
+    }
+    expect(screen.getByRole('menuitem', { name: 'Copy link address' })).toHaveFocus();
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowRight', code: 'ArrowRight' });
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
+    expect(writeText).toHaveBeenCalledExactlyOnceWith(link.href);
+    expect(click).not.toHaveBeenCalled();
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue('report');
+  },
+);
+
 test('menu retains the selected suggestion and restores the full shortlist on Escape', async () => {
   const links = ['Report first', 'Report second', 'Report third', 'Report fourth'].map(label => {
     const link = document.createElement('a');
@@ -355,17 +386,21 @@ test('a late clipboard completion does not dismiss a reopened menu for the same 
   expect(screen.getByRole('menu')).toBeInTheDocument();
 });
 
-test('modified Enter and composition do not accidentally activate a menu action', async () => {
+test('modified menu keys and composition do not activate or dismiss the menu', async () => {
   const { input, link } = await openLinkActionMenu();
   const click = vi.spyOn(link, 'click');
   for (const flags of [
     { ctrlKey: true },
     { shiftKey: true },
     { altKey: true },
+    { metaKey: true },
     { isComposing: true },
   ]) {
-    fireEvent.keyDown(document.activeElement!, { key: 'Enter', code: 'Enter', ...flags });
+    for (const key of ['Enter', 'ArrowRight', 'ArrowLeft']) {
+      fireEvent.keyDown(document.activeElement!, { key, code: key, ...flags });
+    }
   }
+  expect(screen.getByRole('menu')).toBeInTheDocument();
   expect(click).not.toHaveBeenCalled();
   expect(searchMocks.sendMessage).not.toHaveBeenCalled();
   fireEvent.keyDown(document.activeElement!, { key: 'Escape', code: 'Escape' });

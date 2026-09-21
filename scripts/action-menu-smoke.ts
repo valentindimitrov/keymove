@@ -80,6 +80,17 @@ export async function checkActionMenu(client: ChromiumClient, origin: string) {
     await page.key('Escape');
     await waitFor(page, `!${menu} && ${focused} === ${input}`);
     assert.equal(await page.evaluate(`${input}.value`), 'menu demonstration');
+    const queryLength = 'menu demonstration'.length;
+    await page.evaluate(`${input}.setSelectionRange(${queryLength}, ${queryLength})`);
+    await page.key('ArrowLeft');
+    assert.equal(await page.evaluate(`${input}.selectionStart`), queryLength - 1);
+    await page.key('ArrowRight');
+    assert.equal(await page.evaluate(`${input}.selectionStart`), queryLength);
+    await page.key('ArrowDown');
+    await waitFor(page, `${menu}`);
+    await page.key('ArrowLeft');
+    await waitFor(page, `!${menu} && ${focused} === ${input}`);
+    assert.equal(await page.evaluate(`${input}.value`), 'menu demonstration');
     await page.key('ArrowDown');
     await waitFor(page, `${menu}`);
     writeFileSync(path.join(artifacts, 'action-menu-extension.png'), await page.screenshot());
@@ -109,7 +120,9 @@ export async function checkActionMenu(client: ChromiumClient, origin: string) {
     );
     await query(page, 'menu demonstration');
     await page.key('ArrowDown');
-    await page.key('5', 1);
+    for (let i = 0; i < 4; i++) await page.key('ArrowDown');
+    await waitFor(page, `${focusedLabel} === 'Focus without activating'`);
+    await page.key('ArrowRight');
     await waitFor(page, `document.activeElement?.id === 'menu-link' && !${menu}`);
     assert.equal(await page.evaluate('document.body.dataset.menuActivated'), undefined);
     await page.key('Tab');

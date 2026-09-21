@@ -78,6 +78,8 @@ export async function openPage(client: ChromiumClient, url: string) {
         Enter: 13,
         Escape: 27,
         Backspace: 8,
+        ArrowLeft: 37,
+        ArrowRight: 39,
         ArrowDown: 40,
         ArrowUp: 38,
         Home: 36,
