@@ -175,6 +175,16 @@ if (page) flushSync(() => createRoot(page).render(<SamplePage />));
 const extension = createExtensionRoot(`${contentStyles}\n${onboardingStyles}`);
 if (!extension) throw new Error('The demo searchbar could not be mounted.');
 const observer = keepExtensionRootConnected(extension.host);
+// Keep onboarding out of the extension runtime and dismiss it for this demo session.
+extension.shadowRoot.addEventListener('input', event => {
+  if (
+    event.target instanceof HTMLInputElement &&
+    event.target.id === KEYMOVE_INPUT_ID &&
+    event.target.value
+  ) {
+    extension.host.setAttribute('data-demo-started', '');
+  }
+});
 const root = createRoot(extension.app);
 flushSync(() =>
   root.render(

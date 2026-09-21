@@ -7,7 +7,12 @@
   content: 'KEYMOVE SEARCH · START HERE ↓';
   position: absolute;
   bottom: calc(100% + 14px);
-  left: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 16px);
+  box-sizing: border-box;
+  text-align: center;
   padding: 8px 12px;
   border-radius: 6px;
   background: #7831aa;
@@ -17,4 +22,8 @@
     sans-serif;
   letter-spacing: 0.3px;
   pointer-events: none;
+}
+
+:host([data-demo-started]) #keymove-container::before {
+  display: none;
 }

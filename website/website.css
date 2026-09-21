@@ -334,15 +334,6 @@ kbd {
   vertical-align: baseline;
   white-space: nowrap;
 }
-.escape-note {
-  display: flex;
-  align-items: start;
-  gap: 10px;
-  color: var(--site-muted, #787181);
-  font-size: 12px;
-  line-height: 1.6;
-  margin-inline: 8px;
-}
 .browser-frame {
   position: relative;
   min-width: 0;
@@ -386,15 +377,13 @@ iframe {
 }
 .lesson-shortcuts {
   display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: baseline;
   gap: 10px;
-  margin: 16px 8px 0;
+  margin-inline: 8px;
   font-size: 12px;
+  line-height: 1.6;
   color: var(--site-muted, #797180);
-}
-.lesson-shortcuts > span {
-  display: flex;
-  align-items: center;
-  gap: 10px;
 }
 .demo-address {
   min-width: 0;
@@ -624,9 +613,6 @@ h3 {
   }
   .lesson-instructions p {
     margin: 8px 0 12px;
-  }
-  .escape-note {
-    align-items: center;
   }
   .browser-frame {
     border-left: 0;

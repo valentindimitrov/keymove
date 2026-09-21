@@ -110,7 +110,11 @@ function Website() {
           <div className="section-heading">
             <div>
               <span className="eyebrow">THE PLAYGROUND</span>
-              <h2 id="playground-title">A little less mouse. A lot more momentum.</h2>
+              <h2 id="playground-title">Experience the flow yourself</h2>
+              <p className="playground-note" id="leave-demo" tabIndex={-1}>
+                This demo searches only the sample page. Install KeyMove to bring it to the pages
+                you browse. New-tab actions require the extension.
+              </p>
             </div>
             <span className="demo-label">Live demo · Real KeyMove</span>
           </div>
@@ -146,20 +150,15 @@ function Website() {
                     : 'Choose a move above, or click the searchbar in the sample page and type something you see.'}
                 </p>
               </div>
-              <div className="escape-note">
+              <div className="lesson-shortcuts">
                 <Shortcut name="dismiss_search" />
                 <span>Close the search. Press again to leave the demo.</span>
-              </div>
-              <div className="lesson-shortcuts">
-                <span>
-                  <Shortcut name="next_match" /> Next text match
-                </span>
-                <span>
-                  <Shortcut name="select_match" /> Activate
-                </span>
-                <span>
-                  <Shortcut name="open_action_menu" /> Actions
-                </span>
+                <Shortcut name="next_match" />
+                <span>Next text match</span>
+                <Shortcut name="select_match" />
+                <span>Activate</span>
+                <Shortcut name="open_action_menu" />
+                <span>Actions</span>
               </div>
             </aside>
             <div className="browser-frame">
@@ -202,10 +201,6 @@ function Website() {
               />
             </div>
           </div>
-          <p className="playground-note" id="leave-demo" tabIndex={-1}>
-            This demo searches only the sample page. Install KeyMove to bring it to the pages you
-            browse. New-tab actions require the extension.
-          </p>
         </section>
 
         <section className="how-section wrap" id="how-it-works" aria-labelledby="how-title">
