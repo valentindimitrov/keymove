@@ -152,6 +152,15 @@ export default function Walkthrough() {
             aria-label="KeyMove walkthrough: search, navigate, activate, open the action menu, and show shortcut help"
             aria-describedby="walkthrough-help"
             onLoadedMetadata={applyPendingSeek}
+            onSeeking={event => {
+              // Native timeline scrubbing can supersede an unfinished chapter jump.
+              if (
+                pendingSeek.current !== null &&
+                Math.abs(event.currentTarget.currentTime - pendingSeek.current) > 0.15
+              ) {
+                pendingSeek.current = null;
+              }
+            }}
             onTimeUpdate={event => syncTime(event.currentTarget)}
             onSeeked={event => syncTime(event.currentTarget, true)}
             onError={() => setFailed(true)}

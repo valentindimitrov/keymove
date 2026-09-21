@@ -4,6 +4,19 @@ import Walkthrough from './walkthrough.js';
 
 afterEach(cleanup);
 
+it('lets timeline scrubbing supersede an unfinished chapter jump', () => {
+  const video = setup();
+  fireEvent.click(screen.getByRole('button', { name: /Open shortcut help/ }));
+  video.currentTime = 3;
+  fireEvent.seeking(video);
+  fireEvent.seeked(video);
+  expect(screen.getByRole('button', { name: /Open and search/ })).toHaveAttribute(
+    'aria-current',
+    'step',
+  );
+  expect(screen.getByText(/Just “cof” finds/)).toBeVisible();
+});
+
 function setup(duration = 60) {
   const { container } = render(<Walkthrough />);
   const video = container.querySelector('video')!;
