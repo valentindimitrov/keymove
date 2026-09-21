@@ -10,7 +10,7 @@ Type “coffee” to find matching text on the page.
 Press Tab to select the next matching text block. Press it again to keep moving.
 
 00:12.000 --> 00:12.500
-Press Escape to clear the query.
+Press Escape to close the search.
 
 00:12.500 --> 00:13.000
 Focus the KeyMove search bar again.
@@ -23,3 +23,18 @@ Type “Save this guide” to find the button.
 
 00:20.000 --> 00:24.000
 Press Enter to activate the button. The guide is saved.
+
+00:24.000 --> 00:25.000
+Focus KeyMove again to find a link.
+
+00:25.000 --> 00:28.000
+Type “Open the checklist”.
+
+00:28.000 --> 00:33.000
+Press Arrow Down to open the selected result’s action menu.
+
+00:33.000 --> 00:34.000
+Press Escape to close the menu and keep your query.
+
+00:34.000 --> 00:42.000
+Hover over ? to show the keyboard shortcut reference.

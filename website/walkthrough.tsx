@@ -26,8 +26,8 @@ const steps = [
   },
   {
     time: 12,
-    title: 'Clear the search',
-    detail: 'Escape clears the query, ready for your next move.',
+    title: 'Close the search',
+    detail: 'Escape closes the search, ready for your next move.',
     shortcut: 'dismiss_search',
   },
   {
@@ -54,12 +54,44 @@ const steps = [
     detail: 'Enter activates the selected button. The guide is saved.',
     shortcut: 'select_match',
   },
+  {
+    time: 24,
+    title: 'Find a link',
+    detail: 'Focus KeyMove again to look for the checklist link.',
+    shortcut: 'focus_searchbar',
+  },
+  {
+    time: 25,
+    title: 'Find a link',
+    detail: 'Type the link’s visible text: “Open the checklist”.',
+    text: 'Open the checklist',
+  },
+  {
+    time: 28,
+    title: 'Explore the action menu',
+    detail: 'Press ↓ from the search bar to see actions for the selected result.',
+    shortcut: 'open_action_menu',
+  },
+  {
+    time: 33,
+    title: 'Return to your search',
+    detail: 'Escape closes the menu and keeps your query.',
+    text: 'Esc',
+  },
+  {
+    time: 34,
+    title: 'Find a shortcut',
+    detail: 'Hover over ? to open the keyboard shortcut reference.',
+    text: 'Hover ?',
+  },
 ] as const;
 
 const chapters = [
   { time: 0, label: 'Open & search' },
   { time: 6, label: 'Move through the page' },
   { time: 12, label: 'Find & activate a button' },
+  { time: 28, label: 'Explore the action menu' },
+  { time: 34, label: 'Open shortcut help' },
 ] as const;
 
 export default function Walkthrough() {
@@ -91,7 +123,7 @@ export default function Walkthrough() {
             playsInline
             preload="metadata"
             poster={poster}
-            aria-label="KeyMove walkthrough: search, navigate, and activate a button"
+            aria-label="KeyMove walkthrough: search, navigate, activate, open the action menu, and show shortcut help"
             aria-describedby="walkthrough-help"
             onTimeUpdate={event => setTime(event.currentTarget.currentTime)}
             onSeeked={event => setTime(event.currentTarget.currentTime)}
@@ -122,7 +154,7 @@ export default function Walkthrough() {
                 key={chapter.time}
                 type="button"
                 aria-current={
-                  time >= chapter.time && time < (chapters[index + 1]?.time ?? 25)
+                  time >= chapter.time && time < (chapters[index + 1]?.time ?? Infinity)
                     ? 'step'
                     : undefined
                 }
@@ -149,14 +181,18 @@ export default function Walkthrough() {
             Press <Shortcut name="next_match" /> twice to move through the next two text matches.
           </li>
           <li>
-            Press <Shortcut name="dismiss_search" /> to clear the query,{' '}
+            Press <Shortcut name="dismiss_search" /> to close the search,{' '}
             <Shortcut name="focus_searchbar" /> to refocus the search bar, then{' '}
-            <Shortcut name="toggle_search_mode" /> to switch to actions.
+            <Shortcut name="toggle_search_mode" /> to switch to actions. Type “Save this guide”.
+            Press <Shortcut name="select_match" /> to activate the selected button and save the
+            guide.
           </li>
           <li>
-            Type “Save this guide”. Press <Shortcut name="select_match" /> to activate the selected
-            button and save the guide.
+            Focus KeyMove and type “Open the checklist”. Press <Shortcut name="open_action_menu" />{' '}
+            to see the selected link’s actions, including opening it or copying its address. Press
+            Esc to return to the same search.
           </li>
+          <li>Hover over the ? button to show the keyboard shortcut reference.</li>
         </ol>
       </details>
     </section>

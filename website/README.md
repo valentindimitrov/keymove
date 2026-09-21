@@ -17,10 +17,13 @@ The standalone static output is `.output/public/`. Deploy the entire directory, 
 `demo.html`, assets, and `LICENSE.txt`, to a static host. Relative asset URLs support subpaths.
 The website build is independent from extension builds and adds no runtime dependencies.
 
-The walkthrough above the playground is a 24-second, silent H.264 recording of the actual
+The walkthrough above the playground is a 42-second, silent H.264 recording of the actual
 Searchbar on `demo.html`, captured at 960 × 640 and 10 frames per second. It shows native key
-input, text result navigation and button activation; the key-press label is an explanatory
-overlay. Its MP4 and first-frame poster are in `media/`. The player starts paused and provides
+input, text result navigation, button activation, the Arrow Down action menu and the ? shortcut
+tooltip. Compact rounded key badges follow the right side of the search field, including while
+the menu opens above it. The recording omits the playground’s onboarding banner and outline;
+these remain available in the live demo. Its MP4 and first-frame poster are in `media/`.
+The player starts paused and provides
 native play/pause, seeking/fullscreen, chapter links,
 optional captions and a text transcript. The adjacent key labels use the extension's platform
 shortcut definitions. Keep `walkthrough.tsx`, `media/walkthrough.vtt` and the recorded sequence
