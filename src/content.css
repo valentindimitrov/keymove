@@ -265,13 +265,36 @@
   flex: 0 0 18px;
 }
 
+.keymove-action-menu [role='menuitem'] .keymove-shortcut-hint {
+  flex: 0 0 auto;
+}
+
 .keymove-action-label {
   min-width: 0;
 }
 
 .keymove-suggestion.keymove-action-menu-result {
   grid-template-columns: 44px minmax(0, 1fr);
-  margin-bottom: 8px;
+}
+
+.keymove-action-menu-result-container {
+  order: 1;
+  flex: none;
+  box-sizing: border-box;
+  height: 44px;
+  padding: 4px 5px 5px;
+  border-top: 1px solid rgba(180, 180, 180, 0.2);
+}
+
+.keymove-action-menu-result .keymove-suggestion-body {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.keymove-action-menu-result .keymove-suggestion-context {
+  max-width: none;
+  white-space: nowrap;
 }
 
 .keymove-action-menu [role='menuitem']:hover,
@@ -595,6 +618,15 @@
 
 .keymove-suggestion-selected {
   background-color: rgb(65, 65, 65);
+}
+
+.keymove-suggestions-with-hints .keymove-suggestion {
+  grid-template-columns: max-content 44px minmax(0, 1fr);
+}
+
+.keymove-shortcut-hint {
+  padding: 0 5px;
+  white-space: nowrap;
 }
 
 .keymove-suggestion-position {

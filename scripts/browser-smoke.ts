@@ -11,6 +11,7 @@ import { checkRenderedText } from './rendered-text-smoke.ts';
 import { checkReturnPosition } from './return-position-smoke.ts';
 import { checkControlNavigation } from './control-navigation-smoke.ts';
 import { checkActionMenu } from './action-menu-smoke.ts';
+import { checkTooltipsMode } from './tooltips-mode-smoke.ts';
 import { checkDynamicPage } from './dynamic-page-smoke.ts';
 
 const shadow = `document.getElementById('keymove-root')?.shadowRoot`;
@@ -350,6 +351,10 @@ export async function runBrowserSmoke(client: ChromiumClient, browser: string): 
         })()`);
       };
       await checkReturnPosition(page, popup);
+      await checkTooltipsMode(client, origin, popup);
+      passed.push(
+        'Tooltips mode defaults on above Always on; live popup changes switch full and compact badges without losing the selected menu, query or numbered shortcuts',
+      );
       passed.push(
         'Alt+Backspace returns after Tab/Alt+1 and nested scrolling; Escape closes in one press and leaves new page focus alone',
       );
@@ -440,7 +445,7 @@ export async function runBrowserSmoke(client: ChromiumClient, browser: string): 
       }
       await waitFor(
         popup,
-        `document.querySelectorAll('input[type="checkbox"]')[0].checked === false && document.querySelectorAll('input[type="checkbox"]')[4].checked === true`,
+        `Array.from(document.querySelectorAll('label')).find(label => label.textContent === 'Always on').control.checked === false && Array.from(document.querySelectorAll('label')).find(label => label.textContent === 'Autohide').control.checked === true`,
       );
       await page.activate();
       await page.key('f', 1);

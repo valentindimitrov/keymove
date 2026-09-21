@@ -3,6 +3,7 @@ import type { SearchMode } from '../../hooks/use_search_navigation.js';
 
 type MatchesSummaryProps = {
   mode: SearchMode;
+  tooltipsMode?: boolean;
   hasSearchQuery: boolean;
   isFuzzy?: boolean;
   selectedSelectionIndex: number | null;
@@ -25,7 +26,7 @@ const MatchesSummary = (props: MatchesSummaryProps) => {
             type="button"
             className="keymove-mode-button"
             aria-label={`Switch to ${mode === SEARCH_MODES.TEXT ? 'actions' : 'text'}`}
-            title="Switch search mode (Alt+S)"
+            title={props.tooltipsMode !== false ? 'Switch search mode (Alt+S)' : undefined}
             onMouseDown={event => event.preventDefault()}
             onClick={props.onToggleMode}
           >

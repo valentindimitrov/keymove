@@ -6,6 +6,7 @@ import popupStyles from '../src/popup.css?inline';
 import MatchesSummary from '../src/components/searchbar/matches_summary.js';
 import ResultsPanel from '../src/components/searchbar/results_panel.js';
 import ActionMenu from '../src/components/searchbar/action_menu.js';
+import { ACTION_MENU_RESULT_HEIGHT } from '../src/constants.js';
 import { actionsForResult } from '../src/lib/result_actions.js';
 import SearchInput from '../src/components/searchbar/search_input.js';
 import { SEARCH_MODES } from '../src/hooks/use_search_navigation.js';
@@ -38,6 +39,7 @@ type BarProps = {
   suggestionsOpen?: boolean;
   onOpenSettings?: () => void;
   showActionMenu?: boolean;
+  tooltipsMode?: boolean;
 };
 
 function suggestionNode(label: string) {
@@ -144,6 +146,7 @@ const Bar = (props: BarProps) => {
 
   return (
     <DraggableContainer
+      bottomContentHeight={props.showActionMenu ? ACTION_MENU_RESULT_HEIGHT : 0}
       locked={locked}
       className={above ? 'keymove-container-suggestions-above' : undefined}
       width={currentWidth}
@@ -156,6 +159,7 @@ const Bar = (props: BarProps) => {
       <div id={'keymove-bar'}>
         <SettingsButton onClick={onOpenSettings} />
         <SearchInput
+          tooltipsMode={props.tooltipsMode ?? true}
           inputRef={searchInputRef}
           searchText={searchText}
           suggestionCount={suggestions.length}
@@ -167,6 +171,7 @@ const Bar = (props: BarProps) => {
           updateSearchText={onSearchTextChange}
         />
         <MatchesSummary
+          tooltipsMode={props.tooltipsMode ?? true}
           mode={currentMode}
           onToggleMode={() =>
             setCurrentMode(
@@ -181,6 +186,7 @@ const Bar = (props: BarProps) => {
       </div>
       {props.showActionMenu ? (
         <ActionMenu
+          tooltipsMode={props.tooltipsMode ?? true}
           actions={actionsForResult(
             Object.assign(document.createElement('a'), {
               href: 'https://example.org/report',
@@ -192,7 +198,8 @@ const Bar = (props: BarProps) => {
             kind: 'action',
             node: document.createElement('a'),
             term: 'report',
-            label: 'Download report',
+            label:
+              'Download report comparing Stream Deck + and Stream Deck + XL with detailed specifications',
             context: 'link · in Main content',
           }}
           above={above}
@@ -204,6 +211,7 @@ const Bar = (props: BarProps) => {
         />
       ) : (
         <ResultsPanel
+          tooltipsMode={props.tooltipsMode ?? true}
           open={suggestionsOpen ?? suggestions.length > 0}
           pending={pending}
           suggestions={suggestions}
@@ -383,6 +391,39 @@ const SCENARIOS: Scenario[] = [
     description: 'Action labels and keyboard hint at the minimum searchbar width.',
     render: () => <Bar searchText="report" showActionMenu width={260} y={0.15} />,
   },
+  {
+    name: 'action-menu-clean',
+    description: 'Compact action numbers without usage reminders when Tooltips mode is off.',
+    render: () => (
+      <Bar searchText="report" showActionMenu tooltipsMode={false} width={260} y={0.15} />
+    ),
+  },
+  {
+    name: 'action-menu-bottom-edge',
+    description:
+      'The retained one-line suggestion stays visible beneath the bar at the bottom edge.',
+    render: () => <Bar searchText="report" showActionMenu above width={260} y={1} />,
+  },
+  ...[true, false].map(tooltipsMode => ({
+    name: `suggestions-${tooltipsMode ? 'hints' : 'clean'}`,
+    description: 'Narrow suggestions with optional full keyboard shortcut badges.',
+    render: () => (
+      <Bar
+        searchText="report"
+        tooltipsMode={tooltipsMode}
+        width={260}
+        suggestions={[
+          {
+            kind: 'action',
+            node: suggestionNode('Download report'),
+            term: 'report',
+            label: 'Download report',
+            context: 'link · in Main content',
+          },
+        ]}
+      />
+    ),
+  })),
   {
     name: 'transformed-modal',
     description: 'Viewport-aligned UI inside a transformed, scrollable side drawer',

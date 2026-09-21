@@ -22,6 +22,11 @@ test('keeps popup position calculations finite before a viewport is measurable',
   expect(normalizedPosition(0, 0, 0, 0)).toEqual({ x: 1, y: 1 });
 });
 
+test('reserves room below the bar for the selected menu result without moving a centered bar', () => {
+  expect(pixelPosition({ x: 0.5, y: 1 }, 1000, 800, 550, 44).top).toBe(706);
+  expect(pixelPosition({ x: 0.5, y: 0.5 }, 1000, 800, 550, 44).top).toBe(375);
+});
+
 test('positions and clamps against the width in use, not the default one', () => {
   const wide = 800;
 

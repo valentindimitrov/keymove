@@ -129,7 +129,8 @@ Down can use a valid committed result during a refresh of the same query, but ne
 Execution rechecks connectivity, visibility, disabled state and modal scope.
 Clipboard failures remain visible and announced. Successful copying retains the search; focus-only
 hands control to the page without activation. Menu styling stays in the existing shadow root.
-Keep only the selected result's suggestion row above the actions, including its match and context.
+Keep only the selected result's suggestion row at the bottom, below the searchbar and outside the
+scrolling action list. Keep it to one line, truncating overflow while preserving its match and context.
 Number the actions, not that retained row. Alt+number executes the corresponding menu action
 without selecting another suggestion; outside the menu the existing suggestion shortcuts remain.
 
@@ -183,6 +184,9 @@ Stored keys:
 - `autoHide`: boolean
 - `suggestionCount`: integer from 1 to 5, defaults to 3; larger saved counts clamp to 5. Limits displayed suggestions, never navigation results
 - `alwaysOn`: boolean
+- `tooltipsMode`: boolean, defaults to true; shows full Alt/Option + number badges and usage hints.
+  When false, keep compact numbers and all shortcuts; hide passive hints, never status/errors or
+  accessible names. Explicitly opening the shortcut reference remains available.
 - `startInActionMode`: boolean
 - `highlightMatches`: boolean
 - `showAutohideButton`: boolean
@@ -276,11 +280,25 @@ blindly replacing it can break selectors, stored preferences, and content/backgr
   Keep the reader chunked and its offset mapping proportional to text segments, not characters.
 - Add or update tests for navigation shortcuts, DOM indexing, storage validation, and build-shape
   changes.
+- Keep tests tied to distinct behavior or failure modes. Remove duplicate checks of the same
+  helper and assertions that merely echo supplied text. Retain integration checks that prove
+  components are wired together, plus cancellation, stale-response, storage-race, Unicode-offset,
+  modal-scope and keyboard regressions. Keep the exhaustive fuzzy-search oracle.
+- Pure algorithm, schema and filesystem tests use `// @vitest-environment node`; only tests
+  needing DOM APIs or React rendering should pay for jsdom. Do not disable test isolation.
+- A passing test must not log unexpected errors or React `act` warnings. Supply responses for
+  every mocked async operation, await resulting updates, and explicitly assert expected failures.
+- CSS class assertions do not prove layout. Check suggestion placement with the `slate-above`
+  and `slate-below` scenarios in `yarn preview:ui`, including a narrow viewport. Keep the CSS
+  custom-property fallback regression; do not enforce blanket vendor-prefix or `!important`
+  bans through unit tests.
 - Preserve unrelated user changes and leave generated build output untracked.
 
 ## Verification
 
-After every meaningful implementation change, run `yarn preview`. It rebuilds the production MV3
+After each meaningful runtime or UI implementation batch, run `yarn preview`. Test-only and
+documentation changes do not require a fresh installed-browser launch unless they change the
+launcher or browser checks themselves. `yarn preview` rebuilds the production MV3
 extension, selects the first installed browser in this order: Vivaldi, Chrome, Firefox, and opens
 `https://github.com/valentindimitrov/keymove` with the extension loaded in a fresh temporary test
 profile, using a separate temporary copy of the build for each launch. This launch is authorized
@@ -317,7 +335,26 @@ For a custom installation, set `KEYMOVE_VIVALDI_BINARY`, `KEYMOVE_CHROME_BINARY`
 loading fails, report the actual blocker; do not claim an installed-browser test from a mocked page.
 Opening the browser alone is not a behavioral test: report separately what was actually checked.
 
-During focused work, run the relevant Vitest files plus `yarn typecheck`. Before handoff, run:
+During development, default to affected tests plus `yarn typecheck`, not repeated full quality
+runs. Use the narrowest command that covers the behavior being changed:
+
+- `yarn test:changed`: application tests affected by staged or unstaged changes.
+- `yarn test:changed main`: application tests affected since the comparison branch; use a
+  suitable base when already on `main` (for example `HEAD~1` for the last commit).
+- `yarn test:related src/lib/popup_width_schema.ts`: application tests importing a source file.
+- `yarn test src/lib/fuzzy_match.test.ts`: one file; add `-t "pattern"` to select named cases.
+- `yarn test:watch searchbar`: watch a focused area, excluding tooling tests.
+- `yarn test:unit`: all application tests; `yarn test:tooling`: script tests, including the
+  real-Git worktree check. Run tooling tests when scripts change.
+
+Changed/related selection follows imports, not arbitrary filesystem reads. The config forces
+a rerun for `src/content.css` and `yarn.lock`, retaining Vitest's default config/package triggers.
+For other non-imported inputs, run their owning tests explicitly; layout changes still need
+rendered checks and runtime interaction changes still need browser smoke. No selected tests
+does not prove a change is covered. `yarn test` continues to run application and tooling tests.
+
+Before handoff, run the full gate once after the final edits; repeat only if subsequent changes,
+failures or unresolved concerns warrant it:
 
 ```text
 yarn quality

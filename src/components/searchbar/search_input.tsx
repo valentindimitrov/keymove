@@ -8,6 +8,7 @@ type SearchInputProps = {
   suggestionCount: number;
   suggestionsOpen?: boolean;
   actionMenuOpen?: boolean;
+  tooltipsMode?: boolean;
   actionsAvailable?: boolean;
   activeSuggestionIndex: number | null;
   updateSearchText: (value: string) => void;
@@ -67,7 +68,11 @@ const SearchInput = (props: SearchInputProps) => {
               ? KEYMOVE_SUGGESTIONS_ID
               : undefined
         }
-        aria-describedby={props.actionsAvailable ? 'keymove-actions-hint' : undefined}
+        aria-describedby={
+          props.actionsAvailable && props.tooltipsMode !== false
+            ? 'keymove-actions-hint'
+            : undefined
+        }
         aria-activedescendant={
           props.actionMenuOpen || activeSuggestionIndex === null
             ? undefined
@@ -87,7 +92,9 @@ const SearchInput = (props: SearchInputProps) => {
         data-lpignore="true"
         onBlur={onBlur}
       />
-      {props.actionsAvailable && <span id="keymove-actions-hint">↓ Actions</span>}
+      {props.actionsAvailable && props.tooltipsMode !== false && (
+        <span id="keymove-actions-hint">↓ Actions</span>
+      )}
     </div>
   );
 };

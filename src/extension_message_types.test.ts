@@ -1,3 +1,4 @@
+// @vitest-environment node
 import ExtensionMessageTypes, { isExtensionMessage } from './extension_message_types.js';
 
 test('rejects arrays and inherited message fields', () => {

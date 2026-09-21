@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import svgr from 'vite-plugin-svgr';
 
@@ -10,5 +10,11 @@ export default defineConfig({
     maxWorkers: 4,
     globals: true,
     setupFiles: ['./src/setupTests.ts'],
+    // The CSS regression reads its input through fs, outside Vite's import graph.
+    forceRerunTriggers: [
+      ...configDefaults.forceRerunTriggers,
+      '**/src/content.css',
+      '**/yarn.lock',
+    ],
   },
 });

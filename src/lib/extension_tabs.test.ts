@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { isInjectableUrl, normalizedOpenableLinkUrl } from './extension_tabs.js';
 
 describe('isInjectableUrl', () => {

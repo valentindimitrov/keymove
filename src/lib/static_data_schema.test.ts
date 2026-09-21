@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { validateKeyboardShortcuts, validateSearchableAttributes } from './static_data_schema.js';
 
 test('rejects unsupported keyboard modifier names', () => {

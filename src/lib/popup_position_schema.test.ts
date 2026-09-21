@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { DEFAULT_POPUP_POSITION, validatePopupPosition } from './popup_position_schema.js';
 
 test('accepts normalized popup coordinates', () => {

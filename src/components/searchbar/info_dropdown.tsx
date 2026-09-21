@@ -5,11 +5,11 @@ import InfoPanel from './info_panel/info_panel.js';
 import Tooltip from './tooltip.js';
 import HelpIcon from '../../icons/help.svg?react';
 
-const InfoDropdown = () => {
+const InfoDropdown = ({ tooltipsMode = true }: { tooltipsMode?: boolean }) => {
   const containerRef = React.useRef<HTMLButtonElement>(null);
   const [hover, onMouseEnter, onMouseLeave] = useHover();
   const [isOpen, setIsOpen] = React.useState(false);
-  const showInfoPanel = hover || isOpen;
+  const showInfoPanel = (tooltipsMode && hover) || isOpen;
   const dismiss = () => {
     onMouseLeave();
     setIsOpen(false);

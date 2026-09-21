@@ -11,6 +11,20 @@ const menu = `${shadow}?.querySelector('[role="menu"]')`;
 const focused = `${shadow}?.activeElement`;
 const focusedLabel = `${focused}?.querySelector('.keymove-action-label')?.textContent`;
 
+async function checkSelectedRow(page: TestPage) {
+  const layout = await page.evaluate(`(() => {
+    const root = ${shadow};
+    const row = root.querySelector('.keymove-action-menu-result');
+    const body = row.querySelector('.keymove-suggestion-body');
+    const rect = row.getBoundingClientRect();
+    const bar = root.querySelector('#keymove-bar').getBoundingClientRect();
+    return { belowBar: rect.top >= bar.bottom, visible: rect.bottom <= innerHeight,
+      singleLine: rect.height <= 35 && body.scrollHeight <= body.clientHeight + 1,
+      outsideMenu: !row.closest('#keymove-action-menu-container') };
+  })()`);
+  assert.deepEqual(layout, { belowBar: true, visible: true, singleLine: true, outsideMenu: true });
+}
+
 async function query(page: TestPage, text: string) {
   await page.key('f', 1);
   await page.key('Backspace', process.platform === 'darwin' ? 4 : 2);
@@ -55,7 +69,9 @@ export async function checkActionMenu(client: ChromiumClient, origin: string) {
       await page.evaluate(
         `Array.from(${menu}.querySelectorAll('.keymove-suggestion-position'), node => node.textContent)`,
       ),
-      ['1', '2', '3', '4', '5', '6'],
+      [1, 2, 3, 4, 5, 6].map(
+        number => `${process.platform === 'darwin' ? 'Option' : 'Alt'} + ${number}`,
+      ),
     );
     await page.key('ArrowDown');
     await waitFor(page, `${focusedLabel} === 'Open in new tab'`);
@@ -67,6 +83,7 @@ export async function checkActionMenu(client: ChromiumClient, origin: string) {
     await page.key('ArrowDown');
     await waitFor(page, `${menu}`);
     writeFileSync(path.join(artifacts, 'action-menu-extension.png'), await page.screenshot());
+    await checkSelectedRow(page);
     await page.key('Tab');
     await waitFor(page, `!${menu} && ${focused} === ${input}`);
     await page.key('ArrowDown');
@@ -130,13 +147,21 @@ export async function checkActionMenu(client: ChromiumClient, origin: string) {
   } finally {
     await page.close();
   }
-  for (const scenario of ['action-menu', 'action-menu-narrow']) {
+  for (const scenario of [
+    'action-menu',
+    'action-menu-narrow',
+    'action-menu-clean',
+    'action-menu-bottom-edge',
+    'suggestions-hints',
+    'suggestions-clean',
+  ]) {
     const preview = await openPage(client, `${origin}?scenario=${scenario}`);
     try {
       await preview.activate();
-      await waitFor(preview, `${menu}`);
+      const panel = `${shadow}?.querySelector('${scenario.startsWith('suggestions') ? '#keymove-suggestions' : '#keymove-action-menu-container'}')`;
+      await waitFor(preview, panel);
       const bounds = (await preview.evaluate(`(() => {
-        const node = ${menu}; const rect = node.getBoundingClientRect();
+        const node = ${panel}; const rect = node.getBoundingClientRect();
         return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, width: innerWidth, height: innerHeight, font: getComputedStyle(node).fontFamily };
       })()`)) as {
         left: number;
@@ -155,6 +180,7 @@ export async function checkActionMenu(client: ChromiumClient, origin: string) {
         JSON.stringify(bounds),
       );
       assert.match(bounds.font, /Helvetica/);
+      if (scenario.startsWith('action-menu')) await checkSelectedRow(preview);
       writeFileSync(path.join(artifacts, `${scenario}-preview.png`), await preview.screenshot());
     } finally {
       await preview.close();

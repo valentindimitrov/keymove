@@ -2,9 +2,11 @@ import React from 'react';
 import { KEYMOVE_SUGGESTIONS_ID } from '../../constants.js';
 import type { Suggestion } from '../../hooks/use_suggestions.js';
 import SuggestionContent from './suggestion_content.js';
+import ShortcutBadge from './shortcut_badge.js';
 
 type ResultsPanelProps = {
   suggestions: Suggestion[];
+  tooltipsMode?: boolean;
   selectedNode: Element | null;
   above: boolean;
   pending?: boolean;
@@ -17,6 +19,7 @@ type ResultsPanelProps = {
 const ResultsPanel = (props: ResultsPanelProps) => {
   const {
     suggestions,
+    tooltipsMode = true,
     selectedNode,
     above,
     pending = false,
@@ -77,7 +80,7 @@ const ResultsPanel = (props: ResultsPanelProps) => {
       id={KEYMOVE_SUGGESTIONS_ID}
       ref={panelRef}
       style={{ minHeight: Math.min(minimumHeight, maxHeight ?? Infinity), maxHeight }}
-      className={`keymove-suggestions keymove-suggestions-${above ? 'above' : 'below'}`}
+      className={`keymove-suggestions keymove-suggestions-${above ? 'above' : 'below'}${tooltipsMode ? ' keymove-suggestions-with-hints' : ''}`}
       role="listbox"
       aria-busy={pending}
     >
@@ -93,6 +96,7 @@ const ResultsPanel = (props: ResultsPanelProps) => {
             role="option"
             aria-selected={!pending && selected}
             aria-disabled={pending}
+            aria-keyshortcuts={`Alt+${index + 1}`}
             onMouseDown={event => {
               // Keep the search input focused and prevent the parent from dragging the bar.
               event.preventDefault();
@@ -104,9 +108,7 @@ const ResultsPanel = (props: ResultsPanelProps) => {
             }}
             className={`keymove-suggestion${selected ? ' keymove-suggestion-selected' : ''}`}
           >
-            <span className={'keymove-suggestion-position'} aria-hidden="true">
-              {index + 1}
-            </span>
+            <ShortcutBadge position={index + 1} tooltipsMode={tooltipsMode} />
             <SuggestionContent suggestion={suggestion} />
           </div>
         );

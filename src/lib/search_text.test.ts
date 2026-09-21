@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { matchingTextSpans, normalizeSearchText } from './search_text.js';
 
 test('preserves ASCII spacing and applies Unicode rules to mixed text', () => {

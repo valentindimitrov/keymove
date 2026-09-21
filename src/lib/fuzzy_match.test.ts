@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { boundedEditDistance, fuzzyMatchInText, maxDistanceForQuery } from './fuzzy_match.js';
 
 test('counts an adjacent transposition as a single edit', () => {

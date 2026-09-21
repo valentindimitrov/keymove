@@ -198,6 +198,9 @@ Click the colorful **K** logo or the browser toolbar icon to open settings. Clic
 
 Settings include:
 
+- **Tooltips mode:** show usage reminders and full `Alt + number` badges (`Option + number` on
+  macOS). On by default, above Always on. Turn it off for compact number badges and no automatic
+  hints; all keyboard shortcuts still work.
 - **Always on:** begin searching whenever you type while another input is not focused.
 - **Start in action mode:** begin each search in action mode instead of text mode.
 - **Highlight matches:** tint matching text on the page, and mark the current one.
@@ -493,7 +496,7 @@ control after entering an editor, press `Alt + F` and start another search.
 ### Choose an action with the arrow keys
 
 Press **↓** while the search field has focus and a result is selected. The suggestions give way
-to an action menu with only that result's suggestion row retained above it; the query and
+to an action menu with only that result's suggestion retained in a single line at the bottom; the query and
 navigation position are kept.
 
 - **↑ / ↓:** move through menu actions. Up has no assigned KeyMove action when the menu is closed.
@@ -517,12 +520,19 @@ shortcuts remain available from the search field.
 This is KeyMove's own menu; it does not contain browser commands or other extensions' entries.
 
 Example: type `pull`, press `Alt + 2` to select the second suggestion, then `↓` to open its
-actions. Only that selected suggestion remains visible above the menu. Press `Alt + 4` to run
+actions. Only that selected suggestion remains visible at the bottom. Press `Alt + 4` to run
 the action labelled **4** (Copy link address for a typical web link), without stepping through
 the menu or pressing Enter. The menu closes and the query remains. `Escape` instead closes
 the menu without running anything and restores the full shortlist. Action numbers follow the
 available menu entries, so use the displayed number rather than assuming every result has the
 same actions.
+
+With **Tooltips mode** enabled (the default), suggestion and action badges spell out `Alt + 1`,
+`Alt + 2`, and so on. The searchbar shows `↓ Actions`, and the menu displays its navigation hints.
+Turn it off in Settings for compact numbers and no reminders. It also suppresses automatic help
+on hover, the mode-switch and Autohide tooltips, and the settings pane's search/dragging reminders.
+The `?` button still opens the full shortcut reference when clicked or keyboard-activated.
+Result labels, context, counts, setting descriptions, lock status and error messages remain visible.
 
 ### Copy what you found
 

@@ -33,6 +33,7 @@ vi.mock('../../lib/find_in_page.js', () => ({
 vi.mock('../../hooks/use_highlights.js', () => ({ default: searchMocks.useHighlights }));
 vi.mock('../../hooks/use_extension_messaging.js', () => ({ default: vi.fn() }));
 const settingsMocks = vi.hoisted(() => ({
+  tooltipsMode: true,
   suggestionCount: 3,
   startInActionMode: false,
   highlightMatches: true,
@@ -40,6 +41,7 @@ const settingsMocks = vi.hoisted(() => ({
 }));
 vi.mock('../../hooks/use_stored_settings.js', () => ({
   default: () => ({
+    tooltipsMode: settingsMocks.tooltipsMode,
     suggestionCount: settingsMocks.suggestionCount,
     autoHide: false,
     updateAutoHide: vi.fn(),
@@ -76,6 +78,7 @@ vi.mock('../../hooks/use_popup_position.js', () => ({
 }));
 
 beforeEach(() => {
+  vi.spyOn(console, 'error');
   searchMocks.findMatches.mockReset();
   searchMocks.useHighlights.mockReset();
   searchMocks.updatePopupPosition.mockReset();
@@ -86,6 +89,7 @@ beforeEach(() => {
   searchMocks.popupWidth = 420;
   searchMocks.updatePopupWidth.mockReset();
   settingsMocks.startInActionMode = false;
+  settingsMocks.tooltipsMode = true;
   settingsMocks.suggestionCount = 3;
   settingsMocks.highlightMatches = true;
   settingsMocks.showAutohideButton = false;
@@ -96,6 +100,11 @@ afterEach(() => {
   vi.useRealTimers();
   document.body.innerHTML = '';
   window.getSelection()?.removeAllRanges();
+  try {
+    expect(console.error).not.toHaveBeenCalled();
+  } finally {
+    vi.mocked(console.error).mockRestore();
+  }
 });
 
 async function flushSearch() {
@@ -160,6 +169,8 @@ test('menu retains the selected suggestion and restores the full shortlist on Es
   for (let i = 0; i < 3; i++) fireEvent.keyDown(input, { key: 'Tab', code: 'Tab' });
   fireEvent.keyDown(input, { key: 'ArrowDown', code: 'ArrowDown' });
   const retained = screen.getByRole('group', { name: 'Selected result' });
+  expect(retained.closest('#keymove-action-menu-container')).toBeNull();
+  expect(retained.parentElement?.previousElementSibling?.id).toBe('keymove-action-menu-container');
   expect(retained).toHaveTextContent('Report fourth');
   expect(retained.querySelector('mark')).toHaveTextContent('Report');
   expect(retained.querySelector('.keymove-suggestion-context')).toHaveTextContent('link');
@@ -187,6 +198,27 @@ test('menu Alt+number runs the numbered action without changing the result', asy
   );
   expect(screen.queryByRole('menu')).not.toBeInTheDocument();
 });
+
+test.each([true, false])(
+  'Tooltips mode %s controls menu hints without changing its shortcuts',
+  async tooltipsMode => {
+    settingsMocks.tooltipsMode = tooltipsMode;
+    const { input } = await openLinkActionMenu();
+    const first = screen.getAllByRole('menuitem')[0]!;
+    expect(first.querySelector('.keymove-suggestion-position')?.textContent).toBe(
+      tooltipsMode ? 'Alt + 1' : '1',
+    );
+    expect(Boolean(document.querySelector('#keymove-actions-hint'))).toBe(tooltipsMode);
+    expect(Boolean(document.querySelector('.keymove-action-menu-footer'))).toBe(tooltipsMode);
+    fireEvent.keyDown(document.activeElement!, { key: '3', code: 'Digit3', altKey: true });
+    await act(async () => {});
+    expect(searchMocks.sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ active: false }),
+    );
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(input).not.toHaveAttribute('aria-describedby');
+  },
+);
 
 test('Alt+6 copies linked text, and repeated shortcuts cannot duplicate a pending action', async () => {
   const pending = Promise.withResolvers<void>();
@@ -341,35 +373,39 @@ test('modified Enter and composition do not accidentally activate a menu action'
   expect(screen.queryByRole('menu')).not.toBeInTheDocument();
 });
 
-test('Down opens during a background refresh and stays usable through page changes', async () => {
-  const { input, link } = await openLinkActionMenu();
-  fireEvent.keyDown(document.activeElement!, { key: 'Escape', code: 'Escape' });
-  const refresh = Promise.withResolvers<SearchResult>();
-  searchMocks.findMatches
-    .mockReturnValueOnce(refresh.promise)
-    .mockResolvedValue(makeSearchResult({ matchingLinksAndButtons: [link] }));
-  const notify = searchMocks.subscribeToPageChanges.mock.calls.at(-1)![0] as () => void;
-  act(notify);
-  const refreshSignal = searchMocks.findMatches.mock.calls.at(-1)![0].signal as AbortSignal;
-  fireEvent.keyDown(input, { key: 'ArrowDown', code: 'ArrowDown' });
-  const menu = screen.getByRole('menu');
-  expect(refreshSignal.aborted).toBe(true);
-  const calls = searchMocks.findMatches.mock.calls.length;
-  fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown', code: 'ArrowDown' });
-  const focusedAction = document.activeElement;
-  act(() => {
-    for (let i = 0; i < 10; i++) notify();
-  });
-  await act(async () => refresh.resolve(makeSearchResult()));
-  expect(screen.getByRole('menu')).toBe(menu);
-  expect(document.activeElement).toBe(focusedAction);
-  expect(searchMocks.findMatches).toHaveBeenCalledTimes(calls);
-  fireEvent.keyDown(document.activeElement!, { key: 'Escape', code: 'Escape' });
-  await flushSearch();
-  expect(input).toHaveFocus();
-  expect(input).toHaveValue('report');
-  expect(searchMocks.findMatches).toHaveBeenCalledTimes(calls + 1);
-});
+test.each([true, false])(
+  'Down opens during a background refresh and stays usable with tooltips %s',
+  async tooltipsMode => {
+    settingsMocks.tooltipsMode = tooltipsMode;
+    const { input, link } = await openLinkActionMenu();
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape', code: 'Escape' });
+    const refresh = Promise.withResolvers<SearchResult>();
+    searchMocks.findMatches
+      .mockReturnValueOnce(refresh.promise)
+      .mockResolvedValue(makeSearchResult({ matchingLinksAndButtons: [link] }));
+    const notify = searchMocks.subscribeToPageChanges.mock.calls.at(-1)![0] as () => void;
+    act(notify);
+    const refreshSignal = searchMocks.findMatches.mock.calls.at(-1)![0].signal as AbortSignal;
+    fireEvent.keyDown(input, { key: 'ArrowDown', code: 'ArrowDown' });
+    const menu = screen.getByRole('menu');
+    expect(refreshSignal.aborted).toBe(true);
+    const calls = searchMocks.findMatches.mock.calls.length;
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown', code: 'ArrowDown' });
+    const focusedAction = document.activeElement;
+    act(() => {
+      for (let i = 0; i < 10; i++) notify();
+    });
+    await act(async () => refresh.resolve(makeSearchResult()));
+    expect(screen.getByRole('menu')).toBe(menu);
+    expect(document.activeElement).toBe(focusedAction);
+    expect(searchMocks.findMatches).toHaveBeenCalledTimes(calls);
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape', code: 'Escape' });
+    await flushSearch();
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue('report');
+    expect(searchMocks.findMatches).toHaveBeenCalledTimes(calls + 1);
+  },
+);
 
 test('menu actions recheck removed and disabled nodes, and an invalidated target dismisses the menu', async () => {
   const { input, link } = await openLinkActionMenu();
@@ -429,14 +465,16 @@ test('Down leaves pending queries, composition and unrelated form inputs alone',
   expect(screen.queryByRole('menu')).not.toBeInTheDocument();
   const field = document.createElement('input');
   document.body.append(field);
-  field.focus();
+  act(() => field.focus());
   const down = new KeyboardEvent('keydown', {
     key: 'ArrowDown',
     code: 'ArrowDown',
     bubbles: true,
     cancelable: true,
   });
-  field.dispatchEvent(down);
+  act(() => {
+    field.dispatchEvent(down);
+  });
   expect(down.defaultPrevented).toBe(false);
   await act(async () => pending.resolve(makeSearchResult()));
 });
@@ -1691,7 +1729,9 @@ test('keeps the suggestions frame through empty results and the next pending que
   await act(async () => pending.resolve(matches));
   expect(screen.getByRole('listbox')).toBe(panel);
   expect(screen.getAllByRole('option')).toHaveLength(1);
+  searchMocks.findMatches.mockResolvedValueOnce(makeSearchResult());
   fireEvent.change(input, { target: { value: 'sa' } });
+  await flushSearch();
   expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
 });
 

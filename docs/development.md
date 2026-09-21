@@ -50,12 +50,46 @@ afterward. A passing typecheck or build is not evidence of correct interaction.
 
 ## Three complementary checks
 
+### Focused test runs
+
+Use affected tests and `yarn typecheck` while editing. Keep the full `yarn quality`
+gate for the final handoff and CI; it still includes every application and tooling test.
+
+| Scope | Command |
+| --- | --- |
+| Staged and unstaged application changes | `yarn test:changed` |
+| Application changes since a branch or commit | `yarn test:changed main` |
+| Application tests importing a source file | `yarn test:related src/lib/popup_width_schema.ts` |
+| One file | `yarn test src/lib/fuzzy_match.test.ts` |
+| Named cases in a file | `yarn test searchbar.test.tsx -t "menu"` |
+| Watch a focused area | `yarn test:watch searchbar` |
+| All application tests | `yarn test:unit` |
+| Script tests, including the real-Git worktree check | `yarn test:tooling` |
+| All application and tooling tests | `yarn test` |
+
+Changed, related and watch commands exclude `scripts/`; run `test:tooling` when
+changing tooling. On `main`, use `HEAD~1` to include the last commit rather than
+comparing the branch to itself. Import-based selection cannot discover arbitrary
+filesystem reads. `vitest.config.ts` forces reruns for `src/content.css` and
+`yarn.lock`, alongside Vitest's default config/package triggers. Run owning tests
+explicitly for other non-imported inputs. An empty selection is not verification.
+
+Use Node environments for pure calculations, validation and filesystem checks;
+reserve jsdom for DOM and React behavior. Preserve isolation and high-value edge
+cases. Fix unexpected console errors and React update warnings instead of silencing
+them. Avoid duplicate helper checks and tests that only echo their input props.
+
+### Rendered and installed-browser checks
+
 - `yarn test` checks indexing, scoring, cancellation, navigation and storage in
   isolation. The searchbar regression test requires every keystroke, including
   the first, to invoke search immediately and abort superseded work.
 - `yarn preview:ui` opens the existing real-component Shadow DOM harness. Use it
   for fonts, layout, colours, and visual states; extend its scenarios when adding
   UI states. It does not install or exercise the extension runtime.
+  For suggestion placement, check `?scenario=slate-above` and `?scenario=slate-below`
+  at desktop and narrow viewport sizes: the list must sit on the correct side of
+  the bar and stay inside the viewport. A CSS-class assertion cannot establish this.
 - `yarn test:browser` rebuilds and loads the production extension in a fresh
   temporary Vivaldi/Chrome profile, runs real keyboard interaction checks against
   local fixtures, and closes only its own browser. It exits unsuccessfully on a

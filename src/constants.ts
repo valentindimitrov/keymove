@@ -65,8 +65,10 @@ export const SUGGESTION_SWAP_MARGIN = 1.15;
 // Enough to decide which side of the bar the list fits on before it has been laid out.
 export const SUGGESTION_ROW_HEIGHT = 46;
 export const SUGGESTION_PANEL_PADDING = 12;
+export const ACTION_MENU_RESULT_HEIGHT = 44;
 
 export const SETTINGS_KEYS = {
+  TOOLTIPS_MODE: 'tooltipsMode',
   SUGGESTION_COUNT: 'suggestionCount',
   LOCK_POSITION_AND_SIZE: 'lockPositionAndSize',
   AUTO_HIDE: 'autoHide',

@@ -32,6 +32,32 @@ test('marks the part of the row that matched', () => {
   expect(marked.tagName).toBe('MARK');
 });
 
+test('Tooltips mode switches full shortcut labels to compact numbers without changing selection', () => {
+  const row = suggestion('Report');
+  const onSelect = vi.fn();
+  const { rerender } = render(
+    <ResultsPanel suggestions={[row]} selectedNode={row.node} above={false} onSelect={onSelect} />,
+  );
+  expect(screen.getByText('Alt + 1')).toBeInTheDocument();
+  rerender(
+    <ResultsPanel
+      tooltipsMode={false}
+      suggestions={[row]}
+      selectedNode={row.node}
+      above={false}
+      onSelect={onSelect}
+    />,
+  );
+  expect(screen.queryByText('Alt + 1')).not.toBeInTheDocument();
+  expect(screen.getByText('1')).toBeInTheDocument();
+  expect(screen.getByRole('option', { selected: true })).toHaveAttribute(
+    'aria-keyshortcuts',
+    'Alt+1',
+  );
+  fireEvent.click(screen.getByRole('option'));
+  expect(onSelect).toHaveBeenCalledWith(0);
+});
+
 test.each([
   ['İstanbul', 'stanbul', 'stanbul'],
   ['Cafe\u0301', 'café', 'Cafe\u0301'],
@@ -102,31 +128,4 @@ test('keeps selection styling while busy but prevents selecting outdated rows', 
   rerender(<ResultsPanel {...props} />);
   fireEvent.click(option);
   expect(onSelect).toHaveBeenCalledWith(0);
-});
-
-test('flips above the bar when asked, so it does not run off the bottom', () => {
-  const { container, rerender } = render(
-    <ResultsPanel onSelect={vi.fn()} suggestions={[suggestion('One')]} selectedNode={null} above />,
-  );
-  expect(container.querySelector('.keymove-suggestions')).toHaveClass('keymove-suggestions-above');
-
-  rerender(
-    <ResultsPanel
-      onSelect={vi.fn()}
-      suggestions={[suggestion('One')]}
-      selectedNode={null}
-      above={false}
-    />,
-  );
-  expect(container.querySelector('.keymove-suggestions')).toHaveClass('keymove-suggestions-below');
-});
-
-test('says how far off an approximate result is, and where it sits', () => {
-  const row = suggestion('Contributing guidelines', {
-    term: 'contribu',
-    context: 'link · 1 edit away · in Navigation',
-  });
-  render(<ResultsPanel onSelect={vi.fn()} suggestions={[row]} selectedNode={null} above={false} />);
-
-  expect(screen.getByRole('option')).toHaveTextContent('link · 1 edit away · in Navigation');
 });

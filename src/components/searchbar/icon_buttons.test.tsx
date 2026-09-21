@@ -48,3 +48,21 @@ test('Escape inside the panel closes it and returns focus to its button', () => 
   expect(button).toHaveAttribute('aria-expanded', 'false');
   expect(button).toHaveFocus();
 });
+
+test('Tooltips mode off suppresses hover help but leaves explicit help and accessible controls available', () => {
+  render(
+    <>
+      <InfoDropdown tooltipsMode={false} />
+      <VisibilityButton tooltipsMode={false} autoHide={false} toggleAutoHide={toggleAutoHide} />
+    </>,
+  );
+  const help = screen.getByRole('button', { name: `${EXTENSION_NAME} keyboard shortcuts` });
+  fireEvent.mouseEnter(help);
+  expect(screen.queryByText('Keyboard Shortcuts')).not.toBeInTheDocument();
+  fireEvent.click(help);
+  expect(screen.getByText('Keyboard Shortcuts')).toBeInTheDocument();
+  const eye = screen.getByRole('button', { name: 'Turn Autohide on' });
+  fireEvent.mouseEnter(eye);
+  fireEvent.focus(eye);
+  expect(document.querySelector('#keymove-visibility-tooltip')).toBeNull();
+});

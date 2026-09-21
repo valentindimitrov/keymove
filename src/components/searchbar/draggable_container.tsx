@@ -17,6 +17,7 @@ type ResizeOrigin = { pointerX: number; width: number; center: number; edge: Res
 type DraggableContainerProps = React.PropsWithChildren<{
   className?: string | undefined;
   locked?: boolean;
+  bottomContentHeight?: number;
   width: number;
   updateWidth: (width: number) => void;
   searchInputRef: React.RefObject<HTMLInputElement | null>;
@@ -30,6 +31,7 @@ function pixelPosition(
   viewportWidth: number,
   viewportHeight: number,
   width: number = KEYMOVE_CONTAINER_WIDTH,
+  bottomContentHeight = 0,
 ) {
   return {
     left: Utils.clampNumber(
@@ -40,7 +42,7 @@ function pixelPosition(
     top: Utils.clampNumber(
       position.y * viewportHeight - KEYMOVE_CONTAINER_HEIGHT / 2,
       0,
-      Math.max(0, viewportHeight - KEYMOVE_CONTAINER_HEIGHT),
+      Math.max(0, viewportHeight - KEYMOVE_CONTAINER_HEIGHT - bottomContentHeight),
     ),
   };
 }
@@ -62,7 +64,7 @@ function normalizedPosition(
 
 const DraggableContainer = (props: DraggableContainerProps) => {
   const { children, className, searchInputRef, containerRef, position, updatePosition } = props;
-  const { width, updateWidth, locked = false } = props;
+  const { width, updateWidth, locked = false, bottomContentHeight = 0 } = props;
   const windowSize = useWindowSize();
 
   const [isDragging, setIsDragging] = React.useState(false);
@@ -254,10 +256,21 @@ const DraggableContainer = (props: DraggableContainerProps) => {
 
   const containerStyle = React.useMemo(() => {
     return {
-      ...pixelPosition(currentPosition, windowSize.width, windowSize.height, renderedWidth),
+      ...pixelPosition(
+        currentPosition,
+        windowSize.width,
+        windowSize.height,
+        renderedWidth,
+        bottomContentHeight,
+      ),
       width: renderedWidth,
+      // The upward menu must not lift the search bar by the row that now stays beneath it.
+      transform:
+        bottomContentHeight > 0 && className?.includes('keymove-container-suggestions-above')
+          ? `translateY(calc(-100% + ${KEYMOVE_CONTAINER_HEIGHT + bottomContentHeight}px))`
+          : undefined,
     };
-  }, [currentPosition, windowSize, renderedWidth]);
+  }, [currentPosition, windowSize, renderedWidth, bottomContentHeight, className]);
 
   return (
     <div

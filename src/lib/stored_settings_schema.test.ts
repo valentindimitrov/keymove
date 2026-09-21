@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { SETTINGS_KEYS } from '../constants.js';
 import {
   DEFAULT_STORED_SETTINGS,
@@ -17,6 +18,7 @@ test('accepts boolean values returned by extension storage', () => {
 
   expect(result).toEqual({
     settings: {
+      tooltipsMode: true,
       suggestionCount: 3,
       [SETTINGS_KEYS.AUTO_HIDE]: true,
       [SETTINGS_KEYS.ALWAYS_ON]: false,
@@ -52,6 +54,20 @@ test('uses defaults when the storage API returns an invalid container', () => {
 
 test('treats a removed setting as a reset to its default', () => {
   expect(validateStoredSettingChange(SETTINGS_KEYS.ALWAYS_ON, { oldValue: false })).toEqual({
+    value: true,
+    issues: [],
+  });
+});
+
+test('Tooltips mode defaults on, preserves false and validates changes', () => {
+  expect(validateStoredSettings({}).settings.tooltipsMode).toBe(true);
+  expect(validateStoredSettings({ tooltipsMode: false }).settings.tooltipsMode).toBe(false);
+  expect(validateStoredSettings({ tooltipsMode: 'false' }).settings.tooltipsMode).toBe(true);
+  expect(validateStoredSettingChange('tooltipsMode', { newValue: false })).toEqual({
+    value: false,
+    issues: [],
+  });
+  expect(validateStoredSettingChange('tooltipsMode', { oldValue: false })).toEqual({
     value: true,
     issues: [],
   });

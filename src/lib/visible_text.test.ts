@@ -1,10 +1,4 @@
 import { iterateRenderedText, visibleText } from './visible_text.js';
-import { normalizeSearchText } from './search_text.js';
-
-test('normalizes canonically equivalent Unicode spellings without dropping accents', () => {
-  expect(normalizeSearchText('CAFE\u0301')).toBe(normalizeSearchText('café'));
-  expect(normalizeSearchText('café')).not.toBe(normalizeSearchText('cafe'));
-});
 
 test.each([
   ['<p>  Account \n   <strong> settings</strong>  </p>', 'Account settings'],

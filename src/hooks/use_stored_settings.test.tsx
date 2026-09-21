@@ -62,6 +62,37 @@ test('preserves an explicit always-on choice made before storage responds', asyn
   expect(currentSettings?.alwaysOn).toBe(true);
 });
 
+test('Tooltips mode handles live changes and removal without a late initial read overriding them', async () => {
+  const initialRead = Promise.withResolvers<Record<string, boolean>>();
+  storageMocks.get.mockReturnValue(initialRead.promise);
+  render(<StoredSettingsHarness />);
+  expect(currentSettings?.tooltipsMode).toBe(true);
+  const onChanged = storageMocks.addListener.mock.calls[0]![0] as (
+    changes: unknown,
+    area: string,
+  ) => void;
+  act(() => onChanged({ tooltipsMode: { newValue: false } }, 'local'));
+  await act(async () => initialRead.resolve({ tooltipsMode: true }));
+  expect(currentSettings?.tooltipsMode).toBe(false);
+  act(() => onChanged({ tooltipsMode: { oldValue: false } }, 'local'));
+  expect(currentSettings?.tooltipsMode).toBe(true);
+});
+
+test('Tooltips mode preserves a local choice over initialization and rolls back a failed write', async () => {
+  const initialRead = Promise.withResolvers<Record<string, boolean>>();
+  storageMocks.get.mockReturnValue(initialRead.promise);
+  render(<StoredSettingsHarness />);
+  act(() => currentSettings?.updateTooltipsMode(false));
+  await act(async () => initialRead.resolve({ tooltipsMode: true }));
+  expect(currentSettings?.tooltipsMode).toBe(false);
+  expect(storageMocks.set).toHaveBeenCalledWith({ tooltipsMode: false });
+  const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  storageMocks.set.mockRejectedValueOnce(new Error('Cannot save'));
+  await act(async () => currentSettings?.updateTooltipsMode(true));
+  expect(currentSettings?.tooltipsMode).toBe(false);
+  error.mockRestore();
+});
+
 test('does not overwrite a local update with a delayed initial read', async () => {
   const initialRead = Promise.withResolvers<Record<string, boolean>>();
   storageMocks.get.mockReturnValue(initialRead.promise);

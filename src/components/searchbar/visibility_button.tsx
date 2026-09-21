@@ -4,7 +4,11 @@ import Tooltip from './tooltip.js';
 import ShowIcon from '../../icons/show.svg?react';
 import HideIcon from '../../icons/hide.svg?react';
 
-type VisibilityButtonProps = { autoHide: boolean; toggleAutoHide: () => void };
+type VisibilityButtonProps = {
+  autoHide: boolean;
+  toggleAutoHide: () => void;
+  tooltipsMode?: boolean;
+};
 
 const VisibilityButton = (props: VisibilityButtonProps) => {
   const { autoHide, toggleAutoHide } = props;
@@ -29,7 +33,7 @@ const VisibilityButton = (props: VisibilityButtonProps) => {
       >
         {autoHide ? <ShowIcon /> : <HideIcon />}
       </button>
-      {(hover || focused) && (
+      {props.tooltipsMode !== false && (hover || focused) && (
         <Tooltip containerRef={containerRef}>
           <div id={'keymove-visibility-tooltip'}>
             <div>{label}</div>

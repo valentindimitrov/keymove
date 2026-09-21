@@ -23,6 +23,12 @@ const InfoPanelSettings = (props: SettingsControls) => {
 
   const settings = [
     {
+      label: 'Tooltips mode',
+      description: 'Show shortcut hints and usage reminders. Turn off for a cleaner interface.',
+      value: props.tooltipsMode,
+      onChange: props.toggleTooltipsMode,
+    },
+    {
       label: 'Always on',
       description: `Focus the ${EXTENSION_NAME} searchbar anytime you press any key if another input is not focused.`,
       value: alwaysOn,

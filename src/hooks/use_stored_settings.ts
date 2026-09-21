@@ -37,6 +37,7 @@ function persistSetting<T extends boolean | number>(
 
 const useStoredSettings = () => {
   const revisions = React.useRef({
+    tooltipsMode: 0,
     suggestionCount: 0,
     lockPositionAndSize: 0,
     showAutohideButton: 0,
@@ -45,6 +46,23 @@ const useStoredSettings = () => {
     startInActionMode: 0,
     highlightMatches: 0,
   });
+  const [tooltipsMode, setTooltipsMode] = React.useState<boolean>(
+    DEFAULT_STORED_SETTINGS.tooltipsMode,
+  );
+  const updateTooltipsMode = React.useCallback(
+    (value: boolean) => {
+      const revision = ++revisions.current.tooltipsMode;
+      setTooltipsMode(value);
+      persistSetting(
+        SETTINGS_KEYS.TOOLTIPS_MODE,
+        value,
+        tooltipsMode,
+        setTooltipsMode,
+        () => revisions.current.tooltipsMode === revision,
+      );
+    },
+    [tooltipsMode],
+  );
   const [suggestionCount, setSuggestionCount] = React.useState<number>(
     DEFAULT_STORED_SETTINGS.suggestionCount,
   );
@@ -182,6 +200,8 @@ const useStoredSettings = () => {
     (data: unknown, initialRevisions: Record<StoredSettingKey, number>) => {
       const { settings, issues } = validateStoredSettings(data);
       reportStorageIssues(issues);
+      if (revisions.current.tooltipsMode === initialRevisions.tooltipsMode)
+        setTooltipsMode(settings.tooltipsMode);
       if (revisions.current.suggestionCount === initialRevisions.suggestionCount)
         setSuggestionCount(settings.suggestionCount);
       if (revisions.current.lockPositionAndSize === initialRevisions.lockPositionAndSize)
@@ -222,6 +242,7 @@ const useStoredSettings = () => {
       };
 
       applyChange(SETTINGS_KEYS.AUTO_HIDE, setAutoHide);
+      applyChange(SETTINGS_KEYS.TOOLTIPS_MODE, setTooltipsMode);
       if (Object.hasOwn(changes, SETTINGS_KEYS.SUGGESTION_COUNT)) {
         const { value, issues } = validateStoredSettingChange(
           SETTINGS_KEYS.SUGGESTION_COUNT,
@@ -257,6 +278,8 @@ const useStoredSettings = () => {
   }, [initializeStoredSettings, updateStoredSettings]);
 
   return {
+    tooltipsMode,
+    updateTooltipsMode,
     suggestionCount,
     updateSuggestionCount,
     lockPositionAndSize,

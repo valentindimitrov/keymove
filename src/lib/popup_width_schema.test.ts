@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { MAX_CONTAINER_WIDTH, MIN_CONTAINER_WIDTH } from '../constants.js';
 import { DEFAULT_POPUP_WIDTH, validatePopupWidth } from './popup_width_schema.js';
 

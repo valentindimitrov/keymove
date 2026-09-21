@@ -31,7 +31,8 @@ import MatchesSummary from './matches_summary.js';
 import ResultsPanel from './results_panel.js';
 import ActionMenu from './action_menu.js';
 import { actionsForResult } from '../../lib/result_actions.js';
-import DraggableContainer from './draggable_container.js';
+import DraggableContainer, { pixelPosition } from './draggable_container.js';
+import { ACTION_MENU_RESULT_HEIGHT } from '../../constants.js';
 import InfoDropdown from './info_dropdown.js';
 import VisibilityButton from './visibility_button.js';
 import SettingsButton from './settings_button.js';
@@ -69,6 +70,7 @@ const Searchbar = () => {
     autoHide,
     updateAutoHide,
     alwaysOn,
+    tooltipsMode,
     startInActionMode,
     highlightMatches,
     showAutohideButton,
@@ -835,16 +837,24 @@ const Searchbar = () => {
   // just because the bar sits in the lower half of the page. The height is estimated, since
   // the side has to be chosen before the list has been laid out; erring high only means
   // opening upwards a little sooner than strictly necessary.
+  const menuBottomHeight = actionMenuOpen ? ACTION_MENU_RESULT_HEIGHT : 0;
+  const panelBarTop = pixelPosition(
+    popupPosition,
+    windowSize.width,
+    windowSize.height,
+    popupWidth,
+    menuBottomHeight,
+  ).top;
   const suggestionsAbove = React.useMemo(() => {
     if (!suggestionsOpen && !actionMenuOpen) return false;
-    const barBottom = popupPosition.y * windowSize.height + KEYMOVE_CONTAINER_HEIGHT / 2;
+    const barBottom = panelBarTop + KEYMOVE_CONTAINER_HEIGHT;
     const listHeight = actionMenuOpen
-      ? menuActions.length * 38 + 130
+      ? menuActions.length * 38 + 80
       : Math.max(
           suggestionsHeight,
           Math.max(1, suggestions.length) * SUGGESTION_ROW_HEIGHT + SUGGESTION_PANEL_PADDING,
         );
-    const below = windowSize.height - barBottom;
+    const below = windowSize.height - barBottom - menuBottomHeight;
     const above = barBottom - KEYMOVE_CONTAINER_HEIGHT;
     return below < listHeight && above > below;
   }, [
@@ -853,14 +863,15 @@ const Searchbar = () => {
     menuActions.length,
     suggestionsHeight,
     suggestions.length,
-    popupPosition.y,
+    panelBarTop,
+    menuBottomHeight,
     windowSize.height,
   ]);
   const suggestionsMaxHeight = Math.max(
     0,
     (suggestionsAbove
-      ? popupPosition.y * windowSize.height - KEYMOVE_CONTAINER_HEIGHT / 2
-      : windowSize.height - popupPosition.y * windowSize.height - KEYMOVE_CONTAINER_HEIGHT / 2) - 8,
+      ? panelBarTop
+      : windowSize.height - panelBarTop - KEYMOVE_CONTAINER_HEIGHT - menuBottomHeight) - 8,
   );
   const activeSuggestionIndex = React.useMemo(() => {
     if (suggestionsPending || !selectedSuggestionNode) return null;
@@ -921,6 +932,7 @@ const Searchbar = () => {
         />
       )}
       <DraggableContainer
+        bottomContentHeight={menuBottomHeight}
         locked={lockPositionAndSize}
         className={suggestionsAbove ? 'keymove-container-suggestions-above' : undefined}
         width={popupWidth}
@@ -933,6 +945,7 @@ const Searchbar = () => {
         <div id={'keymove-bar'} data-always-on={alwaysOn}>
           <SettingsButton onClick={openSettings} />
           <SearchInput
+            tooltipsMode={tooltipsMode}
             inputRef={searchInputRef}
             searchText={searchText}
             suggestionCount={suggestions.length}
@@ -944,6 +957,7 @@ const Searchbar = () => {
             updateSearchText={setSearchText}
           />
           <MatchesSummary
+            tooltipsMode={tooltipsMode}
             onToggleMode={toggleSearchMode}
             mode={navigationMode}
             hasSearchQuery={hasSearchQuery}
@@ -952,12 +966,17 @@ const Searchbar = () => {
             resultCount={activeMatchingNodes.length}
           />
           {isInteractive && showAutohideButton && (
-            <VisibilityButton autoHide={autoHide} toggleAutoHide={toggleAutoHide} />
+            <VisibilityButton
+              tooltipsMode={tooltipsMode}
+              autoHide={autoHide}
+              toggleAutoHide={toggleAutoHide}
+            />
           )}
-          {isInteractive && <InfoDropdown />}
+          {isInteractive && <InfoDropdown tooltipsMode={tooltipsMode} />}
         </div>
         {actionMenuOpen && menuSuggestion ? (
           <ActionMenu
+            tooltipsMode={tooltipsMode}
             actions={menuActions}
             suggestion={menuSuggestion}
             above={suggestionsAbove}
@@ -970,6 +989,7 @@ const Searchbar = () => {
         ) : (
           isInteractive && (
             <ResultsPanel
+              tooltipsMode={tooltipsMode}
               maxHeight={suggestionsMaxHeight}
               open={suggestionsOpen}
               onHeightChange={setSuggestionsHeight}

@@ -52,6 +52,23 @@ test('opens with a reminder of the shortcut that summons the searchbar', async (
   expect(screen.getByText('Alt')).toBeInTheDocument();
 });
 
+test('Tooltips mode is on by default above Always on, persists and hides only usage reminders', async () => {
+  render(<PopupSettings />);
+  await waitFor(() => expect(storage.get).toHaveBeenCalled());
+  const toggle = screen.getByRole('checkbox', { name: 'Tooltips mode' });
+  expect(toggle).toBeChecked();
+  expect(screen.getAllByRole('checkbox').slice(0, 2)).toEqual([
+    toggle,
+    screen.getByRole('checkbox', { name: 'Always on' }),
+  ]);
+  fireEvent.click(screen.getByText('Tooltips mode'));
+  expect(toggle).not.toBeChecked();
+  expect(storage.set).toHaveBeenCalledWith({ tooltipsMode: false });
+  expect(screen.queryByText(/focus the searchbar/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/Drag the right edge/)).not.toBeInTheDocument();
+  expect(screen.getByText(/Show shortcut hints and usage reminders/)).toBeInTheDocument();
+});
+
 test('offers nine standard positions and marks the stored one', async () => {
   storage.get.mockResolvedValue({ popupPosition: { x: 0.5, y: 0.75 } });
   render(<PopupSettings />);

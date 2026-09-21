@@ -19,6 +19,8 @@ import InfoPanelButtons from '../searchbar/info_panel/info_panel_buttons.js';
 // storage change events, so a write here reaches all of them without any messaging.
 const PopupSettings = () => {
   const {
+    tooltipsMode,
+    updateTooltipsMode,
     suggestionCount,
     updateSuggestionCount,
     autoHide,
@@ -71,7 +73,7 @@ const PopupSettings = () => {
   return (
     <div id={'keymove-popup'}>
       <InfoPanelSectionHeader text={'Settings'} />
-      {focusShortcut && (
+      {tooltipsMode && focusShortcut && (
         <div className={'keymove-popup-reminder'}>
           <InfoPanelShortcutRow isMacOS={Utils.isMacOS()} shortcut={focusShortcut} />
           <p className={'keymove-popup-hint'}>
@@ -80,6 +82,8 @@ const PopupSettings = () => {
         </div>
       )}
       <InfoPanelSettings
+        tooltipsMode={tooltipsMode}
+        toggleTooltipsMode={() => updateTooltipsMode(!tooltipsMode)}
         autoHide={autoHide}
         toggleAutoHide={toggleAutoHide}
         alwaysOn={alwaysOn}
@@ -101,11 +105,13 @@ const PopupSettings = () => {
         updatePosition={updatePosition}
         disabled={lockPositionAndSize}
       />
-      <p className={'keymove-popup-hint'}>
-        {lockPositionAndSize
-          ? `Position and size are locked. Currently ${popupWidth} pixels wide.`
-          : 'Drag the right edge of the searchbar to resize it. Click and drag within the pane to resize it.'}
-      </p>
+      {(tooltipsMode || lockPositionAndSize) && (
+        <p className={'keymove-popup-hint'}>
+          {lockPositionAndSize
+            ? `Position and size are locked. Currently ${popupWidth} pixels wide.`
+            : 'Drag the right edge of the searchbar to resize it. Click and drag within the pane to resize it.'}
+        </p>
+      )}
       <PopupLayoutActions
         locked={lockPositionAndSize}
         onToggleLock={() => updateLockPositionAndSize(!lockPositionAndSize)}
