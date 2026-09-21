@@ -1,6 +1,7 @@
 import { LINK_OR_BUTTON_ROLE_VALUES } from '../constants.js';
 import { searchableAttributesByNodeName } from './static_data.js';
 import { normalizeSearchText } from './search_text.js';
+import { closestAcrossRoots } from './dom_tree.js';
 
 const ACTIONABLE_SELECTOR = [
   'a[href]',
@@ -48,7 +49,10 @@ function isActionDisabled(node: Element) {
     const control = labelledToggle(node);
     if (control ? isActionDisabled(control) : !isLinkOrButtonOrInput(node)) return true;
   }
-  return node.matches(':disabled') || Boolean(node.closest('[aria-disabled="true"], [inert]'));
+  return (
+    node.matches(':disabled') ||
+    Boolean(closestAcrossRoots(node, '[aria-disabled="true"], [inert]'))
+  );
 }
 
 function searchableAttributeValuesForNode(node: Element) {

@@ -1207,6 +1207,95 @@ test('Alt+S keeps the mode label visible when nothing matches at all', async () 
   expect(screen.getByRole('status')).toHaveTextContent('Actions 0 / 0');
 });
 
+test.each(['none', 'Tab', 'Shift+Tab', 'menu Tab'])(
+  'text mode temporarily uses actions and restores text after backspace, including %s navigation',
+  async navigation => {
+    const paragraph = document.createElement('p');
+    paragraph.textContent = 'Reche';
+    const action = document.createElement('input');
+    action.placeholder = 'Rechercher';
+    document.body.append(paragraph, action);
+    searchMocks.findMatches.mockResolvedValue(
+      makeSearchResult({ matchingLinksAndButtons: [action] }),
+    );
+    render(<Searchbar />);
+    const input = screen.getByRole('combobox', { name: 'Search page' });
+    input.focus();
+    fireEvent.change(input, { target: { value: 'recher' } });
+    await flushSearch();
+    const status = screen.getByRole('status');
+    expect(status).toHaveTextContent('Actions 1 / 1');
+
+    if (navigation === 'menu Tab') {
+      fireEvent.keyDown(input, { key: 'ArrowDown', code: 'ArrowDown' });
+      expect(screen.getByRole('menu')).toBeInTheDocument();
+      fireEvent.keyDown(document.activeElement!, { key: 'Tab', code: 'Tab' });
+    } else if (navigation !== 'none') {
+      fireEvent.keyDown(input, {
+        key: 'Tab',
+        code: 'Tab',
+        shiftKey: navigation === 'Shift+Tab',
+      });
+    }
+    expect(status).toHaveTextContent('Actions 1 / 1');
+    searchMocks.findMatches.mockResolvedValue(
+      makeSearchResult({
+        matchingText: [makeTextMatch({ node: paragraph, term: 'reche' })],
+        matchingLinksAndButtons: [action],
+      }),
+    );
+    fireEvent.keyDown(input, { key: 'Backspace', code: 'Backspace' });
+    fireEvent.change(input, { target: { value: 'reche' } });
+    await flushSearch();
+    expect(status).toHaveTextContent('Text 1 / 1');
+  },
+);
+
+test('Enter focuses the first action during text fallback', async () => {
+  const action = document.createElement('input');
+  action.placeholder = 'Rechercher';
+  document.body.append(action);
+  searchMocks.findMatches.mockResolvedValue(
+    makeSearchResult({ matchingLinksAndButtons: [action] }),
+  );
+  render(<Searchbar />);
+  const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
+  fireEvent.change(input, { target: { value: 'recher' } });
+  await flushSearch();
+  fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
+  expect(action).toHaveFocus();
+});
+
+test.each(['default', 'shortcut'])(
+  'explicit action mode via %s stays in actions when text matches return',
+  async choice => {
+    settingsMocks.startInActionMode = choice === 'default';
+    const action = document.createElement('button');
+    const paragraph = document.createElement('p');
+    document.body.append(action, paragraph);
+    searchMocks.findMatches.mockResolvedValue(
+      makeSearchResult({ matchingLinksAndButtons: [action] }),
+    );
+    render(<Searchbar />);
+    const input = screen.getByRole('combobox', { name: 'Search page' });
+    fireEvent.change(input, { target: { value: 'recher' } });
+    await flushSearch();
+    if (choice === 'shortcut') {
+      fireEvent.keyDown(input, { key: 'Tab', code: 'Tab', ctrlKey: true });
+    }
+    searchMocks.findMatches.mockResolvedValue(
+      makeSearchResult({
+        matchingText: [makeTextMatch({ node: paragraph, term: 'reche' })],
+        matchingLinksAndButtons: [action],
+      }),
+    );
+    fireEvent.change(input, { target: { value: 'reche' } });
+    await flushSearch();
+    expect(screen.getByRole('status')).toHaveTextContent('Actions 1 / 1');
+  },
+);
+
 test('falls back to text when action mode is empty, and retries actions on the next query', async () => {
   const paragraph = document.createElement('p');
   paragraph.textContent = 'How it works';

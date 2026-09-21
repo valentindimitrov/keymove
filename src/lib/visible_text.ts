@@ -1,4 +1,5 @@
 import { DO_NOT_SEARCH_NODE_TYPES, KEYMOVE_ROOT_ID } from '../constants.js';
+import { ownerParent, renderedParent, renderedChildren, textRangeScope } from './dom_tree.js';
 
 type StyleCache = WeakMap<
   Element,
@@ -21,7 +22,7 @@ function computedStyle(element: Element, cache: StyleCache) {
 function isSubtreeVisible(element: Element, cache: StyleCache): boolean {
   const uncached: Element[] = [];
   let visible = true;
-  for (let ancestor: Element | null = element; ancestor; ancestor = ancestor.parentElement) {
+  for (let ancestor: Element | null = element; ancestor; ancestor = renderedParent(ancestor)) {
     const cached = cache.get(ancestor)?.subtreeVisible;
     if (cached !== undefined) {
       visible = cached;
@@ -29,6 +30,10 @@ function isSubtreeVisible(element: Element, cache: StyleCache): boolean {
     }
     const style = computedStyle(ancestor, cache);
     uncached.push(ancestor);
+    if (ownerParent(ancestor) && !renderedParent(ancestor)) {
+      visible = false;
+      break;
+    }
     if (ancestor.id === KEYMOVE_ROOT_ID || DO_NOT_SEARCH_NODE_TYPES.includes(ancestor.nodeName)) {
       visible = false;
       break;
@@ -65,7 +70,9 @@ function whitespaceFor(element: Element | null, cache: StyleCache): string {
   const collapse = style.getPropertyValue('white-space-collapse');
   entry.whitespace ??=
     style.whiteSpace.split(' ')[0] ||
-    (collapse && collapse !== 'collapse' ? collapse : whitespaceFor(element.parentElement, cache));
+    (collapse && collapse !== 'collapse'
+      ? collapse
+      : whitespaceFor(renderedParent(element), cache));
   return entry.whitespace;
 }
 
@@ -110,8 +117,9 @@ function* iterateRenderedText(
       };
   };
   function* readText(text: Text): Generator<RenderedTextPart | null> {
-    if (text.parentElement && !isTextVisible(text.parentElement, cache)) return;
-    const whitespace = whitespaceFor(text.parentElement, cache);
+    const parent = renderedParent(text);
+    if ((!parent && text.parentNode) || (parent && !isTextVisible(parent, cache))) return;
+    const whitespace = whitespaceFor(parent, cache);
     const preserve = ['pre', 'pre-wrap', 'preserve', 'break-spaces'].includes(whitespace);
     const preserveBreaks = ['pre-line', 'preserve-breaks'].includes(whitespace);
     // Bound processing even when a page puts megabytes into one Text node.
@@ -139,8 +147,10 @@ function* iterateRenderedText(
           yield* append(textPart('\n', text, start, end, false));
         } else if (/^[\t\n\f\r ]/.test(value)) {
           if (!lineStart && pending?.text !== '\n') {
-            if (pending) pending.end = [text, end];
-            else pending = textPart(' ', text, start, end, false);
+            if (pending) {
+              if (textRangeScope(pending.start[0]) === textRangeScope(text))
+                pending.end = [text, end];
+            } else pending = textPart(' ', text, start, end, false);
           }
         } else yield* append(textPart(value, text, start, end));
       }
@@ -151,19 +161,18 @@ function* iterateRenderedText(
     return;
   }
   if (!isSubtreeVisible(node, cache)) return;
-  type Frame = { element: Element; next: ChildNode | null; offset: number; block: boolean };
-  const stack: Frame[] = [{ element: node, next: node.firstChild, offset: 0, block: false }];
+  type Frame = { element: Element; children: Iterator<Node>; block: boolean };
+  const stack: Frame[] = [{ element: node, children: renderedChildren(node), block: false }];
   while (stack.length) {
     yield null;
     const frame = stack[stack.length - 1]!;
-    const child = frame.next;
-    if (!child) {
-      if (frame.block) separate(frame.element, frame.offset);
+    const step = frame.children.next();
+    if (step.done) {
+      if (frame.block) separate(frame.element, frame.element.childNodes.length);
       stack.pop();
       continue;
     }
-    const offset = frame.offset++;
-    frame.next = child.nextSibling;
+    const child = step.value;
     if (child instanceof Text) yield* readText(child);
     else if (child instanceof Element && isSubtreeVisible(child, cache)) {
       if (child.tagName === 'BR') {
@@ -172,8 +181,8 @@ function* iterateRenderedText(
           yield* append({
             text: '\n',
             searchText: ' ',
-            start: [frame.element, offset],
-            end: [frame.element, offset + 1],
+            start: [child, 0],
+            end: [child, 0],
             linear: false,
           });
         }
@@ -184,7 +193,7 @@ function* iterateRenderedText(
           computedStyle(child, cache).display,
         );
       if (block) separate(child, 0);
-      stack.push({ element: child, next: child.firstChild, offset: 0, block });
+      stack.push({ element: child, children: renderedChildren(child), block });
     }
   }
 }

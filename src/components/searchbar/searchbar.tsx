@@ -370,11 +370,11 @@ const Searchbar = () => {
   // Shared by stepping through matches and by jumping straight to a numbered row, so both
   // routes leave the same mode, selection, scroll position and page selection behind.
   const selectMatchAtIndex = React.useCallback(
-    (mode: SearchMode, index: number) => {
+    (mode: SearchMode, index: number, chooseMode = true) => {
       setMenuTarget(null);
       const matches = mode === SEARCH_MODES.TEXT ? matchingTextNodes : matchingLinksAndButtons;
       rememberOrigin(matches[index]);
-      setMode(mode);
+      if (chooseMode) setMode(mode);
       setSelectedIndex(mode, index);
       Utils.scrollToNodeAtIndexInList(matches, index);
       if (mode === SEARCH_MODES.TEXT) {
@@ -388,7 +388,8 @@ const Searchbar = () => {
   );
 
   const selectNextMatchingNode = React.useCallback(
-    (event: KeyboardEvent, mode: SearchMode, forward = true) => {
+    (event: KeyboardEvent, requestedMode: SearchMode | 'current', forward = true) => {
+      const mode = requestedMode === 'current' ? navigationMode : requestedMode;
       const matches = mode === SEARCH_MODES.TEXT ? matchingTextNodes : matchingLinksAndButtons;
       if (matches.length === 0) {
         return;
@@ -404,6 +405,8 @@ const Searchbar = () => {
             ? 0
             : matches.length - 1
           : (currentIndex + (forward ? 1 : matches.length - 1)) % matches.length,
+        // Tab in the text-mode fallback must not make actions a permanent choice.
+        requestedMode !== 'current' || chosenMode !== SEARCH_MODES.TEXT,
       );
     },
     [
@@ -411,6 +414,8 @@ const Searchbar = () => {
       matchingLinksAndButtons,
       searchNavigation.selectedIndices,
       selectMatchAtIndex,
+      navigationMode,
+      chosenMode,
     ],
   );
 
@@ -436,10 +441,10 @@ const Searchbar = () => {
       guarded(event => {
         const differentInputIsActive = Utils.differentInputIsActive(searchInputRef.current);
         if (Utils.elementIsActive(searchInputRef.current) || !differentInputIsActive) {
-          selectNextMatchingNode(event, mode === 'current' ? navigationMode : mode, forward);
+          selectNextMatchingNode(event, mode, forward);
         }
       }),
-    [guarded, selectNextMatchingNode, navigationMode],
+    [guarded, selectNextMatchingNode],
   );
 
   // Jumps straight to a row of the results panel. The row carries its own kind, so a number
@@ -610,9 +615,9 @@ const Searchbar = () => {
   const navigateFromMenu = React.useCallback(
     (event: KeyboardEvent, forward: boolean) => {
       setMenuTarget(null);
-      selectNextMatchingNode(event, navigationMode, forward);
+      selectNextMatchingNode(event, 'current', forward);
     },
-    [selectNextMatchingNode, navigationMode],
+    [selectNextMatchingNode],
   );
 
   const keyboardShortcutHandlerMapping = React.useMemo<

@@ -25,6 +25,7 @@ a background tab.
 - Open selected web links in the current tab, a foreground tab, or a background tab.
 - Copy the URL of a selected link directly from action mode.
 - Find controls through associated form labels, `aria-labelledby`, accessible labels, and image alternative text.
+- Search visible text and controls inside open Shadow DOM components, including nested components and slotted content.
 - Toggle checkboxes and switches, select radio buttons, submit native buttons, and expand disclosures with Enter.
 - Focus text editors and complex widgets to continue using their own keyboard controls. Disabled controls are marked unavailable and cannot be activated.
 - Search inside an open modal automatically; closing it restores whole-page search without changing a setting.
@@ -55,6 +56,14 @@ searching, then selects the first result when matches arrive so Enter works imme
 Both modes navigate all matching results, with no result-count cap. Visual highlighting is limited
 to 500 occurrences per query; navigation and copying still use complete text blocks. The page index is released when search
 ends, and large indexing jobs yield between chunks so they can be cancelled.
+
+Open Shadow DOM uses the same search, navigation, highlighting, copying, and activation shortcuts
+as the rest of the page. Labels resolve within their own document or shadow root. Hidden hosts,
+unassigned light-DOM content, and KeyMove's own interface are excluded. Existing shadow roots are
+observed for content, control-state, and slot changes. A shadow root attached later to an already
+connected host is discovered on the next search or page-triggered refresh; KeyMove does not patch
+the page's `attachShadow` implementation or continuously poll it. Closed shadow roots and iframe
+contents are not searched.
 
 ### Keyboard shortcuts
 

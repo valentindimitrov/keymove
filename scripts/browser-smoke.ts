@@ -13,6 +13,8 @@ import { checkControlNavigation } from './control-navigation-smoke.ts';
 import { checkActionMenu } from './action-menu-smoke.ts';
 import { checkTooltipsMode } from './tooltips-mode-smoke.ts';
 import { checkDynamicPage } from './dynamic-page-smoke.ts';
+import { checkShadowSearch } from './shadow-search-smoke.ts';
+import { checkActionFallback } from './action-fallback-smoke.ts';
 
 const shadow = `document.getElementById('keymove-root')?.shadowRoot`;
 const input = `${shadow}?.querySelector('[aria-label="Search page"]')`;
@@ -79,6 +81,14 @@ export async function runBrowserSmoke(client: ChromiumClient, browser: string): 
     await server.listen();
     const origin = server.resolvedUrls?.local[0];
     assert(origin, 'Fixture server did not expose its address');
+    await checkActionFallback(client, origin);
+    passed.push(
+      'Temporary text-to-action fallback, Tab/menu navigation, Backspace restoration and Enter focus',
+    );
+    await checkShadowSearch(client, origin);
+    passed.push(
+      'Open/nested Shadow DOM, slots, highlight ranges, native selection/copy, editing, activation, mutations and modal scoping',
+    );
     dynamicPage = await checkDynamicPage(client, origin);
     console.log('Dynamic-page search timing', dynamicPage);
     passed.push(

@@ -108,6 +108,21 @@ modes remain inside the active modal; nonmodal panels do not scope search. The e
 host moves inside the modal so native inertness does not block the UI, and returns on close.
 Recheck action availability at activation time, including for actions attached to text results.
 
+## Open Shadow DOM
+
+`dom_tree.ts` distinguishes DOM ownership (including shadow hosts) from rendered ancestry through
+slots. Use the matching helper for membership, visibility, modal scope, result order and action
+ancestors; native `contains`, `closest` and `parentElement` do not cross shadow boundaries.
+The index discovers open roots in cancellable chunks on each search and observes each root.
+Dispose its observers/listeners and root inventory references on disconnect. Never enter KeyMove's
+own root, patch the page's `attachShadow`, or expose closed roots. Iframes remain unsupported.
+Resolve ID-based labels in the control's own root. Read assigned slot content instead of its
+fallback and exclude unassigned light DOM. Keep search, copy and highlights on the same rendered
+text reader. Split highlight ranges at tree boundaries and adopt only KeyMove highlight styles into
+matched roots, preserving page stylesheets. Native shadow selection needs composed endpoints and
+live boundary tracking so page mutations cannot strand the query caret. Browser-check copy/paste,
+typing, nested modals and cleanup with `preview/shadow.html`, not just jsdom.
+
 ## Language support
 
 Search accepts Unicode letters, numbers, and combining marks. Queries, visible text and

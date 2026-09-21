@@ -35,10 +35,16 @@ const INITIAL_SEARCH_NAVIGATION_STATE: SearchNavigationState = {
   selectedIndices: { text: null, actions: null },
 };
 
-// Action mode with nothing in it is a dead end, so navigation falls back to the text
-// results. This is derived rather than stored: the chosen mode is left alone, so the next
-// query tries actions again instead of stranding the user in text mode.
+// An empty mode falls back to the other collection. Derive this without changing the
+// chosen mode, so it returns as soon as a later query has matching results again.
 function effectiveSearchMode(state: SearchNavigationState): SearchMode {
+  if (
+    state.mode === SEARCH_MODES.TEXT &&
+    state.results.text.length === 0 &&
+    state.results.actions.length > 0
+  ) {
+    return SEARCH_MODES.ACTIONS;
+  }
   if (
     state.mode === SEARCH_MODES.ACTIONS &&
     state.results.actions.length === 0 &&
