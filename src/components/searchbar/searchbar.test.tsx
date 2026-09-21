@@ -293,7 +293,9 @@ test.each([true, false])(
     expect(first.querySelector('.keymove-suggestion-position')?.textContent).toBe(
       tooltipsMode ? 'Alt + 1' : '1',
     );
-    expect(Boolean(document.querySelector('#keymove-actions-hint'))).toBe(tooltipsMode);
+    expect(input).toHaveAccessibleDescription(
+      tooltipsMode ? 'Press Down Arrow to open actions for the selected result.' : '',
+    );
     expect(Boolean(document.querySelector('.keymove-action-menu-footer'))).toBe(tooltipsMode);
     fireEvent.keyDown(document.activeElement!, { key: '3', code: 'Digit3', altKey: true });
     await act(async () => {});

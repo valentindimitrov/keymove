@@ -297,14 +297,6 @@
   box-shadow: none;
 }
 
-#keymove-actions-hint {
-  flex: none;
-  margin-left: 6px;
-  color: var(--keymove-text-secondary, rgba(255, 255, 255, 0.75));
-  font-size: var(--keymove-font-caption, 11px);
-  white-space: nowrap;
-}
-
 .keymove-action-menu {
   overflow-y: auto;
   overscroll-behavior: contain;

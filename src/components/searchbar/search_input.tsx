@@ -93,7 +93,9 @@ const SearchInput = (props: SearchInputProps) => {
         onBlur={onBlur}
       />
       {props.actionsAvailable && props.tooltipsMode !== false && (
-        <span id="keymove-actions-hint">↓ Actions</span>
+        <span id="keymove-actions-hint" hidden>
+          Press Down Arrow to open actions for the selected result.
+        </span>
       )}
     </div>
   );
