@@ -138,7 +138,7 @@ export default function Walkthrough() {
           </p>
         </aside>
       </div>
-      <details className="walkthrough-transcript">
+      <details className="walkthrough-transcript" open>
         <summary>Read the walkthrough</summary>
         <ol>
           <li>

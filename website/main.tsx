@@ -148,7 +148,18 @@ function Website() {
               </div>
               <div className="escape-note">
                 <Shortcut name="dismiss_search" />
-                <span>Clear the search. Press again to leave the demo.</span>
+                <span>Close the search. Press again to leave the demo.</span>
+              </div>
+              <div className="lesson-shortcuts">
+                <span>
+                  <Shortcut name="next_match" /> Next text match
+                </span>
+                <span>
+                  <Shortcut name="select_match" /> Activate
+                </span>
+                <span>
+                  <Shortcut name="open_action_menu" /> Actions
+                </span>
               </div>
             </aside>
             <div className="browser-frame">
@@ -158,7 +169,9 @@ function Website() {
                   <i />
                   <i />
                 </div>
-                <span>the small hours / weekend guide</span>
+                <span className="demo-address" title="Simulated website address">
+                  https://thesmallhours.example/weekend-guide
+                </span>
                 <button
                   type="button"
                   onClick={() => {
@@ -187,17 +200,6 @@ function Website() {
                 allow="clipboard-write"
                 onError={() => setFailed(true)}
               />
-              <div className="browser-footer">
-                <span>
-                  <Shortcut name="next_match" /> Next text match
-                </span>
-                <span>
-                  <Shortcut name="select_match" /> Activate
-                </span>
-                <span>
-                  <Shortcut name="open_action_menu" /> Actions
-                </span>
-              </div>
             </div>
           </div>
           <p className="playground-note" id="leave-demo" tabIndex={-1}>

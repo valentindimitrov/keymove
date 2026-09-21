@@ -384,25 +384,26 @@ iframe {
   height: 900px;
   border: 0;
 }
-.browser-footer {
-  min-height: 42px;
-  display: flex;
-  justify-content: center;
-  gap: 25px;
-  align-items: center;
-  border-top: 1px solid var(--site-line, #e9e6ed);
-  font-size: 11px;
+.lesson-shortcuts {
+  display: grid;
+  gap: 10px;
+  margin: 16px 8px 0;
+  font-size: 12px;
   color: var(--site-muted, #797180);
-  background: var(--site-chrome, #fcfbfe);
 }
-.browser-footer span {
+.lesson-shortcuts > span {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 10px;
 }
-.browser-footer kbd {
-  padding: 1px 5px;
-  font-size: 11px;
+.demo-address {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.browser-toolbar button {
+  flex-shrink: 0;
 }
 .playground-note {
   color: var(--site-muted, #7d7686);
@@ -721,13 +722,6 @@ h3 {
   }
   iframe {
     height: 960px;
-  }
-  .browser-footer {
-    gap: 12px;
-    font-size: 10px;
-  }
-  .browser-footer span {
-    gap: 4px;
   }
   .features {
     grid-template-columns: 1fr;

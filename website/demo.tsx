@@ -4,7 +4,13 @@ import { flushSync } from 'react-dom';
 import Searchbar from '../src/components/searchbar/searchbar.js';
 import ExtensionErrorBoundary from '../src/components/extension_error_boundary.js';
 import { PortalTargetProvider } from '../src/components/searchbar/portal.js';
-import PopupSettings from '../src/components/popup/popup_settings.js';
+import { PopupSettingsView } from '../src/components/popup/popup_settings.js';
+import useStoredSettings from '../src/hooks/use_stored_settings.js';
+import useInteractionSettings from '../src/hooks/use_interaction_settings.js';
+import useHighlightColors from '../src/hooks/use_highlight_colors.js';
+import usePopupPosition from '../src/hooks/use_popup_position.js';
+import usePopupWidth from '../src/hooks/use_popup_width.js';
+import useTheme from '../src/hooks/use_theme.js';
 import createExtensionRoot, {
   keepExtensionRootConnected,
 } from '../src/lib/create_extension_root.js';
@@ -13,9 +19,39 @@ import contentStyles from '../src/content.css?inline';
 import onboardingStyles from './demo-onboarding.css?inline';
 import popupStyles from '../src/popup.css?inline';
 import '../src/highlights.css';
-import { browser } from './browser-adapter.js';
+import { browser, notifyDemo, showDemoSearch } from './browser-adapter.js';
 import { isDemoCommand, LESSONS } from './protocol.js';
 import './demo.css';
+
+function DemoSettings({ host, onClose }: { host: HTMLElement; onClose: () => void }) {
+  const settings = useStoredSettings();
+  const interaction = useInteractionSettings();
+  const colors = useHighlightColors();
+  const position = usePopupPosition();
+  const width = usePopupWidth();
+  useTheme(settings.theme, host);
+  return (
+    <PopupSettingsView
+      settings={settings}
+      interaction={interaction}
+      colors={colors}
+      position={position}
+      width={width}
+      hostname={location.hostname}
+      searchUnavailable={
+        !interaction.ready
+          ? 'Loading page settings…'
+          : interaction.sites[location.hostname] === 'paused'
+            ? 'Paused on this site. Resume in Sites.'
+            : null
+      }
+      onShowSearch={async () => {
+        await showDemoSearch();
+        onClose();
+      }}
+    />
+  );
+}
 
 function SamplePage() {
   const [saved, setSaved] = useState(false);
@@ -38,11 +74,13 @@ function SamplePage() {
     if (!settingsOpen || !settingsHost.current) return;
     const shadow = settingsHost.current.attachShadow({ mode: 'open' });
     const style = document.createElement('style');
-    style.textContent = `${contentStyles}\n${popupStyles}\n#keymove-popup { padding: 18px; background: #1c1c1c; color: white; font: 13px/1.35 Arial, sans-serif; border-radius: 8px; }`;
+    style.textContent = `${contentStyles}\n${popupStyles}\n#keymove-popup { padding: 18px; background: var(--keymove-popup-surface, #1c1c1c); border-radius: 8px; }`;
     const mount = document.createElement('div');
     shadow.append(style, mount);
     const root = createRoot(mount);
-    root.render(<PopupSettings />);
+    root.render(
+      <DemoSettings host={settingsHost.current} onClose={() => setSettingsOpen(false)} />,
+    );
     return () => queueMicrotask(() => root.unmount());
   }, [settingsOpen]);
 
@@ -175,16 +213,23 @@ window.addEventListener('message', event => {
       // Exercise the real input path, including cancellation and highlighting, without
       // exposing test-only props or a website dependency in the extension runtime.
       key('Escape', 'Escape');
-      key('f', 'KeyF', true);
       requestAnimationFrame(() => {
-        const input = searchInput();
-        if (!input) return;
-        input.focus({ preventScroll: true });
-        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(
-          input,
-          lesson.query,
-        );
-        input.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+        void showDemoSearch()
+          .then(() => {
+            const input = searchInput();
+            if (!input) return;
+            input.focus({ preventScroll: true });
+            Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(
+              input,
+              lesson.query,
+            );
+            input.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+          })
+          .catch((error: unknown) =>
+            notifyDemo(
+              error instanceof Error ? error.message : 'Could not open the demo searchbar.',
+            ),
+          );
       });
     });
 });
