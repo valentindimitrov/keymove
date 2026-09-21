@@ -2,7 +2,7 @@
   position: fixed;
   top: 16px;
   left: 16px;
-  width: min(420px, calc(100vw - 32px));
+  width: min(456px, calc(100vw - 32px));
   max-height: calc(100vh - 32px);
   overflow: auto;
   padding: var(--keymove-space-4, 16px) 18px;

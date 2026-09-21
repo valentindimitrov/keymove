@@ -22,6 +22,7 @@ is never changed. Page highlights retain the user's separately chosen highlight 
 | `--keymove-radius-*` | Badge, small control, control, button and surface corners |
 | `--keymove-font-*`, `--keymove-line-height` | Shared interface font, text sizes and line height |
 | `--keymove-setting-control`, `--keymove-setting-gap` | One grid for settings controls and labels |
+| `--keymove-settings-column` | Popup's 130px right column; checkboxes, number and color inputs center within it |
 
 Every `var()` use must include a literal fallback. The CSS regression covers both shared and
 popup styles. Tokens represent reusable visual decisions; runtime geometry, selection outlines
@@ -31,7 +32,9 @@ not duplicate component markup or create a parallel set of layout rules.
 ## Rendered checks
 
 Run `yarn preview:ui` and open `?scenario=theme-settings` to switch themes on the shared settings
-components. Other scenarios accept `&theme=light`, `&theme=dark`, or `&theme=system`.
+components, including all four settings tabs and example site overrides (preview only).
+The popup retains its tabs and compact footer while long tab contents scroll, bounded to
+the browser's 600px popup height. Other scenarios accept `&theme=light`, `&theme=dark`, or `&theme=system`.
 Inspect `slate-above`, `slate-below`, `action-menu-narrow`, and keyboard help at desktop and
 narrow widths. `&browser=firefox` previews that surface's opacity; it is not a Firefox runtime test.
 

@@ -5,6 +5,7 @@ import useDocumentEvent from '../../hooks/use_document_event.js';
 import useHighlights from '../../hooks/use_highlights.js';
 import useKeyboardShortcuts from '../../hooks/use_keyboard_shortcuts.js';
 import useStoredSettings from '../../hooks/use_stored_settings.js';
+import useInteractionSettings from '../../hooks/use_interaction_settings.js';
 import useTheme from '../../hooks/use_theme.js';
 import { usePortalTarget } from './portal.js';
 import useExtensionMessaging from '../../hooks/use_extension_messaging.js';
@@ -79,6 +80,13 @@ const Searchbar = () => {
     showAutohideButton,
     lockPositionAndSize,
   } = useStoredSettings();
+  const interaction = useInteractionSettings();
+  const siteBehavior =
+    (Object.hasOwn(interaction.sites, window.location.hostname)
+      ? interaction.sites[window.location.hostname]
+      : undefined) ?? (alwaysOn ? 'type' : 'shortcut');
+  const paused = !interaction.ready || siteBehavior === 'paused';
+  const typeToSearch = !paused && siteBehavior === 'type';
   const portalRoot = usePortalTarget()?.getRootNode();
   useTheme(theme, portalRoot instanceof ShadowRoot ? portalRoot.host : null);
   const defaultSearchMode = startInActionMode ? SEARCH_MODES.ACTIONS : SEARCH_MODES.TEXT;
@@ -112,7 +120,7 @@ const Searchbar = () => {
   const previousSearchText = React.useRef(searchText);
   const [scrollOrResizeRefresh, setScrollOrResizeRefresh] = React.useState<boolean>(false);
   const [hideSelections, setHideSelections] = React.useState<boolean>(false);
-  const isInteractive = !isHidden;
+  const isInteractive = !isHidden && !paused;
 
   const matchingText = searchNavigation.results.text;
   const matchingLinksAndButtons = searchNavigation.results.actions;
@@ -191,6 +199,14 @@ const Searchbar = () => {
     setIsHidden(true);
     resetSearchTextAndMatches();
   }, [resetSearchTextAndMatches, discardOrigin]);
+
+  React.useEffect(() => {
+    if (paused) {
+      focusRequested.current = false;
+      hide();
+      searchInputRef.current?.blur();
+    }
+  }, [paused, hide]);
 
   const handleBlur = React.useCallback(
     (event: React.FocusEvent<HTMLInputElement>) => {
@@ -695,7 +711,8 @@ const Searchbar = () => {
       const target = event.composedPath()[0] ?? event.target;
       if (
         keyboardShortcutName !== 'focus_searchbar' &&
-        (Utils.differentInputIsActive(searchInputRef.current) ||
+        (!Utils.elementIsActive(searchInputRef.current) ||
+          Utils.differentInputIsActive(searchInputRef.current) ||
           (target !== searchInputRef.current && Utils.isExtensionElement(target)))
       ) {
         return;
@@ -734,6 +751,7 @@ const Searchbar = () => {
     (event: ClipboardEvent) => {
       if (
         !isInteractive ||
+        !Utils.elementIsActive(searchInputRef.current) ||
         !event.clipboardData ||
         Utils.differentInputIsActive(searchInputRef.current)
       ) {
@@ -827,10 +845,9 @@ const Searchbar = () => {
         hide();
       } else {
         setIsHidden(false);
-        focusSearchInput();
       }
     }
-  }, [autoHide, hide, focusSearchInput]);
+  }, [autoHide, hide]);
 
   // The panel is a second view of the one cursor, not a cursor of its own, so a row is
   // highlighted only when Tab has actually landed on it.
@@ -891,14 +908,14 @@ const Searchbar = () => {
   useWindowEvent('scroll', shouldBindEvents, updateSelectionPositionsAfterTimeout);
   useWindowEvent('wheel', shouldBindEvents, updateSelectionPositionsAfterTimeout);
   useWindowEvent('resize', shouldBindEvents, updateSelectionPositionsAfterTimeout);
-  useDocumentEvent('keydown', alwaysOn, handleKeydown, true);
+  useDocumentEvent('keydown', typeToSearch, handleKeydown, true);
   useDocumentEvent(
     'copy',
     selectedTextMatch !== null || selectedActionLinkUrl !== null,
     handleCopy,
     true,
   );
-  useKeyboardShortcuts(handleShortcut);
+  useKeyboardShortcuts(handleShortcut, interaction.openingShortcut, !paused);
   useHighlights({
     matches: matchingText,
     selectedMatch: selectedTextMatch,
@@ -947,7 +964,11 @@ const Searchbar = () => {
         position={popupPosition}
         updatePosition={updatePopupPosition}
       >
-        <div id={'keymove-bar'} data-always-on={alwaysOn}>
+        <div
+          id={'keymove-bar'}
+          data-always-on={typeToSearch}
+          data-site-behavior={paused ? 'paused' : siteBehavior}
+        >
           <SettingsButton onClick={openSettings} />
           <SearchInput
             tooltipsMode={tooltipsMode}
@@ -977,7 +998,12 @@ const Searchbar = () => {
               toggleAutoHide={toggleAutoHide}
             />
           )}
-          {isInteractive && <InfoDropdown tooltipsMode={tooltipsMode} />}
+          {isInteractive && (
+            <InfoDropdown
+              tooltipsMode={tooltipsMode}
+              openingShortcut={interaction.openingShortcut}
+            />
+          )}
         </div>
         {actionMenuOpen && menuSuggestion ? (
           <ActionMenu

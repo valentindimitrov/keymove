@@ -3,11 +3,12 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { ChromiumClient } from 'web-ext';
 import { openPage, waitFor, type TestPage } from './browser-driver.ts';
+import { settingsTab } from './settings-smoke.ts';
 
 const artifacts = path.resolve(import.meta.dirname, '../.artifacts');
 const host = `document.getElementById('keymove-root')`;
 const shadow = `${host}?.shadowRoot`;
-const preference = `document.querySelector('select')`;
+const preference = `document.querySelector('.keymove-theme-setting select')`;
 
 async function choose(popup: TestPage, theme: string) {
   await popup.evaluate(`(() => {
@@ -32,6 +33,7 @@ async function expectTheme(page: TestPage, popup: TestPage, theme: string) {
 }
 
 export async function checkTheme(page: TestPage, popup: TestPage) {
+  await settingsTab(popup, 'Appearance');
   mkdirSync(artifacts, { recursive: true });
   const pageAppearance =
     await page.evaluate(`({theme: document.documentElement.dataset.keymoveTheme,
@@ -65,6 +67,11 @@ export async function checkTheme(page: TestPage, popup: TestPage) {
       'dark',
     );
     await popup.evaluate('location.reload()');
+    await waitFor(
+      popup,
+      `document.querySelector('[role="tab"][aria-selected="true"]')?.textContent === 'General'`,
+    );
+    await settingsTab(popup, 'Appearance');
     await waitFor(popup, `${preference}?.value === 'dark'`);
     await expectTheme(page, popup, 'dark');
     await choose(popup, 'system');
@@ -79,6 +86,7 @@ export async function checkTheme(page: TestPage, popup: TestPage) {
     await page.setColorScheme('');
     await popup.setColorScheme('');
     await popup.setViewport(1280, 900);
+    await settingsTab(popup, 'General');
   }
 }
 
@@ -143,6 +151,30 @@ export async function checkThemePreviews(client: ChromiumClient, origin: string)
             path.join(artifacts, `${scenario}-${theme}-${width}.png`),
             await page.screenshot(),
           );
+          if (scenario === 'theme-settings') {
+            for (const tab of ['General', 'Appearance', 'Shortcuts', 'Sites']) {
+              await page.evaluate(
+                `Array.from(${shadow}.querySelectorAll('[role="tab"]')).find(tab => tab.textContent === '${tab}').click()`,
+              );
+              await waitFor(
+                page,
+                `${shadow}.querySelector('[role="tab"][aria-selected="true"]').textContent === '${tab}'`,
+              );
+              const aligned = await page.evaluate(`(() => {
+                const root=${shadow};const popup=root.querySelector('#keymove-popup');
+                const inputs=Array.from(popup.querySelectorAll('input[type="checkbox"],input[type="color"],input[type="number"]'));
+                return popup.scrollWidth <= popup.clientWidth && inputs.every(input => {
+                  const row=input.closest('.keymove-info-panel-setting-row').getBoundingClientRect();
+                  const rect=input.getBoundingClientRect();return Math.abs((rect.left+rect.right)/2-(row.right-65))<1;
+                });
+              })()`);
+              assert.equal(aligned, true, `${tab} controls align at ${width}px`);
+              writeFileSync(
+                path.join(artifacts, `settings-${tab.toLowerCase()}-${theme}-${width}.png`),
+                await page.screenshot(),
+              );
+            }
+          }
         } finally {
           await page.close();
         }

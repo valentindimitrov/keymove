@@ -15,20 +15,20 @@ export default function ThemeSetting({ value, onChange }: Props) {
         <div id={`${id}-description`} className="keymove-info-panel-setting-description">
           System follows your device’s light or dark appearance.
         </div>
-        <select
-          id={id}
-          value={value}
-          aria-describedby={`${id}-description`}
-          onChange={event => {
-            const result = validateStoredSetting('theme', event.target.value);
-            if (!result.issues.length) onChange(result.value);
-          }}
-        >
-          <option value="system">System</option>
-          <option value="light">Light</option>
-          <option value="dark">Dark</option>
-        </select>
       </div>
+      <select
+        id={id}
+        value={value}
+        aria-describedby={`${id}-description`}
+        onChange={event => {
+          const result = validateStoredSetting('theme', event.target.value);
+          if (!result.issues.length) onChange(result.value);
+        }}
+      >
+        <option value="system">System</option>
+        <option value="light">Light</option>
+        <option value="dark">Dark</option>
+      </select>
     </div>
   );
 }

@@ -179,6 +179,17 @@ Setting `default_popup` means `browser.action.onClicked` never fires. The toolba
 the settings popup and cannot also summon the searchbar; `Alt + F` and always-on typing are
 the ways in.
 
+The popup has General, Appearance, Shortcuts and Sites tabs. General's Default activation
+keeps the existing `alwaysOn` boolean. `interaction_settings_schema.ts` validates the
+`openingShortcut` code/modifier object and `siteBehavior:<exact hostname>` keys (type,
+shortcut, paused). Removing a site key restores the default; never replace the entire site
+dictionary when editing one rule. `use_interaction_settings` subscribes before reading and
+ignores stale reads and failed-write rollbacks after newer changes. No interception occurs
+until this read succeeds, or while the site is paused. Except for explicit opening and
+permitted type-to-search, shortcuts and copying require the KeyMove input to own focus.
+Keep the current-site picker and all saved overrides in Sites, and the shared light/dark
+theme in Appearance. The real settings preview is `preview/settings_fixture.tsx`.
+
 ## Popup position and storage
 
 The default popup center is `{ x: 0.5, y: 0.75 }`, expressed as normalized viewport coordinates.
