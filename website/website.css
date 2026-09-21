@@ -70,21 +70,39 @@ button:disabled {
 .site-header nav {
   display: flex;
   align-items: center;
-  gap: 32px;
+  gap: 24px;
   font-size: 14px;
   font-weight: 600;
 }
 .site-header nav a {
   text-decoration: none;
 }
-.site-header nav a:hover,
-.text-link:hover {
+.site-header nav a:hover {
   color: var(--site-accent, #8333b5);
 }
-.nav-cta {
-  padding: 11px 17px;
+.nav-github,
+.store-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 9px 14px;
   border: 1px solid var(--site-line, #c8c8d7);
   border-radius: 7px;
+}
+.store-links {
+  display: flex;
+  gap: 8px;
+  padding-left: 24px;
+  border-left: 1px solid var(--site-line, #c8c8d7);
+}
+.store-link {
+  background: var(--site-panel, #ececf4);
+}
+.store-link:hover,
+.nav-github:hover {
+  border-color: var(--site-accent, #8333b5);
 }
 .hero {
   padding-top: 53px;
@@ -446,40 +464,6 @@ h3 {
   color: var(--site-muted, #706a7d);
   margin: 0;
 }
-.get-section {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 30px;
-  background: var(--site-panel, #eeebf5);
-  border: 1px solid var(--site-line, #e1dbea);
-  border-radius: 14px;
-  padding: 44px 48px;
-}
-.get-section .eyebrow {
-  color: var(--site-label, #8d639e);
-  margin-bottom: 18px;
-}
-.get-section h2 {
-  font-size: 34px;
-}
-.get-section p {
-  font-size: 14px;
-  line-height: 1.7;
-  color: var(--site-muted, #797082);
-  margin: 18px 0 0;
-}
-.get-links {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  align-items: center;
-}
-.text-link {
-  font-size: 13px;
-  color: var(--site-muted, #71677e);
-  text-underline-offset: 4px;
-}
 .site-footer {
   display: flex;
   align-items: center;
@@ -540,13 +524,23 @@ h3 {
 }
 @media (max-width: 800px) {
   .site-header {
-    min-height: 64px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 14px;
+    padding-block: 14px;
   }
   .site-header nav {
-    gap: 18px;
+    display: contents;
   }
-  .site-header nav > a:first-child {
+  .site-header .nav-how {
     display: none;
+  }
+  .store-links {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    padding-left: 0;
+    border-left: 0;
   }
   .hero {
     padding-block: 36px 45px;
@@ -630,12 +624,6 @@ h3 {
   .features h3 {
     font-size: 16px;
   }
-  .get-section {
-    padding: 30px;
-  }
-  .get-section h2 {
-    font-size: 28px;
-  }
 }
 @media (max-width: 520px) {
   .wrap {
@@ -643,13 +631,6 @@ h3 {
   }
   .wordmark {
     font-size: 22px;
-  }
-  .site-header nav {
-    gap: 15px;
-    font-size: 12px;
-  }
-  .nav-cta {
-    padding: 9px 10px;
   }
   .hero .eyebrow {
     font-size: 10px;
@@ -739,20 +720,6 @@ h3 {
   }
   .features h3 {
     font-size: 19px;
-  }
-  .get-section {
-    flex-direction: column;
-    align-items: start;
-    padding: 27px;
-  }
-  .get-links {
-    align-items: start;
-    width: 100%;
-  }
-  .get-links .primary-button {
-    gap: 15px;
-    width: 100%;
-    font-size: 13px;
   }
   .site-footer {
     flex-wrap: wrap;

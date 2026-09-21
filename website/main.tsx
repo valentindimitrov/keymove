@@ -72,13 +72,45 @@ function Website() {
           {identity.name}
         </a>
         <nav aria-label="Main navigation">
-          <a href="#how-it-works">How it works</a>
-          <a href={identity.sourceUrl} target="_blank" rel="noreferrer">
-            GitHub <span aria-hidden="true">↗</span>
+          <a className="nav-how" href="#how-it-works">
+            How it works
           </a>
-          <a className="nav-cta" href="#get-keymove">
-            Get KeyMove <span aria-hidden="true">↗</span>
+          <a className="nav-github" href={identity.sourceUrl} target="_blank" rel="noreferrer">
+            <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.65 7.65 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z" />
+            </svg>
+            GitHub
           </a>
+          <div className="store-links" role="group" aria-label="Extension stores">
+            {[
+              {
+                name: 'Chrome',
+                store: 'Chrome Web Store',
+                url: 'https://chromewebstore.google.com/',
+              },
+              {
+                name: 'Edge',
+                store: 'Microsoft Edge Add-ons',
+                url: 'https://microsoftedge.microsoft.com/addons/',
+              },
+              {
+                name: 'Firefox',
+                store: 'Firefox Add-ons',
+                url: 'https://addons.mozilla.org/firefox/',
+              },
+            ].map(store => (
+              <a
+                className="store-link"
+                key={store.name}
+                href={store.url}
+                target="_blank"
+                rel="noreferrer"
+                title={`${store.store} — placeholder until KeyMove is published`}
+              >
+                {store.name}
+              </a>
+            ))}
+          </div>
         </nav>
       </header>
       <main>
@@ -263,34 +295,6 @@ function Website() {
                 control.
               </p>
             </article>
-          </div>
-        </section>
-
-        <section className="get-section wrap" id="get-keymove" aria-labelledby="get-title">
-          <div>
-            <span className="eyebrow">TAKE IT WITH YOU</span>
-            <h2 id="get-title">
-              Make your next page
-              <br />a keyboard-first page.
-            </h2>
-            <p>
-              Built for Chromium browsers and Firefox.
-              <br />
-              KeyMove is preparing for its first store release.
-            </p>
-          </div>
-          <div className="get-links">
-            <a
-              className="primary-button"
-              href={`${identity.sourceUrl}#readme`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Installation instructions <span aria-hidden="true">↗</span>
-            </a>
-            <a className="text-link" href={identity.sourceUrl} target="_blank" rel="noreferrer">
-              Explore the source on GitHub ↗
-            </a>
           </div>
         </section>
       </main>
