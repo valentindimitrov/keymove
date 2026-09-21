@@ -110,9 +110,6 @@ export default function Walkthrough() {
     chapters.findLastIndex(item => time >= item.time),
   );
   const chapter = chapters[chapterIndex] ?? chapters[0];
-  const chapterSteps = steps.filter(
-    item => item.time >= chapter.time && item.time < (chapters[chapterIndex + 1]?.time ?? Infinity),
-  );
 
   function seek(seconds: number, pause = false) {
     const player = video.current;
@@ -156,13 +153,6 @@ export default function Walkthrough() {
         <aside className="walkthrough-guide" aria-label="Walkthrough guide">
           <div className="walkthrough-caption">
             <h3>{chapter.label}</h3>
-            <ol className="walkthrough-keystrokes" aria-label={`${chapter.label}: input sequence`}>
-              {chapterSteps.map(item => (
-                <li key={item.time} aria-current={item === step ? 'step' : undefined}>
-                  {'shortcut' in item ? <Shortcut name={item.shortcut} /> : <kbd>{item.text}</kbd>}
-                </li>
-              ))}
-            </ol>
             <p aria-live="polite" aria-atomic="true">
               {step.detail}
             </p>

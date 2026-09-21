@@ -32,30 +32,7 @@
   flex-direction: column;
 }
 .walkthrough-caption {
-  min-height: 220px;
-}
-.walkthrough-keystrokes {
-  padding-left: 26px;
-  margin: 12px 0;
-  font-variant-numeric: tabular-nums;
-}
-.walkthrough-keystrokes li {
-  padding: 2px 6px;
-  margin: 2px 0;
-  border-radius: 6px;
-}
-.walkthrough-keystrokes li::marker {
-  color: var(--site-muted, #686878);
-}
-.walkthrough-keystrokes li[aria-current='step'] {
-  background: var(--site-page, #f7f7fb);
-  color: var(--site-accent, #933bbf);
-}
-.walkthrough-keystrokes kbd {
-  font-size: 15px;
-  padding: 4px 7px;
-  line-height: 1.4;
-  white-space: normal;
+  min-height: 120px;
 }
 .walkthrough-caption h3 {
   font-size: 18px;
@@ -131,7 +108,7 @@
     border-top: 1px solid var(--site-line, #d6c5e4);
   }
   .walkthrough-caption {
-    min-height: 210px;
+    min-height: 140px;
   }
   .walkthrough-chapters {
     grid-template-columns: repeat(3, minmax(0, 1fr));

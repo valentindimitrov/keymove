@@ -24,12 +24,15 @@ tooltip. Compact rounded key badges follow the right side of the search field, i
 the menu opens above it. The recording omits the playground’s onboarding banner and outline;
 these remain available in the live demo. Its MP4 and first-frame poster are in `media/`.
 The extension uses its dark palette against a light sample page for contrast. The first query
-is deliberately only `cof`, demonstrating substring matching. Each chapter lists its complete
-input sequence and marks the current input, including both separate Tab presses.
+is deliberately only `cof`, demonstrating substring matching. Within the recording, inputs
+accumulate as separate, content-sized badges beside the searchbar, including both Tab presses.
+The stack resets at each chapter boundary. The sidebar contains explanations and chapter links;
+the expanded transcript preserves an accessible written account of the input sequence.
 The player starts paused and provides
 native play/pause, seeking/fullscreen, chapter links,
-optional captions and a text transcript. The adjacent key labels use the extension's platform
-shortcut definitions. Keep `walkthrough.tsx`, `media/walkthrough.vtt` and the recorded sequence
+optional captions and a text transcript. The transcript uses the extension's platform shortcut
+definitions; recorded badges show Alt / Option for both platforms. Keep `walkthrough.tsx`,
+`media/walkthrough.vtt` and the recorded sequence
 in sync when updating the video. Playback is independent of the interactive demo's state.
 
 Only the website Vite configuration aliases `wxt/browser` to `browser-adapter.ts`. Settings are
