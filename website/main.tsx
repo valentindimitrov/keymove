@@ -130,12 +130,6 @@ function Website() {
       </div>
       <main>
         <section className="hero wrap" aria-labelledby="hero-title">
-          <div className="eyebrow">
-            <span className="tiny-key" aria-hidden="true">
-              K
-            </span>{' '}
-            From finding something to doing something
-          </div>
           <div className="hero-row">
             <h1 id="hero-title">
               Find your
