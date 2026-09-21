@@ -69,7 +69,7 @@ function Website() {
             <span className="tiny-key" aria-hidden="true">
               K
             </span>{' '}
-            YOUR KEYBOARD HAS PLACES TO GO
+            From finding something to doing something
           </div>
           <div className="hero-row">
             <h1 id="hero-title">
@@ -207,7 +207,6 @@ function Website() {
               <span className="eyebrow">SMALL SHORTCUTS. BIG DIFFERENCE.</span>
               <h2 id="how-title">Stay with the thought.</h2>
             </div>
-            <p className="muted">From finding something to doing something.</p>
           </div>
           <div className="features">
             <article>

@@ -9,7 +9,7 @@ const values: Record<string, unknown> = {
   ...DEFAULT_STORED_SETTINGS,
   autoHide: false,
   alwaysOn: false,
-  popupPosition: { x: 0.5, y: 0.74 },
+  popupPosition: { x: 0.5, y: 0.64 },
   popupWidth: 510,
 };
 

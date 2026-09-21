@@ -643,6 +643,16 @@ const SCENARIOS: Scenario[] = [
       />
     ),
   },
+  {
+    name: 'help-hover',
+    description:
+      'Hover the help button in a short viewport: the scrollable panel must stay clear of it',
+    render: () => (
+      <div style={{ position: 'fixed', top: '65vh', left: '50%' }}>
+        <InfoDropdown />
+      </div>
+    ),
+  },
 ];
 
 export type { Scenario };

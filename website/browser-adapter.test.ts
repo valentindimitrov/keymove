@@ -3,10 +3,11 @@ import ExtensionMessageTypes from '../src/extension_message_types.js';
 
 it('notifies settings consumers and keeps returned objects isolated from stored values', async () => {
   const listener = vi.fn();
+  const initial = await browser.storage.local.get('popupPosition');
   browser.storage.onChanged.addListener(listener);
   await browser.storage.local.set({ popupPosition: { x: 0.2, y: 0.4 } });
   expect(listener).toHaveBeenCalledWith(
-    { popupPosition: { oldValue: { x: 0.5, y: 0.74 }, newValue: { x: 0.2, y: 0.4 } } },
+    { popupPosition: { oldValue: initial['popupPosition'], newValue: { x: 0.2, y: 0.4 } } },
     'local',
   );
   const data = await browser.storage.local.get('popupPosition');
@@ -15,7 +16,7 @@ it('notifies settings consumers and keeps returned objects isolated from stored 
     popupPosition: { x: 0.2, y: 0.4 },
   });
   browser.storage.onChanged.removeListener(listener);
-  await browser.storage.local.set({ popupPosition: { x: 0.5, y: 0.74 } });
+  await browser.storage.local.set(initial);
   expect(listener).toHaveBeenCalledTimes(1);
 });
 
