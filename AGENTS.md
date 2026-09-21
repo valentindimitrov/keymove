@@ -7,8 +7,11 @@ prepared as a new extension rather than an update to an existing store listing. 
 and artwork are applied; repository metadata, store metadata, extension IDs, upstream relicensing
 permission, and upstream contribution documentation remain pending. Original KeyMove contributions
 by Valentin Dimitrov use Apache License 2.0; inherited and adapted Comake code retains BSD 4-Clause.
-Comake has been contacted about relicensing; permission remains pending. Preserve both
-license texts in `LICENSE` and its inclusion in browser builds until upstream permission is obtained.
+The relicensing request to YipYip's creator has received no reply as of September 22, 2026.
+An Apache-2.0-only license for KeyMove's own and inherited YipYip code is possible if the creator
+explicitly agrees with authority from Comake, Inc. covering all relevant upstream code. Silence is
+not permission. Preserve both license texts in `LICENSE` and its inclusion in browser builds until
+that permission is obtained; third-party dependencies retain their respective licenses.
 
 The runtime is Manifest V3 only. Chromium and Vivaldi use the Chrome target; Firefox uses the
 Firefox target. There is no MV2 compatibility layer and no user account, email, sign-in, or remote

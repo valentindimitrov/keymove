@@ -413,14 +413,19 @@ KeyMove is inspired by and built on the original code of
 [YipYip by Comake, Inc.](https://github.com/comake/yip-yip). Thank you to its original
 developers for creating and sharing the project.
 
+Powered by Comake.
+
 Original KeyMove contributions by Valentin Dimitrov are available under **Apache License 2.0**.
 Inherited and adapted YipYip code retains its **BSD 4-Clause License**, including its copyright,
 attribution, advertising acknowledgement, and disclaimer requirements. Both license texts and
 their scope are in [LICENSE](LICENSE), which is also included in each browser build.
 
-Comake has been contacted about relicensing. An Apache-2.0-only license for the combined project
-remains pending permission from the upstream rights holders. Attribution does not replace that
-permission. KeyMove is maintained independently;
+As of September 22, 2026, the relicensing request to YipYip's creator has received no reply.
+**KeyMove's own and inherited YipYip code could be licensed entirely under Apache License 2.0
+if YipYip's creator agrees**, acting with authority from Comake, Inc. to grant permission for all
+relevant upstream code. Until that explicit permission is obtained, the BSD 4-Clause terms
+continue to apply to the upstream code. Neither silence nor attribution replaces permission.
+Third-party dependencies retain their respective licenses. KeyMove is maintained independently;
 this acknowledgement does not imply Comake's endorsement.
 
 ## Contact
@@ -438,7 +443,7 @@ Tips are voluntary and do not unlock features.
 ## Project status
 
 Store listings and permanent extension IDs, repository metadata, upstream relicensing permission
-(Comake contacted), and upstream contribution documentation remain pending. Resizing, layout reset,
+(Comake contacted; no reply as of September 22, 2026), and upstream contribution documentation remain pending. Resizing, layout reset,
 and license acknowledgements are implemented. GitHub draft-release preparation is available;
 publishing store releases remains a separate step.
 
