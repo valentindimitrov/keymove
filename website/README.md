@@ -17,7 +17,7 @@ The standalone static output is `.output/public/`. Deploy the entire directory, 
 `demo.html`, assets, and `LICENSE.txt`, to a static host. Relative asset URLs support subpaths.
 The website build is independent from extension builds and adds no runtime dependencies.
 
-The walkthrough above the playground is a 42-second, silent H.264 recording of the actual
+The walkthrough above the playground is a 46-second, silent H.264 recording of the actual
 Searchbar on `demo.html`, captured at 960 × 640 and 10 frames per second. It shows native key
 input, text result navigation, button activation, the Arrow Down action menu and the ? shortcut
 tooltip. Compact rounded key badges follow the right side of the search field, including while
@@ -28,7 +28,9 @@ is deliberately only `cof`, demonstrating substring matching. Within the recordi
 accumulate as separate, content-sized badges beside the searchbar, including both Tab presses.
 The stack resets at each chapter boundary. The sidebar contains explanations and chapter links;
 the expanded transcript preserves an accessible written account of the input sequence.
-The player starts paused and provides
+The player starts paused. Chapter jumps retain the playing or paused state, including requests
+made before metadata loads. The recording leaves two seconds between the opening shortcuts
+in the button chapter and includes a keyframe each second for responsive seeking. It provides
 native play/pause, seeking/fullscreen, chapter links,
 optional captions and a text transcript. The transcript uses the extension's platform shortcut
 definitions; recorded badges show Alt / Option for both platforms. Keep `walkthrough.tsx`,

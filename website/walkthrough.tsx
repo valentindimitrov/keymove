@@ -37,55 +37,55 @@ const steps = [
     shortcut: 'dismiss_search',
   },
   {
-    time: 12.5,
+    time: 14,
     title: 'Focus the search bar',
     detail: 'Bring the search bar back into focus.',
     shortcut: 'focus_searchbar',
   },
   {
-    time: 13,
+    time: 16,
     title: 'Switch to actions',
     detail: 'Search links, buttons, and other controls.',
     shortcut: 'toggle_search_mode',
   },
   {
-    time: 14,
+    time: 18,
     title: 'Find a button',
     detail: 'Type the button’s name: “Save this guide”.',
     text: 'Save this guide',
   },
   {
-    time: 20,
+    time: 24,
     title: 'Make it happen',
     detail: 'Enter activates the selected button. The guide is saved.',
     shortcut: 'select_match',
   },
   {
-    time: 24,
+    time: 28,
     title: 'Find a link',
     detail: 'Focus KeyMove again to look for the checklist link.',
     shortcut: 'focus_searchbar',
   },
   {
-    time: 25,
+    time: 29,
     title: 'Find a link',
     detail: 'Type the link’s visible text: “Open the checklist”.',
     text: 'Open the checklist',
   },
   {
-    time: 28,
+    time: 32,
     title: 'Explore the action menu',
     detail: 'Press ↓ from the search bar to see actions for the selected result.',
     shortcut: 'open_action_menu',
   },
   {
-    time: 33,
+    time: 37,
     title: 'Return to your search',
     detail: 'Escape closes the menu and keeps your query.',
     text: 'Esc',
   },
   {
-    time: 34,
+    time: 38,
     title: 'Find a shortcut',
     detail: 'Hover over ? to open the keyboard shortcut reference.',
     text: 'Hover ?',
@@ -96,12 +96,13 @@ const chapters = [
   { time: 0, label: 'Open and search' },
   { time: 6, label: 'Move through the page' },
   { time: 12, label: 'Find and activate a button' },
-  { time: 24, label: 'Explore the action menu' },
-  { time: 34, label: 'Open shortcut help' },
+  { time: 28, label: 'Explore the action menu' },
+  { time: 38, label: 'Open shortcut help' },
 ] as const;
 
 export default function Walkthrough() {
   const video = useRef<HTMLVideoElement>(null);
+  const pendingSeek = useRef<number | null>(null);
   const [time, setTime] = useState(0);
   const [failed, setFailed] = useState(false);
   const step = steps.findLast(item => time >= item.time) ?? steps[0];
@@ -111,11 +112,25 @@ export default function Walkthrough() {
   );
   const chapter = chapters[chapterIndex] ?? chapters[0];
 
-  function seek(seconds: number, pause = false) {
+  function applyPendingSeek() {
     const player = video.current;
-    if (!player || !Number.isFinite(player.duration)) return;
-    if (pause) player.pause();
-    player.currentTime = Math.max(0, Math.min(player.duration, seconds));
+    if (!player || !Number.isFinite(player.duration) || pendingSeek.current === null) return;
+    player.currentTime = Math.min(player.duration, pendingSeek.current);
+  }
+
+  function seek(seconds: number) {
+    // Land inside the chapter's first frame, avoiding decoder rounding at its boundary.
+    pendingSeek.current = seconds + 0.05;
+    setTime(seconds);
+    applyPendingSeek();
+  }
+
+  function syncTime(player: HTMLVideoElement, settled = false) {
+    if (pendingSeek.current !== null) {
+      // Earlier seek/timeupdate events must not overwrite a newer chapter click.
+      if (!settled || Math.abs(player.currentTime - pendingSeek.current) > 0.15) return;
+      pendingSeek.current = null;
+    }
     setTime(player.currentTime);
   }
 
@@ -132,12 +147,13 @@ export default function Walkthrough() {
             ref={video}
             controls
             playsInline
-            preload="metadata"
+            preload="auto"
             poster={poster}
             aria-label="KeyMove walkthrough: search, navigate, activate, open the action menu, and show shortcut help"
             aria-describedby="walkthrough-help"
-            onTimeUpdate={event => setTime(event.currentTarget.currentTime)}
-            onSeeked={event => setTime(event.currentTarget.currentTime)}
+            onLoadedMetadata={applyPendingSeek}
+            onTimeUpdate={event => syncTime(event.currentTarget)}
+            onSeeked={event => syncTime(event.currentTarget, true)}
             onError={() => setFailed(true)}
           >
             <source src={recording} type="video/mp4" />
@@ -167,7 +183,7 @@ export default function Walkthrough() {
                     ? 'step'
                     : undefined
                 }
-                onClick={() => seek(chapter.time, true)}
+                onClick={() => seek(chapter.time)}
               >
                 <span>0:{String(chapter.time).padStart(2, '0')}</span>
                 {chapter.label}
