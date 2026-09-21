@@ -136,14 +136,16 @@ export const patternGroups: PatternGroup[] = [
     patterns: [
       {
         id: 'reveal-a-menu',
-        title: 'Reveal a hover menu',
-        description: 'Explore a menu that normally appears when you hover over its trigger.',
+        title: 'Search inside a hover menu',
+        description: 'Open a menu, then find an item inside it without reaching for the mouse.',
         sequence: [
-          'Explicitly select the menu trigger with result navigation or a numbered suggestion.',
-          'Its supported hover menu opens; search and select an option inside it.',
+          'Search for the menu label, such as “Hommes”. The first result’s action receives hover automatically; if needed, select the trigger with its numbered suggestion.',
+          'With the search bar focused, clear or replace the query with an item name, such as “Sneakers”. The menu stays open while you type, even if a partial query matches something elsewhere.',
+          'Press Enter to activate the selected item. To reveal another submenu, select its numbered suggestion; Tab moves to the next match and Shift + Tab goes back.',
+          'Repeat for nested menus. Press Escape to end the search and release keyboard hover.',
         ],
-        shortcuts: ['next_match', 'select_listed_match_1'],
-        note: 'Continue through nested menus in the same way. Hover behavior depends on how the website implements the menu.',
+        shortcuts: ['select_listed_match_1', 'next_match', 'select_match', 'dismiss_search'],
+        note: 'Clear the query with Backspace or by selecting and replacing its text; Escape ends the search. The first match is already selected, so Tab advances to the second. Support depends on the website: CSS-only hover menus and menus that reject simulated hover are not supported.',
       },
       {
         id: 'navigate-a-dialog',
