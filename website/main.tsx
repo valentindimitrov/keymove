@@ -241,10 +241,6 @@ function Website() {
               </p>
             </article>
           </div>
-          <p className="shortcut-note">
-            Some shortcuts, including <Shortcut name="next_action_match" />, may be reserved by your
-            browser.
-          </p>
         </section>
 
         <section className="get-section wrap" id="get-keymove" aria-labelledby="get-title">
