@@ -2,6 +2,7 @@ import { SETTINGS_KEYS, DEFAULT_SUGGESTION_COUNT, MAX_SUGGESTION_COUNT } from '.
 
 const DEFAULT_STORED_SETTINGS = Object.freeze({
   [SETTINGS_KEYS.TOOLTIPS_MODE]: true,
+  [SETTINGS_KEYS.THEME]: 'system' as Theme,
   [SETTINGS_KEYS.SUGGESTION_COUNT]: DEFAULT_SUGGESTION_COUNT,
   [SETTINGS_KEYS.LOCK_POSITION_AND_SIZE]: false,
   [SETTINGS_KEYS.AUTO_HIDE]: true,
@@ -12,9 +13,13 @@ const DEFAULT_STORED_SETTINGS = Object.freeze({
 });
 
 type StoredSettingKey = (typeof SETTINGS_KEYS)[keyof typeof SETTINGS_KEYS];
-type BooleanStoredSettingKey = Exclude<StoredSettingKey, 'suggestionCount'>;
-type StoredSettings = Record<BooleanStoredSettingKey, boolean> & { suggestionCount: number };
-type ValidationResult<T = boolean | number> = { value: T; issues: string[] };
+type Theme = 'system' | 'light' | 'dark';
+type BooleanStoredSettingKey = Exclude<StoredSettingKey, 'suggestionCount' | 'theme'>;
+type StoredSettings = Record<BooleanStoredSettingKey, boolean> & {
+  suggestionCount: number;
+  theme: Theme;
+};
+type ValidationResult<T = boolean | number | Theme> = { value: T; issues: string[] };
 
 function issueFor(key: StoredSettingKey, value: unknown) {
   const receivedType = value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value;
@@ -27,6 +32,11 @@ function assertKnownSettingKey(key: string): asserts key is StoredSettingKey {
   }
 }
 
+function validateStoredSetting(
+  key: 'theme',
+  value: unknown,
+  options?: { allowMissing?: boolean },
+): ValidationResult<Theme>;
 function validateStoredSetting(
   key: 'suggestionCount',
   value: unknown,
@@ -51,6 +61,11 @@ function validateStoredSetting(
 
   if (value === undefined && allowMissing) {
     return { value: DEFAULT_STORED_SETTINGS[key], issues: [] };
+  }
+  if (key === SETTINGS_KEYS.THEME) {
+    return value === 'system' || value === 'light' || value === 'dark'
+      ? { value, issues: [] }
+      : { value: 'system', issues: ['Stored setting "theme" must be system, light, or dark.'] };
   }
   if (key === SETTINGS_KEYS.SUGGESTION_COUNT) {
     return typeof value === 'number' && Number.isSafeInteger(value) && value > 0
@@ -92,6 +107,7 @@ function validateStoredSettings(data: unknown): { settings: StoredSettings; issu
   return { settings, issues };
 }
 
+function validateStoredSettingChange(key: 'theme', change: unknown): ValidationResult<Theme>;
 function validateStoredSettingChange(
   key: 'suggestionCount',
   change: unknown,
@@ -115,7 +131,7 @@ function validateStoredSettingChange(key: string, change: unknown): ValidationRe
   });
 }
 
-export type { StoredSettingKey, BooleanStoredSettingKey };
+export type { StoredSettingKey, BooleanStoredSettingKey, Theme };
 export {
   DEFAULT_STORED_SETTINGS,
   validateStoredSetting,

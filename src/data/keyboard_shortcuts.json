@@ -19,7 +19,7 @@
     "displayKeys": {
       "default": ["Tab"]
     },
-    "text": "to select the next matching text block"
+    "text": "to select the next match in the current mode"
   },
   {
     "name": "previous_match",
@@ -35,7 +35,7 @@
     "displayKeys": {
       "default": ["Shift", "Tab"]
     },
-    "text": "to select the previous matching text block"
+    "text": "to select the previous match in the current mode"
   },
   {
     "name": "next_action_match",

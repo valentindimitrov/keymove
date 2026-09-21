@@ -5,18 +5,24 @@ type SelectionsProps = {
   matchingNodes: Element[];
   refresh: boolean;
   color: string;
+  showOtherMatches?: boolean;
 };
 
 const Selections = (props: SelectionsProps) => {
-  const { selectedSelectionIndex, matchingNodes, refresh, color } = props;
+  const { selectedSelectionIndex, matchingNodes, refresh, color, showOtherMatches = false } = props;
+  const selectedNode =
+    selectedSelectionIndex === null ? null : matchingNodes[selectedSelectionIndex];
+  const visibleNodes = showOtherMatches ? matchingNodes : selectedNode ? [selectedNode] : [];
   return (
     <>
-      {matchingNodes.map((node, index) => {
-        const isSelected = index === selectedSelectionIndex;
-        return (
-          <Selection key={`${refresh}${index}`} node={node} isSelected={isSelected} color={color} />
-        );
-      })}
+      {visibleNodes.map((node, index) => (
+        <Selection
+          key={`${refresh}${index}`}
+          node={node}
+          isSelected={node === selectedNode}
+          color={color}
+        />
+      ))}
     </>
   );
 };

@@ -13,6 +13,17 @@ import { checkControlNavigation } from './control-navigation-smoke.ts';
 import { checkActionMenu } from './action-menu-smoke.ts';
 import { checkTooltipsMode } from './tooltips-mode-smoke.ts';
 import { checkDynamicPage } from './dynamic-page-smoke.ts';
+import { checkShadowSearch } from './shadow-search-smoke.ts';
+import { checkSelectionHover } from './selection-hover-smoke.ts';
+import { checkHighlightDensity } from './highlight-density-smoke.ts';
+import { checkActionFallback } from './action-fallback-smoke.ts';
+import { checkTheme, checkThemePreviews } from './theme-smoke.ts';
+import {
+  settingsTab,
+  setActivation,
+  checkSiteSettings,
+  checkShowSearch,
+} from './settings-smoke.ts';
 
 const shadow = `document.getElementById('keymove-root')?.shadowRoot`;
 const input = `${shadow}?.querySelector('[aria-label="Search page"]')`;
@@ -79,10 +90,30 @@ export async function runBrowserSmoke(client: ChromiumClient, browser: string): 
     await server.listen();
     const origin = server.resolvedUrls?.local[0];
     assert(origin, 'Fixture server did not expose its address');
+    await checkHighlightDensity(client, origin);
+    passed.push(
+      'Short-query mixed suggestions and input focus, selected-only short queries, faint outlines at three characters, full navigation and native selection',
+    );
+    await checkSelectionHover(client, origin);
+    passed.push(
+      'Explicit keyboard hover, submenu search and activation, query retention, cleanup and shadow menus',
+    );
+    await checkActionFallback(client, origin);
+    passed.push(
+      'Temporary text-to-action fallback, Tab/menu navigation, Backspace restoration and Enter focus',
+    );
+    await checkShadowSearch(client, origin);
+    passed.push(
+      'Open/nested Shadow DOM, slots, highlight ranges, native selection/copy, editing, activation, mutations and modal scoping',
+    );
     dynamicPage = await checkDynamicPage(client, origin);
     console.log('Dynamic-page search timing', dynamicPage);
     passed.push(
       'Search completes through continuous DOM changes; interface clicks stay isolated and page clicks work',
+    );
+    await checkThemePreviews(client, origin);
+    passed.push(
+      'Light/dark shadow-root previews: narrow and desktop layouts, shared settings columns, and above/below suggestions',
     );
     await checkActionMenu(client, origin);
     passed.push(
@@ -154,7 +185,7 @@ export async function runBrowserSmoke(client: ChromiumClient, browser: string): 
         const observer = new MutationObserver(records => {
           if (records.some(record => Array.from(record.removedNodes).some(node => node === panel || node.contains(panel)))) check.removed = true;
           if (panel.getAttribute('aria-busy') === 'true' && Math.abs(bar.getBoundingClientRect().top - top) > 1) check.shifted = true;
-          if (panel.getBoundingClientRect().height < height - 1) check.collapsed = true;
+          if ((panel.getAttribute('aria-busy') === 'true' || panel.querySelector('.keymove-suggestions-empty')) && panel.getBoundingClientRect().height < height - 1) check.collapsed = true;
         });
         observer.observe(root, { subtree: true, childList: true, attributes: true });
         globalThis.__keymoveStopPanelCheck = () => {
@@ -181,7 +212,7 @@ export async function runBrowserSmoke(client: ChromiumClient, browser: string): 
         samePanel: true,
       });
       passed.push(
-        `${size}: suggestion frame stays mounted without shrinking through typing, deletion and empty results`,
+        `${size}: suggestion frame stays mounted and preserves height for pending and empty results`,
       );
       if (size === 'large') continue;
 
@@ -270,18 +301,18 @@ export async function runBrowserSmoke(client: ChromiumClient, browser: string): 
 
       await clear(page);
       await type(page, 'apricot');
-      await expectSummary(page, 'Text 0 / 0');
-      await page.evaluate(`${shadow}.querySelector('.keymove-mode-button').click()`);
       await expectSummary(page, 'Actions 1 / 1');
-      passed.push('Attribute-only matches appear in action mode and stay out of text mode');
-      await page.evaluate(`${shadow}.querySelector('.keymove-mode-button').click()`);
-      await expectSummary(page, 'Text 0 / 0');
-      assert.equal(await page.evaluate(`${input}.value`), 'apricot');
-      passed.push('Clicking Text/Actions switches mode without clearing the query');
+      passed.push('Attribute-only matches automatically use the action fallback');
 
       await clear(page);
       await type(page, 'nectarine');
       await expectSummary(page, 'Text 1 / 1');
+      await page.evaluate(`${shadow}.querySelector('.keymove-mode-button').click()`);
+      await expectSummary(page, 'Actions 1 / 1');
+      await page.evaluate(`${shadow}.querySelector('.keymove-mode-button').click()`);
+      await expectSummary(page, 'Text 1 / 1');
+      assert.equal(await page.evaluate(`${input}.value`), 'nectarine');
+      passed.push('Clicking Text/Actions switches mode without clearing the query');
       await page.key('Tab');
       await page.key('Enter');
       await waitFor(page, `location.hash === '#destination'`);
@@ -337,6 +368,10 @@ export async function runBrowserSmoke(client: ChromiumClient, browser: string): 
       passed.push('The color K logo opens the actual extension settings');
       const popup = await openPage(client, new URL('popup.html', worker.url).href);
       await waitFor(popup, `document.querySelector('label')`);
+      await checkTheme(page, popup);
+      passed.push(
+        'Appearance persists, syncs to an open page, follows system changes, and keeps explicit overrides',
+      );
       assert.equal(
         await popup.evaluate(
           `Array.from(document.querySelectorAll('label')).find(label => label.textContent === 'Autohide').control.checked`,
@@ -353,7 +388,7 @@ export async function runBrowserSmoke(client: ChromiumClient, browser: string): 
       await checkReturnPosition(page, popup);
       await checkTooltipsMode(client, origin, popup);
       passed.push(
-        'Tooltips mode defaults on above Always on; live popup changes switch full and compact badges without losing the selected menu, query or numbered shortcuts',
+        'Tooltips mode in Appearance switches full and compact badges live without losing the selected menu, query or numbered shortcuts',
       );
       passed.push(
         'Alt+Backspace returns after Tab/Alt+1 and nested scrolling; Escape closes in one press and leaves new page focus alone',
@@ -402,7 +437,8 @@ export async function runBrowserSmoke(client: ChromiumClient, browser: string): 
       passed.push(
         'Suggestion count updates live within 1–5; Alt+4/5 select rows and selected rows have a gray background',
       );
-      const lockButton = `document.querySelector('.keymove-popup-layout-actions input[type="checkbox"]')`;
+      await settingsTab(popup, 'Appearance');
+      const lockButton = `Array.from(document.querySelectorAll('label')).find(label => label.textContent === 'Lock position and size')?.control`;
       const pageContainer = `${shadow}?.getElementById('keymove-container')`;
       await popup.evaluate(`${lockButton}.click()`);
       await waitFor(page, `${pageContainer}?.dataset.layoutLocked === 'true'`);
@@ -428,6 +464,11 @@ export async function runBrowserSmoke(client: ChromiumClient, browser: string): 
       );
       await waitFor(
         popup,
+        `!document.documentElement?.dataset.reloadPending && document.querySelector('[role="tab"]')`,
+      );
+      await settingsTab(popup, 'Appearance');
+      await waitFor(
+        popup,
         `!document.documentElement?.dataset.reloadPending && ${lockButton}?.checked === true`,
       );
       await popup.evaluate(`${lockButton}.click()`);
@@ -438,14 +479,15 @@ export async function runBrowserSmoke(client: ChromiumClient, browser: string): 
       passed.push(
         'Layout lock persists when settings reopen and disables/re-enables resizing in the open page',
       );
-      for (const label of ['Always on', 'Autohide']) {
+      await setActivation(popup, 'shortcut');
+      for (const label of ['Autohide']) {
         await popup.evaluate(
           `(() => { const label = Array.from(document.querySelectorAll('label')).find(label => label.textContent === ${JSON.stringify(label)}); if (label.control.checked !== ${label === 'Autohide'}) label.click(); })()`,
         );
       }
       await waitFor(
         popup,
-        `Array.from(document.querySelectorAll('label')).find(label => label.textContent === 'Always on').control.checked === false && Array.from(document.querySelectorAll('label')).find(label => label.textContent === 'Autohide').control.checked === true`,
+        `document.querySelector('[aria-label="Default activation"]').value === 'shortcut' && Array.from(document.querySelectorAll('label')).find(label => label.textContent === 'Autohide').control.checked === true`,
       );
       await page.activate();
       await page.key('f', 1);
@@ -466,11 +508,20 @@ export async function runBrowserSmoke(client: ChromiumClient, browser: string): 
       await type(page, 'qxyz');
       await expectSummary(page, 'Text 1 / 1');
       passed.push('Actual popup settings propagate to an open tab; hidden bar reopens with Alt+F');
-      for (const label of ['Always on', 'Autohide']) {
+      await setActivation(popup, 'type');
+      for (const label of ['Autohide']) {
         await popup.evaluate(
           `(() => { const label = Array.from(document.querySelectorAll('label')).find(label => label.textContent === ${JSON.stringify(label)}); if (!label.control.checked) label.click(); })()`,
         );
       }
+      await checkSiteSettings(page, popup);
+      passed.push(
+        'Opening shortcut remaps live; shortcut-only sites preserve page typing; paused sites release all keys; saved overrides can be removed to resume defaults',
+      );
+      await checkShowSearch(page, popup);
+      passed.push(
+        'Settings header opens and focuses the source page searchbar; footer links have equal widths and the website destination',
+      );
     }
     console.log(JSON.stringify({ passed, measurements }, null, 2));
   } catch (error) {

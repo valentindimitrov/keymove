@@ -1,3 +1,4 @@
+import ThemeSettingsPreview from './settings_fixture.js';
 import React from 'react';
 import InfoDropdown from '../src/components/searchbar/info_dropdown.js';
 import DraggableContainer from '../src/components/searchbar/draggable_container.js';
@@ -348,7 +349,62 @@ const SearchControlsPreview = () => {
   );
 };
 
+const SuggestionSpacingPreview = () => {
+  const [long, setLong] = React.useState(true);
+  const [count, setCount] = React.useState(3);
+  const nodes = React.useMemo(
+    () => Array.from({ length: 5 }, (_, i) => suggestionNode(`Result ${i + 1}`)),
+    [],
+  );
+  return (
+    <>
+      <div style={{ position: 'fixed', top: 20, left: 20 }}>
+        <button onClick={() => setLong(value => !value)}>
+          {long ? 'Use short descriptions' : 'Use long descriptions'}
+        </button>
+        <label>
+          Results
+          <select
+            aria-label="Results"
+            value={count}
+            onChange={event => setCount(Number(event.target.value))}
+          >
+            {[1, 2, 3, 4, 5].map(value => (
+              <option key={value}>{value}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <Bar
+        searchText="result"
+        resultCount={count}
+        y={0.25}
+        suggestions={nodes.slice(0, count).map(node => ({
+          kind: 'action',
+          node,
+          term: 'Result',
+          label: node.textContent!,
+          context: long
+            ? 'link · in Navigation with a long description covering account preferences, notifications, delivery options and instructions that must wrap onto additional lines'
+            : 'link',
+        }))}
+      />
+    </>
+  );
+};
+
 const SCENARIOS: Scenario[] = [
+  {
+    name: 'suggestion-spacing',
+    description:
+      'Switch between tall and compact results and vary the row count to check trailing space.',
+    render: () => <SuggestionSpacingPreview />,
+  },
+  {
+    name: 'theme-settings',
+    description: 'Shared settings grid and live System, Light, and Dark appearance controls.',
+    render: () => <ThemeSettingsPreview />,
+  },
   ...[false, true].map(narrow => ({
     name: narrow ? 'control-states-narrow' : 'control-states',
     description: 'Live control state descriptions at normal and minimum width',
@@ -466,7 +522,8 @@ const SCENARIOS: Scenario[] = [
   },
   {
     name: 'help-viewport-fit',
-    description: 'Open keyboard help, then shrink the viewport to check wrapping and scrolling',
+    description:
+      'Open keyboard help, including temporary mode fallback, and check wrapping and scrolling',
     render: () => (
       <div style={{ position: 'fixed', bottom: 20, right: 20 }}>
         <InfoDropdown />
@@ -502,8 +559,8 @@ const SCENARIOS: Scenario[] = [
     ),
   },
   {
-    name: 'support-link',
-    description: 'Development-only Stripe support link alongside source and contact actions',
+    name: 'tip-link',
+    description: 'Stripe tip link beside Contact in the settings footer',
     render: () => (
       <>
         <style>{popupStyles}</style>
@@ -519,7 +576,7 @@ const SCENARIOS: Scenario[] = [
           }}
         >
           <div className="keymove-popup-links">
-            <InfoPanelButtons />
+            <InfoPanelButtons compact />
           </div>
         </div>
       </>

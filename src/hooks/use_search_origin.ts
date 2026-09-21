@@ -1,4 +1,5 @@
 import React from 'react';
+import { renderedParent } from '../lib/dom_tree.js';
 
 type Position = { left: number; top: number };
 type SearchOrigin = Position & { containers: Map<Element, Position> };
@@ -25,8 +26,7 @@ function useSearchOrigin() {
           left: current.scrollLeft,
           top: current.scrollTop,
         });
-      const root = current.getRootNode();
-      current = current.parentElement ?? (root instanceof ShadowRoot ? root.host : null);
+      current = renderedParent(current);
     }
   }, []);
 

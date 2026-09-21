@@ -1,4 +1,5 @@
 import { iterateRenderedText, isTextVisible } from './visible_text.js';
+import { walkOpenElements } from './dom_tree.js';
 
 // Explicitly referenced labels may be hidden. Keep traversal bounded so the index can
 // yield even if a site references a very large subtree. Never read field values.
@@ -23,13 +24,10 @@ function* labelParts(node: Element, referenced = false): Generator<string | null
     }
   }
   // Rendered text intentionally excludes alternative text; control names include it.
-  const walker = document.createTreeWalker(node, NodeFilter.SHOW_ELEMENT);
-  let child: Node | null = node;
-  while (child) {
+  for (const child of walkOpenElements(node)) {
     yield null;
     if (child instanceof HTMLImageElement && (referenced || isTextVisible(child)))
       yield ` ${child.alt} `;
-    child = walker.nextNode();
   }
 }
 
@@ -37,7 +35,9 @@ function* iterateControlName(node: Element): Generator<string | null> {
   const ids = node.getAttribute('aria-labelledby')?.trim().split(/\s+/) ?? [];
   let foundReference = false;
   for (const id of ids) {
-    const reference = node.ownerDocument.getElementById(id);
+    const root = node.getRootNode();
+    const reference =
+      root instanceof Document || root instanceof ShadowRoot ? root.getElementById(id) : null;
     if (reference) {
       foundReference = true;
       yield* labelParts(reference, true);

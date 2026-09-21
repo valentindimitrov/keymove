@@ -3,6 +3,7 @@ import { matchingTextSpans } from './search_text.js';
 import { controlName } from './control_name.js';
 import { inputDisplayValue } from './input_value.js';
 import { controlStateLabels } from './control_state.js';
+import { renderedParent } from './dom_tree.js';
 import { isActionDisabled, labelledToggle } from './searchable_attributes.js';
 
 const LANDMARK_LABELS: [string, string][] = [
@@ -89,7 +90,7 @@ function landmarkForNode(node: Element) {
   while (current && current !== document.body) {
     const label = firstMatchingLabel(current, LANDMARK_LABELS);
     if (label) return label;
-    current = current.parentElement;
+    current = renderedParent(current);
   }
   return null;
 }

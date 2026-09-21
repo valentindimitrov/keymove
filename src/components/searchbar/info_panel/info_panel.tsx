@@ -1,8 +1,15 @@
 import InfoPanelKeyboardShortcuts from './info_panel_keyboard_shortcuts.js';
 import InfoPanelSectionHeader from './info_panel_section_header.js';
+import type { OpeningShortcut } from '../../../lib/interaction_settings_schema.js';
 
 // Settings and the contact link live in the toolbar popup. This panel is shortcuts only.
-const InfoPanel = ({ onDismiss }: { onDismiss?: () => void }) => {
+const InfoPanel = ({
+  onDismiss,
+  openingShortcut,
+}: {
+  onDismiss?: () => void;
+  openingShortcut?: OpeningShortcut | undefined;
+}) => {
   return (
     <div
       id={'keymove-info-panel'}
@@ -15,7 +22,7 @@ const InfoPanel = ({ onDismiss }: { onDismiss?: () => void }) => {
       }}
     >
       <InfoPanelSectionHeader text={'Keyboard Shortcuts'} />
-      <InfoPanelKeyboardShortcuts />
+      <InfoPanelKeyboardShortcuts openingShortcut={openingShortcut} />
     </div>
   );
 };

@@ -25,6 +25,9 @@ a background tab.
 - Open selected web links in the current tab, a foreground tab, or a background tab.
 - Copy the URL of a selected link directly from action mode.
 - Find controls through associated form labels, `aria-labelledby`, accessible labels, and image alternative text.
+- Search visible text and controls inside open Shadow DOM components, including nested components and slotted content.
+- Below three characters, only the selected result gets an outline. From three characters onward, other results get faint outlines and matching text is highlighted; the current selection keeps a stronger outline and fill. Shorter searches still find and navigate every match immediately.
+- Explicitly selecting a result with Tab or Alt+number sends best-effort hover events, so JavaScript hover menus can open without a click. Enter still activates the result. Automatic first matches do not hover; query edits retain the hover until you select elsewhere or end the search. CSS-only `:hover` menus and sites rejecting synthetic events are not supported by this feature.
 - Toggle checkboxes and switches, select radio buttons, submit native buttons, and expand disclosures with Enter.
 - Focus text editors and complex widgets to continue using their own keyboard controls. Disabled controls are marked unavailable and cannot be activated.
 - Search inside an open modal automatically; closing it restores whole-page search without changing a setting.
@@ -38,7 +41,8 @@ a background tab.
 For contributor setup, isolated agent worktrees, visual previews, browser regression
 checks and search timing measurements, see [the development workflow](docs/development.md).
 
-Press `Alt + F` or simply begin typing while the page itself has focus and Always on is enabled.
+Press `Alt + F` (remappable in Shortcuts), or begin typing while the page itself has focus and
+**Type to search** is enabled for the site.
 The toolbar button opens settings. Matching
 page text is highlighted as the query changes.
 
@@ -55,6 +59,14 @@ searching, then selects the first result when matches arrive so Enter works imme
 Both modes navigate all matching results, with no result-count cap. Visual highlighting is limited
 to 500 occurrences per query; navigation and copying still use complete text blocks. The page index is released when search
 ends, and large indexing jobs yield between chunks so they can be cancelled.
+
+Open Shadow DOM uses the same search, navigation, highlighting, copying, and activation shortcuts
+as the rest of the page. Labels resolve within their own document or shadow root. Hidden hosts,
+unassigned light-DOM content, and KeyMove's own interface are excluded. Existing shadow roots are
+observed for content, control-state, and slot changes. A shadow root attached later to an already
+connected host is discovered on the next search or page-triggered refresh; KeyMove does not patch
+the page's `attachShadow` implementation or continuously poll it. Closed shadow roots and iframe
+contents are not searched.
 
 ### Keyboard shortcuts
 
@@ -131,7 +143,7 @@ pressing `Tab` first.
 
 ### Ranked results
 
-Once a query is at least three characters long, the strongest results appear as part of the
+For every nonempty query, the strongest results appear as part of the
 searchbar itself, opening downwards when there is room below and upwards when there is not. The bar
 stays where you put it either way. Each row names what activating it would do and where on the page it lives, so a control
 buried in a sidebar is distinguishable from one with the same label in the main content. The part
@@ -142,18 +154,18 @@ to read, but when showing at least two suggestions the last place is reserved fo
 The panel reflects the current selection: automatic selection, navigation and clicking a row all
 mark the selected suggestion with a gray background. No row is highlighted when the selection is outside the visible list.
 
-Below three characters almost everything matches and the order churns on every keystroke, so
-nothing is shown. At three or more characters, stability is applied across all candidates before
+The mixed shortlist stays available even for one- or two-character queries, such as an input
+displaying `40`, regardless of the navigation mode. Stability is applied across all candidates before
 choosing the configured number. A matching result keeps its numbered place unless a challenger scores
 more than 15% higher, including when another candidate challenges the last row. The same rule
 applies to the row reserved for the other kind of result.
 
 While a query or page refresh is pending, the panel keeps its previous rows visible without
 collapsing and reopening. Those rows cannot be selected until the new results arrive.
-The frame retains its height while the query has at least three characters, including an empty
-result, which displays "No matches". Shortening or clearing the query closes the frame.
+The frame retains its height while the query is nonempty, including an empty
+result, which displays "No matches". Clearing the query closes the frame.
 Completed results use fresh scores, labels, and match spans; results that stopped matching leave
-immediately. Clearing the query, shortening it below three characters, or completing a search with
+immediately. Clearing the query or completing a search with
 no matches resets that history. Search still starts on every keystroke without a debounce.
 
 ### Approximate matching
@@ -196,12 +208,20 @@ it does not, and matches are highlighted using the page's own spelling rather th
 Click the colorful **K** logo or the browser toolbar icon to open settings. Click **Text** or
 **Actions** in the searchbar to switch mode, just like `Alt + S`.
 
+Settings are split into **General**, **Appearance**, **Shortcuts**, and **Sites** tabs.
+Use Left/Right, Home, and End while a tab is focused. The Appearance and Shortcuts contents
+scroll independently so the tabs stay accessible.
+
 Settings include:
 
 - **Tooltips mode:** show usage reminders and full `Alt + number` badges (`Option + number` on
-  macOS). On by default, above Always on. Turn it off for compact number badges and no automatic
+  macOS). On by default, in Appearance. Turn it off for compact number badges and no automatic
   hints; all keyboard shortcuts still work.
-- **Always on:** begin searching whenever you type while another input is not focused.
+- **Appearance:** System (default), Light, or Dark. System follows your device's appearance;
+  your choice applies to the searchbar, menus, and settings across open tabs.
+- **Default activation:** Type to search (the former Always on option) or Shortcut only.
+  Existing Always on preferences are preserved. Shortcut only leaves page typing and app
+  shortcuts alone until you explicitly open KeyMove.
 - **Start in action mode:** begin each search in action mode instead of text mode.
 - **Highlight matches:** tint matching text on the page, and mark the current one.
 - **Text highlight colour** and **Action highlight colour:** pick the colour used for each mode.
@@ -212,6 +232,18 @@ Settings include:
 - **Number of suggestions:** 1–5, defaulting to three. `Alt + 1` through `Alt + 5` select the corresponding displayed suggestion.
 - **Reset popup position:** return the interface to its default location—horizontally centered with
   its center 75% down the viewport.
+- **Open KeyMove** in Shortcuts: focus the field and press a modified letter, number, or function
+  key. Plain typing and conflicts with existing KeyMove commands are rejected. Browser or system
+  shortcuts may never reach the extension; use the toolbar to restore the default if needed.
+- **Sites:** choose Use default, Type to search, Shortcut only, or Paused for the current HTTP(S)
+  hostname. Overrides apply across its paths, not to other subdomains. Every saved override is
+  listed with its behavior and a Remove button. Removing it restores the General default.
+  No sites are paused automatically. Paused clears the current search and intercepts no keys,
+  including the opening shortcut; resume from the toolbar settings.
+
+Except for opening KeyMove or enabled type-to-search, navigation and copy shortcuts belong to
+the page whenever the KeyMove input is unfocused, even if its panel is visible. On GitHub, Jira,
+or Linear, choose **Shortcut only** to keep the site's shortcuts available between searches.
 
 Dragging the interface saves normalized screen coordinates in extension-local storage. This keeps
 the chosen position useful across different window sizes. Dragging its right edge resizes it, which
@@ -381,24 +413,37 @@ KeyMove is inspired by and built on the original code of
 [YipYip by Comake, Inc.](https://github.com/comake/yip-yip). Thank you to its original
 developers for creating and sharing the project.
 
+Powered by Comake.
+
 Original KeyMove contributions by Valentin Dimitrov are available under **Apache License 2.0**.
 Inherited and adapted YipYip code retains its **BSD 4-Clause License**, including its copyright,
 attribution, advertising acknowledgement, and disclaimer requirements. Both license texts and
 their scope are in [LICENSE](LICENSE), which is also included in each browser build.
 
-Comake has been contacted about relicensing. An Apache-2.0-only license for the combined project
-remains pending permission from the upstream rights holders. Attribution does not replace that
-permission. KeyMove is maintained independently;
+As of September 22, 2026, the relicensing request to YipYip's creator has received no reply.
+**KeyMove's own and inherited YipYip code could be licensed entirely under Apache License 2.0
+if YipYip's creator agrees**, acting with authority from Comake, Inc. to grant permission for all
+relevant upstream code. Until that explicit permission is obtained, the BSD 4-Clause terms
+continue to apply to the upstream code. Neither silence nor attribution replaces permission.
+Third-party dependencies retain their respective licenses. KeyMove is maintained independently;
 this acknowledgement does not imply Comake's endorsement.
 
 ## Contact
 
 Questions and feedback: [keymove.impulse550@passmail.com](mailto:keymove.impulse550@passmail.com)
 
+## Support KeyMove
+
+If KeyMove saves you time, you can support its continued development with an optional tip.
+
+[Leave a tip](https://buy.stripe.com/cNi4gAetW99C0Yq9YN5c400)
+
+Tips are voluntary and do not unlock features.
+
 ## Project status
 
 Store listings and permanent extension IDs, repository metadata, upstream relicensing permission
-(Comake contacted), and upstream contribution documentation remain pending. Resizing, layout reset,
+(Comake contacted; no reply as of September 22, 2026), and upstream contribution documentation remain pending. Resizing, layout reset,
 and license acknowledgements are implemented. GitHub draft-release preparation is available;
 publishing store releases remains a separate step.
 
@@ -462,7 +507,7 @@ position within the current results: switching from `Text 3 / 12` to actions and
 result 3 selected. If action mode has no matches but text does, KeyMove falls back to text;
 changing the query tries the chosen action mode again.
 
-The numbered panel appears for queries of at least three characters and shows 1–5 suggestions
+The numbered panel appears for every nonempty query and shows 1–5 suggestions
 (three by default). These are a mixed shortlist, not the first few results in either mode.
 `Alt + 2` therefore means **row 2 in the panel**, not text result 2. Only displayed, ready rows
 can be selected. `Tab` still reaches all matches, including those outside the shortlist.

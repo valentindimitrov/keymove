@@ -11,7 +11,13 @@ subject to the BSD 4-Clause License reproduced below. The Apache grant covers
 only the contributions for which Valentin Dimitrov holds the copyright; it
 does not replace or waive the terms applying to the upstream code.
 
-Comake has been contacted about relicensing; permission remains pending.
+As of September 22, 2026, the request to YipYip's creator to relicense the
+upstream code has received no reply. No reply is not permission to relicense.
+KeyMove's own and inherited YipYip code could be licensed entirely under
+Apache License 2.0 if YipYip's creator agrees on behalf of Comake, Inc., with
+authority to grant that permission for all relevant upstream code. Until
+that explicit permission is obtained, the BSD 4-Clause terms remain in effect.
+Third-party dependencies retain their respective licenses.
 The combined project is therefore not licensed solely under Apache License 2.0.
 SPDX license expression: Apache-2.0 AND BSD-4-Clause
 

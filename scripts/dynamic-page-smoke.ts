@@ -10,7 +10,7 @@ export async function checkDynamicPage(client: ChromiumClient, origin: string) {
   const page = await openPage(client, `${origin}fixtures.html?size=large&dynamic`);
   try {
     await page.activate();
-    await waitFor(page, `document.documentElement.dataset.fixtureReady && ${input}`);
+    await waitFor(page, `document.documentElement?.dataset.fixtureReady && ${input}`);
     await waitFor(page, `${shadow}.querySelector('#keymove-bar').dataset.alwaysOn === 'true'`);
     await waitFor(page, 'document.hasFocus()');
     await page.evaluate(`(() => {

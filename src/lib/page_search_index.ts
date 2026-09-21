@@ -18,6 +18,18 @@ import type { StyleCache } from './visible_text.js';
 import { iterateControlName } from './control_name.js';
 import { hasSearchableInputValue, inputDisplayValue } from './input_value.js';
 import { activeModal, actionIsInScope, MODAL_CHANGED_EVENT } from './modal_context.js';
+import {
+  containsAcrossRoots,
+  isKeyMoveNode,
+  walkOpenElements,
+  renderedChildren,
+  renderedParent,
+  closestAcrossRoots,
+  compareRenderedOrder,
+  retainPageRoot,
+  releasePageRoot,
+  PAGE_ROOTS_CHANGED,
+} from './dom_tree.js';
 
 const SEARCH_CHUNK_SIZE = 100;
 const SEARCH_WORK_BUDGET_MS = 8;
@@ -184,7 +196,9 @@ class PageSearchIndex {
   readonly observer: MutationObserver;
   readonly onChange: () => void;
   private readonly lifetime = new AbortController();
-  private readonly pendingSubtrees = new Map<Element, number>();
+  private readonly pendingSubtrees = new Map<Element | ShadowRoot, number>();
+  private readonly shadowObservers = new Map<ShadowRoot, MutationObserver>();
+  private readonly handledControlEvents = new WeakSet<Event>();
   private subtreeRevision = 0;
   private needsPruning = false;
   private nameRevision = 0;
@@ -209,19 +223,73 @@ class PageSearchIndex {
   }
 
   private readonly handleControlChange = (event: Event) => {
-    const node = event.target;
+    if (this.handledControlEvents.has(event)) return;
+    const node = event.composedPath()[0] ?? event.target;
     if (
       !(node instanceof Element) ||
       !(
         hasSearchableInputValue(node) ||
         (node instanceof HTMLInputElement && ['checkbox', 'radio'].includes(node.type))
       ) ||
-      node.closest(`#${KEYMOVE_ROOT_ID}`) ||
-      !this.root.contains(node)
+      isKeyMoveNode(node) ||
+      !containsAcrossRoots(this.root, node)
     )
       return;
+    this.handledControlEvents.add(event);
     this.onChange();
   };
+
+  private readonly handleSlotChange = () => {
+    this.nameRevision++;
+    this.onChange();
+  };
+
+  private async discoverRoots(signal: AbortSignal, budget: SearchWorkBudget) {
+    let changed = false;
+    try {
+      for (const [root, observer] of this.shadowObservers) {
+        if (containsAcrossRoots(this.root, root) && !isKeyMoveNode(root)) continue;
+        observer.disconnect();
+        this.removeRootListeners(root);
+        releasePageRoot(root);
+        this.shadowObservers.delete(root);
+        changed = true;
+      }
+      // attachShadow itself emits no MutationRecord. A fresh query also discovers roots
+      // attached later to already-connected hosts, without patching the page's prototypes.
+      for (const node of walkOpenElements(this.root)) {
+        if (signal.aborted) throw abortError();
+        if (!this.records.has(node)) this.refreshCandidate(node);
+        const root = node.shadowRoot;
+        if (root && !this.shadowObservers.has(root)) {
+          const observer = new MutationObserver(this.handleMutations);
+          observer.observe(root, {
+            subtree: true,
+            childList: true,
+            attributes: true,
+            characterData: true,
+          });
+          root.addEventListener('input', this.handleControlChange, true);
+          root.addEventListener('change', this.handleControlChange, true);
+          root.addEventListener('slotchange', this.handleSlotChange);
+          this.shadowObservers.set(root, observer);
+          retainPageRoot(root);
+          this.addSubtree(root);
+          changed = true;
+        }
+        const pause = budget.checkpoint(signal);
+        if (pause) await pause;
+      }
+    } finally {
+      if (changed) document.dispatchEvent(new Event(PAGE_ROOTS_CHANGED));
+    }
+  }
+
+  private removeRootListeners(root: ShadowRoot) {
+    root.removeEventListener('input', this.handleControlChange, true);
+    root.removeEventListener('change', this.handleControlChange, true);
+    root.removeEventListener('slotchange', this.handleSlotChange);
+  }
 
   isCandidate(node: Node | null): node is Element {
     return (
@@ -235,10 +303,19 @@ class PageSearchIndex {
   }
 
   hasDirectSearchableText(node: Element) {
-    for (const child of node.childNodes) {
+    if (node instanceof HTMLSlotElement) return false;
+    const pending: Iterator<Node>[] = [renderedChildren(node)];
+    while (pending.length) {
+      const step = pending[pending.length - 1]!.next();
+      if (step.done) {
+        pending.pop();
+        continue;
+      }
+      const child = step.value;
       if (child.nodeType === Node.TEXT_NODE && (child.textContent?.trim().length ?? 0) > 0) {
         return true;
       }
+      if (child instanceof HTMLSlotElement) pending.push(renderedChildren(child));
     }
     return false;
   }
@@ -253,7 +330,7 @@ class PageSearchIndex {
       return;
     }
 
-    if (!(root instanceof Element)) {
+    if (!(root instanceof Element || root instanceof ShadowRoot)) {
       return;
     }
 
@@ -295,7 +372,8 @@ class PageSearchIndex {
       this.needsPruning = false;
       try {
         for (const node of this.records.keys()) {
-          if (!this.root.contains(node)) this.records.delete(node);
+          if (!containsAcrossRoots(this.root, node) || isKeyMoveNode(node))
+            this.records.delete(node);
           const pause = budget.checkpoint(signal);
           if (pause) await pause;
         }
@@ -305,25 +383,16 @@ class PageSearchIndex {
       }
     }
     for (const [root, revision] of this.pendingSubtrees) {
-      if (!this.root.contains(root)) {
+      if (!containsAcrossRoots(this.root, root) || isKeyMoveNode(root)) {
         this.pendingSubtrees.delete(root);
         continue;
       }
-      const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT, {
-        acceptNode: node =>
-          node instanceof Element &&
-          (node.id === KEYMOVE_ROOT_ID || DO_NOT_SEARCH_NODE_TYPES.includes(node.nodeName))
-            ? NodeFilter.FILTER_REJECT
-            : NodeFilter.FILTER_ACCEPT,
-      });
-      let node: Node | null = root;
-      do {
+      for (const node of walkOpenElements(root)) {
         if (signal.aborted) throw abortError();
         this.refreshCandidate(node);
         const pause = budget.checkpoint(signal);
         if (pause) await pause;
-        node = walker.nextNode();
-      } while (node);
+      }
       if (this.pendingSubtrees.get(root) === revision) this.pendingSubtrees.delete(root);
     }
   }
@@ -335,9 +404,7 @@ class PageSearchIndex {
     }
 
     const pageMutations = mutations.filter(mutation => {
-      const target =
-        mutation.target instanceof Element ? mutation.target : mutation.target.parentElement;
-      if (target?.closest(`#${KEYMOVE_ROOT_ID}`)) {
+      if (isKeyMoveNode(mutation.target)) {
         return false;
       }
       return (
@@ -354,7 +421,7 @@ class PageSearchIndex {
     this.nameRevision++;
 
     pageMutations.forEach(mutation => {
-      if (!this.root.contains(mutation.target)) {
+      if (!containsAcrossRoots(this.root, mutation.target)) {
         return;
       }
       if (mutation.type === 'childList') {
@@ -402,7 +469,7 @@ class PageSearchIndex {
   }
 
   textContainerForNode(node: Element) {
-    return node.closest(TEXT_BLOCK_SELECTOR) ?? node;
+    return closestAcrossRoots(node, TEXT_BLOCK_SELECTOR) ?? node;
   }
 
   actionableAncestorForNode(node: Element, modal: Element | null): HTMLElement | null {
@@ -416,7 +483,7 @@ class PageSearchIndex {
       ) {
         return candidate;
       }
-      candidate = candidate.parentElement;
+      candidate = renderedParent(candidate);
     }
     return null;
   }
@@ -440,6 +507,7 @@ class PageSearchIndex {
     searchSignal: AbortSignal,
   ): Promise<SearchResult> {
     const budget = new SearchWorkBudget();
+    await this.discoverRoots(searchSignal, budget);
     await this.flushPendingSubtrees(searchSignal, budget);
     const collector: MatchCollector = {
       styles: new WeakMap(),
@@ -458,7 +526,7 @@ class PageSearchIndex {
       const pause = budget.checkpoint(searchSignal);
       if (pause) await pause;
       if (searchSignal.aborted) throw abortError();
-      if (!this.root.contains(node)) {
+      if (!containsAcrossRoots(this.root, node) || isKeyMoveNode(node)) {
         this.records.delete(node);
         continue;
       }
@@ -514,19 +582,15 @@ class PageSearchIndex {
     collector.matchingText = await budget.sort(
       collector.matchingText,
       (left, right) => {
-        const position = left.node.compareDocumentPosition(right.node);
-        if (position & Node.DOCUMENT_POSITION_PRECEDING) return 1;
-        if (position & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
-        return 0;
+        return compareRenderedOrder(left.node, right.node);
       },
       searchSignal,
     );
     const { actions, matchingText } = collector;
     for (const match of matchingText) {
       if (match.action) continue;
-      const walker = document.createTreeWalker(match.node, NodeFilter.SHOW_ELEMENT);
-      let node = walker.nextNode();
-      while (node) {
+      for (const node of walkOpenElements(match.node)) {
+        if (node === match.node) continue;
         const pause = budget.checkpoint(searchSignal);
         if (pause) await pause;
         if (
@@ -539,7 +603,6 @@ class PageSearchIndex {
           match.action = node;
           break;
         }
-        node = walker.nextNode();
       }
     }
     if (searchSignal.aborted) throw abortError();
@@ -571,7 +634,7 @@ class PageSearchIndex {
       if (searchSignal.aborted) throw abortError();
       const pause = budget.checkpoint(searchSignal);
       if (pause) await pause;
-      if (!this.root.contains(entry.node)) continue;
+      if (!containsAcrossRoots(this.root, entry.node)) continue;
       const { score, textTerm, distance } = nodeScorer.fuzzyScore(
         entry.node,
         entry.innerText,
@@ -621,6 +684,13 @@ class PageSearchIndex {
     document.removeEventListener('change', this.handleControlChange, true);
     this.lifetime.abort();
     this.observer.disconnect();
+    for (const [root, observer] of this.shadowObservers) {
+      observer.disconnect();
+      this.removeRootListeners(root);
+      releasePageRoot(root);
+    }
+    this.shadowObservers.clear();
+    document.dispatchEvent(new Event(PAGE_ROOTS_CHANGED));
     this.records.clear();
     this.pendingSubtrees.clear();
   }

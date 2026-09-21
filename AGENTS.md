@@ -7,8 +7,11 @@ prepared as a new extension rather than an update to an existing store listing. 
 and artwork are applied; repository metadata, store metadata, extension IDs, upstream relicensing
 permission, and upstream contribution documentation remain pending. Original KeyMove contributions
 by Valentin Dimitrov use Apache License 2.0; inherited and adapted Comake code retains BSD 4-Clause.
-Comake has been contacted about relicensing; permission remains pending. Preserve both
-license texts in `LICENSE` and its inclusion in browser builds until upstream permission is obtained.
+The relicensing request to YipYip's creator has received no reply as of September 22, 2026.
+An Apache-2.0-only license for KeyMove's own and inherited YipYip code is possible if the creator
+explicitly agrees with authority from Comake, Inc. covering all relevant upstream code. Silence is
+not permission. Preserve both license texts in `LICENSE` and its inclusion in browser builds until
+that permission is obtained; third-party dependencies retain their respective licenses.
 
 The runtime is Manifest V3 only. Chromium and Vivaldi use the Chrome target; Firefox uses the
 Firefox target. There is no MV2 compatibility layer and no user account, email, sign-in, or remote
@@ -62,8 +65,10 @@ artifacts are `.output/chrome-mv3` and `.output/firefox-mv3`.
 7. `page_search_index` also emits all distinct ranked candidates across both kinds. `useSuggestions`
    applies stability before selecting the configured number of mixed suggestions (three by default), retaining its history while a query
    or DOM refresh is pending. Pending rows stay visible but cannot be selected, keeping the pane
-   mounted until fresh results arrive. The frame stays open without shrinking for queries of at
-   least three characters, including completed empty results. Short queries and completed empty results
+   mounted until fresh results arrive. The frame stays open for every nonempty query,
+   independently of the page-highlight threshold. Pending and completed empty results retain the last completed height; completed
+   nonempty results fit their current rows so shorter descriptions leave no trailing gap.
+   Cleared queries and completed empty results
    clear history. `ResultsPanel` is a view of the one selection, never a second cursor.
 8. `useSearchNavigation` retains an independent cursor for each mode.
 9. `useHighlights` uses the CSS Custom Highlight API without rewriting host-page DOM.
@@ -89,6 +94,10 @@ artifacts are `.output/chrome-mv3` and `.output/firefox-mv3`.
 - In text mode, native copy yields the whole selected block. In action mode, `Ctrl + C` (or
   `Command + C` on macOS) copies the selected link's normalized URL.
 - Keep text and action cursors independent and clear both while a new query is pending.
+- Below three characters, outline only the selected result in either mode. At three or more
+  NFC-normalized Unicode code points after trimming the query, show faint outlines on other
+  results and page-wide text highlights when highlighting is enabled. This presentation threshold
+  must never delay search, filter results or change counts, navigation, activation or native selection.
 - Automatically select the first result when a new query returns matches, so Enter works
   immediately. A DOM refresh retains the selected node, or clears it if that node disappeared.
 - Browsers may reserve `Ctrl + Tab` before content scripts receive it. Do not claim that page code
@@ -107,6 +116,31 @@ widgets receive focus and retain their keyboard input.
 modes remain inside the active modal; nonmodal panels do not scope search. The existing shadow
 host moves inside the modal so native inertness does not block the UI, and returns on close.
 Recheck action availability at activation time, including for actions attached to text results.
+
+## Selection hover
+
+Explicit result navigation sends best-effort pointer/mouse over, enter, out and leave events
+through `SelectionHover`; automatic selection and DOM refreshes must never initiate hover.
+Retain hover during query edits (including an empty query), release shared ancestors only when
+leaving their subtree, and clean up on search reset, unmount, invalid targets or modal changes.
+Use rendered ancestry for slots/open roots and correct related targets. Never click, focus,
+rewrite page CSS or simulate trusted input as a hover fallback. CSS-only `:hover` and handlers
+rejecting synthetic events remain unsupported. Verify with `preview/hover.html` and browser smoke.
+
+## Open Shadow DOM
+
+`dom_tree.ts` distinguishes DOM ownership (including shadow hosts) from rendered ancestry through
+slots. Use the matching helper for membership, visibility, modal scope, result order and action
+ancestors; native `contains`, `closest` and `parentElement` do not cross shadow boundaries.
+The index discovers open roots in cancellable chunks on each search and observes each root.
+Dispose its observers/listeners and root inventory references on disconnect. Never enter KeyMove's
+own root, patch the page's `attachShadow`, or expose closed roots. Iframes remain unsupported.
+Resolve ID-based labels in the control's own root. Read assigned slot content instead of its
+fallback and exclude unassigned light DOM. Keep search, copy and highlights on the same rendered
+text reader. Split highlight ranges at tree boundaries and adopt only KeyMove highlight styles into
+matched roots, preserving page stylesheets. Native shadow selection needs composed endpoints and
+live boundary tracking so page mutations cannot strand the query caret. Browser-check copy/paste,
+typing, nested modals and cleanup with `preview/shadow.html`, not just jsdom.
 
 ## Language support
 
@@ -150,6 +184,12 @@ highlight rules ship as a manifest stylesheet, and the toolbar popup loads both 
 and `popup.css` as ordinary documents. Rules shared between those contexts live in
 `content.css`; anything that applies to one of them is scoped, such as `#keymove-popup`.
 
+Theme colors, spacing, radii and typography are shared tokens in `content.css`, declared for
+the shadow host and popup document. `useTheme` applies the resolved `data-keymove-theme` only
+to those owned roots; never apply it to the host page's document. Keep both palettes on the
+same components and layout rules. Settings use a shared control/text grid. See
+`docs/appearance.md` for token conventions and preview scenarios.
+
 Never read a custom property without a fallback. An unresolved `var()` is invalid at
 computed-value time, which resets the whole declaration it appears in. Inside a shorthand
 that resets every longhand it controls, so `border: 2px solid rgb(var(--accent))` becomes
@@ -170,8 +210,21 @@ reaches every open tab on its own. Add settings by extending the stored settings
 the hook, never by sending messages between the popup and content scripts.
 
 Setting `default_popup` means `browser.action.onClicked` never fires. The toolbar icon opens
-the settings popup and cannot also summon the searchbar; `Alt + F` and always-on typing are
-the ways in.
+the settings popup. Its Show KeyMove search bar button sends a validated, top-frame-only request to
+the current page (or the opener of fallback settings tabs), focuses it and closes settings.
+It never overrides a site pause. Settings still persist through storage, not messages.
+`Alt + F` and always-on typing remain the other ways in.
+
+The popup has General, Appearance, Shortcuts and Sites tabs. General's Default activation
+keeps the existing `alwaysOn` boolean. `interaction_settings_schema.ts` validates the
+`openingShortcut` code/modifier object and `siteBehavior:<exact hostname>` keys (type,
+shortcut, paused). Removing a site key restores the default; never replace the entire site
+dictionary when editing one rule. `use_interaction_settings` subscribes before reading and
+ignores stale reads and failed-write rollbacks after newer changes. No interception occurs
+until this read succeeds, or while the site is paused. Except for explicit opening and
+permitted type-to-search, shortcuts and copying require the KeyMove input to own focus.
+Keep the current-site picker and all saved overrides in Sites, and the shared light/dark
+theme in Appearance. The real settings preview is `preview/settings_fixture.tsx`.
 
 ## Popup position and storage
 
@@ -182,6 +235,7 @@ popup stays on-screen.
 
 Stored keys:
 
+- `theme`: `system` (default), `light`, or `dark`. System follows live OS appearance changes.
 - `autoHide`: boolean
 - `suggestionCount`: integer from 1 to 5, defaults to 3; larger saved counts clamp to 5. Limits displayed suggestions, never navigation results
 - `alwaysOn`: boolean

@@ -30,8 +30,9 @@ const ResultsPanel = (props: ResultsPanelProps) => {
   } = props;
   const panelRef = React.useRef<HTMLDivElement>(null);
   const [minimumHeight, setMinimumHeight] = React.useState(0);
-  // Hold the largest height in this query session. Fewer rows or shorter labels must not
-  // collapse the surface; clearing/shortening the query releases the reserved space.
+  const retainHeight = pending || suggestions.length === 0;
+  // Reserve the last completed height while searching or showing an empty result.
+  // Completed rows use their natural height so shorter labels leave no stale bottom gap.
   React.useLayoutEffect(() => {
     if (!open) {
       setMinimumHeight(0);
@@ -39,10 +40,10 @@ const ResultsPanel = (props: ResultsPanelProps) => {
       return;
     }
     const panel = panelRef.current;
-    if (!panel) return;
+    if (!panel || retainHeight) return;
     const measure = () => {
       const height = Math.ceil(panel.getBoundingClientRect().height);
-      if (height > minimumHeight) {
+      if (height !== minimumHeight) {
         setMinimumHeight(height);
         onHeightChange?.(height);
       }
@@ -52,7 +53,7 @@ const ResultsPanel = (props: ResultsPanelProps) => {
     const observer = new ResizeObserver(measure);
     observer.observe(panel);
     return () => observer.disconnect();
-  }, [open, suggestions, minimumHeight, onHeightChange]);
+  }, [open, suggestions, minimumHeight, onHeightChange, retainHeight]);
   const displayedSelection = React.useRef(selectedNode);
   React.useLayoutEffect(() => {
     if (!pending) displayedSelection.current = selectedNode;
@@ -79,7 +80,10 @@ const ResultsPanel = (props: ResultsPanelProps) => {
     <div
       id={KEYMOVE_SUGGESTIONS_ID}
       ref={panelRef}
-      style={{ minHeight: Math.min(minimumHeight, maxHeight ?? Infinity), maxHeight }}
+      style={{
+        minHeight: retainHeight ? Math.min(minimumHeight, maxHeight ?? Infinity) : undefined,
+        maxHeight,
+      }}
       className={`keymove-suggestions keymove-suggestions-${above ? 'above' : 'below'}${tooltipsMode ? ' keymove-suggestions-with-hints' : ''}`}
       role="listbox"
       aria-busy={pending}

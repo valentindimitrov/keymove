@@ -57,6 +57,7 @@ test('opens settings from a validated content-script request and falls back when
   expect(browserMocks.create).toHaveBeenCalledWith({
     url: 'chrome-extension://keymove-test/popup.html',
     active: true,
+    openerTabId: 42,
   });
   browserMocks.openPopup.mockClear();
   await handleExtensionMessage(message, { ...tabSender, id: 'another-extension' });

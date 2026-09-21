@@ -2,7 +2,7 @@
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { validateBuilds } from './validate-builds.js';
+import { SANDBOX_SUPPORT_URL, validateBuilds } from './validate-builds.js';
 import identity from '../src/extension_identity.js';
 
 let root: string;
@@ -20,7 +20,7 @@ beforeEach(() => {
       'content-scripts/content.css': '::highlight(keymove-search-results) {}',
       'popup.html':
         '<script type="module" src="/popup.js"></script><link rel="stylesheet" href="/popup.css">',
-      'popup.js': 'export {}',
+      'popup.js': `export {}; ${identity.supportUrl}`,
       'popup.css': '',
     }))
       writeFileSync(path.join(build, name), text);
@@ -75,7 +75,10 @@ test.each(['popup.html', 'popup.js', 'popup.css'])('rejects missing %s', file =>
   expect(() => validateBuilds(root)).toThrow(/missing/);
 });
 test('checks popup JavaScript for unresolved CommonJS', () => {
-  writeFileSync(path.join(root, '.output/chrome-mv3/popup.js'), 'require("missing")');
+  writeFileSync(
+    path.join(root, '.output/chrome-mv3/popup.js'),
+    `require("missing"); ${identity.supportUrl}`,
+  );
   expect(() => validateBuilds(root)).toThrow(/CommonJS/);
 });
 
@@ -90,4 +93,17 @@ test('rejects remote popup assets', () => {
     '<script src="https://example.com/popup.js"></script><link rel="stylesheet" href="popup.css">',
   );
   expect(() => validateBuilds(root)).toThrow(/must be local/);
+});
+
+test('rejects a production popup without the live tip destination', () => {
+  writeFileSync(path.join(root, '.output/chrome-mv3/popup.js'), 'export {}');
+  expect(() => validateBuilds(root)).toThrow(/production tip link is missing/);
+});
+
+test('rejects a production popup containing the Stripe sandbox destination', () => {
+  writeFileSync(
+    path.join(root, '.output/chrome-mv3/popup.js'),
+    `${identity.supportUrl} ${SANDBOX_SUPPORT_URL}`,
+  );
+  expect(() => validateBuilds(root)).toThrow(/sandbox tip link must not ship/);
 });

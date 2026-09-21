@@ -4,6 +4,7 @@ import path from 'node:path';
 import type { ChromiumClient } from 'web-ext';
 import { openPage, waitFor } from './browser-driver.ts';
 import type { TestPage } from './browser-driver.ts';
+import { settingsTab } from './settings-smoke.ts';
 
 const shadow = `document.getElementById('keymove-root')?.shadowRoot`;
 const input = `${shadow}?.querySelector('[aria-label="Search page"]')`;
@@ -26,17 +27,22 @@ async function checkMenuSurvivesAnimation(page: TestPage) {
 }
 
 export async function checkTooltipsMode(client: ChromiumClient, origin: string, popup: TestPage) {
+  await settingsTab(popup, 'Appearance');
   assert.equal(await popup.evaluate(`${toggle}.checked`), true);
   assert.deepEqual(
     await popup.evaluate(
-      `Array.from(document.querySelectorAll('label')).slice(0, 2).map(label => label.textContent)`,
+      `Array.from(document.querySelectorAll('label')).slice(0, 3).map(label => label.textContent)`,
     ),
-    ['Tooltips mode', 'Always on'],
+    ['Appearance', 'Tooltips mode', 'Highlight matches'],
   );
   const page = await openPage(client, `${origin}fixtures.html?tooltips`);
   try {
     await page.activate();
     await waitFor(page, `${input}`);
+    await waitFor(
+      page,
+      `document.hasFocus() && ${shadow}.querySelector('#keymove-bar').dataset.alwaysOn === 'true'`,
+    );
     await page.evaluate(`(() => {
       const link = document.createElement('a');
       link.textContent = 'Tooltip demonstration link'; link.href = '#tooltip-target';
@@ -44,6 +50,7 @@ export async function checkTooltipsMode(client: ChromiumClient, origin: string, 
       const paste = document.createElement('textarea'); paste.id = 'tooltips-paste'; document.body.append(paste);
     })()`);
     await page.key('f', 1);
+    await waitFor(page, `${shadow}.activeElement === ${input}`);
     for (const character of 'tooltip demonstration') await page.key(character);
     await waitFor(page, `${badge}?.textContent === ${JSON.stringify(shortcut)}`);
     await page.key('1', 1);
@@ -86,6 +93,7 @@ export async function checkTooltipsMode(client: ChromiumClient, origin: string, 
       `${origin}fixtures.html?tooltips#tooltip-target`,
     );
     await page.key('f', 1);
+    await waitFor(page, `${shadow}.activeElement === ${input}`);
     for (const character of 'tooltip demonstration') await page.key(character);
     await waitFor(page, `${badge}?.textContent === '1'`);
     await page.key('1', 1);
@@ -108,5 +116,6 @@ export async function checkTooltipsMode(client: ChromiumClient, origin: string, 
   } finally {
     await popup.evaluate(`if (!${toggle}.checked) ${toggle}.click()`);
     await page.close();
+    await settingsTab(popup, 'General');
   }
 }

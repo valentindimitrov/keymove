@@ -5,7 +5,7 @@ test('shows both text and action navigation shortcut families', () => {
   render(<InfoPanelKeyboardShortcuts />);
 
   const previousTextRow = screen.getByText(
-    'to select the previous matching text block',
+    'to select the previous match in the current mode',
   ).parentElement!;
   const nextActionRow = screen.getByText('to select the next matching action').parentElement!;
   const previousActionRow = screen.getByText(

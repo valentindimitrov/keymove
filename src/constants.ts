@@ -58,7 +58,8 @@ export const FUZZY_DISTANCE_PENALTY = 0.6;
 export const ACTION_PRIORITY_BOOST = 1.25;
 export const DEFAULT_SUGGESTION_COUNT = 3;
 export const MAX_SUGGESTION_COUNT = 5;
-export const MIN_SUGGESTION_QUERY_LENGTH = 3;
+export const MIN_SUGGESTION_QUERY_LENGTH = 1;
+export const MIN_PAGE_HIGHLIGHT_QUERY_LENGTH = 3;
 // A challenger must beat the result already holding a place by this margin before they swap,
 // so results that score almost identically stop trading places on every keystroke.
 export const SUGGESTION_SWAP_MARGIN = 1.15;
@@ -69,6 +70,7 @@ export const ACTION_MENU_RESULT_HEIGHT = 44;
 
 export const SETTINGS_KEYS = {
   TOOLTIPS_MODE: 'tooltipsMode',
+  THEME: 'theme',
   SUGGESTION_COUNT: 'suggestionCount',
   LOCK_POSITION_AND_SIZE: 'lockPositionAndSize',
   AUTO_HIDE: 'autoHide',

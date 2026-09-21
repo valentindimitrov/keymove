@@ -50,6 +50,27 @@ export async function openPage(client: ChromiumClient, url: string) {
   return {
     activate: () => client.sendCommand('Target.activateTarget', { targetId }),
     close: () => client.sendCommand('Target.closeTarget', { targetId }),
+    movePointer: (x: number, y: number) =>
+      client.sendCommand('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y }, session),
+    setColorScheme: (value: 'light' | 'dark' | '') =>
+      client.sendCommand(
+        'Emulation.setEmulatedMedia',
+        {
+          features: value ? [{ name: 'prefers-color-scheme', value }] : [],
+        },
+        session,
+      ),
+    setViewport: (width: number, height: number) =>
+      client.sendCommand(
+        'Emulation.setDeviceMetricsOverride',
+        {
+          width,
+          height,
+          deviceScaleFactor: 1,
+          mobile: false,
+        },
+        session,
+      ),
     async screenshot(): Promise<Buffer> {
       const response = record(
         await client.sendCommand('Page.captureScreenshot', { format: 'png' }, session),

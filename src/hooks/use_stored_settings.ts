@@ -7,7 +7,11 @@ import {
   validateStoredSettings,
   validateStoredSetting,
 } from '../lib/stored_settings_schema.js';
-import type { StoredSettingKey, BooleanStoredSettingKey } from '../lib/stored_settings_schema.js';
+import type {
+  StoredSettingKey,
+  BooleanStoredSettingKey,
+  Theme,
+} from '../lib/stored_settings_schema.js';
 import { isRecord } from '../lib/runtime_schema.js';
 import { browser, type Browser } from 'wxt/browser';
 
@@ -20,7 +24,7 @@ function reportStorageError(operation: string, error: unknown) {
   console.error(`${EXTENSION_NAME} could not ${operation}: ${message}`);
 }
 
-function persistSetting<T extends boolean | number>(
+function persistSetting<T extends boolean | number | Theme>(
   key: StoredSettingKey,
   value: T,
   previousValue: T,
@@ -38,6 +42,7 @@ function persistSetting<T extends boolean | number>(
 const useStoredSettings = () => {
   const revisions = React.useRef({
     tooltipsMode: 0,
+    theme: 0,
     suggestionCount: 0,
     lockPositionAndSize: 0,
     showAutohideButton: 0,
@@ -62,6 +67,26 @@ const useStoredSettings = () => {
       );
     },
     [tooltipsMode],
+  );
+  const [theme, setTheme] = React.useState<Theme>(DEFAULT_STORED_SETTINGS.theme);
+  const updateTheme = React.useCallback(
+    (value: Theme) => {
+      const validation = validateStoredSetting(SETTINGS_KEYS.THEME, value);
+      if (validation.issues.length) {
+        reportStorageIssues(validation.issues);
+        return;
+      }
+      const revision = ++revisions.current.theme;
+      setTheme(validation.value);
+      persistSetting(
+        SETTINGS_KEYS.THEME,
+        validation.value,
+        theme,
+        setTheme,
+        () => revisions.current.theme === revision,
+      );
+    },
+    [theme],
   );
   const [suggestionCount, setSuggestionCount] = React.useState<number>(
     DEFAULT_STORED_SETTINGS.suggestionCount,
@@ -202,6 +227,7 @@ const useStoredSettings = () => {
       reportStorageIssues(issues);
       if (revisions.current.tooltipsMode === initialRevisions.tooltipsMode)
         setTooltipsMode(settings.tooltipsMode);
+      if (revisions.current.theme === initialRevisions.theme) setTheme(settings.theme);
       if (revisions.current.suggestionCount === initialRevisions.suggestionCount)
         setSuggestionCount(settings.suggestionCount);
       if (revisions.current.lockPositionAndSize === initialRevisions.lockPositionAndSize)
@@ -243,6 +269,15 @@ const useStoredSettings = () => {
 
       applyChange(SETTINGS_KEYS.AUTO_HIDE, setAutoHide);
       applyChange(SETTINGS_KEYS.TOOLTIPS_MODE, setTooltipsMode);
+      if (Object.hasOwn(changes, SETTINGS_KEYS.THEME)) {
+        const { value, issues } = validateStoredSettingChange(
+          SETTINGS_KEYS.THEME,
+          changes[SETTINGS_KEYS.THEME],
+        );
+        reportStorageIssues(issues);
+        revisions.current.theme += 1;
+        setTheme(value);
+      }
       if (Object.hasOwn(changes, SETTINGS_KEYS.SUGGESTION_COUNT)) {
         const { value, issues } = validateStoredSettingChange(
           SETTINGS_KEYS.SUGGESTION_COUNT,
@@ -280,6 +315,8 @@ const useStoredSettings = () => {
   return {
     tooltipsMode,
     updateTooltipsMode,
+    theme,
+    updateTheme,
     suggestionCount,
     updateSuggestionCount,
     lockPositionAndSize,

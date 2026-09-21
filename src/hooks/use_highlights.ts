@@ -8,6 +8,8 @@ import {
 import { iterateRenderedText } from '../lib/visible_text.js';
 import { matchingTextSpans } from '../lib/search_text.js';
 import type { StyleCache, RenderedTextPart, TextBoundary } from '../lib/visible_text.js';
+import { renderedParent, textRangeScope } from '../lib/dom_tree.js';
+import highlightStyles from '../highlights.css?inline';
 // Highlighting needs only the node and the slice that matched, not the rest of a result.
 type HighlightTarget = { node: Element; term: string };
 
@@ -51,10 +53,32 @@ function rangesForTextParts(
   };
 
   for (const span of spans) {
-    const range = new Range();
-    range.setStart(...boundary(span.start, false));
-    range.setEnd(...boundary(span.end, true));
-    ranges.push(range);
+    const start = boundary(span.start, false);
+    const firstPart = nodeIndex;
+    const end = boundary(span.end, true);
+    const lastPart = nodeIndex;
+    let groupStart = start;
+    let groupEnd = start;
+    const flush = () => {
+      if (ranges.length >= limit) return;
+      const range = new Range();
+      range.setStart(...groupStart);
+      range.setEnd(...groupEnd);
+      if (!range.collapsed) ranges.push(range);
+    };
+    // A DOM Range cannot cross tree roots. Split a composed-text match into ranges
+    // at slots/hosts while keeping its original search offsets and visible spelling.
+    for (let i = firstPart; i <= lastPart; i++) {
+      const partStart = i === firstPart ? start : parts[i]!.start;
+      const partEnd = i === lastPart ? end : parts[i]!.end;
+      if (textRangeScope(partStart[0]) !== textRangeScope(groupStart[0])) {
+        flush();
+        groupStart = partStart;
+      }
+      groupEnd = partEnd;
+    }
+    flush();
+    if (ranges.length >= limit) break;
   }
 
   return ranges;
@@ -83,7 +107,7 @@ function* highlightRangeWork(matches: readonly HighlightTarget[]): Generator<voi
     seen.add(match.node);
     const path: Element[] = [];
     let covered = false;
-    for (let ancestor = match.node.parentElement; ancestor; ancestor = ancestor.parentElement) {
+    for (let ancestor = renderedParent(match.node); ancestor; ancestor = renderedParent(ancestor)) {
       if (nodes.has(ancestor)) {
         covered = true;
         break;
@@ -160,6 +184,29 @@ type HighlightOptions = {
   color?: string;
 };
 
+function shadowHighlightStyles(ranges: Range[], color: string) {
+  const roots = new Set<ShadowRoot>();
+  for (const range of ranges) {
+    const root = range.startContainer.getRootNode();
+    if (root instanceof ShadowRoot) roots.add(root);
+  }
+  if (!roots.size || typeof CSSStyleSheet.prototype.replaceSync !== 'function') return () => {};
+  const sheet = new CSSStyleSheet();
+  // Adopted styles avoid DOM mutations (and observer/search feedback loops). Concrete
+  // values work even when a component resets or overrides inherited custom properties.
+  sheet.replaceSync(
+    highlightStyles
+      .replace(/var\(--keymove-text-wash,[^;]+\)/g, rgbaForHexColor(color, 0.28))
+      .replace(/var\(--keymove-text-accent,[^)]+\)/g, color)
+      .replace(/var\(--keymove-text-ink,[^)]+\)/g, inkForHexColor(color)),
+  );
+  for (const root of roots) root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
+  return () => {
+    for (const root of roots)
+      root.adoptedStyleSheets = root.adoptedStyleSheets.filter(existing => existing !== sheet);
+  };
+}
+
 const useHighlights = ({
   matches,
   selectedMatch = null,
@@ -192,15 +239,18 @@ const useHighlights = ({
       return undefined;
     }
 
+    let removeStyles = () => {};
     const cancel = scheduleHighlightRanges(matches, ranges => {
+      removeStyles = shadowHighlightStyles(ranges, color);
       highlightRegistry.set(KEYMOVE_HIGHLIGHT_NAME, new window.Highlight(...ranges));
     });
 
     return () => {
       cancel();
+      removeStyles();
       highlightRegistry.delete(KEYMOVE_HIGHLIGHT_NAME);
     };
-  }, [matches, enabled]);
+  }, [matches, enabled, color]);
 
   // Moving the cursor only changes this highlight, leaving the general ranges intact.
   React.useEffect(() => {

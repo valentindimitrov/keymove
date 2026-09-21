@@ -261,7 +261,9 @@ async function checkInputValues(page: TestPage, artifacts: string, native: boole
     minimum.value = '60';
     minimum.dispatchEvent(new Event('input', { bubbles: true }));
   })()`);
-  await waitFor(page, `${status} === 'Actions 0 / 0'`);
+  // This checks value invalidation, whether searchAction explicitly selected actions
+  // or used the temporary fallback. Mode restoration has its own browser regression.
+  await waitFor(page, `${status} === 'Actions 0 / 0' || ${status} === 'Text 0 / 0'`);
   await searchAction(page, '60', 2); // Also matches the visible maximum value, 160.
   await searchAction(page, 'minimum');
   assert.match(

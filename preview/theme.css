@@ -1,0 +1,12 @@
+.keymove-theme-preview {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  width: min(456px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  padding: var(--keymove-space-4, 16px) 18px;
+  border: 1px solid var(--keymove-border, rgba(180, 180, 180, 0.2));
+  border-radius: var(--keymove-radius-surface, 12px);
+  background: var(--keymove-popup-surface, rgb(28, 28, 28));
+}

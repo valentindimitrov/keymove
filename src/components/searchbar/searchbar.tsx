@@ -5,6 +5,9 @@ import useDocumentEvent from '../../hooks/use_document_event.js';
 import useHighlights from '../../hooks/use_highlights.js';
 import useKeyboardShortcuts from '../../hooks/use_keyboard_shortcuts.js';
 import useStoredSettings from '../../hooks/use_stored_settings.js';
+import useInteractionSettings from '../../hooks/use_interaction_settings.js';
+import useTheme from '../../hooks/use_theme.js';
+import { usePortalTarget } from './portal.js';
 import useExtensionMessaging from '../../hooks/use_extension_messaging.js';
 import useSearchNavigation, {
   effectiveSearchMode,
@@ -17,6 +20,7 @@ import usePopupWidth from '../../hooks/use_popup_width.js';
 import useSuggestions, { describeAll } from '../../hooks/use_suggestions.js';
 import useHighlightColors from '../../hooks/use_highlight_colors.js';
 import useSearchOrigin from '../../hooks/use_search_origin.js';
+import useSelectionHover from '../../hooks/use_selection_hover.js';
 
 import Utils from '../../lib/utils.js';
 import { isActionDisabled } from '../../lib/searchable_attributes.js';
@@ -44,6 +48,7 @@ import {
   SUGGESTION_PANEL_PADDING,
   SUGGESTION_ROW_HEIGHT,
   MIN_SUGGESTION_QUERY_LENGTH,
+  MIN_PAGE_HIGHLIGHT_QUERY_LENGTH,
 } from '../../constants.js';
 
 const SCROLL_OR_RESIZE_UPDATE_TIMEOUT_DURATION = 100;
@@ -64,8 +69,10 @@ const Searchbar = () => {
     discard: discardOrigin,
   } = useSearchOrigin();
   const focusRequested = React.useRef(false);
+  const selectionHover = useSelectionHover();
 
   const {
+    theme,
     suggestionCount,
     autoHide,
     updateAutoHide,
@@ -76,6 +83,15 @@ const Searchbar = () => {
     showAutohideButton,
     lockPositionAndSize,
   } = useStoredSettings();
+  const interaction = useInteractionSettings();
+  const siteBehavior =
+    (Object.hasOwn(interaction.sites, window.location.hostname)
+      ? interaction.sites[window.location.hostname]
+      : undefined) ?? (alwaysOn ? 'type' : 'shortcut');
+  const paused = !interaction.ready || siteBehavior === 'paused';
+  const typeToSearch = !paused && siteBehavior === 'type';
+  const portalRoot = usePortalTarget()?.getRootNode();
+  useTheme(theme, portalRoot instanceof ShadowRoot ? portalRoot.host : null);
   const defaultSearchMode = startInActionMode ? SEARCH_MODES.ACTIONS : SEARCH_MODES.TEXT;
   // Seeded with the reducer's initial mode, not the first computed default, so a stored
   // default that is already loaded on the first render still gets adopted.
@@ -107,7 +123,7 @@ const Searchbar = () => {
   const previousSearchText = React.useRef(searchText);
   const [scrollOrResizeRefresh, setScrollOrResizeRefresh] = React.useState<boolean>(false);
   const [hideSelections, setHideSelections] = React.useState<boolean>(false);
-  const isInteractive = !isHidden;
+  const isInteractive = !isHidden && !paused;
 
   const matchingText = searchNavigation.results.text;
   const matchingLinksAndButtons = searchNavigation.results.actions;
@@ -174,18 +190,27 @@ const Searchbar = () => {
   }, []);
 
   const resetSearchTextAndMatches = React.useCallback(() => {
+    selectionHover.clear();
     setMenuTarget(null);
     cancelPendingSearch();
     setSearchText('');
     resetSearchNavigation(defaultSearchMode);
     Utils.clearPageSelection();
-  }, [cancelPendingSearch, resetSearchNavigation, defaultSearchMode]);
+  }, [cancelPendingSearch, resetSearchNavigation, defaultSearchMode, selectionHover]);
 
   const hide = React.useCallback(() => {
     discardOrigin();
     setIsHidden(true);
     resetSearchTextAndMatches();
   }, [resetSearchTextAndMatches, discardOrigin]);
+
+  React.useEffect(() => {
+    if (paused) {
+      focusRequested.current = false;
+      hide();
+      searchInputRef.current?.blur();
+    }
+  }, [paused, hide]);
 
   const handleBlur = React.useCallback(
     (event: React.FocusEvent<HTMLInputElement>) => {
@@ -370,11 +395,11 @@ const Searchbar = () => {
   // Shared by stepping through matches and by jumping straight to a numbered row, so both
   // routes leave the same mode, selection, scroll position and page selection behind.
   const selectMatchAtIndex = React.useCallback(
-    (mode: SearchMode, index: number) => {
+    (mode: SearchMode, index: number, chooseMode = true) => {
       setMenuTarget(null);
       const matches = mode === SEARCH_MODES.TEXT ? matchingTextNodes : matchingLinksAndButtons;
       rememberOrigin(matches[index]);
-      setMode(mode);
+      if (chooseMode) setMode(mode);
       setSelectedIndex(mode, index);
       Utils.scrollToNodeAtIndexInList(matches, index);
       if (mode === SEARCH_MODES.TEXT) {
@@ -383,12 +408,27 @@ const Searchbar = () => {
         Utils.clearPageSelection();
       }
       setScrollOrResizeRefresh(refresh => !refresh);
+      // Only explicit navigation comes through here; automatic query results never hover.
+      selectionHover.select(
+        mode === SEARCH_MODES.TEXT
+          ? (matchingText[index]?.action ?? matches[index] ?? null)
+          : (matches[index] ?? null),
+      );
     },
-    [matchingTextNodes, matchingLinksAndButtons, setMode, setSelectedIndex, rememberOrigin],
+    [
+      matchingTextNodes,
+      matchingText,
+      matchingLinksAndButtons,
+      setMode,
+      setSelectedIndex,
+      rememberOrigin,
+      selectionHover,
+    ],
   );
 
   const selectNextMatchingNode = React.useCallback(
-    (event: KeyboardEvent, mode: SearchMode, forward = true) => {
+    (event: KeyboardEvent, requestedMode: SearchMode | 'current', forward = true) => {
+      const mode = requestedMode === 'current' ? navigationMode : requestedMode;
       const matches = mode === SEARCH_MODES.TEXT ? matchingTextNodes : matchingLinksAndButtons;
       if (matches.length === 0) {
         return;
@@ -404,6 +444,8 @@ const Searchbar = () => {
             ? 0
             : matches.length - 1
           : (currentIndex + (forward ? 1 : matches.length - 1)) % matches.length,
+        // Tab in the text-mode fallback must not make actions a permanent choice.
+        requestedMode !== 'current' || chosenMode !== SEARCH_MODES.TEXT,
       );
     },
     [
@@ -411,6 +453,8 @@ const Searchbar = () => {
       matchingLinksAndButtons,
       searchNavigation.selectedIndices,
       selectMatchAtIndex,
+      navigationMode,
+      chosenMode,
     ],
   );
 
@@ -436,10 +480,10 @@ const Searchbar = () => {
       guarded(event => {
         const differentInputIsActive = Utils.differentInputIsActive(searchInputRef.current);
         if (Utils.elementIsActive(searchInputRef.current) || !differentInputIsActive) {
-          selectNextMatchingNode(event, mode === 'current' ? navigationMode : mode, forward);
+          selectNextMatchingNode(event, mode, forward);
         }
       }),
-    [guarded, selectNextMatchingNode, navigationMode],
+    [guarded, selectNextMatchingNode],
   );
 
   // Jumps straight to a row of the results panel. The row carries its own kind, so a number
@@ -610,9 +654,9 @@ const Searchbar = () => {
   const navigateFromMenu = React.useCallback(
     (event: KeyboardEvent, forward: boolean) => {
       setMenuTarget(null);
-      selectNextMatchingNode(event, navigationMode, forward);
+      selectNextMatchingNode(event, 'current', forward);
     },
-    [selectNextMatchingNode, navigationMode],
+    [selectNextMatchingNode],
   );
 
   const keyboardShortcutHandlerMapping = React.useMemo<
@@ -690,7 +734,8 @@ const Searchbar = () => {
       const target = event.composedPath()[0] ?? event.target;
       if (
         keyboardShortcutName !== 'focus_searchbar' &&
-        (Utils.differentInputIsActive(searchInputRef.current) ||
+        (!Utils.elementIsActive(searchInputRef.current) ||
+          Utils.differentInputIsActive(searchInputRef.current) ||
           (target !== searchInputRef.current && Utils.isExtensionElement(target)))
       ) {
         return;
@@ -729,6 +774,7 @@ const Searchbar = () => {
     (event: ClipboardEvent) => {
       if (
         !isInteractive ||
+        !Utils.elementIsActive(searchInputRef.current) ||
         !event.clipboardData ||
         Utils.differentInputIsActive(searchInputRef.current)
       ) {
@@ -758,9 +804,10 @@ const Searchbar = () => {
   }, [searchText, scheduleSearch]);
 
   const hasSearchQuery = searchText.trimStart().length > 0;
-  const refreshSearchOnPageChange = React.useEffectEvent((preserveSelection = true) =>
-    scheduleSearch(preserveSelection),
-  );
+  const refreshSearchOnPageChange = React.useEffectEvent((preserveSelection = true) => {
+    selectionHover.reconcile();
+    scheduleSearch(preserveSelection);
+  });
   React.useEffect(() => {
     const closed = previousMenuTarget.current !== null && menuTarget === null;
     previousMenuTarget.current = menuTarget;
@@ -822,10 +869,9 @@ const Searchbar = () => {
         hide();
       } else {
         setIsHidden(false);
-        focusSearchInput();
       }
     }
-  }, [autoHide, hide, focusSearchInput]);
+  }, [autoHide, hide]);
 
   // The panel is a second view of the one cursor, not a cursor of its own, so a row is
   // highlighted only when Tab has actually landed on it.
@@ -886,21 +932,32 @@ const Searchbar = () => {
   useWindowEvent('scroll', shouldBindEvents, updateSelectionPositionsAfterTimeout);
   useWindowEvent('wheel', shouldBindEvents, updateSelectionPositionsAfterTimeout);
   useWindowEvent('resize', shouldBindEvents, updateSelectionPositionsAfterTimeout);
-  useDocumentEvent('keydown', alwaysOn, handleKeydown, true);
+  useDocumentEvent('keydown', typeToSearch, handleKeydown, true);
   useDocumentEvent(
     'copy',
     selectedTextMatch !== null || selectedActionLinkUrl !== null,
     handleCopy,
     true,
   );
-  useKeyboardShortcuts(handleShortcut);
+  useKeyboardShortcuts(handleShortcut, interaction.openingShortcut, !paused);
+  const showOtherMatches =
+    highlightMatches &&
+    Array.from(searchText.trim().normalize('NFC')).length >= MIN_PAGE_HIGHLIGHT_QUERY_LENGTH;
   useHighlights({
     matches: matchingText,
     selectedMatch: selectedTextMatch,
-    enabled: highlightMatches,
+    enabled: showOtherMatches,
     color: highlightColors[SEARCH_MODES.TEXT],
   });
-  useExtensionMessaging();
+  useExtensionMessaging(
+    React.useCallback(() => {
+      if (!interaction.ready) return 'loading';
+      if (paused) return 'paused';
+      setMenuTarget(null);
+      revealAndFocus();
+      return 'shown';
+    }, [interaction.ready, paused, revealAndFocus]),
+  );
 
   React.useEffect(() => {
     if (!actionMenuOpen) return undefined;
@@ -917,18 +974,9 @@ const Searchbar = () => {
         <Selections
           color={highlightColors[navigationMode]}
           refresh={scrollOrResizeRefresh}
-          selectedSelectionIndex={
-            navigationMode === SEARCH_MODES.TEXT && selectedSelectionIndex !== null
-              ? 0
-              : selectedSelectionIndex
-          }
-          matchingNodes={
-            navigationMode === SEARCH_MODES.TEXT
-              ? selectedTextMatch
-                ? [selectedTextMatch.node]
-                : []
-              : matchingLinksAndButtons
-          }
+          selectedSelectionIndex={selectedSelectionIndex}
+          matchingNodes={activeMatchingNodes}
+          showOtherMatches={showOtherMatches}
         />
       )}
       <DraggableContainer
@@ -942,7 +990,11 @@ const Searchbar = () => {
         position={popupPosition}
         updatePosition={updatePopupPosition}
       >
-        <div id={'keymove-bar'} data-always-on={alwaysOn}>
+        <div
+          id={'keymove-bar'}
+          data-always-on={typeToSearch}
+          data-site-behavior={paused ? 'paused' : siteBehavior}
+        >
           <SettingsButton onClick={openSettings} />
           <SearchInput
             tooltipsMode={tooltipsMode}
@@ -972,7 +1024,12 @@ const Searchbar = () => {
               toggleAutoHide={toggleAutoHide}
             />
           )}
-          {isInteractive && <InfoDropdown tooltipsMode={tooltipsMode} />}
+          {isInteractive && (
+            <InfoDropdown
+              tooltipsMode={tooltipsMode}
+              openingShortcut={interaction.openingShortcut}
+            />
+          )}
         </div>
         {actionMenuOpen && menuSuggestion ? (
           <ActionMenu

@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import EXTENSION_IDENTITY from '../src/extension_identity.ts';
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+export const SANDBOX_SUPPORT_URL = 'https://buy.stripe.com/test_cNieVe2GhbdMaeq6sd5os00';
 
 type BuildTarget = {
   name: string;
@@ -266,6 +267,14 @@ function validateTarget(target: BuildTarget, packageVersion: string, root: strin
     `${target.name}: incremental page indexing is missing`,
   );
   const popupBundle = validatePopup(buildDirectory, manifest.action, target.name);
+  requireCondition(
+    popupBundle.includes(EXTENSION_IDENTITY.supportUrl),
+    `${target.name}: production tip link is missing from the settings popup`,
+  );
+  requireCondition(
+    !popupBundle.includes(SANDBOX_SUPPORT_URL),
+    `${target.name}: sandbox tip link must not ship in production`,
+  );
   requireCondition(!manifest.browser_action, `${target.name}: legacy browser action is present`);
   requireCondition(
     manifest.permissions?.includes('scripting'),
