@@ -114,10 +114,9 @@ const DraggableContainer = (props: DraggableContainerProps) => {
       if (target instanceof Element && target.closest('button, a')) {
         return;
       }
-      if (
-        !(event.target === searchInputRef.current && searchInputRef.current.value.length > 0) &&
-        !event.metaKey
-      ) {
+      // Empty inputs still need the browser's native click-to-focus behavior.
+      // Dragging here cancels mousedown, and document mouseup sees the shadow host.
+      if (event.target !== searchInputRef.current && !event.metaKey) {
         event.preventDefault();
         const currentPixels = pixelPosition(
           currentPosition,

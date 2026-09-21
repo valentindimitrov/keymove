@@ -1,0 +1,140 @@
+.walkthrough {
+  margin-bottom: 64px;
+}
+.walkthrough .eyebrow {
+  color: var(--site-label, #7f698b);
+}
+.walkthrough-player {
+  display: grid;
+  grid-template-columns: 290px minmax(0, 1fr);
+  grid-template-areas: 'guide screen';
+  overflow: hidden;
+  border: 1px solid var(--site-line, #d6c5e4);
+  border-radius: 14px;
+  background: var(--site-panel, #ececf4);
+}
+.walkthrough-screen {
+  position: relative;
+  grid-area: screen;
+  min-width: 0;
+  background: var(--site-page, #f7f7fb);
+}
+.walkthrough-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  background: rgb(255 255 255 / 85%);
+  color: #303030;
+}
+.walkthrough-screen video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  background: #fffefd;
+}
+.walkthrough-guide {
+  grid-area: guide;
+  padding: 24px 20px;
+  border-right: 1px solid var(--site-line, #d6c5e4);
+  display: flex;
+  flex-direction: column;
+}
+.walkthrough-caption {
+  min-height: 120px;
+}
+.walkthrough-caption h3 {
+  font-size: 18px;
+  line-height: 1.3;
+  margin-bottom: 10px;
+}
+.walkthrough-caption p,
+#walkthrough-help {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--site-muted, #686878);
+}
+.walkthrough-chapters {
+  display: grid;
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 20px;
+}
+.walkthrough-chapters button {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  text-align: left;
+  padding: 8px 10px;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.4;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.walkthrough-chapters button[aria-current='step'] {
+  border-color: var(--site-accent, #933bbf);
+  background: var(--site-page, #f7f7fb);
+}
+.walkthrough-chapters button > span {
+  font-variant-numeric: tabular-nums;
+  color: var(--site-muted, #686878);
+}
+#walkthrough-help {
+  margin: 22px 0 0;
+}
+.walkthrough-transcript {
+  margin-top: 14px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--site-muted, #686878);
+}
+.walkthrough-transcript summary {
+  cursor: pointer;
+  width: fit-content;
+}
+.walkthrough-transcript li {
+  margin-block: 8px;
+}
+.walkthrough button:hover {
+  border-color: var(--site-accent, #933bbf);
+}
+.walkthrough :is(button, summary, video):focus-visible {
+  outline: 3px solid var(--site-accent, #933bbf);
+  outline-offset: 3px;
+}
+@media (max-width: 800px) {
+  .walkthrough-player {
+    grid-template-columns: 1fr;
+    grid-template-areas: 'screen' 'guide';
+  }
+  .walkthrough-guide {
+    padding: 20px;
+    border-right: 0;
+    border-top: 1px solid var(--site-line, #d6c5e4);
+  }
+  .walkthrough-caption {
+    min-height: 140px;
+  }
+  .walkthrough-chapters {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding-top: 0;
+  }
+  .walkthrough-chapters button {
+    flex-direction: column;
+    gap: 4px;
+  }
+}
+@media (max-width: 400px) {
+  .walkthrough-chapters {
+    grid-template-columns: 1fr;
+  }
+  .walkthrough-chapters button {
+    flex-direction: row;
+    gap: 10px;
+  }
+}
