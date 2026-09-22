@@ -1,4 +1,5 @@
 import { isTextVisible } from './visible_text.js';
+import { frameTarget } from './frame_target.js';
 import { labelledToggle } from './searchable_attributes.js';
 import {
   closestAcrossRoots,
@@ -57,7 +58,9 @@ function activeModal(focused: Element | null = document.activeElement): Element 
   return leaves.at(-1) ?? null;
 }
 
-function actionIsInScope(node: Element, modal: Element | null) {
+function actionIsInScope(node: Element, modal: Element | null): boolean {
+  const remote = frameTarget(node);
+  if (remote) return remote.alive() && actionIsInScope(remote.boundary, modal);
   const control = labelledToggle(node);
   if (
     control &&

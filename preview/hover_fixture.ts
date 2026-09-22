@@ -1,6 +1,6 @@
 // Production-extension fixture: no mocked search or keyboard behavior.
 document.body.style.cssText = 'font:16px system-ui;padding:40px;background:#fafafa;color:#18202a';
-document.body.innerHTML = `<h1>Keyboard hover</h1>
+document.body.innerHTML = `<h1>Keyboard hover</h1><button>S</button>
   <nav><div id="menu"><a id="men" href="#men">Hommes</a>
     <div id="submenu" hidden><a id="sneakers" href="#sneakers">Sneakers</a></div>
   </div></nav><button id="outside">Outside menu</button>

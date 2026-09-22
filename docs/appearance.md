@@ -40,6 +40,8 @@ borders, hover states and visible keyboard focus treatment.
 The autohide-button setting has equal spacing around its complete label/description row.
 The position and resize instructions sit directly under the position-and-size heading, explaining
 the nine-square picker before the resize gesture; lock status stays with its control.
+Scrollable settings panels reserve 12px between their controls and the scrollbar. Shortcut
+fallback guidance follows the complete shortcut list in both the toolbar settings and in-page help.
 
 Run `yarn preview:ui` and open `?scenario=theme-settings` to switch themes on the shared settings
 components, including all four settings tabs and example site overrides (preview only).

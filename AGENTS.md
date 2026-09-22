@@ -24,6 +24,7 @@ authentication flow.
 |-- assets/                  Static extension logo files copied by WXT
 |-- entrypoints/
 |   |-- background.ts        WXT background entrypoint
+|   |-- frames.content.ts    Child-frame search and navigation helper
 |   `-- content.tsx          WXT content-script and React mount
 |-- preview/                 Shadow-root harness for visual checks, served by `yarn preview:ui`
 |-- scripts/
@@ -119,9 +120,16 @@ Recheck action availability at activation time, including for actions attached t
 
 ## Selection hover
 
-Explicit result navigation sends best-effort pointer/mouse over, enter, out and leave events
-through `SelectionHover`; automatic selection and DOM refreshes must never initiate hover.
-Retain hover during query edits (including an empty query), release shared ancestors only when
+Automatic first-result selection hovers its attached action, and explicit result navigation
+hovers the action or text block through `SelectionHover` using best-effort pointer/mouse over,
+enter, out and leave events. Text-only automatic results retain existing hover so partial queries
+do not close the submenu being searched. While typing the initial query, initiate automatic
+hover once per completed query, never replaying it on same-query DOM refreshes or after
+real-pointer takeover. Once hover exists, shortening, clearing or replacing the query suspends
+automatic hover until search reset; explicit navigation still moves hover. This lets users
+search inside an expanded menu without partial matches elsewhere closing it.
+Tab continues from the automatic selection to the second result. Retain hover during pending
+query edits (including an empty query) and empty results, release shared ancestors only when
 leaving their subtree, and clean up on search reset, unmount, invalid targets or modal changes.
 Use rendered ancestry for slots/open roots and correct related targets. Never click, focus,
 rewrite page CSS or simulate trusted input as a hover fallback. CSS-only `:hover` and handlers
@@ -134,13 +142,31 @@ slots. Use the matching helper for membership, visibility, modal scope, result o
 ancestors; native `contains`, `closest` and `parentElement` do not cross shadow boundaries.
 The index discovers open roots in cancellable chunks on each search and observes each root.
 Dispose its observers/listeners and root inventory references on disconnect. Never enter KeyMove's
-own root, patch the page's `attachShadow`, or expose closed roots. Iframes remain unsupported.
+own root, patch the page's `attachShadow`, or expose closed roots.
 Resolve ID-based labels in the control's own root. Read assigned slot content instead of its
 fallback and exclude unassigned light DOM. Keep search, copy and highlights on the same rendered
 text reader. Split highlight ranges at tree boundaries and adopt only KeyMove highlight styles into
 matched roots, preserving page stylesheets. Native shadow selection needs composed endpoints and
 live boundary tracking so page mutations cannot strand the query caret. Browser-check copy/paste,
 typing, nested modals and cleanup with `preview/shadow.html`, not just jsdom.
+
+## Iframe search
+
+The top frame owns the only searchbar. `frames.content.ts` installs a smaller, non-React-UI helper
+in child frames; its index is created only when searching. `frame_background.ts` relays validated
+messages only within the authenticated sender's tab. Window messages discover frame identities
+through opaque nonces, never transfer search text, results or executable commands.
+`frame_search.ts` searches visible, modal-eligible direct children with bounded fan-out; children
+apply the same protocol recursively (up to eight levels). Main-document results publish first;
+late results preserve existing cursors and initialize only a previously empty mode. Generation
+tokens reject obsolete replies and actions. Detached DOM handles in `frame_target.ts` are cursor
+identities, never page nodes; route visibility, labels, selection, copying, hover, activation and
+overlays through the owning frame and recheck actual control availability there. Keep all matches
+navigable and exact matches ahead of fuzzy results across documents. Hidden/removed frames and
+search dismissal release indexes, observers and marks. Protected or inaccessible frames are
+skipped after a bounded wait. Do not add new host permissions or bypass frame sandboxing.
+Verify with `preview/frames.html`, `scripts/iframe-smoke.ts` and the manual checklist in
+`docs/iframe-testing.md`. Firefox behavior requires a separate manual test.
 
 ## Language support
 
@@ -265,8 +291,8 @@ Yarn 1 hoists these transitive packages into the
 top-level installation, so their presence does not mean the extension imports or ships all of them.
 
 `node_modules/` is local, ignored development state. WXT tree-shakes and bundles reachable runtime
-code only. Measure the current unpacked artifacts in `.output/`; both include a content script
-and a separate settings popup with shared chunks. Do not
+code only. Measure the current unpacked artifacts in `.output/`; both include the main content
+script, a child-frame helper, and a separate settings popup with shared chunks. Do not
 judge the published extension footprint from the development installation size, and do not remove a
 transitive package manually from `node_modules/` or `yarn.lock`.
 

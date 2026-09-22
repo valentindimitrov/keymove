@@ -5,6 +5,32 @@ import {
   searchNavigationReducer,
 } from './use_search_navigation.js';
 
+test('late frame results initialize an empty mode without moving an existing cursor', () => {
+  const text = makeTextMatch();
+  const first = searchNavigationReducer(INITIAL_SEARCH_NAVIGATION_STATE, {
+    type: 'set-results',
+    textResults: [text],
+    actionResults: [],
+  });
+  const frameAction = document.createElement('button');
+  const next = searchNavigationReducer(first, {
+    type: 'set-results',
+    textResults: [text, makeTextMatch()],
+    actionResults: [frameAction],
+    preserveSelection: true,
+    incremental: true,
+  });
+  expect(next.selectedIndices).toEqual({ text: 0, actions: 0 });
+  const removed = searchNavigationReducer(next, {
+    type: 'set-results',
+    textResults: [],
+    actionResults: [document.createElement('button')],
+    preserveSelection: true,
+    incremental: true,
+  });
+  expect(removed.selectedIndices).toEqual({ text: null, actions: null });
+});
+
 test('retains independent cursors by element identity when live results change', () => {
   const paragraph = document.createElement('p');
   const link = document.createElement('a');

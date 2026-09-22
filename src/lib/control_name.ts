@@ -1,5 +1,5 @@
 import { iterateRenderedText, isTextVisible } from './visible_text.js';
-import { walkOpenElements } from './dom_tree.js';
+import { walkRenderedElements } from './dom_tree.js';
 
 // Explicitly referenced labels may be hidden. Keep traversal bounded so the index can
 // yield even if a site references a very large subtree. Never read field values.
@@ -24,7 +24,7 @@ function* labelParts(node: Element, referenced = false): Generator<string | null
     }
   }
   // Rendered text intentionally excludes alternative text; control names include it.
-  for (const child of walkOpenElements(node)) {
+  for (const child of walkRenderedElements(node)) {
     yield null;
     if (child instanceof HTMLImageElement && (referenced || isTextVisible(child)))
       yield ` ${child.alt} `;

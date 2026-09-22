@@ -192,6 +192,48 @@ test('highlights slot-assigned nodes in rendered order even when their DOM order
   ]);
 });
 
+test('attaches the first rendered slotted action to a matching text block', async () => {
+  const { host, root } = component(
+    '<p>Unique caption <slot name="first"><button>Fallback</button></slot><slot name="last"></slot></p>',
+  );
+  host.innerHTML = '<button slot="last">Later action</button><button slot="first">Launch</button>';
+  index = new PageSearchIndex();
+  const result = await index.search(new NodeScorer('unique caption'));
+  expect(result.matchingText).toHaveLength(1);
+  expect(result.matchingText[0]!.action).toBe(host.querySelector('[slot="first"]'));
+  const click = vi.fn();
+  host.querySelector('[slot="first"]')!.addEventListener('click', click);
+  Utils.clickOrFocusNode(result.matchingText[0]!.action!);
+  expect(click).toHaveBeenCalledOnce();
+  expect(result.matchingText[0]!.node).toBe(root.querySelector('p'));
+});
+
+test('names a shadow button from its assigned image without using replaced or unslotted images', async () => {
+  const { host, root } = component(
+    '<button><slot name="icon"><img alt="Fallback picture"></slot></button>',
+  );
+  host.innerHTML = '<img slot="icon" alt="Launch rocket"><img alt="Unassigned picture">';
+  index = new PageSearchIndex();
+  const result = await index.search(new NodeScorer('launch rocket'));
+  expect(result.matchingLinksAndButtons).toEqual([root.querySelector('button')]);
+  expect(result.matchingText).toEqual([]);
+  expect((await index.search(new NodeScorer('picture'))).matchingLinksAndButtons).toEqual([]);
+});
+
+test('cold indexing visits nested shadow content a bounded number of times', async () => {
+  let parent: Node = document.body;
+  for (let i = 0; i < 20; i++) parent = component('', parent).root;
+  const leaf = document.createElement('p');
+  leaf.textContent = 'Comet';
+  parent.appendChild(leaf);
+  index = new PageSearchIndex();
+  const refresh = vi.spyOn(index, 'refreshCandidate');
+  const result = await index.search(new NodeScorer('comet'));
+  expect(result.matchingText.map(match => match.node)).toEqual([leaf]);
+  // Discovery and the queued indexing pass may each visit once, regardless of depth.
+  expect(refresh.mock.calls.filter(([node]) => node === leaf).length).toBeLessThanOrEqual(2);
+});
+
 test('keeps a shadow modal mounted after the search index is released, then removes disconnected observers', async () => {
   const { host, root } = component(
     '<section role="dialog" aria-modal="false"><button>Save</button></section>',

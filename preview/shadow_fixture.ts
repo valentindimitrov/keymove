@@ -12,12 +12,22 @@ root.adoptedStyleSheets = [pageSheet];
 root.innerHTML = `<style>:host { display:block; border:1px solid #888; padding:24px; margin:20px 0; } input,button {font:inherit;padding:8px;margin:8px;} dialog {padding:30px;} :host {--keymove-text-accent:transparent}</style>
   <p id="middle">Orbit <strong>middle</strong> paragraph.</p>
   <p id="slotted">Bright <slot name="caption">fallback</slot> ahead</p>
+  <p>Satellite controls <slot name="action"><button>Replaced action</button></slot></p>
+  <button id="image-action"><slot name="icon"><img alt="Replaced picture"></slot></button>
   <span id="local-name" hidden>Component mailbox</span><input id="mailbox" aria-labelledby="local-name">
   <label>Component digest<input id="digest" type="checkbox"></label>
   <button id="launch">Launch capsule</button><div id="nested"></div>
   <button id="open">Open component dialog</button>
   <dialog><p>Component modal text</p><button id="save">Save component</button><button id="close">Close component dialog</button></dialog>`;
-host.innerHTML = '<b slot="caption">comet</b><p>Invisible unslotted text</p>';
+host.innerHTML = `<b slot="caption">comet</b><p>Invisible unslotted text</p>
+  <button slot="action" id="slotted-action">Deploy satellite</button>
+  <img slot="icon" alt="Lunar picture" width="24" height="24" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Ccircle cx='12' cy='12' r='10' fill='gray'/%3E%3C/svg%3E">`;
+host
+  .querySelector('#slotted-action')!
+  .addEventListener('click', () => host.setAttribute('data-slotted-action', 'yes'));
+root
+  .getElementById('image-action')!
+  .addEventListener('click', () => host.setAttribute('data-image-action', 'yes'));
 const nested = root.getElementById('nested')!.attachShadow({ mode: 'open' });
 nested.innerHTML =
   '<p id="nested-text">Orbit nested paragraph.</p><button id="nested-action">Nested ignition</button>';

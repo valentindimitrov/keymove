@@ -194,6 +194,18 @@ export async function checkThemePreviews(client: ChromiumClient, origin: string)
                 });
               })()`);
               assert.equal(aligned, true, `${tab} controls align at ${width}px`);
+              if (tab === 'Appearance' || tab === 'Shortcuts') {
+                const scrollbarGap = await page.evaluate(`(() => {
+                  const root=${shadow};
+                  const panel=root.querySelector('.keymove-settings-panel');
+                  const control=panel.querySelector('${tab === 'Appearance' ? '.keymove-theme-setting select' : '.keymove-settings-field input'}');
+                  return panel.getBoundingClientRect().left + panel.clientWidth - control.getBoundingClientRect().right;
+                })()`);
+                assert(
+                  typeof scrollbarGap === 'number' && scrollbarGap >= 10,
+                  `${tab} controls need space before the scrollbar at ${width}px; got ${scrollbarGap}`,
+                );
+              }
               writeFileSync(
                 path.join(artifacts, `settings-${tab.toLowerCase()}-${theme}-${width}.png`),
                 await page.screenshot(),

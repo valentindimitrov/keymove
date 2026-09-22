@@ -3,6 +3,7 @@ import { EXTENSION_NAME } from './extension_identity.js';
 import { isInjectableUrl, normalizedOpenableLinkUrl } from './lib/extension_tabs.js';
 import { isRecord } from './lib/runtime_schema.js';
 import { browser, type Browser } from 'wxt/browser';
+import { registerFrameRelay } from './frame_background.js';
 
 const CONTENT_SCRIPT_FILE = '/content-scripts/content.js';
 const CONTENT_STYLESHEET_FILE = 'content-scripts/content.css';
@@ -20,6 +21,7 @@ export default function registerBackground() {
     void handleExtensionMessage(message, sender).then(() => sendResponse());
     return true;
   });
+  registerFrameRelay();
 }
 
 async function handleExtensionMessage(message: unknown, sender: Browser.runtime.MessageSender) {
@@ -139,6 +141,10 @@ async function injectContentScriptAndStyles(tabId: number) {
     await browser.scripting.insertCSS({
       target: { tabId },
       files: [CONTENT_STYLESHEET_FILE],
+    });
+    await browser.scripting.executeScript({
+      target: { tabId, allFrames: true },
+      files: ['/content-scripts/frames.js'],
     });
   } catch (error) {
     reportExtensionApiError('inject the content script and stylesheet', error, tabId);

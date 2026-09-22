@@ -1,5 +1,6 @@
 import { DO_NOT_SEARCH_NODE_TYPES, KEYMOVE_ROOT_ID } from '../constants.js';
 import { ownerParent, renderedParent, renderedChildren, textRangeScope } from './dom_tree.js';
+import { frameTarget } from './frame_target.js';
 
 type StyleCache = WeakMap<
   Element,
@@ -48,6 +49,8 @@ function isSubtreeVisible(element: Element, cache: StyleCache): boolean {
 }
 
 function isTextVisible(element: Element, cache: StyleCache = new WeakMap()): boolean {
+  const remote = frameTarget(element);
+  if (remote) return remote.alive() && isTextVisible(remote.boundary, cache);
   const visibility = computedStyle(element, cache).visibility;
   return visibility !== 'hidden' && visibility !== 'collapse' && isSubtreeVisible(element, cache);
 }
@@ -199,6 +202,8 @@ function* iterateRenderedText(
 }
 
 function visibleText(node: Element, cache: StyleCache = new WeakMap()): string {
+  const remote = frameTarget(node);
+  if (remote) return remote.row.text;
   const parts: string[] = [];
   for (const part of iterateRenderedText(node, cache)) if (part) parts.push(part.text);
   return parts.join('');

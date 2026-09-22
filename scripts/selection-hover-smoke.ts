@@ -9,7 +9,7 @@ const root = `document.getElementById('keymove-root')?.shadowRoot`;
 const input = `${root}.querySelector('[aria-label="Search page"]')`;
 const status = `${root}.querySelector('[role="status"]').textContent`;
 const modifier = process.platform === 'darwin' ? 4 : 2;
-async function search(page: TestPage, text: string, mode = 'Actions') {
+async function search(page: TestPage, text: string, mode = 'Actions', count = 1) {
   await page.activate();
   await waitFor(page, 'document.hasFocus()');
   await page.key('f', 1);
@@ -22,7 +22,7 @@ async function search(page: TestPage, text: string, mode = 'Actions') {
     `${root}.querySelector('[role="listbox"]')?.getAttribute('aria-busy') === 'false'`,
   );
   if (!((await page.evaluate(status)) as string).startsWith(mode)) await page.key('s', 1);
-  await waitFor(page, `${status} === '${mode} 1 / 1'`);
+  await waitFor(page, `${status} === '${mode} 1 / ${count}'`);
 }
 
 export async function checkSelectionHover(client: ChromiumClient, origin: string) {
@@ -33,13 +33,51 @@ export async function checkSelectionHover(client: ChromiumClient, origin: string
       page,
       `document.documentElement.dataset.fixtureReady && ${root}?.querySelector('#keymove-bar')?.dataset.alwaysOn === 'true'`,
     );
+    await page.evaluate(`(() => {
+      const fixture = document.createElement('section');
+      fixture.id = 'automatic-hover';
+      fixture.innerHTML = '<button>Automatic hover first</button><button>Automatic hover second</button>';
+      for (const button of fixture.children) {
+        button.dataset.enters = '0';
+        button.addEventListener('mouseenter', () => button.dataset.enters = String(Number(button.dataset.enters) + 1));
+      }
+      document.body.append(fixture);
+    })()`);
+    await search(page, 'automatic hover', 'Actions', 2);
+    const enters = `Array.from(document.querySelectorAll('#automatic-hover button'), button => Number(button.dataset.enters))`;
+    assert.deepEqual(await page.evaluate(enters), [1, 0]);
+    await page.key('Tab');
+    await waitFor(page, `${status} === 'Actions 2 / 2'`);
+    assert.deepEqual(await page.evaluate(enters), [1, 1]);
+    // Real pointer takeover and the resulting DOM refresh must not re-enter the result.
+    await page.movePointer(1, 1);
+    await page.evaluate(
+      `document.querySelector('#automatic-hover').append(document.createTextNode('Refresh marker'))`,
+    );
+    await waitFor(
+      page,
+      `${root}.querySelector('[role="listbox"]')?.getAttribute('aria-busy') === 'false'`,
+    );
+    assert.deepEqual(await page.evaluate(enters), [1, 1]);
+    await page.key('Escape');
+    await page.evaluate(`document.querySelector('#automatic-hover').remove()`);
     await search(page, 'hommes');
-    assert.equal(await page.evaluate(`document.getElementById('submenu').hidden`), true);
+    await waitFor(page, `!document.getElementById('submenu').hidden`);
     await page.key('1', 1);
     await waitFor(page, `!document.getElementById('submenu').hidden`);
     assert.equal(await page.evaluate(`document.documentElement.dataset.clicked ?? null`), null);
     assert.equal(await page.evaluate(`${root}.activeElement === ${input}`), true);
-    await search(page, 'sneakers');
+    await page.key('a', modifier);
+    await page.key('Backspace');
+    await page.key('s');
+    await waitFor(
+      page,
+      `${input}.value === 's' && ${root}.querySelector('[role="listbox"]')?.getAttribute('aria-busy') === 'false'`,
+    );
+    // The exact-match S button is outside the menu; typing must not hover it.
+    assert.equal(await page.evaluate(`document.getElementById('submenu').hidden`), false);
+    for (const char of 'neakers') await page.key(char);
+    await waitFor(page, `${status} === 'Actions 1 / 1' && ${input}.value === 'sneakers'`);
     await page.key('Tab');
     assert.equal(await page.evaluate(`document.getElementById('submenu').hidden`), false);
     writeFileSync(path.resolve('.artifacts/selection-hover.png'), await page.screenshot());

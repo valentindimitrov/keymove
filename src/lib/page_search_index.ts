@@ -21,7 +21,8 @@ import { activeModal, actionIsInScope, MODAL_CHANGED_EVENT } from './modal_conte
 import {
   containsAcrossRoots,
   isKeyMoveNode,
-  walkOpenElements,
+  walkOwnedElements,
+  walkRenderedElements,
   renderedChildren,
   renderedParent,
   closestAcrossRoots,
@@ -257,7 +258,7 @@ class PageSearchIndex {
       }
       // attachShadow itself emits no MutationRecord. A fresh query also discovers roots
       // attached later to already-connected hosts, without patching the page's prototypes.
-      for (const node of walkOpenElements(this.root)) {
+      for (const node of walkOwnedElements(this.root)) {
         if (signal.aborted) throw abortError();
         if (!this.records.has(node)) this.refreshCandidate(node);
         const root = node.shadowRoot;
@@ -387,7 +388,9 @@ class PageSearchIndex {
         this.pendingSubtrees.delete(root);
         continue;
       }
-      for (const node of walkOpenElements(root)) {
+      // Discovery queues each new shadow root separately. Stay in this owning tree
+      // so nested roots are not indexed again for every ancestor in the queue.
+      for (const node of walkOwnedElements(root, { enterShadowRoots: false })) {
         if (signal.aborted) throw abortError();
         this.refreshCandidate(node);
         const pause = budget.checkpoint(signal);
@@ -589,7 +592,7 @@ class PageSearchIndex {
     const { actions, matchingText } = collector;
     for (const match of matchingText) {
       if (match.action) continue;
-      for (const node of walkOpenElements(match.node)) {
+      for (const node of walkRenderedElements(match.node)) {
         if (node === match.node) continue;
         const pause = budget.checkpoint(searchSignal);
         if (pause) await pause;

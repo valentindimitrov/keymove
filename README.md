@@ -27,7 +27,7 @@ a background tab.
 - Find controls through associated form labels, `aria-labelledby`, accessible labels, and image alternative text.
 - Search visible text and controls inside open Shadow DOM components, including nested components and slotted content.
 - Below three characters, only the selected result gets an outline. From three characters onward, other results get faint outlines and matching text is highlighted; the current selection keeps a stronger outline and fill. Shorter searches still find and navigate every match immediately.
-- Explicitly selecting a result with Tab or Alt+number sends best-effort hover events, so JavaScript hover menus can open without a click. Enter still activates the result. Automatic first matches do not hover; query edits retain the hover until you select elsewhere or end the search. CSS-only `:hover` menus and sites rejecting synthetic events are not supported by this feature.
+- The automatically selected first result hovers its action, so JavaScript hover menus can open without a click. Tab or Alt+number moves hover to the selected action or text block. Enter still activates the result. Once hovered, shortening, clearing or replacing the query retains that hover until explicit navigation or search reset, letting you search for an item inside an expanded menu. Pending queries, empty results and automatic text-only matches also retain hover. Page refreshes do not replay hover. CSS-only `:hover` menus and sites rejecting synthetic events are not supported by this feature.
 - Toggle checkboxes and switches, select radio buttons, submit native buttons, and expand disclosures with Enter.
 - Focus text editors and complex widgets to continue using their own keyboard controls. Disabled controls are marked unavailable and cannot be activated.
 - Search inside an open modal automatically; closing it restores whole-page search without changing a setting.
@@ -65,8 +65,13 @@ as the rest of the page. Labels resolve within their own document or shadow root
 unassigned light-DOM content, and KeyMove's own interface are excluded. Existing shadow roots are
 observed for content, control-state, and slot changes. A shadow root attached later to an already
 connected host is discovered on the next search or page-triggered refresh; KeyMove does not patch
-the page's `attachShadow` implementation or continuously poll it. Closed shadow roots and iframe
-contents are not searched.
+the page's `attachShadow` implementation or continuously poll it. Closed shadow roots are not searched.
+
+Visible same-origin, cross-origin and nested iframes contribute results to the same searchbar.
+Frame results arrive incrementally without delaying main-page results, and their suggestions name
+the containing frame. Existing shortcuts work for navigation, copying and activation; the opening
+shortcut also returns to KeyMove from an embedded input. Hidden frames and frames blocked by browser
+permissions or sandbox restrictions are skipped. See [the iframe testing checklist](docs/iframe-testing.md).
 
 ### Keyboard shortcuts
 

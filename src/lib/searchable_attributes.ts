@@ -2,6 +2,7 @@ import { LINK_OR_BUTTON_ROLE_VALUES } from '../constants.js';
 import { searchableAttributesByNodeName } from './static_data.js';
 import { normalizeSearchText } from './search_text.js';
 import { closestAcrossRoots } from './dom_tree.js';
+import { frameTarget } from './frame_target.js';
 
 const ACTIONABLE_SELECTOR = [
   'a[href]',
@@ -45,6 +46,8 @@ function isLinkOrButtonOrInput(node: Element) {
 }
 
 function isActionDisabled(node: Element) {
+  const remote = frameTarget(node);
+  if (remote) return remote.row.disabled;
   if (node instanceof HTMLLabelElement) {
     const control = labelledToggle(node);
     if (control ? isActionDisabled(control) : !isLinkOrButtonOrInput(node)) return true;

@@ -17,6 +17,7 @@ beforeEach(() => {
       LICENSE: 'Fixture license',
       'background.js': '',
       'content-scripts/content.js': 'attachShadow MutationObserver',
+      'content-scripts/frames.js': 'MutationObserver',
       'content-scripts/content.css': '::highlight(keymove-search-results) {}',
       'popup.html':
         '<script type="module" src="/popup.js"></script><link rel="stylesheet" href="/popup.css">',
@@ -36,9 +37,11 @@ beforeEach(() => {
         content_scripts: [
           {
             matches: ['<all_urls>'],
+            all_frames: false,
             js: ['content-scripts/content.js'],
             css: ['content-scripts/content.css'],
           },
+          { matches: ['<all_urls>'], all_frames: true, js: ['content-scripts/frames.js'] },
         ],
         background:
           target === 'chrome'

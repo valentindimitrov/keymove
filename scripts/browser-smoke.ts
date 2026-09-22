@@ -16,6 +16,7 @@ import { checkDynamicPage } from './dynamic-page-smoke.ts';
 import { checkShadowSearch } from './shadow-search-smoke.ts';
 import { checkSelectionHover } from './selection-hover-smoke.ts';
 import { checkHighlightDensity } from './highlight-density-smoke.ts';
+import { checkIframes, measureIframes } from './iframe-smoke.ts';
 import { checkActionFallback } from './action-fallback-smoke.ts';
 import { checkTheme, checkThemePreviews } from './theme-smoke.ts';
 import {
@@ -90,13 +91,18 @@ export async function runBrowserSmoke(client: ChromiumClient, browser: string): 
     await server.listen();
     const origin = server.resolvedUrls?.local[0];
     assert(origin, 'Fixture server did not expose its address');
+    await checkIframes(client, origin);
+    await measureIframes(client, origin);
+    passed.push(
+      'Same-origin, cross-origin and nested iframe search, input focus, opening shortcut, hidden frames and cleanup',
+    );
     await checkHighlightDensity(client, origin);
     passed.push(
       'Short-query mixed suggestions and input focus, selected-only short queries, faint outlines at three characters, full navigation and native selection',
     );
     await checkSelectionHover(client, origin);
     passed.push(
-      'Explicit keyboard hover, submenu search and activation, query retention, cleanup and shadow menus',
+      'Automatic first-result hover, subsequent Tab navigation, submenu activation, query retention, pointer takeover, cleanup and shadow menus',
     );
     await checkActionFallback(client, origin);
     passed.push(

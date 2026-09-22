@@ -47,4 +47,8 @@ test('shows both text and action navigation shortcut families', () => {
   expect(within(returnRow).getByText('Alt')).toBeInTheDocument();
   expect(within(returnRow).getByText('Backspace')).toBeInTheDocument();
   expect(screen.getByText('to close KeyMove and stay here')).toBeInTheDocument();
+  const dismissRow = screen.getByText('to close KeyMove and stay here').parentElement!;
+  expect(dismissRow.nextElementSibling).toHaveTextContent(
+    'Text mode temporarily uses actions when there are no text matches.',
+  );
 });

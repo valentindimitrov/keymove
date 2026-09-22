@@ -113,6 +113,12 @@ export async function checkShadowSearch(client: ChromiumClient, origin: string) 
     await search(page, 'close component dialog', 'Actions');
     await page.key('Enter');
     await waitFor(page, `globalThis.__shadowKeyMove.parentElement === document.body`);
+    await search(page, 'satellite controls', 'Text');
+    await page.key('Enter');
+    await waitFor(page, `document.getElementById('component').dataset.slottedAction === 'yes'`);
+    await search(page, 'lunar picture', 'Actions');
+    await page.key('Enter');
+    await waitFor(page, `document.getElementById('component').dataset.imageAction === 'yes'`);
     await search(page, 'launch capsule', 'Actions');
     await page.evaluate(`document.getElementById('component').style.display = 'none'`);
     await waitFor(page, `${status}.endsWith('0 / 0')`);

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Embedded form</title>
+    <style>
+      body{font:18px system-ui;padding:16px;background:#f3f5f7;color:#17202a}input,button{font:inherit;padding:8px;margin:8px}iframe{height:180px;width:90%}
+    </style>
+  </head>
+  <body>
+    <p id="text"></p>
+    <p>40 €</p>
+    <label for="price">Minimum (EUR)</label><input id="price" type="number" value="40" />
+    <button id="launch">Launch</button><output id="result">Not activated</output>
+    <a href="https://example.com/">Example destination</a>
+    <script type="module">
+      const params = new URLSearchParams(location.search);
+      document.querySelector('#text').textContent = params.get('name') + ' otter paragraph to copy.';
+      document.querySelector('#launch').onclick = () => { document.querySelector('#result').textContent = 'Activated'; };
+      if (params.has('nested')) {
+        const frame = document.createElement('iframe');
+        frame.title = 'Nested form'; frame.src = './frame-child.html?name=nested'; document.body.append(frame);
+      }
+    </script>
+  </body>
+</html>

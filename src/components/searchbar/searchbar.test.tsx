@@ -22,6 +22,8 @@ vi.mock('wxt/browser', () => ({
 }));
 
 vi.mock('../../lib/find_in_page.js', () => ({
+  stopFrameSearch: vi.fn(),
+  restoreFrameOrigins: vi.fn(),
   subscribeToPageChanges: searchMocks.subscribeToPageChanges,
   default: class MockFindInPage {
     findMatches(options: { signal?: AbortSignal }) {
@@ -144,7 +146,7 @@ async function openLinkActionMenu() {
   return { input, link };
 }
 
-test('explicit selection hovers without clicking, survives query edits, and ends on Escape', async () => {
+test('automatic selection hovers without clicking, survives query edits, and ends on Escape', async () => {
   const link = document.createElement('a');
   link.href = '#men';
   link.textContent = 'Hommes';
@@ -167,7 +169,7 @@ test('explicit selection hovers without clicking, survives query edits, and ends
   input.focus();
   fireEvent.input(input, { target: { value: 'hommes' } });
   await flushSearch();
-  expect(enter).not.toHaveBeenCalled();
+  expect(enter).toHaveBeenCalledTimes(1);
   fireEvent.keyDown(input, { key: '1', code: 'Digit1', altKey: true });
   expect(enter).toHaveBeenCalledTimes(1);
   expect(input).toHaveFocus();
@@ -179,9 +181,124 @@ test('explicit selection hovers without clicking, survives query edits, and ends
   fireEvent.input(input, { target: { value: 'sneakers' } });
   await flushSearch();
   expect(leave).not.toHaveBeenCalled();
+  const unrelatedText = document.createElement('p');
+  unrelatedText.textContent = 'Keyboard hover';
+  document.body.append(unrelatedText);
+  searchMocks.findMatches.mockResolvedValue(
+    makeSearchResult({ matchingText: [makeTextMatch({ node: unrelatedText })] }),
+  );
+  fireEvent.input(input, { target: { value: 'v' } });
+  await flushSearch();
+  expect(leave).not.toHaveBeenCalled();
   fireEvent.keyDown(input, { key: 'Escape', code: 'Escape' });
   expect(leave).toHaveBeenCalledTimes(1);
 });
+
+test.each(['replace', 'clear', 'shorten'] as const)(
+  'searching a submenu item retains hover through unrelated partial matches (%s)',
+  async edit => {
+    document.body.insertAdjacentHTML(
+      'beforeend',
+      '<nav><a href="#menu">Hommes</a><div hidden><a href="#item">Sneakers</a></div></nav><button>Settings</button>',
+    );
+    const menu = document.querySelector('nav')!;
+    const trigger = menu.querySelector('a')!;
+    const panel = menu.querySelector('div')!;
+    const item = panel.querySelector('a')!;
+    const outside = document.querySelector('button')!;
+    menu.addEventListener('mouseenter', () => {
+      panel.hidden = false;
+    });
+    menu.addEventListener('mouseleave', () => {
+      panel.hidden = true;
+    });
+    const click = vi.fn(event => event.preventDefault());
+    item.addEventListener('click', click);
+    settingsMocks.startInActionMode = true;
+    searchMocks.findMatches.mockResolvedValue(
+      makeSearchResult({ matchingLinksAndButtons: [trigger] }),
+    );
+    render(<Searchbar />);
+    const input = screen.getByRole('combobox', { name: 'Search page' });
+    input.focus();
+    fireEvent.change(input, { target: { value: 'hommes' } });
+    await flushSearch();
+    expect(panel.hidden).toBe(false);
+    searchMocks.findMatches.mockResolvedValue(
+      makeSearchResult({ matchingLinksAndButtons: [outside] }),
+    );
+    if (edit !== 'replace') {
+      fireEvent.change(input, { target: { value: edit === 'clear' ? '' : 'homme' } });
+      await flushSearch();
+    }
+    fireEvent.change(input, { target: { value: 's' } });
+    await flushSearch();
+    expect(panel.hidden).toBe(false);
+    searchMocks.findMatches.mockResolvedValue(
+      makeSearchResult({ matchingLinksAndButtons: [item] }),
+    );
+    fireEvent.change(input, { target: { value: 'sneakers' } });
+    await flushSearch();
+    expect(panel.hidden).toBe(false);
+    fireEvent.keyDown(input, { key: 'Tab', code: 'Tab' });
+    expect(panel.hidden).toBe(false);
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
+    expect(click).toHaveBeenCalledOnce();
+    searchMocks.findMatches.mockResolvedValue(
+      makeSearchResult({ matchingLinksAndButtons: [trigger] }),
+    );
+    fireEvent.change(input, { target: { value: 'hommes' } });
+    await flushSearch();
+    expect(panel.hidden).toBe(false);
+  },
+);
+
+test.each([false, true])(
+  'automatically hovers the first result, then Tab hovers the second (actions=%s)',
+  async actions => {
+    settingsMocks.startInActionMode = actions;
+    const links = ['First menu', 'Second menu'].map(text => {
+      const link = document.createElement('a');
+      link.href = '#menu';
+      link.textContent = text;
+      const block = document.createElement('p');
+      block.append(link);
+      document.body.append(block);
+      return link;
+    });
+    const enter = links.map(link => {
+      const listener = vi.fn();
+      link.addEventListener('mouseenter', listener);
+      return listener;
+    });
+    searchMocks.findMatches.mockResolvedValue(
+      makeSearchResult({
+        matchingText: actions
+          ? []
+          : links.map(link => makeTextMatch({ node: link.parentElement!, action: link })),
+        matchingLinksAndButtons: links,
+      }),
+    );
+    render(<Searchbar />);
+    const input = screen.getByRole('combobox', { name: 'Search page' });
+    input.focus();
+    fireEvent.change(input, { target: { value: 'menu' } });
+    await flushSearch();
+    expect(enter[0]).toHaveBeenCalledOnce();
+    expect(enter[1]).not.toHaveBeenCalled();
+    expect(input).toHaveFocus();
+    const notify = searchMocks.subscribeToPageChanges.mock.calls.at(-1)![0] as () => void;
+    act(notify);
+    await flushSearch();
+    expect(enter[0]).toHaveBeenCalledOnce();
+    fireEvent.keyDown(input, { key: 'Tab', code: 'Tab' });
+    expect(screen.getByRole('status')).toHaveTextContent(`${actions ? 'Actions' : 'Text'} 2 / 2`);
+    expect(enter[1]).toHaveBeenCalledOnce();
+    fireEvent.change(input, { target: { value: 'menus' } });
+    await flushSearch();
+    expect(enter[0]).toHaveBeenCalledTimes(2);
+  },
+);
 
 test('Down opens actions, Up navigates only inside the menu and Escape returns to the query', async () => {
   const { input } = await openLinkActionMenu();

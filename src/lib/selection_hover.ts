@@ -2,10 +2,11 @@ import { isKeyMoveNode, renderedParent } from './dom_tree.js';
 import { activeModal, actionIsInScope } from './modal_context.js';
 import { isActionDisabled } from './searchable_attributes.js';
 import { isTextVisible } from './visible_text.js';
+import { frameTarget, resultIsConnected } from './frame_target.js';
 
 function eligible(node: Element) {
   return (
-    node.isConnected &&
+    resultIsConnected(node) &&
     !isKeyMoveNode(node) &&
     isTextVisible(node) &&
     !isActionDisabled(node) &&
@@ -23,6 +24,10 @@ function ancestry(node: Element | null) {
 export class SelectionHover {
   private path: Element[] = [];
   private generation = 0;
+
+  get hasTarget() {
+    return this.path.length > 0;
+  }
 
   select(node: Element | null) {
     this.transition(node && eligible(node) ? node : null);
@@ -46,6 +51,20 @@ export class SelectionHover {
 
   private transition(next: Element | null, relinquish = false) {
     const previous = this.path[0] ?? null;
+    if (frameTarget(previous) || frameTarget(next)) {
+      if (previous === next) return;
+      if (frameTarget(previous)) {
+        void frameTarget(previous)!.command('unhover');
+        this.path = [];
+      } else if (previous) this.transition(null);
+      if (frameTarget(next)) {
+        if (!relinquish) {
+          this.path = [next!];
+          void frameTarget(next)!.command('hover');
+        }
+        return;
+      }
+    }
     if (previous === next) {
       if (relinquish) {
         this.path = [];

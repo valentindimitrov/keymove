@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>KeyMove iframe test</title>
+    <style>
+      body{font:18px system-ui;max-width:1000px;margin:30px auto;padding:20px}iframe{width:100%;height:260px;border:2px solid #777;margin:12px 0}button{margin:8px;padding:10px}
+    </style>
+  </head>
+  <body>
+    <h1>Iframe navigation test</h1>
+    <p>
+      Top-level marker: lighthouse. Search <b>40</b> for a field, <b>Launch</b> for a button, or
+      <b>otter</b> for frame text. Alt+1 selects a suggestion; Enter activates it.
+    </p>
+    <button id="toggle">Hide / show cross-origin frame</button>
+    <button id="reload">Reload cross-origin frame</button>
+    <h2>Same-origin form</h2>
+    <iframe title="Same-origin form" src="./frame-child.html?name=local"></iframe>
+    <h2>Cross-origin form (different hostname)</h2>
+    <iframe id="cross" title="Cross-origin form"></iframe>
+    <iframe hidden title="Hidden frame" src="./frame-child.html?name=hidden"></iframe>
+    <script type="module">
+      const frame = document.querySelector('#cross');
+      const url = new URL('./frame-child.html?name=remote&nested=1', location.href);
+      url.hostname = location.hostname === 'localhost' ? '127.0.0.1' : 'localhost';
+      frame.src = url.href;
+      const count = Number(new URLSearchParams(location.search).get('frames') ?? 3);
+      if (count === 0) document.querySelectorAll('iframe').forEach(node => node.remove());
+      for (let i = 3; i < Math.min(count, 20); i++) {
+        const extra = document.createElement('iframe');
+        extra.title = 'Extra form ' + i; extra.src = './frame-child.html?name=additional'; document.body.append(extra);
+      }
+      document.querySelector('#toggle').onclick = () => { frame.hidden = !frame.hidden; };
+      document.querySelector('#reload').onclick = () => { frame.src = url.href + '&reload=' + Date.now(); };
+      document.documentElement.dataset.fixtureReady = 'true';
+    </script>
+  </body>
+</html>

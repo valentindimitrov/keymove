@@ -37,6 +37,8 @@ vi.mock('wxt/browser', () => ({
 }));
 vi.mock('../../hooks/use_highlights.js', () => ({ default: vi.fn() }));
 vi.mock('../../lib/find_in_page.js', () => ({
+  stopFrameSearch: vi.fn(),
+  restoreFrameOrigins: vi.fn(),
   subscribeToPageChanges: () => () => undefined,
   default: class {
     findMatches() {

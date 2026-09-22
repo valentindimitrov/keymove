@@ -27,6 +27,8 @@ import { isActionDisabled } from '../../lib/searchable_attributes.js';
 import { activeModal, actionIsInScope, MODAL_CHANGED_EVENT } from '../../lib/modal_context.js';
 import { isMovingExtensionRoot } from '../../lib/create_extension_root.js';
 import FindInPage, { subscribeToPageChanges } from '../../lib/find_in_page.js';
+import { stopFrameSearch } from '../../lib/find_in_page.js';
+import { frameTarget, resultIsConnected } from '../../lib/frame_target.js';
 import type { RankedMatch } from '../../lib/page_search_index.js';
 import { isTextVisible, visibleText } from '../../lib/visible_text.js';
 import SearchInput from './search_input.js';
@@ -70,6 +72,8 @@ const Searchbar = () => {
   } = useSearchOrigin();
   const focusRequested = React.useRef(false);
   const selectionHover = useSelectionHover();
+  const hoveredQuery = React.useRef<string | null>(null);
+  const automaticHover = React.useRef({ query: '', enabled: true });
 
   const {
     theme,
@@ -190,7 +194,9 @@ const Searchbar = () => {
   }, []);
 
   const resetSearchTextAndMatches = React.useCallback(() => {
+    stopFrameSearch();
     selectionHover.clear();
+    automaticHover.current = { query: '', enabled: true };
     setMenuTarget(null);
     cancelPendingSearch();
     setSearchText('');
@@ -236,9 +242,9 @@ const Searchbar = () => {
   );
 
   const activateSelectedMatchingNodeAndReset = React.useCallback(
-    (event: KeyboardEvent | null, activation: ActionActivation = 'current') => {
+    async (event: KeyboardEvent | null, activation: ActionActivation = 'current') => {
       if (
-        !selectedActionNode?.isConnected ||
+        !resultIsConnected(selectedActionNode) ||
         !isTextVisible(selectedActionNode) ||
         isActionDisabled(selectedActionNode) ||
         !actionIsInScope(selectedActionNode, activeModal())
@@ -255,8 +261,13 @@ const Searchbar = () => {
       event?.stopPropagation();
       discardOrigin();
       if (activation === 'current') {
-        Utils.clickOrFocusNode(selectedActionNode);
+        const remote = frameTarget(selectedActionNode);
+        if (remote) {
+          if ((await remote.command('activate')) !== true) return;
+        } else Utils.clickOrFocusNode(selectedActionNode);
       } else {
+        const remote = frameTarget(selectedActionNode);
+        if (remote && (await remote.command('validate')) !== true) return;
         void browser.runtime
           .sendMessage({
             type: ExtensionMessageTypes.OPEN_LINK_IN_NEW_TAB,
@@ -284,14 +295,31 @@ const Searchbar = () => {
       setSearchPending(true);
 
       try {
+        let hadResults = false;
         const { matchingText, matchingLinksAndButtons, suggestions, isFuzzy } =
-          await new FindInPage(searchText).findMatches({ signal: controller.signal });
+          await new FindInPage(searchText).findMatches({
+            signal: controller.signal,
+            onUpdate: result => {
+              if (controller.signal.aborted) return;
+              setIsFuzzy(result.isFuzzy);
+              setRankedMatches(result.suggestions);
+              setSearchResults(
+                result.matchingText,
+                result.matchingLinksAndButtons,
+                hadResults,
+                true,
+              );
+              hadResults = result.matchingText.length + result.matchingLinksAndButtons.length > 0;
+              setScrollOrResizeRefresh(refresh => !refresh);
+            },
+          });
 
         if (controller.signal.aborted) {
           return;
         }
 
         setIsFuzzy(isFuzzy);
+        hadResults = matchingText.length + matchingLinksAndButtons.length > 0;
         setResultsQuery(searchText);
         setSearchPending(false);
         setRankedMatches(suggestions);
@@ -342,7 +370,7 @@ const Searchbar = () => {
     (preserveSelection = false) => {
       if (
         preserveSelection &&
-        menuTarget?.isConnected &&
+        resultIsConnected(menuTarget) &&
         isTextVisible(menuTarget) &&
         actionIsInScope(menuTarget, activeModal())
       ) {
@@ -371,6 +399,7 @@ const Searchbar = () => {
         Utils.clearPageSelection();
       }
       if (searchText.trimStart().length === 0) {
+        stopFrameSearch();
         setSearchPending(false);
         return;
       }
@@ -408,7 +437,7 @@ const Searchbar = () => {
         Utils.clearPageSelection();
       }
       setScrollOrResizeRefresh(refresh => !refresh);
-      // Only explicit navigation comes through here; automatic query results never hover.
+      // Navigation moves hover along with the cursor; initial results hover after commit.
       selectionHover.select(
         mode === SEARCH_MODES.TEXT
           ? (matchingText[index]?.action ?? matches[index] ?? null)
@@ -566,7 +595,7 @@ const Searchbar = () => {
         !isInteractive ||
         resultsQuery !== searchText ||
         !Utils.elementIsActive(searchInputRef.current) ||
-        !selectedResultNode?.isConnected ||
+        !resultIsConnected(selectedResultNode) ||
         !isTextVisible(selectedResultNode) ||
         !actionIsInScope(selectedResultNode, activeModal())
       )
@@ -592,7 +621,7 @@ const Searchbar = () => {
     async (id: string) => {
       // Recheck live DOM state, including modal ownership, immediately before acting.
       if (
-        !menuTarget?.isConnected ||
+        !resultIsConnected(menuTarget) ||
         menuTarget !== selectedResultNode ||
         suggestionsPending ||
         !isTextVisible(menuTarget) ||
@@ -604,7 +633,7 @@ const Searchbar = () => {
       if (id === 'copy-text' || id === 'copy-link') {
         const source = id === 'copy-text' ? selectedTextMatch?.node : selectedActionNode;
         if (
-          !source?.isConnected ||
+          !resultIsConnected(source) ||
           !isTextVisible(source) ||
           !actionIsInScope(source, activeModal())
         ) {
@@ -612,8 +641,12 @@ const Searchbar = () => {
           return;
         }
         const text =
-          id === 'copy-text' ? visibleText(source) : Utils.linkUrlForNode(selectedActionNode);
-        if (text === null) return;
+          id === 'copy-text'
+            ? frameTarget(source)
+              ? await frameTarget(source)!.command('text')
+              : visibleText(source)
+            : Utils.linkUrlForNode(selectedActionNode);
+        if (typeof text !== 'string') return;
         const generation = menuGeneration.current;
         await navigator.clipboard.writeText(text);
         // A pending clipboard write must not dismiss a newer menu/search.
@@ -622,7 +655,7 @@ const Searchbar = () => {
         return;
       }
       if (
-        !selectedActionNode?.isConnected ||
+        !resultIsConnected(selectedActionNode) ||
         isActionDisabled(selectedActionNode) ||
         !isTextVisible(selectedActionNode) ||
         !actionIsInScope(selectedActionNode, activeModal())
@@ -632,12 +665,17 @@ const Searchbar = () => {
       }
       if (id === 'focus') {
         Utils.clearPageSelection();
-        selectedActionNode.focus({ preventScroll: true });
-        if (!Utils.elementIsActive(selectedActionNode))
+        const remote = frameTarget(selectedActionNode);
+        if (
+          remote
+            ? (await remote.command('focus')) !== true
+            : (selectedActionNode.focus({ preventScroll: true }),
+              !Utils.elementIsActive(selectedActionNode))
+        )
           throw new Error('This control could not receive focus.');
         hide();
       } else if (id === 'activate' || id === 'foreground-tab' || id === 'background-tab') {
-        activateSelectedMatchingNodeAndReset(null, id === 'activate' ? 'current' : id);
+        await activateSelectedMatchingNodeAndReset(null, id === 'activate' ? 'current' : id);
       }
     },
     [
@@ -668,12 +706,14 @@ const Searchbar = () => {
       previous_match: createNavigationShortcutHandler('current', false),
       next_action_match: createNavigationShortcutHandler(SEARCH_MODES.ACTIONS),
       previous_action_match: createNavigationShortcutHandler(SEARCH_MODES.ACTIONS, false),
-      select_match: guarded(event => activateSelectedMatchingNodeAndReset(event)),
-      open_match_in_foreground_tab: guarded(event =>
-        activateSelectedMatchingNodeAndReset(event, 'foreground-tab'),
+      select_match: guarded(event => {
+        void activateSelectedMatchingNodeAndReset(event);
+      }),
+      open_match_in_foreground_tab: guarded(
+        event => void activateSelectedMatchingNodeAndReset(event, 'foreground-tab'),
       ),
-      open_match_in_background_tab: guarded(event =>
-        activateSelectedMatchingNodeAndReset(event, 'background-tab'),
+      open_match_in_background_tab: guarded(
+        event => void activateSelectedMatchingNodeAndReset(event, 'background-tab'),
       ),
       toggle_search_mode: guarded(event => {
         event.preventDefault();
@@ -782,11 +822,12 @@ const Searchbar = () => {
       }
       const target = event.composedPath()[0] ?? event.target;
       if (target !== searchInputRef.current && Utils.isExtensionElement(target)) return;
-      const copyText = selectedTextMatch?.node.isConnected
-        ? visibleText(selectedTextMatch.node)
-        : selectedActionNode?.isConnected
-          ? Utils.linkUrlForNode(selectedActionNode)
-          : null;
+      const copyText =
+        selectedTextMatch && resultIsConnected(selectedTextMatch.node)
+          ? visibleText(selectedTextMatch.node)
+          : resultIsConnected(selectedActionNode)
+            ? Utils.linkUrlForNode(selectedActionNode)
+            : null;
       if (copyText === null) {
         return;
       }
@@ -835,7 +876,41 @@ const Searchbar = () => {
   }, [isInteractive, hasSearchQuery]);
 
   React.useEffect(() => {
-    if (selectedTextMatch?.node.isConnected) {
+    const previous = automaticHover.current;
+    // Replacing or shortening a query starts a search inside whatever hover revealed.
+    // Keep that hover until explicit navigation; partial matches can be elsewhere.
+    if (previous.query && !searchText.startsWith(previous.query) && selectionHover.hasTarget) {
+      previous.enabled = false;
+    }
+    previous.query = searchText;
+    if (!hasSearchQuery) {
+      hoveredQuery.current = null;
+      return;
+    }
+    if (
+      !isInteractive ||
+      !previous.enabled ||
+      suggestionsPending ||
+      hoveredQuery.current === searchText
+    )
+      return;
+    // Mark the query before dispatching page events: opening a menu can refresh the DOM.
+    // Same-query refreshes must not replay hover or take it back from the real pointer.
+    hoveredQuery.current = searchText;
+    // A partial submenu query can match unrelated plain text. Hovering that text
+    // would close the menu being searched; only auto-hover the result's action.
+    if (selectedActionNode) selectionHover.select(selectedActionNode);
+  }, [
+    hasSearchQuery,
+    isInteractive,
+    suggestionsPending,
+    searchText,
+    selectedActionNode,
+    selectionHover,
+  ]);
+
+  React.useEffect(() => {
+    if (selectedTextMatch && resultIsConnected(selectedTextMatch.node)) {
       rememberOrigin(selectedTextMatch.node);
       Utils.selectNodeContents(selectedTextMatch.node);
       return () => Utils.clearPageSelection();
@@ -950,13 +1025,18 @@ const Searchbar = () => {
     color: highlightColors[SEARCH_MODES.TEXT],
   });
   useExtensionMessaging(
-    React.useCallback(() => {
-      if (!interaction.ready) return 'loading';
-      if (paused) return 'paused';
-      setMenuTarget(null);
-      revealAndFocus();
-      return 'shown';
-    }, [interaction.ready, paused, revealAndFocus]),
+    React.useCallback(
+      (text?: string) => {
+        if (!interaction.ready) return 'loading';
+        if (paused) return 'paused';
+        if (text && typeToSearch && Utils.keyValidForFocus(text))
+          setSearchText(previous => previous + text);
+        setMenuTarget(null);
+        revealAndFocus();
+        return 'shown';
+      },
+      [interaction.ready, paused, revealAndFocus, typeToSearch],
+    ),
   );
 
   React.useEffect(() => {

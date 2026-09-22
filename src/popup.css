@@ -20,6 +20,7 @@ body {
   min-height: 0;
   overflow-y: auto;
   scrollbar-gutter: stable;
+  padding-inline-end: var(--keymove-space-3, 12px);
 }
 .keymove-settings-header,
 .keymove-settings-tabs,
@@ -50,7 +51,7 @@ body {
   font-size: 15px;
 }
 .keymove-show-search {
-  max-width: 190px;
+  max-width: 230px;
   text-align: right;
 }
 #keymove-popup .keymove-show-search-button {
@@ -62,6 +63,9 @@ body {
 }
 .keymove-show-search .keymove-popup-hint {
   margin: 6px 0 0;
+}
+.keymove-show-search-unavailable {
+  white-space: nowrap;
 }
 .keymove-settings-tabs {
   display: flex;

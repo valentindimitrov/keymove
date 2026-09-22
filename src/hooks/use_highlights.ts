@@ -274,5 +274,7 @@ export {
   highlightRangesForNodes,
   rangesForTextNode,
   MAX_HIGHLIGHT_RANGES,
+  scheduleHighlightRanges,
+  shadowHighlightStyles,
 };
 export default useHighlights;

@@ -32,7 +32,11 @@ export default function ShowSearchButton({
         {busy ? 'Opening…' : 'Show KeyMove search bar'}
       </button>
       {(unavailable || error) && (
-        <p id={descriptionId} className="keymove-popup-hint" role={error ? 'alert' : undefined}>
+        <p
+          id={descriptionId}
+          className={`keymove-popup-hint${unavailable ? ' keymove-show-search-unavailable' : ''}`}
+          role={error ? 'alert' : undefined}
+        >
           {unavailable || error}
         </p>
       )}

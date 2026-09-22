@@ -23,6 +23,7 @@ type SearchNavigationAction =
       textResults: TextMatch[];
       actionResults: HTMLElement[];
       preserveSelection?: boolean;
+      incremental?: boolean;
     }
   | { type: 'clear-results' }
   | { type: 'reset'; mode: SearchMode }
@@ -99,10 +100,14 @@ function searchNavigationReducer(
         // that node disappears rather than silently moving Enter onto an unrelated match.
         selectedIndices: {
           text: action.preserveSelection
-            ? retainedTextIndex
+            ? action.incremental && state.results.text.length === 0
+              ? selectionForResults(null, action.textResults.length)
+              : retainedTextIndex
             : selectionForResults(retainedTextIndex, action.textResults.length),
           actions: action.preserveSelection
-            ? retainedActionIndex
+            ? action.incremental && state.results.actions.length === 0
+              ? selectionForResults(null, action.actionResults.length)
+              : retainedActionIndex
             : selectionForResults(retainedActionIndex, action.actionResults.length),
         },
       };
@@ -159,8 +164,13 @@ function useSearchNavigation() {
   );
 
   const setResults = React.useCallback(
-    (textResults: TextMatch[], actionResults: HTMLElement[], preserveSelection = false) => {
-      dispatch({ type: 'set-results', textResults, actionResults, preserveSelection });
+    (
+      textResults: TextMatch[],
+      actionResults: HTMLElement[],
+      preserveSelection = false,
+      incremental = false,
+    ) => {
+      dispatch({ type: 'set-results', textResults, actionResults, preserveSelection, incremental });
     },
     [],
   );

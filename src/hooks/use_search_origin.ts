@@ -1,5 +1,7 @@
 import React from 'react';
 import { renderedParent } from '../lib/dom_tree.js';
+import { frameTarget } from '../lib/frame_target.js';
+import { restoreFrameOrigins } from '../lib/find_in_page.js';
 
 type Position = { left: number; top: number };
 type SearchOrigin = Position & { containers: Map<Element, Position> };
@@ -9,6 +11,7 @@ function useSearchOrigin() {
   const origin = React.useRef<SearchOrigin | null>(null);
 
   const remember = React.useCallback((node?: Element) => {
+    if (node) node = frameTarget(node)?.boundary ?? node;
     origin.current ??= {
       left: window.scrollX,
       top: window.scrollY,
@@ -35,6 +38,7 @@ function useSearchOrigin() {
   }, []);
 
   const restore = React.useCallback(() => {
+    restoreFrameOrigins();
     const saved = origin.current;
     origin.current = null;
     if (!saved) return;

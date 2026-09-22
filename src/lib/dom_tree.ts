@@ -75,8 +75,11 @@ export function textRangeScope(node: Node): Node {
   return node.getRootNode();
 }
 
-/** Iterative, checkpointable discovery; skip KeyMove before entering its shadow root. */
-export function* walkOpenElements(root: Element | ShadowRoot): Generator<Element> {
+/** Ownership traversal for discovery/indexing; assigned nodes stay in their owning tree. */
+export function* walkOwnedElements(
+  root: Element | ShadowRoot,
+  { enterShadowRoots = true } = {},
+): Generator<Element> {
   const stack: Iterator<Element>[] = [
     (root instanceof Element ? [root] : root.children)[Symbol.iterator](),
   ];
@@ -90,7 +93,29 @@ export function* walkOpenElements(root: Element | ShadowRoot): Generator<Element
     if (node.id === KEYMOVE_ROOT_ID || DO_NOT_SEARCH_NODE_TYPES.includes(node.nodeName)) continue;
     yield node;
     stack.push(node.children[Symbol.iterator]());
-    if (node.shadowRoot) stack.push(node.shadowRoot.children[Symbol.iterator]());
+    if (enterShadowRoots && node.shadowRoot)
+      stack.push(node.shadowRoot.children[Symbol.iterator]());
+  }
+}
+
+/** Rendered descendants for actions and names, following slots instead of their fallback. */
+export function* walkRenderedElements(root: Element): Generator<Element> {
+  const stack: Iterator<Node>[] = [[root][Symbol.iterator]()];
+  while (stack.length) {
+    const step = stack[stack.length - 1]!.next();
+    if (step.done) {
+      stack.pop();
+      continue;
+    }
+    const node = step.value;
+    if (
+      !(node instanceof Element) ||
+      node.id === KEYMOVE_ROOT_ID ||
+      DO_NOT_SEARCH_NODE_TYPES.includes(node.nodeName)
+    )
+      continue;
+    yield node;
+    stack.push(renderedChildren(node));
   }
 }
 

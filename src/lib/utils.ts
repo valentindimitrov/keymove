@@ -2,6 +2,7 @@ import { INPUT_NODE_TYPES, KEYS_VALID_FOR_FOCUS_REGEX, MAC_OS_PLATFORMS } from '
 import { normalizedOpenableLinkUrl } from './extension_tabs.js';
 import { isActionDisabled, labelledToggle } from './searchable_attributes.js';
 import { iterateRenderedText } from './visible_text.js';
+import { frameTarget } from './frame_target.js';
 
 const FOCUS_WIDGET_ROLES = [
   'combobox',
@@ -77,6 +78,11 @@ function isExtensionElement(element: EventTarget | null) {
 }
 
 function clickOrFocusNode(node: HTMLElement) {
+  const remote = frameTarget(node);
+  if (remote) {
+    void remote.command('activate');
+    return;
+  }
   if (isActionDisabled(node)) return;
   const clickInput =
     node instanceof HTMLInputElement &&
@@ -173,6 +179,11 @@ function nodeIsInViewport(node: Node) {
 function scrollToNodeAtIndexInList(nodeList: readonly Element[], selectedIndex: number) {
   const selectedMatchingNode = nodeList.length > 0 ? nodeList[selectedIndex] : null;
   if (selectedMatchingNode) {
+    const remote = frameTarget(selectedMatchingNode);
+    if (remote) {
+      void remote.command('scroll');
+      return;
+    }
     const rect = selectedMatchingNode.getBoundingClientRect();
     const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
     // Native text selection can first reveal a result flush against the viewport edge.
@@ -188,6 +199,12 @@ function scrollToNodeAtIndexInList(nodeList: readonly Element[], selectedIndex: 
 }
 
 function selectNodeContents(node: Element) {
+  const remote = frameTarget(node);
+  if (remote) {
+    clearPageSelection();
+    void remote.command('select');
+    return;
+  }
   const selection = window.getSelection();
   if (!selection) {
     return;

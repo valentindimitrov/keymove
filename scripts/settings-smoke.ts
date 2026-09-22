@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { waitFor, type TestPage } from './browser-driver.ts';
+import EXTENSION_IDENTITY from '../src/extension_identity.ts';
 
 export async function settingsTab(popup: TestPage, name: string) {
   const tab = `Array.from(document.querySelectorAll('[role="tab"]')).find(tab => tab.textContent === ${JSON.stringify(name)})`;
@@ -126,10 +127,16 @@ export async function checkShowSearch(page: TestPage, popup: TestPage) {
   const links = await popup.evaluate(
     `Array.from(document.querySelectorAll('.keymove-popup-links a')).map(a => ({href:a.href, target:a.target, width:a.getBoundingClientRect().width}))`,
   );
-  assert(Array.isArray(links) && links.length === 3);
-  assert.equal(links[1].href, 'https://keymove.minddevops.eu/');
-  assert.equal(links[0].target, '_blank');
-  assert.equal(links[1].target, '_blank');
+  assert(Array.isArray(links));
+  assert.deepEqual(
+    links.map(link => ({ href: link.href, target: link.target })),
+    [
+      { href: new URL(EXTENSION_IDENTITY.sourceUrl).href, target: '_blank' },
+      { href: new URL(EXTENSION_IDENTITY.demoUrl).href, target: '_blank' },
+      { href: new URL(EXTENSION_IDENTITY.supportUrl).href, target: '_blank' },
+      { href: EXTENSION_IDENTITY.contactUrl, target: '' },
+    ],
+  );
   assert(links.every(link => Math.abs(link.width - links[0].width) < 1));
   writeFileSync(
     path.resolve(import.meta.dirname, '../.artifacts/settings-show-search.png'),

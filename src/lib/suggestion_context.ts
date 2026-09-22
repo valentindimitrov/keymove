@@ -5,6 +5,7 @@ import { inputDisplayValue } from './input_value.js';
 import { controlStateLabels } from './control_state.js';
 import { renderedParent } from './dom_tree.js';
 import { isActionDisabled, labelledToggle } from './searchable_attributes.js';
+import { frameTarget } from './frame_target.js';
 
 const LANDMARK_LABELS: [string, string][] = [
   ['nav', 'Navigation'],
@@ -67,6 +68,8 @@ function inputLabel(node: Element) {
 
 /** What activating this result would do, in the words a person would use. */
 function kindLabelForNode(node: Element, kind: 'action' | 'text') {
+  const remote = frameTarget(node);
+  if (remote) return remote.row.context;
   if (kind === 'action') {
     const label =
       inputLabel(labelledToggle(node) ?? node) ??
@@ -86,6 +89,8 @@ function kindLabelForNode(node: Element, kind: 'action' | 'text') {
  * knowing which one is in the sidebar is usually enough to tell them apart.
  */
 function landmarkForNode(node: Element) {
+  const remote = frameTarget(node);
+  if (remote) return `Frame: ${remote.boundary.title || 'embedded page'}`;
   let current: Element | null = node;
   while (current && current !== document.body) {
     const label = firstMatchingLabel(current, LANDMARK_LABELS);
@@ -97,6 +102,8 @@ function landmarkForNode(node: Element) {
 
 /** The text shown for a result: an action's accessible name, or a text block's own words. */
 function labelForNode(node: Element, kind: 'action' | 'text') {
+  const remote = frameTarget(node);
+  if (remote) return remote.row.label;
   if (kind === 'action') {
     const name = controlName(node);
     const value = inputDisplayValue(node);

@@ -2,14 +2,28 @@ import React from 'react';
 import ExtensionMessageTypes from '../extension_message_types.js';
 import { isExtensionMessage } from '../extension_message_types.js';
 import { browser, type Browser } from 'wxt/browser';
+import { isFrameEnvelope } from '../lib/frame_protocol.js';
 
-const useExtensionMessaging = (showSearchbar?: () => 'shown' | 'paused' | 'loading') => {
+const useExtensionMessaging = (
+  showSearchbar?: (text?: string) => 'shown' | 'paused' | 'loading',
+) => {
   const handleExtensionMessage = React.useCallback(
     (
       message: unknown,
       sender: Browser.runtime.MessageSender,
       sendResponse: (value: unknown) => void,
     ) => {
+      if (sender.id === browser.runtime.id && isFrameEnvelope(message) && message.kind === 'open') {
+        sendResponse({
+          status:
+            showSearchbar?.(
+              typeof message.text === 'string' && Array.from(message.text).length === 1
+                ? message.text
+                : undefined,
+            ) ?? 'loading',
+        });
+        return;
+      }
       if (!isExtensionMessage(message)) {
         return;
       }

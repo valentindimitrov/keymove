@@ -18,13 +18,14 @@ type ContentScriptManifest = {
   matches: string[];
   js: string[];
   css: string[];
+  all_frames?: boolean;
 };
 
 type BuildManifest = {
   manifest_version: number;
   name: string;
   version: string;
-  content_scripts: [ContentScriptManifest];
+  content_scripts: ContentScriptManifest[];
   action?: unknown;
   browser_action?: unknown;
   permissions: string[];
@@ -97,8 +98,8 @@ function validateManifestShape(value: unknown, targetName: string): asserts valu
   requireCondition(typeof value['name'] === 'string', `${targetName}: name must be a string`);
   requireCondition(typeof value['version'] === 'string', `${targetName}: version must be a string`);
   requireCondition(
-    Array.isArray(value['content_scripts']) && value['content_scripts'].length === 1,
-    `${targetName}: exactly one content script is required`,
+    Array.isArray(value['content_scripts']) && value['content_scripts'].length === 2,
+    `${targetName}: UI and frame helper content scripts are required`,
   );
 
   const contentScript: unknown = value['content_scripts'][0];
@@ -114,6 +115,14 @@ function validateManifestShape(value: unknown, targetName: string): asserts valu
   requireCondition(
     isStringArray(contentScript['css']),
     `${targetName}: content script css must be a string array`,
+  );
+  const helper = value['content_scripts'][1];
+  requireCondition(
+    isObject(helper) &&
+      isStringArray(helper['matches']) &&
+      isStringArray(helper['js']) &&
+      helper['all_frames'] === true,
+    `${targetName}: frame helper manifest is invalid`,
   );
   requireCondition(
     isStringArray(value['permissions']),
@@ -238,7 +247,23 @@ function validateTarget(target: BuildTarget, packageVersion: string, root: strin
     manifest.version === packageVersion,
     `${target.name}: extension version does not match package.json`,
   );
-  const contentScript = manifest.content_scripts[0];
+  const contentScript = manifest.content_scripts[0]!;
+  const helper = manifest.content_scripts[1]!;
+  requireCondition(
+    contentScript.all_frames === false,
+    `${target.name}: the UI must remain top-frame-only`,
+  );
+  requireCondition(
+    helper.matches.includes('<all_urls>') &&
+      helper.js.length === 1 &&
+      helper.js[0] === 'content-scripts/frames.js',
+    `${target.name}: frame helper output is missing`,
+  );
+  const frameBundle = readRequiredFile(buildDirectory, helper.js[0], target.name);
+  requireCondition(
+    !/\brequire\s*\(/.test(frameBundle),
+    `${target.name}: frame helper contains CommonJS`,
+  );
   requireCondition(
     contentScript.matches.includes('<all_urls>'),
     `${target.name}: content script host matches are missing`,

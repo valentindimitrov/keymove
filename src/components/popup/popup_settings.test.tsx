@@ -90,6 +90,9 @@ test.each([null, { id: -1, url: 'https://example.com' }, { id: 42, url: 'chrome:
     await waitFor(() =>
       expect(button).toHaveAccessibleDescription('KeyMove is not available on this page.'),
     );
+    expect(screen.getByText('KeyMove is not available on this page.')).toHaveClass(
+      'keymove-show-search-unavailable',
+    );
     expect(button).toBeDisabled();
     expect(storage.sendMessage).not.toHaveBeenCalled();
   },
