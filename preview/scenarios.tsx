@@ -312,7 +312,7 @@ const SuggestionsRefreshPreview = () => {
       <Bar
         searchText={query}
         onSearchTextChange={setQuery}
-        suggestionsOpen={query.trim().length >= 3}
+        suggestionsOpen={query.trim().length > 0 && (pending || suggestions.length > 0)}
         suggestions={suggestions}
         pending={pending}
         selectedNode={pending ? null : (suggestions[0]?.node ?? null)}

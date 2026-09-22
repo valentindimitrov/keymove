@@ -20,6 +20,22 @@ export async function checkActionFallback(client: ChromiumClient, origin: string
       path.resolve(import.meta.dirname, '../.artifacts/action-fallback.png'),
       await page.screenshot(),
     );
+    for (const character of 'zzzzzz') await page.key(character);
+    await waitFor(
+      page,
+      `${summary}?.endsWith('0 / 0') && !${shadow}.querySelector('[role="listbox"]')`,
+    );
+    assert.equal(await page.evaluate(`${input}.getAttribute('aria-expanded')`), 'false');
+    assert.equal(await page.evaluate(`${shadow}.activeElement === ${input}`), true);
+    writeFileSync(
+      path.resolve(import.meta.dirname, '../.artifacts/action-fallback-empty.png'),
+      await page.screenshot(),
+    );
+    for (let index = 0; index < 6; index++) await page.key('Backspace');
+    await waitFor(
+      page,
+      `${summary} === 'Actions 1 / 1' && ${shadow}.querySelector('[role="listbox"]') !== null`,
+    );
     await page.key('Tab');
     await page.key('Tab', 8);
     await page.key('Backspace');

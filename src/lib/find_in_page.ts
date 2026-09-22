@@ -2,9 +2,8 @@ import NodeScorer from './node_scorer.js';
 import { PageSearchIndex } from './page_search_index.js';
 import type { SearchOptions } from './page_search_index.js';
 import { normalizeSearchText } from './search_text.js';
-import { FrameSearch, mergeFrameResults } from './frame_search.js';
+import { FrameSearch, mergeFrameResults, connectedFrameResults } from './frame_search.js';
 import type { SearchResult } from './page_search_index.js';
-import { resultIsConnected } from './frame_target.js';
 
 let sharedIndex: PageSearchIndex | null = null;
 let sharedIndexHost: string | null = null;
@@ -26,6 +25,10 @@ function restoreFrameOrigins() {
 
 function releasePageSearchIndex() {
   stopFrameSearch();
+  releaseLocalIndex();
+}
+
+function releaseLocalIndex() {
   sharedIndex?.disconnect();
   sharedIndex = null;
   sharedIndexHost = null;
@@ -35,7 +38,9 @@ function subscribeToPageChanges(listener: () => void) {
   pageChangeListeners.add(listener);
   return () => {
     pageChangeListeners.delete(listener);
-    if (pageChangeListeners.size === 0) releasePageSearchIndex();
+    // An empty query unsubscribes while the user types a submenu item. Its hover
+    // session belongs to Searchbar's reset/unmount, not the local index lifetime.
+    if (pageChangeListeners.size === 0) releaseLocalIndex();
   };
 }
 
@@ -60,6 +65,11 @@ class FindInPage {
     frameQuery = this.searchText;
     const cancel = () => currentFrames.abort();
     options.signal?.addEventListener('abort', cancel, { once: true });
+    currentFrames.signal.addEventListener(
+      'abort',
+      () => options.signal?.removeEventListener('abort', cancel),
+      { once: true },
+    );
     const host = window.location.host;
     if (!sharedIndex || sharedIndexHost !== host || sharedIndex.root !== document.body) {
       if (sharedIndex) {
@@ -88,18 +98,9 @@ class FindInPage {
             options.onUpdate?.(mergeFrameResults([local, ...results]));
           }
         })
-        .catch(() => {})
-        .finally(() => options.signal?.removeEventListener('abort', cancel));
+        .catch(() => {});
     } else options.signal?.removeEventListener('abort', cancel);
-    return mergeFrameResults([
-      local,
-      ...frameResults.map(result => ({
-        ...result,
-        matchingText: result.matchingText.filter(match => resultIsConnected(match.node)),
-        matchingLinksAndButtons: result.matchingLinksAndButtons.filter(resultIsConnected),
-        suggestions: result.suggestions.filter(match => resultIsConnected(match.node)),
-      })),
-    ]);
+    return mergeFrameResults([local, ...connectedFrameResults(frameResults)]);
   }
 }
 

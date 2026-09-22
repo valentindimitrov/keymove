@@ -7,7 +7,7 @@ import {
   isFrameReply,
 } from './frame_protocol.js';
 import type { FrameReply, FrameRequest } from './frame_protocol.js';
-import { frameTarget, setFrameTarget } from './frame_target.js';
+import { frameTarget, setFrameTarget, resultIsConnected } from './frame_target.js';
 import { pageShadowRoots } from './dom_tree.js';
 import { activeModal, actionIsInScope } from './modal_context.js';
 import { isTextVisible } from './visible_text.js';
@@ -30,7 +30,18 @@ type Entry = {
   ready: Promise<void>;
   resolve: () => void;
   load: () => void;
+  update?: (reply: FrameReply) => void;
+  cancel?: () => void;
 };
+
+export function connectedFrameResults(results: SearchResult[]): SearchResult[] {
+  return results.map(result => ({
+    ...result,
+    matchingText: result.matchingText.filter(match => resultIsConnected(match.node)),
+    matchingLinksAndButtons: result.matchingLinksAndButtons.filter(resultIsConnected),
+    suggestions: result.suggestions.filter(match => resultIsConnected(match.node)),
+  }));
+}
 
 export function mergeFrameResults(results: SearchResult[]): SearchResult {
   // Exact matches anywhere win over fuzzy matches everywhere.
@@ -62,6 +73,12 @@ export class FrameSearch {
         this.changed();
       } else if (message.kind === 'changed' && message.source === entry.frameId) {
         this.changed();
+      } else if (
+        message.kind === 'results' &&
+        message.source === entry.frameId &&
+        isFrameReply(message.reply)
+      ) {
+        entry.update?.(message.reply);
       }
     }
   };
@@ -94,6 +111,7 @@ export class FrameSearch {
     }
     for (const [frame, entry] of this.entries) {
       if (!frames.includes(frame)) {
+        entry.cancel?.();
         void this.request(entry, { op: 'stop' });
         frame.removeEventListener('load', entry.load);
         entry.nodes.clear();
@@ -111,6 +129,8 @@ export class FrameSearch {
         ready: readiness.promise,
         resolve: readiness.resolve,
         load: () => {
+          entry.cancel?.();
+          delete entry.update;
           delete entry.frameId;
           entry.nodes.clear();
           delete entry.cached;
@@ -235,12 +255,37 @@ export class FrameSearch {
         while (next < entries.length && !signal.aborted) {
           const index = next++;
           const entry = entries[index]!;
+          entry.cancel?.();
           const generation = crypto.randomUUID();
           entry.generation = generation;
-          const cancel = () => {
-            if (entry.generation === generation)
-              void this.request(entry, { op: 'cancel', generation });
+          let streamed = false;
+          const accept = (reply: FrameReply) => {
+            if (
+              signal.aborted ||
+              entry.generation !== generation ||
+              reply.generation !== generation ||
+              this.entries.get(entry.frame) !== entry ||
+              !this.eligible(entry.frame)
+            )
+              return;
+            results[index] = this.materialize(entry, reply);
+            entry.cached = { query, result: results[index]! };
+            publish([...results]);
           };
+          entry.update = reply => {
+            if (reply.generation !== generation) return;
+            streamed = true;
+            accept(reply);
+          };
+          const cancel = () => {
+            signal.removeEventListener('abort', cancel);
+            if (entry.generation === generation) {
+              delete entry.update;
+              delete entry.cancel;
+              void this.request(entry, { op: 'cancel', generation });
+            }
+          };
+          entry.cancel = cancel;
           signal.addEventListener('abort', cancel, { once: true });
           let timeout: ReturnType<typeof setTimeout> | undefined;
           let expired = false;
@@ -259,24 +304,23 @@ export class FrameSearch {
                 }, 1500);
               }),
             ]);
-            if (signal.aborted || entry.generation !== generation) continue;
+            if (signal.aborted || entry.generation !== generation || streamed) continue;
             if (
               isFrameReply(reply) &&
               reply.generation === generation &&
               this.eligible(entry.frame)
             ) {
-              results[index] = this.materialize(entry, reply);
-              entry.cached = { query, result: results[index]! };
+              accept(reply);
             } else {
+              delete entry.update;
               results[index] = empty();
               delete entry.cached;
               entry.nodes.clear();
               cancel();
+              publish([...results]);
             }
-            publish([...results]);
           } finally {
             clearTimeout(timeout);
-            signal.removeEventListener('abort', cancel);
           }
         }
       }),
@@ -286,6 +330,7 @@ export class FrameSearch {
 
   stop() {
     for (const entry of this.entries.values()) {
+      entry.cancel?.();
       void this.request(entry, { op: 'stop' });
       entry.nodes.clear();
       entry.frame.removeEventListener('load', entry.load);

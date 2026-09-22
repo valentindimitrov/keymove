@@ -149,6 +149,68 @@ test('exact results in one document exclude fuzzy results from other documents',
   expect(mergeFrameResults([makeSearchResult(), fuzzy]).isFuzzy).toBe(true);
 });
 
+test('accepts streamed descendants after the initial reply and cancels their lifetime', async () => {
+  const frame = document.createElement('iframe');
+  document.body.append(frame);
+  vi.spyOn(frame, 'getClientRects').mockReturnValue([{}] as unknown as DOMRectList);
+  let generation = '';
+  transport.send.mockImplementation(message => {
+    if (message.request.op !== 'search') return Promise.resolve(true);
+    generation = message.request.generation;
+    return Promise.resolve({ generation, rows: [], isFuzzy: false });
+  });
+  vi.spyOn(frame.contentWindow!, 'postMessage').mockImplementation((message: { token: string }) => {
+    transport.add.mock.calls.at(-1)![0](
+      { type: FRAME_MESSAGE, kind: 'ready', token: message.token, frameId: 7 },
+      { id: 'test' },
+    );
+  });
+  const coordinator = new FrameSearch(vi.fn());
+  const controller = new AbortController();
+  const publish = vi.fn();
+  try {
+    await coordinator.search('otter', controller.signal, publish);
+    const listener = transport.add.mock.calls.at(-1)![0];
+    const reply: FrameReply = {
+      generation,
+      isFuzzy: false,
+      rows: [
+        {
+          id: 1,
+          kind: 'text',
+          action: null,
+          label: 'Otter',
+          text: 'Otter',
+          context: '',
+          href: null,
+          disabled: false,
+          focusable: false,
+          score: 1,
+          term: 'otter',
+          distance: null,
+        },
+      ],
+    };
+    listener({ type: FRAME_MESSAGE, kind: 'results', source: 7, reply }, { id: 'test' });
+    expect(publish.mock.calls.at(-1)![0][0].matchingText).toHaveLength(1);
+    const count = publish.mock.calls.length;
+    listener(
+      { type: FRAME_MESSAGE, kind: 'results', source: 7, reply: { ...reply, generation: 'stale' } },
+      { id: 'test' },
+    );
+    controller.abort();
+    listener({ type: FRAME_MESSAGE, kind: 'results', source: 7, reply }, { id: 'test' });
+    expect(publish).toHaveBeenCalledTimes(count);
+    expect(transport.send).toHaveBeenCalledWith(
+      expect.objectContaining({ request: { op: 'cancel', generation } }),
+    );
+  } finally {
+    coordinator.stop();
+    frame.remove();
+    vi.restoreAllMocks();
+  }
+});
+
 test('merges all navigable results and ranks the mixed shortlist across documents', () => {
   const text = makeTextMatch();
   const action = document.createElement('button');

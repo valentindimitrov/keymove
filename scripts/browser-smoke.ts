@@ -203,22 +203,20 @@ export async function runBrowserSmoke(client: ChromiumClient, browser: string): 
       await expectSummary(page, 'Text 1 / 2');
       await page.key('z');
       await expectSummary(page, 'Text 1 / 1');
-      await type(page, 'zzzz');
-      await expectSummary(page, 'Text ~ 0 / 0');
-      await waitFor(
-        page,
-        `${shadow}.querySelector('.keymove-suggestions-empty')?.textContent === 'No matches'`,
-      );
-      for (let index = 0; index < 4; index++) await page.key('Backspace');
-      await expectSummary(page, 'Text 1 / 1');
       assert.deepEqual(await page.evaluate('globalThis.__keymoveStopPanelCheck()'), {
         removed: false,
         shifted: false,
         collapsed: false,
         samePanel: true,
       });
+      await type(page, 'zzzz');
+      await expectSummary(page, 'Text ~ 0 / 0');
+      await waitFor(page, `!${shadow}.querySelector('[role="listbox"]')`);
+      for (let index = 0; index < 4; index++) await page.key('Backspace');
+      await expectSummary(page, 'Text 1 / 1');
+      await waitFor(page, `${shadow}.querySelector('[role="listbox"]') !== null`);
       passed.push(
-        `${size}: suggestion frame stays mounted and preserves height for pending and empty results`,
+        `${size}: suggestion frame preserves pending height, closes on empty results and reopens on matches`,
       );
       if (size === 'large') continue;
 

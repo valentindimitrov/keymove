@@ -93,6 +93,37 @@ export async function checkIframes(client: ChromiumClient, origin: string) {
       page,
       `!document.querySelector('iframe').contentDocument.getElementById('keymove-root')`,
     );
+    // The first match arrives from a frame. Automatic hover must open its menu,
+    // and moving to a sibling result must retain the shared menu ancestry.
+    const child = `document.querySelector('iframe').contentDocument`;
+    await page.evaluate(`(() => {
+      const doc = ${child};
+      const menu = doc.createElement('nav');
+      menu.innerHTML = '<button>Zephyr menu</button><div id="hover-items" hidden><button id="hover-item">Zephyr item</button></div>';
+      doc.body.append(menu);
+      const panel = doc.getElementById('hover-items');
+      menu.addEventListener('mouseenter', () => panel.hidden = false);
+      menu.addEventListener('mouseleave', () => panel.hidden = true);
+      doc.getElementById('hover-item').addEventListener('click', () => doc.body.dataset.hoverActivated = 'yes');
+    })()`);
+    await page.key('f', 1);
+    await waitFor(page, `${root}.activeElement === ${input}`);
+    for (const key of 'zephyr menu') await page.key(key);
+    await waitFor(page, `!${child}.getElementById('hover-items').hidden`);
+    await page.key('a', process.platform === 'darwin' ? 4 : 2);
+    await page.key('Backspace');
+    for (const key of 'item') await page.key(key);
+    await waitFor(
+      page,
+      `${input}.value === 'item' && ${root}.querySelector('[role="listbox"]')?.getAttribute('aria-busy') === 'false'`,
+    );
+    if (String(await page.evaluate(status)).startsWith('Text')) await page.key('s', 1);
+    await waitFor(page, `${status} === 'Actions 1 / 1'`);
+    await page.key('Tab');
+    await waitFor(page, `${status} === 'Actions 1 / 1'`);
+    assert.equal(await page.evaluate(`${child}.getElementById('hover-items').hidden`), false);
+    await page.key('Enter');
+    await waitFor(page, `${child}.body.dataset.hoverActivated === 'yes'`);
   } finally {
     await page.close();
   }

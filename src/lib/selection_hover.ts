@@ -35,7 +35,9 @@ export class SelectionHover {
 
   reconcile() {
     const target = this.path[0];
-    if (target && !eligible(target)) this.clear();
+    // Query edits may remove a remote handle from the results while its real menu
+    // trigger remains valid. The owning worker reconciles that real target.
+    if (target && !eligible(frameTarget(target)?.boundary ?? target)) this.clear();
   }
 
   clear() {
@@ -53,6 +55,14 @@ export class SelectionHover {
     const previous = this.path[0] ?? null;
     if (frameTarget(previous) || frameTarget(next)) {
       if (previous === next) return;
+      const previousFrame = frameTarget(previous);
+      const nextFrame = frameTarget(next);
+      if (!relinquish && previousFrame && nextFrame?.boundary === previousFrame.boundary) {
+        // The owning frame can preserve shared menu ancestors during this transition.
+        this.path = [next!];
+        void nextFrame.command('hover');
+        return;
+      }
       if (frameTarget(previous)) {
         void frameTarget(previous)!.command('unhover');
         this.path = [];

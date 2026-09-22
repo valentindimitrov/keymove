@@ -36,3 +36,22 @@ test('relays only validated extension messages within the sender tab', async () 
   );
   expect(respond).toHaveBeenCalledWith(true);
 });
+
+test('validates streamed replies and stamps the authenticated source frame', async () => {
+  api.add.mockClear();
+  api.send.mockClear();
+  registerFrameRelay();
+  const listener = api.add.mock.calls[0]![0];
+  const sender = { id: 'test', tab: { id: 12 }, frameId: 7 };
+  const reply = { generation: 'current', rows: [], isFuzzy: false };
+  const message = { type: FRAME_MESSAGE, kind: 'results', frameId: 0, source: 99, reply };
+  expect(listener({ ...message, reply: { rows: 'invalid' } }, sender, vi.fn())).toBeUndefined();
+  expect(api.send).not.toHaveBeenCalled();
+  expect(listener(message, sender, vi.fn())).toBe(true);
+  await Promise.resolve();
+  expect(api.send).toHaveBeenCalledWith(
+    12,
+    { type: FRAME_MESSAGE, kind: 'results', source: 7, reply },
+    { frameId: 0 },
+  );
+});

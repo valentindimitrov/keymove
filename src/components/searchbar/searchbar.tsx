@@ -61,6 +61,8 @@ type ActionActivation = 'current' | 'foreground-tab' | 'background-tab';
 const Searchbar = () => {
   const scrollOrResizeUpdateTimeout = React.useRef<number | undefined>(undefined);
   const searchAbortController = React.useRef<AbortController | null>(null);
+  // Local work completes before iframe updates; retain their cancellation owner.
+  const resultUpdatesController = React.useRef<AbortController | null>(null);
   const pageRefreshQueued = React.useRef(false);
   const pageRefreshTimeout = React.useRef<number | undefined>(undefined);
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -184,6 +186,8 @@ const Searchbar = () => {
   }, [isInteractive, focusSearchInput]);
 
   const cancelPendingSearch = React.useCallback(() => {
+    resultUpdatesController.current?.abort();
+    resultUpdatesController.current = null;
     window.clearTimeout(pageRefreshTimeout.current);
     pageRefreshTimeout.current = undefined;
     pageRefreshQueued.current = false;
@@ -292,6 +296,7 @@ const Searchbar = () => {
     async function search(preserveSelection = false) {
       const controller = new AbortController();
       searchAbortController.current = controller;
+      resultUpdatesController.current = controller;
       setSearchPending(true);
 
       try {
@@ -399,7 +404,8 @@ const Searchbar = () => {
         Utils.clearPageSelection();
       }
       if (searchText.trimStart().length === 0) {
-        stopFrameSearch();
+        // Cancellation rejects late results while retaining the frame's hover menu
+        // until explicit navigation, reset or unmount.
         setSearchPending(false);
         return;
       }
@@ -412,7 +418,6 @@ const Searchbar = () => {
   // Query identity disables old rows before the search effect runs; the flag also covers
   // refreshes of the same query. Keep their presentation until replacements are ready.
   const suggestionsPending = searchPending || resultsQuery !== searchText;
-  const suggestionsOpen = isInteractive && searchText.trim().length >= MIN_SUGGESTION_QUERY_LENGTH;
   const suggestions = useSuggestions({
     count: suggestionCount,
     suggestions: rankedMatches,
@@ -420,6 +425,10 @@ const Searchbar = () => {
     isFuzzy,
     pending: suggestionsPending,
   });
+  const suggestionsOpen =
+    isInteractive &&
+    searchText.trim().length >= MIN_SUGGESTION_QUERY_LENGTH &&
+    (suggestionsPending || suggestions.length > 0);
 
   // Shared by stepping through matches and by jumping straight to a numbered row, so both
   // routes leave the same mode, selection, scroll position and page selection behind.
@@ -891,6 +900,7 @@ const Searchbar = () => {
       !isInteractive ||
       !previous.enabled ||
       suggestionsPending ||
+      selectedSelectionIndex === null ||
       hoveredQuery.current === searchText
     )
       return;
@@ -906,6 +916,7 @@ const Searchbar = () => {
     suggestionsPending,
     searchText,
     selectedActionNode,
+    selectedSelectionIndex,
     selectionHover,
   ]);
 
@@ -921,6 +932,7 @@ const Searchbar = () => {
   React.useEffect(() => {
     return () => {
       cancelPendingSearch();
+      stopFrameSearch();
       if (scrollOrResizeUpdateTimeout.current) {
         window.clearTimeout(scrollOrResizeUpdateTimeout.current);
       }

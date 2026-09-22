@@ -1,3 +1,4 @@
+import { setFrameTarget } from './frame_target.js';
 import { SelectionHover } from './selection_hover.js';
 
 afterEach(() => {
@@ -117,4 +118,63 @@ test('real pointer takeover within the menu preserves its shared ancestors', () 
   hover.clear();
   expect(leave).not.toHaveBeenCalled();
   expect(enter).not.toHaveBeenCalled();
+});
+test('hover navigation inside one iframe retains the expanded menu', () => {
+  document.body.innerHTML =
+    '<iframe></iframe><nav><a href="#menu">Menu</a><div hidden><a href="#item">Item</a></div></nav>';
+  const boundary = document.querySelector('iframe')!;
+  const menu = document.querySelector('nav')!;
+  const trigger = menu.querySelector('a')!;
+  const panel = menu.querySelector('div')!;
+  const item = panel.querySelector('a')!;
+  menu.addEventListener('mouseenter', () => {
+    panel.hidden = false;
+  });
+  menu.addEventListener('mouseleave', () => {
+    panel.hidden = true;
+  });
+  const childHover = new SelectionHover();
+  let triggerListed = true;
+  const handles = [trigger, item].map((target, id) => {
+    const handle = document.createElement('a');
+    setFrameTarget(handle, {
+      row: {
+        id,
+        kind: 'action',
+        action: null,
+        label: target.textContent!,
+        text: '',
+        context: '',
+        href: target.href,
+        disabled: false,
+        focusable: true,
+        score: 1,
+        term: null,
+        distance: null,
+      },
+      boundary,
+      alive: () => id === 1 || triggerListed,
+      paint: () => {},
+      command: async command => {
+        if (command === 'hover') childHover.select(target);
+        if (command === 'unhover') childHover.clear();
+        return true;
+      },
+    });
+    return handle;
+  });
+  const topHover = new SelectionHover();
+  try {
+    topHover.select(handles[0]!);
+    expect(panel.hidden).toBe(false);
+    triggerListed = false;
+    topHover.reconcile();
+    expect(panel.hidden).toBe(false);
+    topHover.select(handles[1]!);
+    expect(panel.hidden).toBe(false);
+  } finally {
+    topHover.clear();
+    childHover.clear();
+    document.body.innerHTML = '';
+  }
 });

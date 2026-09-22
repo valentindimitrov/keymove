@@ -4,6 +4,7 @@ import createExtensionRoot from '../../lib/create_extension_root.js';
 import { makeRankedMatch, makeSearchResult, makeTextMatch } from '../../test_support/factories.js';
 import type { SearchResult } from '../../lib/page_search_index.js';
 import { MODAL_CHANGED_EVENT } from '../../lib/modal_context.js';
+import { stopFrameSearch } from '../../lib/find_in_page.js';
 
 const searchMocks = vi.hoisted(() => ({
   findMatches: vi.fn(),
@@ -721,7 +722,10 @@ test('finishes a query during continuous page changes and coalesces one follow-u
   const paragraph = document.createElement('p');
   paragraph.textContent = 'Save changes';
   document.body.append(paragraph);
-  const matches = makeSearchResult({ matchingText: [makeTextMatch({ node: paragraph })] });
+  const matches = makeSearchResult({
+    matchingText: [makeTextMatch({ node: paragraph })],
+    suggestions: [makeRankedMatch({ node: paragraph, kind: 'text' })],
+  });
   const initial = Promise.withResolvers<SearchResult>();
   const refresh = Promise.withResolvers<SearchResult>();
   searchMocks.findMatches.mockReturnValueOnce(initial.promise).mockReturnValue(refresh.promise);
@@ -2157,7 +2161,7 @@ test('drops the slate when the query is cleared', async () => {
   expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
 });
 
-test('keeps the suggestions frame through empty results and the next pending query', async () => {
+test('closes empty suggestions after action fallback and reopens for the next query', async () => {
   const node = document.createElement('button');
   node.textContent = 'Save';
   document.body.append(node);
@@ -2172,28 +2176,31 @@ test('keeps the suggestions frame through empty results and the next pending que
   fireEvent.change(input, { target: { value: 'save' } });
   await flushSearch();
   const panel = screen.getByRole('listbox');
+  expect(screen.getByRole('status')).toHaveTextContent('Actions 1 / 1');
   searchMocks.findMatches.mockResolvedValueOnce(makeSearchResult());
   input.focus();
   fireEvent.change(input, { target: { value: 'savexyz' } });
-  await flushSearch();
   expect(screen.getByRole('listbox')).toBe(panel);
-  expect(panel).toHaveTextContent('No matches');
-  expect(input).toHaveAttribute('aria-expanded', 'true');
+  expect(panel).toHaveAttribute('aria-busy', 'true');
+  await flushSearch();
+  expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  expect(input).toHaveAttribute('aria-expanded', 'false');
+  expect(input).toHaveFocus();
   expect(screen.queryAllByRole('option')).toHaveLength(0);
   const pending = Promise.withResolvers<SearchResult>();
   searchMocks.findMatches.mockReturnValueOnce(pending.promise);
   input.focus();
   fireEvent.change(input, { target: { value: 'save' } });
-  expect(screen.getByRole('listbox')).toBe(panel);
+  const reopenedPanel = screen.getByRole('listbox');
+  expect(reopenedPanel).toHaveAttribute('aria-busy', 'true');
   await act(async () => pending.resolve(matches));
-  expect(screen.getByRole('listbox')).toBe(panel);
+  expect(screen.getByRole('listbox')).toBe(reopenedPanel);
   expect(screen.getAllByRole('option')).toHaveLength(1);
   searchMocks.findMatches.mockResolvedValueOnce(makeSearchResult());
   input.focus();
   fireEvent.change(input, { target: { value: 'sa' } });
   await flushSearch();
-  expect(screen.getByRole('listbox')).toBe(panel);
-  expect(panel).toHaveTextContent('No matches');
+  expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
   fireEvent.change(input, { target: { value: '' } });
   expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
 });
@@ -2243,3 +2250,54 @@ test.each(['é', 'Б', 'λ', '日', 'ع', '𐐀'])(
     await flushSearch();
   },
 );
+test('clearing a query rejects a late frame update', async () => {
+  const link = document.createElement('a');
+  link.href = '#old';
+  link.textContent = 'Old item';
+  document.body.append(link);
+  const click = vi.fn(event => event.preventDefault());
+  link.addEventListener('click', click);
+  settingsMocks.startInActionMode = true;
+  let update: (result: SearchResult) => void;
+  searchMocks.findMatches.mockImplementation(({ onUpdate }) => {
+    update = onUpdate;
+    return Promise.resolve(makeSearchResult());
+  });
+  render(<Searchbar />);
+  const input = screen.getByRole('combobox');
+  input.focus();
+  fireEvent.change(input, { target: { value: 'old' } });
+  await flushSearch();
+  fireEvent.change(input, { target: { value: '' } });
+  await act(async () => {});
+  act(() => update(makeSearchResult({ matchingLinksAndButtons: [link] })));
+  fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
+  expect(click).not.toHaveBeenCalled();
+});
+
+test('late first frame result receives automatic hover', async () => {
+  const link = document.createElement('a');
+  link.href = '#menu';
+  link.textContent = 'Menu';
+  document.body.append(link);
+  const enter = vi.fn();
+  link.addEventListener('mouseenter', enter);
+  settingsMocks.startInActionMode = true;
+  let update: (result: SearchResult) => void;
+  searchMocks.findMatches.mockImplementation(({ onUpdate }) => {
+    update = onUpdate;
+    return Promise.resolve(makeSearchResult());
+  });
+  render(<Searchbar />);
+  const input = screen.getByRole('combobox');
+  input.focus();
+  fireEvent.change(input, { target: { value: 'menu' } });
+  await flushSearch();
+  act(() => update(makeSearchResult({ matchingLinksAndButtons: [link] })));
+  expect(enter).toHaveBeenCalledOnce();
+  vi.mocked(stopFrameSearch).mockClear();
+  fireEvent.change(input, { target: { value: '' } });
+  expect(stopFrameSearch).not.toHaveBeenCalled();
+  fireEvent.keyDown(input, { key: 'Escape', code: 'Escape' });
+  expect(stopFrameSearch).toHaveBeenCalled();
+});

@@ -4,6 +4,7 @@ import {
   isFrameEnvelope,
   isFrameId,
   isFrameRequest,
+  isFrameReply,
   isFrameToken,
 } from './lib/frame_protocol.js';
 import {
@@ -60,6 +61,16 @@ export function registerFrameRelay() {
           requester: sender.frameId,
           request: message.request,
         },
+        { frameId: message.frameId },
+      );
+    } else if (
+      message.kind === 'results' &&
+      isFrameId(message.frameId) &&
+      isFrameReply(message.reply)
+    ) {
+      task = browser.tabs.sendMessage(
+        tabId,
+        { type: FRAME_MESSAGE, kind: 'results', source: sender.frameId, reply: message.reply },
         { frameId: message.frameId },
       );
     } else if (message.kind === 'changed' && isFrameId(message.frameId)) {

@@ -12,7 +12,7 @@ import { PageSearchIndex } from './page_search_index.js';
 import type { SearchResult } from './page_search_index.js';
 import NodeScorer from './node_scorer.js';
 import { normalizeSearchText } from './search_text.js';
-import { FrameSearch, mergeFrameResults } from './frame_search.js';
+import { FrameSearch, mergeFrameResults, connectedFrameResults } from './frame_search.js';
 import { frameTarget, resultIsConnected, paintFrameTargets } from './frame_target.js';
 import { isTextVisible, visibleText } from './visible_text.js';
 import { activeModal, actionIsInScope } from './modal_context.js';
@@ -39,10 +39,12 @@ export function installFrameWorker() {
   let generation = '';
   let nextId = 0;
   const ids = new WeakMap<Element, number>();
-  const nodes = new Map<number, Element>();
+  let nodes = new Map<number, Element>();
   let textMatches: SearchResult['matchingText'] = [];
   const hover = new SelectionHover();
   const children = new FrameSearch(changed);
+  let nestedQuery = '';
+  let nestedResults: SearchResult[] = [];
   let marks: HTMLElement | null = null;
   let lastPaint: Extract<FrameRequest, { op: 'paint' }> | null = null;
   let clearChildren = () => {};
@@ -68,6 +70,7 @@ export function installFrameWorker() {
   const send = (message: Record<string, unknown>) =>
     browser.runtime.sendMessage({ type: FRAME_MESSAGE, ...message }).catch(() => null);
   function changed() {
+    hover.reconcile();
     if (!generation || changeTimer !== undefined) return;
     changeTimer = setTimeout(() => {
       changeTimer = undefined;
@@ -80,7 +83,6 @@ export function installFrameWorker() {
       id = ++nextId;
       ids.set(node, id);
     }
-    nodes.set(id, node);
     return id;
   }
   function available(node: Element | undefined) {
@@ -159,8 +161,12 @@ export function installFrameWorker() {
     if (lastPaint) paint(lastPaint);
   };
   async function serialize(result: SearchResult, signal: AbortSignal): Promise<FrameRow[]> {
-    textMatches = result.matchingText;
-    nodes.clear();
+    const currentNodes = new Map<number, Element>();
+    const rememberIdentity = (node: Element) => {
+      const id = identity(node);
+      currentNodes.set(id, node);
+      return id;
+    };
     const rows: FrameRow[] = [];
     const actions = new Set(result.matchingLinksAndButtons);
     for (const match of result.matchingText) if (match.action) actions.add(match.action);
@@ -173,7 +179,7 @@ export function installFrameWorker() {
       distance: number | null,
       action: number | null,
     ): FrameRow => ({
-      id: identity(node),
+      id: rememberIdentity(node),
       kind,
       action,
       label: labelForNode(node, kind),
@@ -218,11 +224,14 @@ export function installFrameWorker() {
           match.score,
           match.term,
           match.distance,
-          match.action ? identity(match.action) : null,
+          match.action ? rememberIdentity(match.action) : null,
         ),
       );
       await pause();
     }
+    if (signal.aborted) throw new DOMException('Cancelled', 'AbortError');
+    nodes = currentNodes;
+    textMatches = result.matchingText;
     return rows;
   }
   function stop() {
@@ -237,6 +246,8 @@ export function installFrameWorker() {
     index?.disconnect();
     index = null;
     children.stop();
+    nestedResults = [];
+    nestedQuery = '';
     nodes.clear();
     textMatches = [];
     origin = null;
@@ -257,14 +268,41 @@ export function installFrameWorker() {
         new NodeScorer(normalizeSearchText(request.query).trimStart()),
         { signal },
       );
-      const nested = await children.search(request.query, signal, () => {}, request.depth);
-      const result = mergeFrameResults([local, ...nested]);
-      const rows = await serialize(result, signal);
+      if (nestedQuery !== request.query) nestedResults = [];
+      nestedQuery = request.query;
+      const initial = mergeFrameResults([local, ...connectedFrameResults(nestedResults)]);
+      const rows = await serialize(initial, signal);
       if (signal.aborted) return null;
+      // Respond before waiting on descendants, then serialize incremental snapshots in
+      // order. Each ancestor has its own bounded wait; a slow child cannot consume it.
+      let updates = Promise.resolve();
+      void children
+        .search(
+          request.query,
+          signal,
+          nested => {
+            updates = updates
+              .then(async () => {
+                if (signal.aborted) return;
+                const result = mergeFrameResults([local, ...nested]);
+                const rows = await serialize(result, signal);
+                if (signal.aborted) return;
+                nestedResults = nested;
+                await send({
+                  kind: 'results',
+                  frameId: requester,
+                  reply: { generation: request.generation, rows, isFuzzy: result.isFuzzy },
+                });
+              })
+              .catch(() => {});
+          },
+          request.depth,
+        )
+        .catch(() => {});
       return {
         generation: request.generation,
         rows,
-        isFuzzy: result.isFuzzy,
+        isFuzzy: initial.isFuzzy,
       } satisfies FrameReply;
     }
     if (requester !== owner) return null;
@@ -290,8 +328,18 @@ export function installFrameWorker() {
       paint(request);
       return true;
     }
+    if (request.command === 'unhover') {
+      hover.clear();
+      return true;
+    }
     const node = nodes.get(request.id);
     if (!available(node)) return null;
+    if (request.command === 'hover') {
+      // Retain nested handles too, so later transitions and query edits can
+      // release their hover even after the handle leaves the result set.
+      hover.select(node!);
+      return true;
+    }
     if (request.command === 'scroll' || request.command === 'select') remember(node!);
     const remote = frameTarget(node);
     if (remote) return remote.command(request.command);
@@ -305,12 +353,6 @@ export function installFrameWorker() {
         return true;
       case 'scroll':
         Utils.scrollToNodeAtIndexInList([node!], 0);
-        return true;
-      case 'unhover':
-        hover.clear();
-        return true;
-      case 'hover':
-        hover.select(node!);
         return true;
       case 'activate':
       case 'focus':

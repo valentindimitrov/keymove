@@ -66,9 +66,10 @@ artifacts are `.output/chrome-mv3` and `.output/firefox-mv3`.
 7. `page_search_index` also emits all distinct ranked candidates across both kinds. `useSuggestions`
    applies stability before selecting the configured number of mixed suggestions (three by default), retaining its history while a query
    or DOM refresh is pending. Pending rows stay visible but cannot be selected, keeping the pane
-   mounted until fresh results arrive. The frame stays open for every nonempty query,
-   independently of the page-highlight threshold. Pending and completed empty results retain the last completed height; completed
-   nonempty results fit their current rows so shorter descriptions leave no trailing gap.
+   mounted until fresh results arrive. The frame opens for pending searches and nonempty results,
+   independently of the page-highlight threshold, and closes when neither text nor actions match.
+   Pending results retain the last completed height; completed nonempty results fit their current
+   rows so shorter descriptions leave no trailing gap.
    Cleared queries and completed empty results
    clear history. `ResultsPanel` is a view of the one selection, never a second cursor.
 8. `useSearchNavigation` retains an independent cursor for each mode.
@@ -158,7 +159,9 @@ messages only within the authenticated sender's tab. Window messages discover fr
 through opaque nonces, never transfer search text, results or executable commands.
 `frame_search.ts` searches visible, modal-eligible direct children with bounded fan-out; children
 apply the same protocol recursively (up to eight levels). Main-document results publish first;
-late results preserve existing cursors and initialize only a previously empty mode. Generation
+each child returns its own matches before streaming descendant results. Late results preserve
+existing cursors and initialize only a previously empty mode. Query cancellation remains active
+after initial results arrive and rejects subsequent streamed replies. Generation
 tokens reject obsolete replies and actions. Detached DOM handles in `frame_target.ts` are cursor
 identities, never page nodes; route visibility, labels, selection, copying, hover, activation and
 overlays through the owning frame and recheck actual control availability there. Keep all matches
