@@ -315,6 +315,20 @@ and internal message types are an implementation namespace, not display branding
 namespace stable during a display-name change unless an explicit internal migration is intended;
 blindly replacing it can break selectors, stored preferences, and content/background messaging.
 
+## Repository, secrets and publishing
+
+- `origin` is `valentindimitrov/keymove` (private). `upstream` is `comake/yip-yip` (public). Pushing
+  or opening a pull request upstream publishes to the world: do it only when the user asks for
+  that specific change, and never send KeyMove branding or Apache-only code there.
+- `main` has no branch protection or rulesets (GitHub's free plan offers neither for private
+  repositories), so a mistaken push lands directly. Check the branch and remote before pushing.
+- Only this project's own work belongs in the repository. Do not copy code or text from other
+  projects in unless the user asks and its license allows it; note where it came from.
+- Local `.env` and `.env.*` files are the only secret surface and are ignored by git
+  (`.env.example` is allowed but does not exist yet). Never commit, print or paste their values.
+- Releases are manual uploads to the Chrome Web Store and Firefox Add-ons, not a pipeline. A
+  store submission is effectively irreversible: confirm with the user before any store action.
+
 ## Development rules
 
 - Before work, run `yarn worktree:check` and verify the checkout path and branch.
