@@ -9,9 +9,12 @@ export default function SiteFooter() {
         {identity.name}
       </a>
       <span>A browser extension for in-page keyboard navigation. Powered by Comake.</span>
-      <a className="footer-license" href="./LICENSE.txt">
-        License &amp; attribution
-      </a>
+      <nav className="footer-links" aria-label="Legal">
+        <a href="./privacy-policy">Privacy policy</a>
+        <a className="footer-license" href="./LICENSE.txt">
+          License &amp; attribution
+        </a>
+      </nav>
     </footer>
   );
 }

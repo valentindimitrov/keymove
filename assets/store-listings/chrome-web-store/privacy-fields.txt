@@ -23,6 +23,10 @@ The extension processes page text, control labels, and search queries locally to
 Review the dashboard's data-type descriptions against this local processing; do not equate no server transmission with no access to page content.
 Complete the required data-use certification checkboxes after reviewing their statements. The reviewed extension has no sale of user data, no use outside its disclosed functionality, and no creditworthiness or lending use.
 
+PRIVACY POLICY URL
+https://keymove.minddevops.eu/privacy-policy
+Dedicated policy covering local page processing, preferences, clipboard actions, and data controls.
+
 SUPPORT URL
 https://keymove.minddevops.eu/
 The homepage returned HTTP 200 when checked on 2026-10-04. Use a public, reachable HTTPS support website rather than the private GitHub repository or a mailto URL. The dashboard's support field is separate from the optional tip destination used inside the extension.

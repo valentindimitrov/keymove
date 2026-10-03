@@ -474,8 +474,13 @@ h3 {
   color: var(--site-muted, #8a8392);
   font-size: 12px;
 }
-.site-footer .footer-license {
+.site-footer .footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
   margin-left: auto;
+}
+.site-footer .footer-links a {
   color: var(--site-muted, #7a7185);
   font-size: 12px;
   text-decoration: none;

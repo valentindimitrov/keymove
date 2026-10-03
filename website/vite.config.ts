@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import svgr from 'vite-plugin-svgr';
+import identity from '../src/extension_identity.js';
 
 const fromHere = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 
@@ -15,6 +16,9 @@ export default defineConfig({
     svgr(),
     {
       name: 'website-static-files',
+      transformIndexHtml(html) {
+        return html.replaceAll('__KEYMOVE_CONTACT_EMAIL__', identity.contactEmail);
+      },
       configureServer(server) {
         server.middlewares.use('/LICENSE.txt', (_request, response) => {
           response.setHeader('Content-Type', 'text/plain; charset=utf-8');
@@ -46,6 +50,7 @@ export default defineConfig({
         main: fromHere('./index.html'),
         demo: fromHere('./demo.html'),
         patterns: fromHere('./patterns.html'),
+        privacy: fromHere('./privacy-policy.html'),
       },
     },
   },
