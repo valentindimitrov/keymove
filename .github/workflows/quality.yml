@@ -42,9 +42,8 @@ jobs:
     environment:
       name: ${{ github.event_name == 'push' && 'production' || 'preview' }}
       url: ${{ github.event_name == 'push' && 'https://keymove.minddevops.eu' || steps.upload.outputs.url }}
+    # The token is passed only to the Wrangler steps, never to dependency install scripts or the build.
     env:
-      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       WRANGLER: npx --yes wrangler@4.147.0
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -58,6 +57,9 @@ jobs:
       - run: yarn website:build
       - name: Deploy to production
         if: github.event_name == 'push'
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: $WRANGLER deploy --config website/wrangler.jsonc
       - name: Upload a preview
         id: upload
@@ -65,6 +67,8 @@ jobs:
         shell: bash
         env:
           ALIAS: pr-${{ github.event.pull_request.number }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           set -euo pipefail
           $WRANGLER versions upload --config website/wrangler.jsonc --preview-alias "$ALIAS" | tee upload.log
