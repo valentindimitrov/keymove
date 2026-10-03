@@ -86,6 +86,11 @@ jobs:
       - name: Validate packaged builds
         run: yarn verify
 
+      - name: Sign and verify Chromium upload
+        env:
+          KEYMOVE_CRX_PRIVATE_KEY: ${{ secrets.KEYMOVE_CRX_PRIVATE_KEY }}
+        run: yarn sign:chrome
+
       - name: Create checksums
         shell: bash
         run: |
@@ -93,6 +98,7 @@ jobs:
 
           expected=(
             "keymove-v${RELEASE_VERSION}-chrome-mv3.zip"
+            "keymove-v${RELEASE_VERSION}-chrome-mv3.crx"
             "keymove-v${RELEASE_VERSION}-firefox-mv3.zip"
             "keymove-v${RELEASE_VERSION}-sources.zip"
           )
@@ -132,6 +138,7 @@ jobs:
 
           gh release create "${release_args[@]}" \
             ".output/keymove-v${RELEASE_VERSION}-chrome-mv3.zip#Chromium and Vivaldi" \
+            ".output/keymove-v${RELEASE_VERSION}-chrome-mv3.crx#Signed Chrome Web Store upload" \
             ".output/keymove-v${RELEASE_VERSION}-firefox-mv3.zip#Firefox submission package" \
             ".output/keymove-v${RELEASE_VERSION}-sources.zip#Source package for Firefox review" \
             ".output/SHA256SUMS.txt#SHA-256 checksums"

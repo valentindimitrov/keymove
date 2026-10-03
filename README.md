@@ -353,6 +353,8 @@ so every assertion still passes. Add a scenario when a state is worth looking at
 | `yarn build:vivaldi` | Explicit alias for the Chromium artifact used by Vivaldi. |
 | `yarn build:firefox` | Build the Firefox artifact. |
 | `yarn zip` | Package both browser builds under `.output`. |
+| `yarn package:chrome` | Build a signed Chrome Web Store CRX using the key in Proton Pass. |
+| `yarn verify:crx` | Verify the CRX signature and its exact ZIP payload without the private key. |
 | `yarn format` | Format supported source and configuration files with Oxfmt. |
 | `yarn format:check` | Check formatting without writing files. |
 | `yarn lint` | Run Oxlint correctness, React Hooks, and type-aware promise checks. |
