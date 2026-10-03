@@ -27,6 +27,20 @@ repository variable `CLOUDFLARE_ACCOUNT_ID` and the secret `CLOUDFLARE_API_TOKEN
 skipped while the variable is unset. Cloudflare creates the DNS record and certificate for the
 custom domain on the first deployment.
 
+Link previews (LinkedIn, Slack, X) use the Open Graph tags in `index.html` and
+`media/social-card.png` (1200 × 627), which the build copies unhashed to `/social-card.png`
+because crawlers need a fixed absolute URL. The card is rendered from `media/social-card.html`,
+which follows the store marquee tile's design. After editing it, render it again from the
+repository root with Vivaldi (Edge's headless screenshot writes nothing here) and ImageMagick:
+
+```sh
+vivaldi --headless=new --hide-scrollbars --user-data-dir=<temporary folder> --window-size=1200,627 --screenshot=<temporary folder>/raw.png file:///<repository>/website/media/social-card.html
+magick <temporary folder>/raw.png -background "#151224" -alpha remove -alpha off -depth 8 -strip PNG24:website/media/social-card.png
+```
+
+LinkedIn caches previews: after deploying a new card, refresh it with the
+[Post Inspector](https://www.linkedin.com/post-inspector/).
+
 The walkthrough above the playground is a 46-second, silent H.264 recording of the actual
 Searchbar on `demo.html`, captured at 960 × 640 and 10 frames per second. It shows native key
 input, text result navigation, button activation, the Arrow Down action menu and the ? shortcut

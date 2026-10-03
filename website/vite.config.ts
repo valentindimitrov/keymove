@@ -14,7 +14,7 @@ export default defineConfig({
     react(),
     svgr(),
     {
-      name: 'website-license',
+      name: 'website-static-files',
       configureServer(server) {
         server.middlewares.use('/LICENSE.txt', (_request, response) => {
           response.setHeader('Content-Type', 'text/plain; charset=utf-8');
@@ -26,6 +26,12 @@ export default defineConfig({
           type: 'asset',
           fileName: 'LICENSE.txt',
           source: readFileSync(fromHere('../LICENSE'), 'utf8'),
+        });
+        // Fixed, unhashed name: index.html's og:image points at this absolute URL.
+        this.emitFile({
+          type: 'asset',
+          fileName: 'social-card.png',
+          source: readFileSync(fromHere('./media/social-card.png')),
         });
       },
     },
