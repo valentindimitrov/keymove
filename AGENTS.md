@@ -396,7 +396,19 @@ blindly replacing it can break selectors, stored preferences, and content/backgr
 
 ## Verification
 
-After each meaningful runtime or UI implementation batch, run `yarn preview`. Test-only and
+Choose verification by the behavior affected, not by the repository containing the change:
+
+- **Website-only changes:** follow `website/AGENTS.md`. Do not run extension tests, MV3 builds,
+  artifact validation, or an installed-extension preview for website copy, layout, media, legal
+  pages, navigation, or website-only build configuration.
+- **Documentation-only changes:** review the diff, check referenced paths and commands, and run
+  `git diff --check`. No application build, test suite, or browser launch is needed unless the
+  change also modifies executable examples or tooling.
+- **Extension or shared-code changes:** use the extension checks below. Changes to `src/`,
+  `entrypoints/`, shared assets, dependencies, or common build/test configuration can affect the
+  extension even when motivated by the website. For mixed changes, verify both affected surfaces.
+
+After each meaningful extension runtime or UI implementation batch, run `yarn preview`. Test-only and
 documentation changes do not require a fresh installed-browser launch unless they change the
 launcher or browser checks themselves. `yarn preview` rebuilds the production MV3
 extension, selects the first installed browser in this order: Vivaldi, Chrome, Firefox, and opens
@@ -453,8 +465,9 @@ For other non-imported inputs, run their owning tests explicitly; layout changes
 rendered checks and runtime interaction changes still need browser smoke. No selected tests
 does not prove a change is covered. `yarn test` continues to run application and tooling tests.
 
-Before handoff, run the full gate once after the final edits; repeat only if subsequent changes,
-failures or unresolved concerns warrant it:
+Before handing off extension or shared-code changes, run the full gate once after the final edits;
+repeat only if subsequent changes, failures or unresolved concerns warrant it. The website-only
+and documentation-only exceptions above do not require this gate:
 
 ```text
 yarn quality
