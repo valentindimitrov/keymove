@@ -1,4 +1,9 @@
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Suggest features and discuss improvements here. Maintainers can create linked implementation issues when an idea is ready to build.
+        For help using KeyMove, use [Q&A](https://github.com/valentindimitrov/keymove/discussions/categories/q-a). Report reproducible defects through the [bug-report form](https://github.com/valentindimitrov/keymove/issues/new?template=bug_report.yml).
   - type: textarea
     id: idea
     attributes:
