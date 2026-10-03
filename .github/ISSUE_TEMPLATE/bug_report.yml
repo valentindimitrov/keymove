@@ -1,0 +1,47 @@
+name: Bug report
+description: Report a reproducible problem with KeyMove.
+title: '[Bug] '
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search existing issues first. For help using KeyMove, use [Q&A](https://github.com/valentindimitrov/keymove/discussions/categories/q-a).
+        Remove credentials and private page content from examples, logs and screenshots.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe the problem and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Include the query, keys pressed and a public page URL or small HTML example when possible.
+      placeholder: |
+        1. Open a page...
+        2. Open KeyMove and type...
+        3. Press...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: KeyMove version
+      description: Find this in your browser's extension manager. For a development build, include the commit if known.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Browser and operating system
+      placeholder: Vivaldi 7.x on Windows 11
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Relevant settings, page structure (such as an iframe or modal), screenshots or console errors.

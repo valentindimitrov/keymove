@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Questions and help
+    url: https://github.com/valentindimitrov/keymove/discussions/categories/q-a
+    about: Ask how to use KeyMove or get help with your setup.
+  - name: Ideas and feedback
+    url: https://github.com/valentindimitrov/keymove/discussions/categories/ideas
+    about: Discuss early ideas before opening a specific feature request.

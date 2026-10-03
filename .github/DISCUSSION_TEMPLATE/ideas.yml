@@ -1,0 +1,13 @@
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What is your idea?
+      description: Describe the task or problem and how KeyMove could help.
+    validations:
+      required: true
+  - type: textarea
+    id: feedback
+    attributes:
+      label: What would you like feedback on?
+      description: Examples, tradeoffs, alternatives or questions for the community.

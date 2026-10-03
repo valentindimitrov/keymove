@@ -1,0 +1,23 @@
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ask questions about using KeyMove here. Report reproducible defects through the bug-report issue form.
+        Remove credentials and private page content from examples, logs and screenshots.
+  - type: textarea
+    id: question
+    attributes:
+      label: What do you need help with?
+      description: Describe your goal and what you have already tried.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: KeyMove version, browser and operating system
+      description: Include these when your question concerns behavior on a particular setup.
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Relevant settings, public page URL, screenshots or a small example.
