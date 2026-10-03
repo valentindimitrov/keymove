@@ -13,3 +13,6 @@ To refresh the Chromium captures, build the extension with `yarn build:chromium`
 It opens a dedicated temporary browser profile, uses the installed extension, and converts
 captures to RGB PNGs with ImageMagick. It refreshes the images and verification metadata,
 preserving the description and upload instructions. Intermediate files stay in `.artifacts/`.
+
+To refresh only selected images, pass their names without `.png`, for example:
+`node assets/store-listings/generate.mjs small-promo-tile 05-form-controls`.
