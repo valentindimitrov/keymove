@@ -1,0 +1,35 @@
+CHROME WEB STORE — PRIVACY TAB
+Reviewed against the extension source on 2026-10-04.
+
+SINGLE PURPOSE DESCRIPTION
+KeyMove provides keyboard-first search and navigation within web pages, helping users find visible text, select passages, and operate links and controls without using a mouse.
+
+HOST PERMISSION JUSTIFICATION (*://*/*)
+KeyMove needs access to ordinary HTTP and HTTPS pages because its search and keyboard navigation work on whichever website the user is visiting. It reads rendered page text and control labels locally to find matches, displays its search interface and highlights, and selects or activates the result chosen by the user. Its child-frame helper provides the same functionality inside eligible embedded frames. Limiting access to a fixed list of websites would prevent this core feature from working on other sites. Page content and search queries are not sent to the developer or to an external service.
+
+SCRIPTING JUSTIFICATION
+KeyMove uses chrome.scripting to inject its packaged content script, child-frame helper, and highlight stylesheet into eligible tabs that were already open when the extension was installed. This makes search available immediately without requiring those pages to be reloaded. Every injected file is included in the extension package; the extension does not download executable code.
+
+STORAGE JUSTIFICATION
+KeyMove uses chrome.storage.local to save the user's preferences, including theme, activation shortcut, per-site activation and pause rules, search-bar position and width, suggestion count, and highlight settings. These settings remain in the user's browser. Search queries and searched page content are not saved in extension storage or sent to a server.
+
+REMOTE CODE
+Select: No, I am not using remote code.
+If a justification field is still shown:
+All executable JavaScript, styles, and search configuration are included in the extension package. KeyMove does not download or execute remotely hosted code and does not evaluate remote script strings. Opening a user-selected web link, the demo website, or an optional tip page is ordinary navigation, not remote code execution by the extension.
+
+DATA USAGE / CERTIFICATION
+The extension processes page text, control labels, and search queries locally to provide its disclosed search and navigation features. User preferences, including site-specific rules, are stored locally. The extension does not send this information to the developer, collect telemetry, or sell user data.
+Review the dashboard's data-type descriptions against this local processing; do not equate no server transmission with no access to page content.
+Complete the required data-use certification checkboxes after reviewing their statements. The reviewed extension has no sale of user data, no use outside its disclosed functionality, and no creditworthiness or lending use.
+
+SUPPORT URL
+https://keymove.minddevops.eu/
+The homepage returned HTTP 200 when checked on 2026-10-04. Use a public, reachable HTTPS support website rather than the private GitHub repository or a mailto URL. The dashboard's support field is separate from the optional tip destination used inside the extension.
+Support email: keymove.impulse550@passmail.com
+
+FINISH
+Save the draft after completing Privacy and correcting the support URL. Check “Why can't I submit?” again. Submission for review remains a separate action.
+
+REFERENCE
+https://developer.chrome.com/docs/webstore/cws-dashboard-privacy
