@@ -17,6 +17,16 @@ The standalone static output is `.output/public/`. Deploy the entire directory, 
 `demo.html`, assets, and `LICENSE.txt`, to a static host. Relative asset URLs support subpaths.
 The website build is independent from extension builds and adds no runtime dependencies.
 
+The `website` job in `.github/workflows/quality.yml` publishes it to Cloudflare as the Worker
+`keymove-website` (`website/wrangler.jsonc`, static assets only) after the quality checks pass.
+Pushes to `main` deploy to https://keymove.minddevops.eu. Pull requests from this repository upload
+a preview version at `pr-<number>-keymove-website.<subdomain>.workers.dev`, linked from the job
+summary, without changing production. Fork pull requests are not deployed. The job needs the
+repository variable `CLOUDFLARE_ACCOUNT_ID` and the secret `CLOUDFLARE_API_TOKEN` (a token from the
+"Edit Cloudflare Workers" template, limited to that account and the `minddevops.eu` zone); it is
+skipped while the variable is unset. Cloudflare creates the DNS record and certificate for the
+custom domain on the first deployment.
+
 The walkthrough above the playground is a 46-second, silent H.264 recording of the actual
 Searchbar on `demo.html`, captured at 960 × 640 and 10 frames per second. It shows native key
 input, text result navigation, button activation, the Arrow Down action menu and the ? shortcut

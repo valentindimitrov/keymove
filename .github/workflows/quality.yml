@@ -26,3 +26,48 @@ jobs:
           package-manager-cache: false
       - run: yarn install --frozen-lockfile --non-interactive
       - run: yarn quality
+
+  # Publishes the website to Cloudflare once the checks pass: main goes to production, pull
+  # requests from this repository get a preview URL. Skipped until the CLOUDFLARE_ACCOUNT_ID
+  # variable is set, and for pull requests from forks, which have no access to the token.
+  website:
+    needs: quality
+    if: >-
+      vars.CLOUDFLARE_ACCOUNT_ID != '' &&
+      ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: ${{ github.event_name == 'push' && 'production' || 'preview' }}
+      url: ${{ github.event_name == 'push' && 'https://keymove.minddevops.eu' || steps.upload.outputs.url }}
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      WRANGLER: npx --yes wrangler@4.147.0
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: package.json
+          package-manager-cache: false
+      - run: yarn install --frozen-lockfile --non-interactive
+      - run: yarn website:build
+      - name: Deploy to production
+        if: github.event_name == 'push'
+        run: $WRANGLER deploy --config website/wrangler.jsonc
+      - name: Upload a preview
+        id: upload
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          ALIAS: pr-${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          $WRANGLER versions upload --config website/wrangler.jsonc --preview-alias "$ALIAS" | tee upload.log
+          url="$(grep -oE "https://$ALIAS-[a-z0-9.-]+\.workers\.dev" upload.log | head -n 1 || true)"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Preview: ${url:-see the upload log}" >> "$GITHUB_STEP_SUMMARY"

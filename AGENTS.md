@@ -328,6 +328,8 @@ blindly replacing it can break selectors, stored preferences, and content/backgr
   (`.env.example` is allowed but does not exist yet). Never commit, print or paste their values.
 - Releases are manual uploads to the Chrome Web Store and Firefox Add-ons, not a pipeline. A
   store submission is effectively irreversible: confirm with the user before any store action.
+- The website is the exception: every push to `main` that passes the quality checks publishes it
+  to https://keymove.minddevops.eu, so website changes on `main` go live (`website/README.md`).
 
 ## Development rules
 

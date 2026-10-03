@@ -1,0 +1,9 @@
+// Cloudflare Worker that serves the static website build. Deployed by the Quality workflow.
+{
+  "name": "keymove-website",
+  "compatibility_date": "2026-10-01",
+  "assets": { "directory": "../.output/public" },
+  "routes": [{ "pattern": "keymove.minddevops.eu", "custom_domain": true }],
+  "workers_dev": false,
+  "preview_urls": true,
+}
