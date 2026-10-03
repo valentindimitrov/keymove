@@ -10,6 +10,13 @@ import { openPage, waitFor, boundedClient } from '../../scripts/browser-driver.t
 const output = path.resolve('.artifacts/chrome-web-store');
 const requested = new Set(process.argv.slice(2));
 const includes = name => requested.size === 0 || requested.has(name);
+const captions = {
+  '01-text-search': 'Find text on any page',
+  '02-dark-theme': 'Dark mode',
+  '03-typo-matching': 'Find matches despite a typo',
+  '04-action-menu': 'Choose an action for a link',
+  '05-form-controls': 'Find controls by their labels',
+};
 mkdirSync(output, { recursive: true });
 const profile = mkdtempSync(path.join(tmpdir(), 'keymove-store-profile-'));
 const build = mkdtempSync(path.join(tmpdir(), 'keymove-store-build-'));
@@ -108,6 +115,31 @@ try {
         'remove',
         '-alpha',
         'off',
+        ...(captions[name]
+          ? [
+              '-fill',
+              '#211830',
+              '-stroke',
+              '#6e4b89',
+              '-strokewidth',
+              '1',
+              '-draw',
+              'roundrectangle 380,18 900,84 18,18',
+              '-font',
+              'C:/Windows/Fonts/arialbd.ttf',
+              '-pointsize',
+              '28',
+              '-fill',
+              '#ffffff',
+              '-stroke',
+              'none',
+              '-gravity',
+              'North',
+              '-annotate',
+              '+0+41',
+              captions[name],
+            ]
+          : []),
         '-depth',
         '8',
         'PNG24:' + final,
@@ -115,11 +147,17 @@ try {
       { encoding: 'utf8', windowsHide: true },
     );
     if (converted.status !== 0) throw new Error(converted.stderr);
-    report.push({ file: name + '.png', width, height });
+    report.push({
+      file: name + '.png',
+      width,
+      height,
+      ...(captions[name] ? { caption: captions[name] } : {}),
+    });
     console.log('Created ' + name + '.png');
   };
   const search = async (query, theme = 'light', actions = false, menu = false) => {
     await settings(theme);
+    if (menu) await popup.evaluate('chrome.storage.local.set({popupPosition:{x:.25,y:.8}})');
     const page = await openPage(client, 'http://127.0.0.1:5180/demo.html?extension=installed');
     await page.setViewport(1280, 800);
     await page.setColorScheme('light');
@@ -145,6 +183,14 @@ try {
     if (menu) {
       await page.key('ArrowDown');
       await waitFor(page, `!!${root}.querySelector('[role=menu]')`);
+      await waitFor(
+        page,
+        `(() => {
+        const link = document.querySelector('.sample-checklist a[href="#checklist"]').getBoundingClientRect();
+        const menu = ${root}.querySelector('[role=menu]').getBoundingClientRect();
+        return link.top >= 100 && link.bottom < innerHeight && menu.right + 20 < link.left;
+      })()`,
+      );
     }
     return page;
   };

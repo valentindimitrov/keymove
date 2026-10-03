@@ -17,6 +17,7 @@ Marquee promo tile: marquee-promo-tile.png (1400 x 560).
 Video: omitted as requested.
 
 All upload images are 24-bit RGB PNGs without alpha.
+Each demonstration screenshot has a centered explanatory caption overlaid at the top.
 Screenshots were captured from the installed production extension on KeyMove's own sample page. No UI was reconstructed for the screenshots. The promo tiles use KeyMove's existing logo.
 
 To regenerate while the website preview server runs at http://127.0.0.1:5180:

@@ -5,27 +5,32 @@
     {
       "file": "01-text-search.png",
       "width": 1280,
-      "height": 800
+      "height": 800,
+      "caption": "Find text on any page"
     },
     {
       "file": "02-dark-theme.png",
       "width": 1280,
-      "height": 800
+      "height": 800,
+      "caption": "Dark mode"
     },
     {
       "file": "03-typo-matching.png",
       "width": 1280,
-      "height": 800
+      "height": 800,
+      "caption": "Find matches despite a typo"
     },
     {
       "file": "04-action-menu.png",
       "width": 1280,
-      "height": 800
+      "height": 800,
+      "caption": "Choose an action for a link"
     },
     {
       "file": "05-form-controls.png",
       "width": 1280,
-      "height": 800
+      "height": 800,
+      "caption": "Find controls by their labels"
     },
     {
       "file": "small-promo-tile.png",
