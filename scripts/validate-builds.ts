@@ -366,7 +366,7 @@ function validateTarget(target: BuildTarget, packageVersion: string, root: strin
     );
   });
 
-  ['login.html', 'login.js', 'login.css'].forEach(removedFile => {
+  ['login.html', 'login.js', 'login.css', 'store-listings'].forEach(removedFile => {
     requireCondition(
       !fs.existsSync(path.join(buildDirectory, removedFile)),
       `${target.name}: ${removedFile} should not be packaged`,

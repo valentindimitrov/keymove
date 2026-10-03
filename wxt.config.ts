@@ -19,6 +19,13 @@ export default defineConfig({
   publicDir: 'assets',
   hooks: {
     'build:publicAssets': (wxt, files) => {
+      // Store marketing files live alongside icons but never ship in the extension.
+      for (let index = files.length - 1; index >= 0; index--) {
+        const file = files[index];
+        if (file?.relativeDest.replaceAll('\\', '/').startsWith('store-listings/')) {
+          files.splice(index, 1);
+        }
+      }
       files.push({
         absoluteSrc: path.resolve(wxt.config.root, 'LICENSE'),
         relativeDest: 'LICENSE',

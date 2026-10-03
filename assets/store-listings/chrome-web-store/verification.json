@@ -1,0 +1,41 @@
+{
+  "capturedFrom": "Installed production Chromium extension on the KeyMove sample page",
+  "buildVersion": "1.0.0",
+  "images": [
+    {
+      "file": "01-text-search.png",
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "file": "02-dark-theme.png",
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "file": "03-typo-matching.png",
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "file": "04-action-menu.png",
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "file": "05-form-controls.png",
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "file": "small-promo-tile.png",
+      "width": 440,
+      "height": 280
+    },
+    {
+      "file": "marquee-promo-tile.png",
+      "width": 1400,
+      "height": 560
+    }
+  ]
+}

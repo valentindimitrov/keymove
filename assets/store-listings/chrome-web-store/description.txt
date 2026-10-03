@@ -1,0 +1,31 @@
+Find text. Jump to a passage. Follow a link. Keep your hands on the keyboard.
+
+KeyMove brings keyboard-first search and navigation to the web page you are reading. Type the words you can see, choose a result, and take the next step without hunting for it with your mouse.
+
+FIND YOUR WAY
+• Search visible text, links, buttons, and form controls.
+• Start with a few letters: results update as you type.
+• When there are no exact results, approximate matching helps recover from typos.
+• See matching passages highlighted on the page and a compact list of suggestions.
+
+TURN WORDS INTO ACTIONS
+• Press Tab or Shift + Tab to move through text matches.
+• Select a numbered suggestion with Alt + its number.
+• Press Enter to activate the selected link or control when available.
+• Open the selected result’s action menu with the Down arrow to see its available actions.
+• Select a complete text block for copying, or copy a selected link’s URL.
+• Open links in the current tab, a new tab, or a background tab.
+• Press Alt + I to explore related images, use the arrow keys to move between nearby images, and Space to see image actions.
+
+MAKE IT YOURS
+• Choose a light or dark theme, or follow your system appearance.
+• Adjust the search bar’s position, width, highlight colors, and suggestion count.
+• Choose type-to-search or shortcut activation, customize the opening shortcut, and pause KeyMove on individual sites.
+• Show keyboard hints while learning, then hide them when you know your way around.
+
+GET STARTED
+Press Alt + F to focus KeyMove, type a visible word or phrase, then use Tab to move through the matches. Press Enter when a result has an action, or Escape to close the search. On macOS, use Option instead of Alt.
+
+No account or sign-in is required. Your preferences are stored locally in your browser.
+
+KeyMove works on ordinary web pages where the browser allows extensions to run. Browser-internal pages and other protected pages are unavailable. Some sites use custom controls or CSS-only hover menus that cannot be operated through KeyMove.

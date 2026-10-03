@@ -110,3 +110,10 @@ test('rejects a production popup containing the Stripe sandbox destination', () 
   );
   expect(() => validateBuilds(root)).toThrow(/sandbox tip link must not ship/);
 });
+
+test.each(['chrome', 'firefox'])('rejects store listing files in the %s build', target => {
+  const directory = path.join(root, '.output', `${target}-mv3`, 'store-listings');
+  mkdirSync(directory);
+  writeFileSync(path.join(directory, 'description.txt'), 'Store copy');
+  expect(() => validateBuilds(root)).toThrow(/store-listings should not be packaged/);
+});
