@@ -28,13 +28,15 @@ skipped while the variable is unset. Cloudflare creates the DNS record and certi
 custom domain on the first deployment.
 
 Link previews (LinkedIn, Slack, X) use the Open Graph tags in `index.html` and
-`media/social-card.png` (1200 × 627), which the build copies unhashed to `/social-card.png`
-because crawlers need a fixed absolute URL. The card is rendered from `media/social-card.html`,
-which follows the store marquee tile's design. After editing it, render it again from the
-repository root with Vivaldi (Edge's headless screenshot writes nothing here) and ImageMagick:
+`media/social-card.png`, which the build copies unhashed to `/social-card.png` because crawlers
+need a fixed absolute URL. The card is rendered from `media/social-card.html`, a 1200 × 627
+layout in the store marquee tile's design, at twice that resolution (2400 × 1254). LinkedIn
+shows it about 520 pixels wide and recompresses it, so keep text large: nothing under 30 pixels
+in the layout. After editing it, render it again with Playwright driving the installed Edge
+(plain headless Vivaldi or Edge screenshots proved unreliable on Windows) and ImageMagick:
 
 ```sh
-vivaldi --headless=new --hide-scrollbars --user-data-dir=<temporary folder> --window-size=1200,627 --screenshot=<temporary folder>/raw.png file:///<repository>/website/media/social-card.html
+npx playwright screenshot --channel msedge --device "Desktop Chrome HiDPI" --viewport-size "1200,627" --wait-for-timeout 500 file:///<repository>/website/media/social-card.html <temporary folder>/raw.png
 magick <temporary folder>/raw.png -background "#151224" -alpha remove -alpha off -depth 8 -strip PNG24:website/media/social-card.png
 ```
 
