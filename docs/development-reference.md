@@ -70,6 +70,21 @@ Run `yarn audit` to check dependency advisories. Two scoped `package.json` resol
 patched development dependencies: `cosmiconfig/js-yaml` and `addons-linter/image-size`. Remove each
 pin when its parent requests a patched version itself. Babel and ansi-regex resolve normally.
 
+Dependabot checks npm and GitHub Actions versions weekly. npm security fixes are grouped separately
+from routine version updates; security updates are enabled in the repository settings and do not
+wait for the weekly version-update schedule. Each resulting pull request runs the required
+`quality` check. Review the dependency paths, release notes and remaining advisories before merging;
+passing tests alone do not establish that a vulnerability is unreachable. Do not give the build
+workflow permission to dismiss alerts or dismiss every development dependency automatically.
+
+As of October 4, 2026, `node-forge` 1.4.0 has no published fix for
+[GHSA-86w9-cpqp-85rv](https://github.com/advisories/GHSA-86w9-cpqp-85rv). Its dependency path is
+`web-ext -> @devicefarmer/adbkit -> node-forge`; adbkit's TCP/USB bridge does call RSA verification.
+KeyMove's desktop preview does not request that bridge, and CRX signing and verification use
+`node:crypto` in `scripts/crx3.ts`. Keep the alert open for an upstream fix and reassess this exposure
+if Android/ADB tooling is introduced. This is a scoped usage assessment, not a package-wide safety
+exception.
+
 Pull requests and pushes to `main` run `yarn quality`. Release preparation runs the same full gate
 before packaging and revalidates the resulting artifacts, including the settings popup and its assets.
 Installed-browser smoke remains a separate local check.
