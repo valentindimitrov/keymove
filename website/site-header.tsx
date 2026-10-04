@@ -1,5 +1,6 @@
 import identity from '../src/extension_identity.js';
 import logo from '../assets/logo-64.png';
+import vivaldiIcon from './browser-icons/vivaldi.svg';
 import chromeIcon from './browser-icons/chrome.svg';
 import edgeIcon from './browser-icons/edge.svg';
 import firefoxIcon from './browser-icons/firefox.svg';
@@ -19,6 +20,12 @@ export default function SiteHeader({ patterns = false }: { patterns?: boolean })
           <div className="header-install">
             <div className="store-links" role="group" aria-label="Extension stores">
               {[
+                {
+                  name: 'Vivaldi',
+                  icon: vivaldiIcon,
+                  store: 'Chrome Web Store',
+                  url: 'https://chromewebstore.google.com/',
+                },
                 {
                   name: 'Chrome',
                   icon: chromeIcon,

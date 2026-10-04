@@ -529,7 +529,7 @@ h3 {
     padding-inline: 12px;
   }
 }
-@media (max-width: 800px) {
+@media (max-width: 1000px) {
   html {
     scroll-padding-top: 147px;
   }
@@ -558,6 +558,8 @@ h3 {
   .store-link {
     flex: 1;
   }
+}
+@media (max-width: 800px) {
   .hero {
     padding-block: 24px 45px;
   }
@@ -639,18 +641,20 @@ h3 {
     font-size: 16px;
   }
 }
-@media (max-width: 520px) {
-  .store-link {
-    padding-inline: 8px;
+@media (max-width: 640px) {
+  .store-links {
+    gap: 6px;
   }
   .store-name {
     display: none;
   }
   .store-link {
     gap: 6px;
-    padding-inline: 8px;
+    padding-inline: 6px;
     font-size: 12px;
   }
+}
+@media (max-width: 520px) {
   .wrap {
     width: calc(100% - 32px);
   }
