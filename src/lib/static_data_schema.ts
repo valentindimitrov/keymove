@@ -18,6 +18,7 @@ const KEYBOARD_SHORTCUT_NAMES = [
   'toggle_search_mode',
   'select_match',
   'open_action_menu',
+  'select_related_image',
   'open_match_in_foreground_tab',
   'open_match_in_background_tab',
   'copy_selected_link',

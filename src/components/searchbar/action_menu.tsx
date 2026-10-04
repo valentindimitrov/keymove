@@ -13,6 +13,7 @@ type ActionMenuProps = {
   maxHeight: number;
   searchInputRef: React.RefObject<HTMLInputElement | null>;
   onClose: () => void;
+  onEscape?: (() => void) | undefined;
   onNavigate: (event: KeyboardEvent, forward: boolean) => void;
   onAction: (id: string) => Promise<void> | void;
 };
@@ -25,6 +26,7 @@ const ActionMenu = ({
   maxHeight,
   searchInputRef,
   onClose,
+  onEscape,
   onNavigate,
   onAction,
 }: ActionMenuProps) => {
@@ -61,8 +63,13 @@ const ActionMenu = ({
     setMessage('');
     try {
       await onAction(id);
-    } catch {
-      if (mounted.current) setMessage('Could not complete this action. Please try again.');
+    } catch (error) {
+      if (mounted.current)
+        setMessage(
+          error instanceof Error && error.message.startsWith('Could not copy image.')
+            ? error.message
+            : 'Could not complete this action. Please try again.',
+        );
     } finally {
       running.current = false;
       if (mounted.current) setBusy(false);
@@ -114,7 +121,8 @@ const ActionMenu = ({
           }
           if (event.key === 'Escape' || event.key === 'ArrowLeft') {
             event.preventDefault();
-            onClose();
+            if (event.key === 'Escape' && onEscape) onEscape();
+            else onClose();
           } else if (event.key === 'Tab') {
             event.preventDefault();
             onNavigate(event.nativeEvent, !event.shiftKey);
@@ -162,7 +170,9 @@ const ActionMenu = ({
         </div>
         {tooltipsMode && (
           <div className="keymove-action-menu-footer">
-            ↑ ↓ choose · → / Enter run · ← / Esc back
+            {onEscape
+              ? '↑ ↓ choose · → / Enter run · ← back · Esc return to text'
+              : '↑ ↓ choose · → / Enter run · ← / Esc back'}
           </div>
         )}
         {tooltipsMode && (

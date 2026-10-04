@@ -26,6 +26,7 @@ function renderIndex() {
   document.title = 'KeyMove interface preview';
   page.innerHTML = `
     <h1>KeyMove interface preview</h1>
+    <p><a href="images.html">Related image fixture</a> (load the extension; includes product cards, an open shadow root and a cross-origin frame).</p>
     <p><a href="frames.html">Iframe search fixture</a> (same-origin, cross-origin and nested forms; load the extension).</p>
     <p><a href="highlights.html">Highlight density fixture</a> (load the extension; compare s, sn and sne).</p>
     <p><a href="hover.html">Keyboard hover fixture</a> (load the extension to reveal and search hover menus).</p>

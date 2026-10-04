@@ -9,10 +9,10 @@ tiles, upload instructions, and capture metadata. Other stores can reuse those s
 and copy when their requirements match; check their requirements before submitting.
 
 To refresh the Chromium captures, build the extension with `yarn build:chromium`, start
-`yarn website:dev`, then run `node assets/store-listings/generate.mjs` from the repository root.
+`yarn website:dev`, then run `node assets/store-listings/generate.ts` from the repository root.
 It opens a dedicated temporary browser profile, uses the installed extension, and converts
 captures to RGB PNGs with ImageMagick. It refreshes the images and verification metadata,
 preserving the description and upload instructions. Intermediate files stay in `.artifacts/`.
 
 To refresh only selected images, pass their names without `.png`, for example:
-`node assets/store-listings/generate.mjs small-promo-tile 05-form-controls`.
+`node assets/store-listings/generate.ts small-promo-tile 05-form-controls`.

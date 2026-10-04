@@ -5,6 +5,7 @@ import { makeRankedMatch, makeSearchResult, makeTextMatch } from '../../test_sup
 import type { SearchResult } from '../../lib/page_search_index.js';
 import { MODAL_CHANGED_EVENT } from '../../lib/modal_context.js';
 import { stopFrameSearch } from '../../lib/find_in_page.js';
+import { RelatedImageSelection } from '../../lib/related_images.js';
 
 const searchMocks = vi.hoisted(() => ({
   findMatches: vi.fn(),
@@ -146,6 +147,101 @@ async function openLinkActionMenu() {
   expect(screen.getByRole('menu')).toBeInTheDocument();
   return { input, link };
 }
+
+test('selects a related image on demand, offers image actions, then restores text and query', async () => {
+  const card = document.createElement('figure');
+  card.innerHTML =
+    '<img src="https://example.com/shoe.png" alt="Samba photograph"><figcaption>Samba shoe</figcaption>';
+  document.body.append(card);
+  const text = card.querySelector('figcaption')!;
+  vi.spyOn(card.querySelector('img')!, 'getBoundingClientRect').mockReturnValue(
+    new DOMRect(0, 0, 200, 180),
+  );
+  searchMocks.findMatches.mockResolvedValue(
+    makeSearchResult({ matchingText: [makeTextMatch({ node: text })] }),
+  );
+  render(<Searchbar />);
+  const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
+  fireEvent.input(input, { target: { value: 'Samba' } });
+  await flushSearch();
+  fireEvent.keyDown(input, { key: 'i', code: 'KeyI', altKey: true });
+  await act(async () => {});
+  expect(screen.getByText('Image 1 / 1')).toBeInTheDocument();
+  const move = vi.spyOn(RelatedImageSelection.prototype, 'move');
+  fireEvent.keyDown(input, { key: 'ArrowRight', code: 'ArrowRight' });
+  await act(async () => {});
+  expect(move).toHaveBeenCalledWith(expect.any(String), 'right');
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  expect(input).toHaveValue('Samba');
+  fireEvent.keyDown(input, { key: ' ', code: 'Space' });
+  expect(screen.getByRole('menuitem', { name: /View larger/ })).toBeInTheDocument();
+  expect(screen.getByRole('menuitem', { name: /Copy image address/ })).toBeInTheDocument();
+  expect(screen.getAllByRole('menuitem')).toHaveLength(4);
+  fireEvent.keyDown(screen.getByRole('menuitem', { name: /View larger/ }), {
+    key: 'Escape',
+    code: 'Escape',
+  });
+  expect(input).toHaveFocus();
+  expect(screen.queryByText('Image 1 / 1')).not.toBeInTheDocument();
+  expect(input).toHaveValue('Samba');
+  expect(window.getSelection()?.toString()).toBe('Samba shoe');
+  move.mockRestore();
+});
+
+test('Alt+I opens image mode from a hidden bar without a query or selected result', async () => {
+  const image = document.createElement('img');
+  image.src = 'https://example.com/standalone.png';
+  image.alt = 'Standalone photograph';
+  document.body.append(image);
+  vi.spyOn(image, 'getBoundingClientRect').mockReturnValue(new DOMRect(100, 100, 200, 200));
+  searchMocks.findMatches.mockResolvedValue(makeSearchResult());
+  render(<Searchbar />);
+  const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
+  fireEvent.keyDown(input, { key: 'Escape', code: 'Escape' });
+  fireEvent.keyDown(document.body, { key: 'i', code: 'KeyI', altKey: true });
+  await waitFor(() => expect(screen.getByText('Image 1 / 1')).toBeInTheDocument());
+  expect(input).toHaveFocus();
+  expect(input).toHaveValue('');
+  fireEvent.keyDown(input, { key: ' ', code: 'Space' });
+  expect(screen.getAllByRole('menuitem')).toHaveLength(4);
+  fireEvent.keyDown(screen.getAllByRole('menuitem')[0]!, { key: 'Escape', code: 'Escape' });
+  expect(screen.queryByText('Image 1 / 1')).not.toBeInTheDocument();
+  expect(input).toHaveValue('');
+});
+
+test('reports image-copy failure without closing the menu or falling back to text copy', async () => {
+  const figure = document.createElement('figure');
+  figure.innerHTML = '<img src="https://example.com/photo.png"><figcaption>Camera</figcaption>';
+  document.body.append(figure);
+  vi.spyOn(figure.querySelector('img')!, 'getBoundingClientRect').mockReturnValue(
+    new DOMRect(0, 0, 200, 180),
+  );
+  const copy = vi
+    .spyOn(RelatedImageSelection.prototype, 'copy')
+    .mockRejectedValue(new DOMException('Blocked', 'SecurityError'));
+  searchMocks.findMatches.mockResolvedValue(
+    makeSearchResult({
+      matchingText: [makeTextMatch({ node: figure.querySelector('figcaption')! })],
+    }),
+  );
+  render(<Searchbar />);
+  const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
+  fireEvent.input(input, { target: { value: 'Camera' } });
+  await flushSearch();
+  fireEvent.keyDown(input, { key: 'i', code: 'KeyI', altKey: true });
+  await act(async () => {});
+  fireEvent.keyDown(input, { key: ' ', code: 'Space' });
+  fireEvent.click(screen.getByRole('menuitem', { name: /Copy image$/ }));
+  await act(async () => {});
+  expect(screen.getByRole('menu')).toBeInTheDocument();
+  expect(screen.getByText(/Could not copy image/)).toBeInTheDocument();
+  expect(screen.getByRole('menuitem', { name: /Copy image address/ })).toBeInTheDocument();
+  expect(input).toHaveValue('Camera');
+  copy.mockRestore();
+});
 
 test('automatic selection hovers without clicking, survives query edits, and ends on Escape', async () => {
   const link = document.createElement('a');
@@ -445,7 +541,7 @@ test('Alt+6 copies linked text, and repeated shortcuts cannot duplicate a pendin
   fireEvent.input(input, { target: { value: 'report' } });
   await flushSearch();
   fireEvent.keyDown(input, { key: 'ArrowDown', code: 'ArrowDown' });
-  expect(screen.getAllByRole('menuitem')).toHaveLength(6);
+  expect(screen.getAllByRole('menuitem')).toHaveLength(7);
   fireEvent.keyDown(document.activeElement!, { key: '6', code: 'Digit6', altKey: true });
   fireEvent.keyDown(document.activeElement!, {
     key: '6',
@@ -658,7 +754,7 @@ test('pure text results offer copy text without link actions', async () => {
   fireEvent.input(input, { target: { value: 'report' } });
   await flushSearch();
   fireEvent.keyDown(input, { key: 'ArrowDown', code: 'ArrowDown' });
-  expect(screen.getAllByRole('menuitem')).toHaveLength(1);
+  expect(screen.getAllByRole('menuitem')).toHaveLength(2);
   fireEvent.keyDown(document.activeElement!, { key: 'Enter', code: 'Enter' });
   await act(async () => {});
   expect(writeText).toHaveBeenCalledWith(paragraph.textContent);

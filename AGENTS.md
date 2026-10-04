@@ -198,6 +198,26 @@ scrolling action list. Keep it to one line, truncating overflow while preserving
 Number the actions, not that retained row. Alt+number executes the corresponding menu action
 without selecting another suggestion; outside the menu the existing suggestion shortcuts remain.
 
+## Related image navigation
+
+Alt+I selects/cycles related images on demand. While an image is selected, arrows
+move spatially among nearby rendered images; Space offers four image-specific
+actions. Enter follows its link and Escape returns to the original text result,
+including from the image menu. Menu arrows/Enter retain ordinary menu semantics.
+Directional lookup is bounded, chunked and token-cancellable, respects modal scope,
+follows open roots, and stays in the owning document rather than crossing frames.
+Alt+I is also an explicit opening shortcut when no result is selected: choose an
+eligible on-screen image near the viewport centre, without overriding site pause.
+Directional lookup scans the rendered tree once (not once per ancestor), preferring
+visible viewport candidates; container nesting must not make movement one-way.
+Keep the original result cursors and query unchanged. Escape closes the viewer or
+menu first, then returns from the image to the result. Discovery is bounded to a
+nearby card/figure through rendered ancestry, never a page-wide nearest-image guess.
+Validate image identity, URL, visibility and modal scope before actions; iframe
+operations use authenticated, generation-checked commands and per-selection tokens.
+No new permissions or privileged image fetches. Pixel-copy failures remain visible.
+See `docs/related-images.md` and `preview/images.html` for limits and verification.
+
 ## Accessibility invariants
 
 - Every input and setting control needs an explicit accessible name; do not use `list` or another

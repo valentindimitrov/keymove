@@ -13,6 +13,7 @@ import { activeModal, actionIsInScope } from './modal_context.js';
 import { isTextVisible } from './visible_text.js';
 import type { SearchResult, RankedMatch } from './page_search_index.js';
 import { ACTION_PRIORITY_BOOST } from '../constants.js';
+import { isImageDirection } from './image_schema.js';
 
 const empty = (): SearchResult => ({
   matchingText: [],
@@ -197,7 +198,11 @@ export class FrameSearch {
           this.eligible(entry.frame),
         command: async command => {
           if (!this.eligible(entry.frame)) return null;
-          if (command === 'scroll')
+          if (
+            command === 'scroll' ||
+            (typeof command === 'object' &&
+              (command.image === 'next' || isImageDirection(command.image)))
+          )
             entry.frame.scrollIntoView({ block: 'nearest', inline: 'nearest' });
           return this.request(entry, {
             op: 'command',

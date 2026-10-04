@@ -1,3 +1,7 @@
+import assert from 'node:assert/strict';
+import { record, records, targets as readTargets, tabs as readTabs } from './capture-data.ts';
+import type { PendingCommand } from './capture-data.ts';
+import type { TestPage } from './browser-driver.ts';
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, existsSync, writeFileSync } from 'node:fs';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -26,48 +30,45 @@ const child = spawn(
   ],
   { windowsHide: true, stdio: 'ignore' },
 );
-let socket;
+let socket: WebSocket | undefined;
 try {
   for (let i = 0; i < 100 && !existsSync(`${profile}/DevToolsActivePort`); i++) await delay(100);
   const [port, endpoint] = readFileSync(`${profile}/DevToolsActivePort`, 'utf8').trim().split('\n');
-  socket = new WebSocket(`ws://127.0.0.1:${port}${endpoint}`);
-  await new Promise((resolve, reject) => {
-    socket.onopen = resolve;
-    socket.onerror = reject;
+  const connection = new WebSocket(`ws://127.0.0.1:${port}${endpoint}`);
+  socket = connection;
+  await new Promise<void>((resolve, reject) => {
+    connection.onopen = () => resolve();
+    connection.onerror = reject;
   });
   let id = 0;
-  const pending = new Map();
-  socket.onmessage = e => {
-    const result = JSON.parse(e.data);
-    if (result.id) {
+  const pending = new Map<number, PendingCommand>();
+  connection.onmessage = (e: MessageEvent<string>) => {
+    const result = record(JSON.parse(e.data));
+    if (typeof result.id === 'number') {
       const p = pending.get(result.id);
+      if (!p) return;
       pending.delete(result.id);
       result.error ? p.reject(result.error) : p.resolve(result.result);
     }
   };
   const client = boundedClient({
     sendCommand(method, params, sessionId) {
-      return new Promise((resolve, reject) => {
+      return new Promise<unknown>((resolve, reject) => {
         const request = ++id;
         pending.set(request, { resolve, reject });
-        socket.send(JSON.stringify({ id: request, method, params, sessionId }));
+        connection.send(JSON.stringify({ id: request, method, params, sessionId }));
       });
     },
   });
 
-  let targets;
+  let targets: ReturnType<typeof readTargets> = [];
   for (let i = 0; i < 100; i++) {
-    targets = await client.sendCommand('Target.getTargets', {});
-    if (
-      targets.targetInfos.some(t => t.type === 'service_worker' && t.url.endsWith('/background.js'))
-    )
-      break;
+    targets = readTargets(await client.sendCommand('Target.getTargets', {}));
+    if (targets.some(t => t.type === 'service_worker' && t.url.endsWith('/background.js'))) break;
     await delay(100);
   }
 
-  const worker = targets.targetInfos.find(
-    t => t.type === 'service_worker' && t.url.endsWith('/background.js'),
-  );
+  const worker = targets.find(t => t.type === 'service_worker' && t.url.endsWith('/background.js'));
   if (!worker) throw new Error('No installed extension worker');
   const popup = await openPage(client, new URL('popup.html', worker.url).href);
   await popup.evaluate(
@@ -87,11 +88,19 @@ try {
   const status = `${root}.querySelector('[role=status]')?.textContent`;
   const selected = `${root}.querySelector('.keymove-suggestion-selected')?.textContent`;
   const report = existsSync(new URL('verification.json', artifacts))
-    ? JSON.parse(readFileSync(new URL('verification.json', artifacts), 'utf8'))
+    ? records(JSON.parse(readFileSync(new URL('verification.json', artifacts), 'utf8')))
     : [];
-  let page, frames, directory, title, caption, keys, time;
-  const evidence = [];
-  const check = async (expression, label) => {
+  let page: TestPage;
+  let frames: {
+    filename: string;
+    duration: number;
+    start: number;
+    caption: string;
+    keys: string;
+  }[];
+  let directory: string, title: string, caption: string, keys: string, time: number;
+  const evidence: string[] = [];
+  const check = async (expression: string, label: string) => {
     await waitFor(page, expression);
     evidence.push(label);
   };
@@ -102,14 +111,20 @@ try {
     frames.push({ filename, duration, start: time, caption, keys });
     time += duration;
   };
-  const press = async (key, modifiers = 0, label = key, description = caption, hold = 1.2) => {
+  const press = async (
+    key: string,
+    modifiers = 0,
+    label = key,
+    description = caption,
+    hold = 1.2,
+  ) => {
     keys = label;
     caption = description;
     await page.key(key, modifiers);
     await delay(230);
     await capture(hold);
   };
-  const type = async (text, description = 'Type the words you see') => {
+  const type = async (text: string, description = 'Type the words you see') => {
     caption = description;
     for (const c of text) {
       keys = c === ' ' ? 'Space' : c;
@@ -123,7 +138,7 @@ try {
     );
     await capture(1.7);
   };
-  const search = async (query, actions = false) => {
+  const search = async (query: string, actions = false) => {
     await press('f', 1, 'Alt / Option + F', 'Open KeyMove', 0.8);
     if (actions) await press('s', 1, 'Alt / Option + S', 'Switch to action mode', 0.8);
     await type(query);
@@ -132,22 +147,23 @@ try {
     await press('ArrowDown', 0, 'Down', 'See the available actions');
     await check(`!!${root}.querySelector('[role=menu]')`, 'Action menu opened');
   };
-  const choose = async label => {
+  const choose = async (label: string) => {
     const labels = await page.evaluate(
       `Array.from(${root}.querySelectorAll('[role=menuitem]')).map(e=>e.textContent)`,
     );
-    const index = labels.findIndex(text => text.includes(label));
+    assert(Array.isArray(labels) && labels.every((label: unknown) => typeof label === 'string'));
+    const index = labels.findIndex((text: string) => text.includes(label));
     if (index < 0) throw new Error(`Missing menu action: ${label}`);
     for (let i = 0; i < index; i++) await press('ArrowDown', 0, 'Down', `Choose ${label}`, 0.35);
     await press('Enter', 0, 'Enter', label, 1.7);
   };
-  const scrollSetup = async selector => {
+  const scrollSetup = async (selector: string) => {
     await page.evaluate(
       `document.querySelector(${JSON.stringify(selector)}).scrollIntoView({block:'start',behavior:'instant'})`,
     );
     await delay(200);
   };
-  const plan = [
+  const plan: [id: string, name: string, run: () => Promise<void>][] = [
     [
       'jump-to-text',
       'Jump to text',
@@ -426,11 +442,16 @@ try {
         await scrollSetup('.sample-planner');
         await capture(0.8);
         await search('Read the walking route', true);
-        const before = await popup.evaluate('chrome.tabs.query({})');
+        const before = readTabs(await popup.evaluate('chrome.tabs.query({})'));
         await press('Enter', 2, 'Ctrl + Enter', 'Open a background tab and keep reading');
-        const after = await popup.evaluate('chrome.tabs.query({})');
+        const after = readTabs(await popup.evaluate('chrome.tabs.query({})'));
         const added = after.filter(t => !before.some(old => old.id === t.id));
-        if (added.length !== 1 || added[0].active || !added[0].url.endsWith('#riverside'))
+        if (
+          added.length !== 1 ||
+          !added[0] ||
+          added[0].active ||
+          !added[0].url?.endsWith('#riverside')
+        )
           throw new Error('Background tab was not created correctly');
         evidence.push('Installed extension created an inactive background tab');
         keys = 'Background tab opened';
@@ -440,25 +461,28 @@ try {
         if (await page.evaluate(`${input}.value`))
           await press('a', 2, 'Ctrl / Command + A', 'Replace the query', 0.3);
         await type('Read the walking route');
-        const beforeForeground = await client.sendCommand('Target.getTargets', {});
+        const beforeForeground = readTargets(await client.sendCommand('Target.getTargets', {}));
         await press('Enter', 8, 'Shift + Enter', 'Open another tab and switch to it');
-        const next = await popup.evaluate('chrome.tabs.query({})');
+        const next = readTabs(await popup.evaluate('chrome.tabs.query({})'));
         const foreground = next.find(t => !after.some(old => old.id === t.id));
-        if (!foreground?.active || !foreground.url.endsWith('#riverside'))
+        if (!foreground?.active || !foreground.url?.endsWith('#riverside'))
           throw new Error('Foreground tab was not activated');
         evidence.push('Installed extension opened and activated the foreground tab');
         // Attach to the actual tab created by the extension; do not create a stand-in.
-        const infos = await client.sendCommand('Target.getTargets', {});
-        const target = infos.targetInfos.find(
+        const infos = readTargets(await client.sendCommand('Target.getTargets', {}));
+        const target = infos.find(
           t =>
             t.url === foreground.url &&
-            !beforeForeground.targetInfos.some(previous => previous.targetId === t.targetId),
+            !beforeForeground.some(previous => previous.targetId === t.targetId),
         );
         if (!target) throw new Error('Could not identify the actual foreground tab target');
-        const attached = await client.sendCommand('Target.attachToTarget', {
-          targetId: target.targetId,
-          flatten: true,
-        });
+        const attached = record(
+          await client.sendCommand('Target.attachToTarget', {
+            targetId: target.targetId,
+            flatten: true,
+          }),
+        );
+        assert(typeof attached.sessionId === 'string');
         await client.sendCommand(
           'Emulation.setDeviceMetricsOverride',
           { width: 960, height: 640, deviceScaleFactor: 1, mobile: false },
@@ -470,11 +494,10 @@ try {
           attached.sessionId,
         );
         await delay(500);
-        const shot = await client.sendCommand(
-          'Page.captureScreenshot',
-          { format: 'png' },
-          attached.sessionId,
+        const shot = record(
+          await client.sendCommand('Page.captureScreenshot', { format: 'png' }, attached.sessionId),
         );
+        assert(typeof shot.data === 'string');
         const filename = `${String(frames.length).padStart(4, '0')}.png`;
         writeFileSync(path.join(directory, filename), Buffer.from(shot.data, 'base64'));
         frames.push({
@@ -517,9 +540,11 @@ try {
     try {
       await run();
       if (id !== 'open-in-new-tab') await capture(1.4);
+      const lastFrame = frames.at(-1);
+      assert(lastFrame, 'Recording produced no frames');
       const concat =
         frames.map(f => `file '${f.filename}'\nduration ${f.duration}`).join('\n') +
-        `\nfile '${frames.at(-1).filename}'\n`;
+        `\nfile '${lastFrame.filename}'\n`;
       writeFileSync(path.join(directory, 'frames.txt'), concat);
       const filters = ['pad=960:716:0:0:color=0x18151f'];
       for (const [index, f] of frames.entries()) {
@@ -585,13 +610,13 @@ try {
         { windowsHide: true, encoding: 'utf8' },
       );
       if (poster.status !== 0) throw new Error(poster.stderr);
-      const cues = [];
+      const cues: { start: number; end: number; caption: string }[] = [];
       for (const f of frames) {
         const previous = cues.at(-1);
         if (previous?.caption === f.caption) previous.end = f.start + f.duration;
         else cues.push({ start: f.start, end: f.start + f.duration, caption: f.caption });
       }
-      const stamp = seconds => new Date(seconds * 1000).toISOString().slice(11, 23);
+      const stamp = (seconds: number) => new Date(seconds * 1000).toISOString().slice(11, 23);
       writeFileSync(
         path.join(output, id + '.vtt'),
         'WEBVTT\n\n' +
@@ -609,7 +634,7 @@ try {
       await page.close();
     }
   }
-  await client.sendCommand('Browser.close');
+  await client.sendCommand('Browser.close', {});
 } finally {
   socket?.close();
   child.kill();
