@@ -10,7 +10,7 @@ beforeEach(() => {
   root = mkdtempSync(path.join(tmpdir(), 'keymove-build-validation-'));
   writeFileSync(path.join(root, 'package.json'), JSON.stringify({ version: '1.0.0' }));
   writeFileSync(path.join(root, 'LICENSE'), 'Fixture license');
-  for (const target of ['chrome', 'firefox']) {
+  for (const target of ['chrome', 'firefox', 'safari']) {
     const build = path.join(root, '.output', `${target}-mv3`);
     mkdirSync(path.join(build, 'content-scripts'), { recursive: true });
     for (const [name, text] of Object.entries({
@@ -44,7 +44,7 @@ beforeEach(() => {
           { matches: ['<all_urls>'], all_frames: true, js: ['content-scripts/frames.js'] },
         ],
         background:
-          target === 'chrome'
+          target !== 'firefox'
             ? { service_worker: 'background.js' }
             : { scripts: ['background.js'] },
         ...(target === 'firefox'
@@ -111,9 +111,12 @@ test('rejects a production popup containing the Stripe sandbox destination', () 
   expect(() => validateBuilds(root)).toThrow(/sandbox tip link must not ship/);
 });
 
-test.each(['chrome', 'firefox'])('rejects store listing files in the %s build', target => {
-  const directory = path.join(root, '.output', `${target}-mv3`, 'store-listings');
-  mkdirSync(directory);
-  writeFileSync(path.join(directory, 'description.txt'), 'Store copy');
-  expect(() => validateBuilds(root)).toThrow(/store-listings should not be packaged/);
-});
+test.each(['chrome', 'firefox', 'safari'])(
+  'rejects store listing files in the %s build',
+  target => {
+    const directory = path.join(root, '.output', `${target}-mv3`, 'store-listings');
+    mkdirSync(directory);
+    writeFileSync(path.join(directory, 'description.txt'), 'Store copy');
+    expect(() => validateBuilds(root)).toThrow(/store-listings should not be packaged/);
+  },
+);

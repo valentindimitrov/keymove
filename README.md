@@ -16,6 +16,7 @@ jump between results, copy a passage, or follow a link as you type.
 > [!IMPORTANT]
 > KeyMove is not published in browser extension stores yet. Build and load it locally using
 > the instructions below. The Chromium build supports Chrome and Vivaldi; Firefox has its own Manifest V3 build.
+> An experimental [Safari build for macOS](docs/safari.md) is also available; Safari runtime testing is pending.
 
 ## What it does
 
@@ -52,7 +53,7 @@ See the [full shortcut and settings reference](docs/user-guide.md).
 - Node.js `24.15.0` or newer
 - Yarn `1.22`
 
-Clone the repository and build both browser targets:
+Clone the repository and build the browser targets:
 
 ```sh
 git clone https://github.com/valentindimitrov/keymove.git
@@ -66,6 +67,7 @@ The build creates:
 
 - `.output/chrome-mv3` for Chrome, Chromium, and Vivaldi
 - `.output/firefox-mv3` for Firefox
+- `.output/safari-mv3` for Safari on macOS (web resources; requires Apple packaging)
 
 ### Chrome, Chromium, or Vivaldi
 

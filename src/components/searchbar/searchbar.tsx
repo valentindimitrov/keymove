@@ -32,6 +32,7 @@ import { isMovingExtensionRoot } from '../../lib/create_extension_root.js';
 import FindInPage, { subscribeToPageChanges } from '../../lib/find_in_page.js';
 import { stopFrameSearch } from '../../lib/find_in_page.js';
 import { frameTarget, resultIsConnected } from '../../lib/frame_target.js';
+import { writeClipboardText } from '../../lib/clipboard.js';
 import type { RankedMatch } from '../../lib/page_search_index.js';
 import { isTextVisible, visibleText } from '../../lib/visible_text.js';
 import SearchInput from './search_input.js';
@@ -735,6 +736,16 @@ const Searchbar = () => {
               'Could not copy image. The site or browser may block pixel access. Try Copy image address.',
             );
           }
+        } else if (id === 'image-address') {
+          await writeClipboardText(
+            imageCommand('info').then(info => {
+              if (!isImageInfo(info)) {
+                clearImage();
+                throw new Error('This image is no longer available.');
+              }
+              return info.url;
+            }),
+          );
         } else {
           const info = await imageCommand('info');
           if (!isImageInfo(info)) {
@@ -742,7 +753,6 @@ const Searchbar = () => {
             throw new Error('This image is no longer available.');
           }
           if (id === 'image-view') setImageViewer(true);
-          else if (id === 'image-address') await navigator.clipboard.writeText(info.url);
           else if (id === 'image-open' && /^https?:/i.test(info.url)) {
             await browser.runtime.sendMessage({
               type: ExtensionMessageTypes.OPEN_LINK_IN_NEW_TAB,
@@ -768,12 +778,12 @@ const Searchbar = () => {
         const text =
           id === 'copy-text'
             ? frameTarget(source)
-              ? await frameTarget(source)!.command('text')
+              ? frameTarget(source)!.command('text')
               : visibleText(source)
             : Utils.linkUrlForNode(selectedActionNode);
-        if (typeof text !== 'string') return;
+        if (text === null) return;
         const generation = menuGeneration.current;
-        await navigator.clipboard.writeText(text);
+        await writeClipboardText(text);
         // A pending clipboard write must not dismiss a newer menu/search.
         if (generation === menuGeneration.current)
           setMenuTarget(current => (current === menuTarget ? null : current));

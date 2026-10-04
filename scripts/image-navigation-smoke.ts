@@ -103,6 +103,20 @@ export async function checkRelatedImages(client: ChromiumClient, origin: string)
     );
     await page.key('v', process.platform === 'darwin' ? 4 : 2);
     await waitFor(page, `document.querySelector('#paste-image img')`);
+    // Exercise the deferred ClipboardItem path with a real paste as well.
+    await page.evaluate(`${input}.focus()`);
+    await page.key(' ');
+    await waitFor(page, `${root}.querySelector('[role="menu"]')`);
+    await page.key('4', 1);
+    await waitFor(page, `!${root}.querySelector('[role="menu"]')`);
+    await page.evaluate(
+      `(() => { const field=document.createElement('textarea'); field.id='paste-image-address'; document.body.append(field); field.focus(); })()`,
+    );
+    await page.key('v', process.platform === 'darwin' ? 4 : 2);
+    await waitFor(
+      page,
+      `document.getElementById('paste-image-address').value === document.getElementById('shoe').src`,
+    );
     await page.key('f', 1);
     await page.key('a', process.platform === 'darwin' ? 4 : 2);
     await page.key('Backspace');

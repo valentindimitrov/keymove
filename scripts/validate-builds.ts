@@ -56,6 +56,12 @@ const targets: BuildTarget[] = [
     backgroundType: 'script',
     isFirefox: true,
   },
+  {
+    name: 'Safari (macOS; runtime unverified)',
+    directory: '.output/safari-mv3',
+    manifestVersion: 3,
+    backgroundType: 'service-worker',
+  },
 ];
 
 function requireCondition(condition: unknown, message: string): asserts condition {
@@ -347,6 +353,11 @@ function validateTarget(target: BuildTarget, packageVersion: string, root: strin
         `${target.name}: extension ID does not match WXT_FIREFOX_EXTENSION_ID`,
       );
     }
+  } else {
+    requireCondition(
+      !manifest.browser_specific_settings?.gecko,
+      `${target.name}: Firefox-only settings must not be packaged`,
+    );
   }
 
   requireCondition(
