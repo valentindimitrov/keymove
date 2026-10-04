@@ -21,6 +21,9 @@ import useSuggestions, { describeAll } from '../../hooks/use_suggestions.js';
 import useHighlightColors from '../../hooks/use_highlight_colors.js';
 import useSearchOrigin from '../../hooks/use_search_origin.js';
 import useSelectionHover from '../../hooks/use_selection_hover.js';
+import useRelatedImage from '../../hooks/use_related_image.js';
+import { isImageDirection, isImageInfo } from '../../lib/image_schema.js';
+import ImageViewer from './image_viewer.js';
 
 import Utils from '../../lib/utils.js';
 import { isActionDisabled } from '../../lib/searchable_attributes.js';
@@ -36,7 +39,7 @@ import Selections from './selections.js';
 import MatchesSummary from './matches_summary.js';
 import ResultsPanel from './results_panel.js';
 import ActionMenu from './action_menu.js';
-import { actionsForResult } from '../../lib/result_actions.js';
+import { actionsForResult, actionsForImage } from '../../lib/result_actions.js';
 import DraggableContainer, { pixelPosition } from './draggable_container.js';
 import { ACTION_MENU_RESULT_HEIGHT } from '../../constants.js';
 import InfoDropdown from './info_dropdown.js';
@@ -124,6 +127,7 @@ const Searchbar = () => {
   const [searchPending, setSearchPending] = React.useState(false);
   const [suggestionsHeight, setSuggestionsHeight] = React.useState(0);
   const [menuTarget, setMenuTarget] = React.useState<Element | null>(null);
+  const [imageRequested, setImageRequested] = React.useState(false);
   const previousMenuTarget = React.useRef<Element | null>(null);
   const menuGeneration = React.useRef(0);
   const previousSearchText = React.useRef(searchText);
@@ -161,6 +165,27 @@ const Searchbar = () => {
         ? null
         : (matchingLinksAndButtons[selectedSelectionIndex] ?? null);
   const selectedActionLinkUrl = Utils.linkUrlForNode(selectedActionNode);
+  const selectedResultNode = selectedTextMatch?.node ?? selectedActionNode;
+  const {
+    image: selectedImage,
+    owner: imageOwner,
+    node: imageNode,
+    viewer: imageViewer,
+    setViewer: setImageViewer,
+    message: imageMessage,
+    clear: clearImage,
+    next: nextImage,
+    command: imageCommand,
+  } = useRelatedImage(selectedResultNode, searchText, isInteractive);
+  const selectedTarget = selectedResultNode ?? imageOwner;
+  const previousImageToken = React.useRef<string | undefined>(undefined);
+  React.useEffect(() => {
+    if (previousImageToken.current && previousImageToken.current !== selectedImage?.token) {
+      menuGeneration.current++;
+      setMenuTarget(null);
+    }
+    previousImageToken.current = selectedImage?.token;
+  }, [selectedImage]);
   const activeMatchingNodes =
     navigationMode === SEARCH_MODES.TEXT ? matchingTextNodes : matchingLinksAndButtons;
 
@@ -198,6 +223,7 @@ const Searchbar = () => {
   }, []);
 
   const resetSearchTextAndMatches = React.useCallback(() => {
+    clearImage();
     stopFrameSearch();
     selectionHover.clear();
     automaticHover.current = { query: '', enabled: true };
@@ -206,9 +232,10 @@ const Searchbar = () => {
     setSearchText('');
     resetSearchNavigation(defaultSearchMode);
     Utils.clearPageSelection();
-  }, [cancelPendingSearch, resetSearchNavigation, defaultSearchMode, selectionHover]);
+  }, [cancelPendingSearch, resetSearchNavigation, defaultSearchMode, selectionHover, clearImage]);
 
   const hide = React.useCallback(() => {
+    setImageRequested(false);
     discardOrigin();
     setIsHidden(true);
     resetSearchTextAndMatches();
@@ -247,6 +274,24 @@ const Searchbar = () => {
 
   const activateSelectedMatchingNodeAndReset = React.useCallback(
     async (event: KeyboardEvent | null, activation: ActionActivation = 'current') => {
+      if (selectedImage) {
+        event?.preventDefault();
+        event?.stopPropagation();
+        const info = await imageCommand('info');
+        if (!isImageInfo(info) || !info.link) return;
+        if (activation === 'current') {
+          if ((await imageCommand('activate')) !== true) return;
+        } else {
+          await browser.runtime.sendMessage({
+            type: ExtensionMessageTypes.OPEN_LINK_IN_NEW_TAB,
+            url: info.link,
+            active: activation === 'foreground-tab',
+          });
+        }
+        resetSearchTextAndMatches();
+        if (autoHide) setIsHidden(true);
+        return;
+      }
       if (
         !resultIsConnected(selectedActionNode) ||
         !isTextVisible(selectedActionNode) ||
@@ -289,7 +334,14 @@ const Searchbar = () => {
       }
       resetSearchTextAndMatches();
     },
-    [selectedActionNode, autoHide, resetSearchTextAndMatches, discardOrigin],
+    [
+      selectedActionNode,
+      autoHide,
+      resetSearchTextAndMatches,
+      discardOrigin,
+      selectedImage,
+      imageCommand,
+    ],
   );
 
   const runSearch = React.useCallback(
@@ -375,9 +427,9 @@ const Searchbar = () => {
     (preserveSelection = false) => {
       if (
         preserveSelection &&
-        resultIsConnected(menuTarget) &&
-        isTextVisible(menuTarget) &&
-        actionIsInScope(menuTarget, activeModal())
+        resultIsConnected(menuTarget ?? (selectedImage ? selectedTarget : null)) &&
+        isTextVisible((menuTarget ?? selectedTarget)!) &&
+        actionIsInScope((menuTarget ?? selectedTarget)!, activeModal())
       ) {
         // The menu acts on the committed result, with live validation at execution.
         // Animation elsewhere on the page must not take its keyboard focus away.
@@ -385,6 +437,7 @@ const Searchbar = () => {
         return;
       }
       setMenuTarget(null);
+      if (!preserveSelection) clearImage();
       if (
         preserveSelection &&
         (searchAbortController.current || pageRefreshTimeout.current !== undefined)
@@ -412,7 +465,17 @@ const Searchbar = () => {
       rememberOrigin();
       void runSearch(preserveSelection);
     },
-    [cancelPendingSearch, clearSearchResults, runSearch, searchText, rememberOrigin, menuTarget],
+    [
+      cancelPendingSearch,
+      clearSearchResults,
+      runSearch,
+      searchText,
+      rememberOrigin,
+      menuTarget,
+      selectedImage,
+      selectedTarget,
+      clearImage,
+    ],
   );
 
   // Query identity disables old rows before the search effect runs; the flag also covers
@@ -434,6 +497,7 @@ const Searchbar = () => {
   // routes leave the same mode, selection, scroll position and page selection behind.
   const selectMatchAtIndex = React.useCallback(
     (mode: SearchMode, index: number, chooseMode = true) => {
+      clearImage();
       setMenuTarget(null);
       const matches = mode === SEARCH_MODES.TEXT ? matchingTextNodes : matchingLinksAndButtons;
       rememberOrigin(matches[index]);
@@ -461,6 +525,7 @@ const Searchbar = () => {
       setSelectedIndex,
       rememberOrigin,
       selectionHover,
+      clearImage,
     ],
   );
 
@@ -562,16 +627,28 @@ const Searchbar = () => {
     updateAutoHide(!autoHide);
   }, [autoHide, updateAutoHide]);
 
-  const selectedResultNode = selectedTextMatch?.node ?? selectedActionNode;
   const closeActionMenu = React.useCallback(() => setMenuTarget(null), []);
-  const menuActions = actionsForResult(selectedActionNode, selectedTextMatch?.node ?? null);
+  const menuActions = selectedImage
+    ? actionsForImage(selectedImage)
+    : [
+        ...actionsForResult(selectedActionNode, selectedTextMatch?.node ?? null),
+        { id: 'related-image', label: 'Select related image' },
+      ];
   const actionMenuOpen =
     isInteractive &&
-    !suggestionsPending &&
+    (!suggestionsPending || selectedImage !== null) &&
     menuTarget !== null &&
-    menuTarget === selectedResultNode;
+    menuTarget === selectedTarget;
   const menuSuggestion = React.useMemo(() => {
     if (!actionMenuOpen || !menuTarget) return null;
+    if (selectedImage)
+      return {
+        kind: 'action' as const,
+        node: menuTarget,
+        term: null,
+        label: selectedImage.label,
+        context: `image ${selectedImage.position} / ${selectedImage.count}`,
+      };
     const displayed = suggestions.find(suggestion => suggestion.node === menuTarget);
     if (displayed) return displayed;
     const ranked = rankedMatches.find(match => match.node === menuTarget);
@@ -597,16 +674,17 @@ const Searchbar = () => {
     selectedTextMatch,
     searchText,
     isFuzzy,
+    selectedImage,
   ]);
   const openActionMenu = React.useCallback(
     (event: KeyboardEvent) => {
       if (
         !isInteractive ||
-        resultsQuery !== searchText ||
+        (!selectedImage && resultsQuery !== searchText) ||
         !Utils.elementIsActive(searchInputRef.current) ||
-        !resultIsConnected(selectedResultNode) ||
-        !isTextVisible(selectedResultNode) ||
-        !actionIsInScope(selectedResultNode, activeModal())
+        !resultIsConnected(selectedTarget) ||
+        !isTextVisible(selectedTarget) ||
+        !actionIsInScope(selectedTarget, activeModal())
       )
         return;
       event.preventDefault();
@@ -621,22 +699,60 @@ const Searchbar = () => {
       pageRefreshQueued.current = needsRefresh;
       setSearchPending(false);
       menuGeneration.current += 1;
-      setMenuTarget(selectedResultNode);
+      setMenuTarget(selectedTarget);
     },
-    [isInteractive, resultsQuery, searchText, selectedResultNode, cancelPendingSearch],
+    [isInteractive, resultsQuery, searchText, selectedTarget, selectedImage, cancelPendingSearch],
   );
 
   const runMenuAction = React.useCallback(
     async (id: string) => {
+      const generation = menuGeneration.current;
       // Recheck live DOM state, including modal ownership, immediately before acting.
       if (
         !resultIsConnected(menuTarget) ||
-        menuTarget !== selectedResultNode ||
-        suggestionsPending ||
+        menuTarget !== selectedTarget ||
+        (!selectedImage && suggestionsPending) ||
         !isTextVisible(menuTarget) ||
         !actionIsInScope(menuTarget, activeModal())
       ) {
         setMenuTarget(null);
+        return;
+      }
+      if (id === 'related-image') {
+        await nextImage();
+        if (generation === menuGeneration.current) {
+          setMenuTarget(null);
+        }
+        return;
+      }
+      if (selectedImage) {
+        if (id === 'image-copy') {
+          // Call before any await so local clipboard writes retain user activation.
+          try {
+            if ((await imageCommand('copy')) !== true) throw new Error();
+          } catch {
+            throw new Error(
+              'Could not copy image. The site or browser may block pixel access. Try Copy image address.',
+            );
+          }
+        } else {
+          const info = await imageCommand('info');
+          if (!isImageInfo(info)) {
+            clearImage();
+            throw new Error('This image is no longer available.');
+          }
+          if (id === 'image-view') setImageViewer(true);
+          else if (id === 'image-address') await navigator.clipboard.writeText(info.url);
+          else if (id === 'image-open' && /^https?:/i.test(info.url)) {
+            await browser.runtime.sendMessage({
+              type: ExtensionMessageTypes.OPEN_LINK_IN_NEW_TAB,
+              url: info.url,
+              active: true,
+            });
+          }
+        }
+        if (generation === menuGeneration.current)
+          setMenuTarget(current => (current === menuTarget ? null : current));
         return;
       }
       if (id === 'copy-text' || id === 'copy-link') {
@@ -689,12 +805,17 @@ const Searchbar = () => {
     },
     [
       menuTarget,
-      selectedResultNode,
+      selectedTarget,
       suggestionsPending,
       selectedTextMatch,
       selectedActionNode,
       hide,
       activateSelectedMatchingNodeAndReset,
+      selectedImage,
+      nextImage,
+      clearImage,
+      imageCommand,
+      setImageViewer,
     ],
   );
 
@@ -712,6 +833,15 @@ const Searchbar = () => {
     return {
       next_match: createNavigationShortcutHandler('current'),
       open_action_menu: openActionMenu,
+      select_related_image: event => {
+        if (paused) return;
+        event.preventDefault();
+        event.stopPropagation();
+        if (!event.repeat) {
+          revealAndFocus();
+          setImageRequested(true);
+        }
+      },
       previous_match: createNavigationShortcutHandler('current', false),
       next_action_match: createNavigationShortcutHandler(SEARCH_MODES.ACTIONS),
       previous_action_match: createNavigationShortcutHandler(SEARCH_MODES.ACTIONS, false),
@@ -727,6 +857,7 @@ const Searchbar = () => {
       toggle_search_mode: guarded(event => {
         event.preventDefault();
         event.stopPropagation();
+        clearImage();
         toggleSearchMode();
       }),
       // The browser's native copy command emits the document copy event handled by handleCopy.
@@ -760,6 +891,10 @@ const Searchbar = () => {
         if (!isInteractive || !Utils.elementIsActive(searchInputRef.current)) return;
         event.preventDefault();
         event.stopPropagation();
+        if (selectedImage) {
+          clearImage();
+          return;
+        }
         hide();
         searchInputRef.current?.blur();
       },
@@ -776,6 +911,9 @@ const Searchbar = () => {
     hide,
     restoreOrigin,
     openActionMenu,
+    clearImage,
+    selectedImage,
+    paused,
   ]);
 
   const handleShortcut = React.useCallback(
@@ -783,6 +921,7 @@ const Searchbar = () => {
       const target = event.composedPath()[0] ?? event.target;
       if (
         keyboardShortcutName !== 'focus_searchbar' &&
+        keyboardShortcutName !== 'select_related_image' &&
         (!Utils.elementIsActive(searchInputRef.current) ||
           Utils.differentInputIsActive(searchInputRef.current) ||
           (target !== searchInputRef.current && Utils.isExtensionElement(target)))
@@ -795,6 +934,32 @@ const Searchbar = () => {
     },
     [keyboardShortcutHandlerMapping],
   );
+
+  // Register before the ordinary shortcut handler: Down moves an image instead
+  // of opening its menu. Page editors and the focused action menu keep their keys.
+  React.useLayoutEffect(() => {
+    if (!isInteractive || !selectedImage) return;
+    const navigateImage = (event: KeyboardEvent) => {
+      if (
+        !Utils.elementIsActive(searchInputRef.current) ||
+        event.defaultPrevented ||
+        event.isComposing ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.shiftKey
+      )
+        return;
+      const direction = event.key.startsWith('Arrow') ? event.key.slice(5).toLowerCase() : '';
+      if (isImageDirection(direction)) {
+        event.preventDefault();
+        event.stopPropagation();
+        void nextImage(direction);
+      } else if (event.key === ' ') openActionMenu(event);
+    };
+    document.addEventListener('keydown', navigateImage, true);
+    return () => document.removeEventListener('keydown', navigateImage, true);
+  }, [isInteractive, selectedImage, nextImage, openActionMenu]);
 
   const handleKeydown = React.useCallback(
     (event: KeyboardEvent) => {
@@ -821,6 +986,7 @@ const Searchbar = () => {
 
   const handleCopy = React.useCallback(
     (event: ClipboardEvent) => {
+      if (selectedImage) return;
       if (
         !isInteractive ||
         !Utils.elementIsActive(searchInputRef.current) ||
@@ -843,7 +1009,7 @@ const Searchbar = () => {
       event.preventDefault();
       event.clipboardData.setData('text/plain', copyText);
     },
-    [isInteractive, selectedTextMatch, selectedActionNode],
+    [isInteractive, selectedTextMatch, selectedActionNode, selectedImage],
   );
 
   React.useEffect(() => {
@@ -856,11 +1022,13 @@ const Searchbar = () => {
   const hasSearchQuery = searchText.trimStart().length > 0;
   const refreshSearchOnPageChange = React.useEffectEvent((preserveSelection = true) => {
     selectionHover.reconcile();
+    if (selectedImage) setScrollOrResizeRefresh(refresh => !refresh);
     scheduleSearch(preserveSelection);
   });
   React.useEffect(() => {
-    const closed = previousMenuTarget.current !== null && menuTarget === null;
-    previousMenuTarget.current = menuTarget;
+    const heldTarget = menuTarget ?? (selectedImage ? selectedTarget : null);
+    const closed = previousMenuTarget.current !== null && heldTarget === null;
+    previousMenuTarget.current = heldTarget;
     if (
       closed &&
       isInteractive &&
@@ -870,7 +1038,7 @@ const Searchbar = () => {
       pageRefreshTimeout.current === undefined
     )
       refreshSearchOnPageChange();
-  }, [menuTarget, isInteractive, hasSearchQuery]);
+  }, [menuTarget, selectedImage, selectedTarget, isInteractive, hasSearchQuery]);
   React.useEffect(() => {
     if (!isInteractive || !hasSearchQuery) return undefined;
     const unsubscribe = subscribeToPageChanges(() => refreshSearchOnPageChange());
@@ -921,13 +1089,13 @@ const Searchbar = () => {
   ]);
 
   React.useEffect(() => {
-    if (selectedTextMatch && resultIsConnected(selectedTextMatch.node)) {
+    if (!selectedImage && selectedTextMatch && resultIsConnected(selectedTextMatch.node)) {
       rememberOrigin(selectedTextMatch.node);
       Utils.selectNodeContents(selectedTextMatch.node);
       return () => Utils.clearPageSelection();
     }
     return undefined;
-  }, [selectedTextMatch, rememberOrigin]);
+  }, [selectedTextMatch, rememberOrigin, selectedImage]);
 
   React.useEffect(() => {
     return () => {
@@ -1014,7 +1182,7 @@ const Searchbar = () => {
 
   const hasActiveMatches = activeMatchingNodes.length > 0;
 
-  const shouldBindEvents = isInteractive && hasActiveMatches;
+  const shouldBindEvents = isInteractive && (hasActiveMatches || selectedImage !== null);
 
   useWindowEvent('scroll', shouldBindEvents, updateSelectionPositionsAfterTimeout);
   useWindowEvent('wheel', shouldBindEvents, updateSelectionPositionsAfterTimeout);
@@ -1027,6 +1195,11 @@ const Searchbar = () => {
     true,
   );
   useKeyboardShortcuts(handleShortcut, interaction.openingShortcut, !paused);
+  React.useEffect(() => {
+    if (!imageRequested || !isInteractive || searchPending) return;
+    setImageRequested(false);
+    void nextImage();
+  }, [imageRequested, isInteractive, searchPending, nextImage]);
   const showOtherMatches =
     highlightMatches &&
     Array.from(searchText.trim().normalize('NFC')).length >= MIN_PAGE_HIGHLIGHT_QUERY_LENGTH;
@@ -1066,9 +1239,9 @@ const Searchbar = () => {
         <Selections
           color={highlightColors[navigationMode]}
           refresh={scrollOrResizeRefresh}
-          selectedSelectionIndex={selectedSelectionIndex}
-          matchingNodes={activeMatchingNodes}
-          showOtherMatches={showOtherMatches}
+          selectedSelectionIndex={selectedImage ? (imageNode ? 0 : null) : selectedSelectionIndex}
+          matchingNodes={selectedImage ? (imageNode ? [imageNode] : []) : activeMatchingNodes}
+          showOtherMatches={!selectedImage && showOtherMatches}
         />
       )}
       <DraggableContainer
@@ -1093,22 +1266,37 @@ const Searchbar = () => {
             inputRef={searchInputRef}
             searchText={searchText}
             suggestionCount={suggestions.length}
-            suggestionsOpen={suggestionsOpen}
-            activeSuggestionIndex={activeSuggestionIndex}
+            suggestionsOpen={!selectedImage && suggestionsOpen}
+            activeSuggestionIndex={selectedImage ? null : activeSuggestionIndex}
             actionMenuOpen={actionMenuOpen}
-            actionsAvailable={!suggestionsPending && selectedResultNode !== null}
+            actionsAvailable={
+              selectedImage !== null || (!suggestionsPending && selectedResultNode !== null)
+            }
+            imageSelected={selectedImage !== null}
             onBlur={handleBlur}
             updateSearchText={setSearchText}
           />
-          <MatchesSummary
-            tooltipsMode={tooltipsMode}
-            onToggleMode={toggleSearchMode}
-            mode={navigationMode}
-            hasSearchQuery={hasSearchQuery}
-            isFuzzy={isFuzzy}
-            selectedSelectionIndex={selectedSelectionIndex}
-            resultCount={activeMatchingNodes.length}
-          />
+          {selectedImage ? (
+            <span
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+              aria-label={`Selected image: ${selectedImage.label}`}
+              className="keymove-image-status"
+            >
+              Image {selectedImage.position} / {selectedImage.count}
+            </span>
+          ) : (
+            <MatchesSummary
+              tooltipsMode={tooltipsMode}
+              onToggleMode={toggleSearchMode}
+              mode={navigationMode}
+              hasSearchQuery={hasSearchQuery}
+              isFuzzy={isFuzzy}
+              selectedSelectionIndex={selectedSelectionIndex}
+              resultCount={activeMatchingNodes.length}
+            />
+          )}
           {isInteractive && showAutohideButton && (
             <VisibilityButton
               tooltipsMode={tooltipsMode}
@@ -1123,6 +1311,17 @@ const Searchbar = () => {
             />
           )}
         </div>
+        {selectedImage && !actionMenuOpen && tooltipsMode && (
+          <div className="keymove-action-menu-footer">
+            ← ↑ ↓ → nearby images · Space actions{selectedImage.link ? ' · Enter follow link' : ''}{' '}
+            · Esc return to text
+          </div>
+        )}
+        {imageMessage && (
+          <div role="status" className="keymove-image-status">
+            {imageMessage}
+          </div>
+        )}
         {actionMenuOpen && menuSuggestion ? (
           <ActionMenu
             tooltipsMode={tooltipsMode}
@@ -1132,11 +1331,20 @@ const Searchbar = () => {
             maxHeight={suggestionsMaxHeight}
             searchInputRef={searchInputRef}
             onClose={closeActionMenu}
+            onEscape={
+              selectedImage
+                ? () => {
+                    clearImage();
+                    closeActionMenu();
+                  }
+                : undefined
+            }
             onNavigate={navigateFromMenu}
             onAction={runMenuAction}
           />
         ) : (
-          isInteractive && (
+          isInteractive &&
+          !selectedImage && (
             <ResultsPanel
               tooltipsMode={tooltipsMode}
               maxHeight={suggestionsMaxHeight}
@@ -1151,6 +1359,13 @@ const Searchbar = () => {
           )
         )}
       </DraggableContainer>
+      {selectedImage && imageViewer && (
+        <ImageViewer
+          image={selectedImage}
+          input={searchInputRef}
+          onClose={() => setImageViewer(false)}
+        />
+      )}
     </div>
   );
 };

@@ -20,20 +20,6 @@
     <h2>Cross-origin form (different hostname)</h2>
     <iframe id="cross" title="Cross-origin form"></iframe>
     <iframe hidden title="Hidden frame" src="./frame-child.html?name=hidden"></iframe>
-    <script type="module">
-      const frame = document.querySelector('#cross');
-      const url = new URL('./frame-child.html?name=remote&nested=1', location.href);
-      url.hostname = location.hostname === 'localhost' ? '127.0.0.1' : 'localhost';
-      frame.src = url.href;
-      const count = Number(new URLSearchParams(location.search).get('frames') ?? 3);
-      if (count === 0) document.querySelectorAll('iframe').forEach(node => node.remove());
-      for (let i = 3; i < Math.min(count, 20); i++) {
-        const extra = document.createElement('iframe');
-        extra.title = 'Extra form ' + i; extra.src = './frame-child.html?name=additional'; document.body.append(extra);
-      }
-      document.querySelector('#toggle').onclick = () => { frame.hidden = !frame.hidden; };
-      document.querySelector('#reload').onclick = () => { frame.src = url.href + '&reload=' + Date.now(); };
-      document.documentElement.dataset.fixtureReady = 'true';
-    </script>
+    <script type="module" src="./frames_fixture.ts"></script>
   </body>
 </html>

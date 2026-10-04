@@ -1,5 +1,6 @@
 import { isActionDisabled } from './searchable_attributes.js';
 import Utils from './utils.js';
+import type { ImageInfo } from './image_schema.js';
 
 type ResultAction = {
   id: string;
@@ -34,3 +35,12 @@ function actionsForResult(action: HTMLElement | null, text: Element | null): Res
 
 export { actionsForResult };
 export type { ResultAction };
+
+export function actionsForImage(image: ImageInfo): ResultAction[] {
+  return [
+    { id: 'image-view', label: 'View larger' },
+    { id: 'image-open', label: 'Open image in new tab', disabled: !/^https?:/i.test(image.url) },
+    { id: 'image-copy', label: 'Copy image' },
+    { id: 'image-address', label: 'Copy image address' },
+  ];
+}

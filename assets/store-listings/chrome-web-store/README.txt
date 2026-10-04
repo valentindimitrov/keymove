@@ -21,6 +21,6 @@ Each demonstration screenshot has a centered explanatory caption overlaid at the
 Screenshots were captured from the installed production extension on KeyMove's own sample page. No UI was reconstructed for the screenshots. The promo tiles use KeyMove's existing logo.
 
 To regenerate while the website preview server runs at http://127.0.0.1:5180:
-node assets/store-listings/generate.mjs
+node assets/store-listings/generate.ts
 
 Generated assets do not establish that the complete release quality gate passed.

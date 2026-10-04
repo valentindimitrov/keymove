@@ -31,6 +31,8 @@ import { scheduleHighlightRanges, shadowHighlightStyles } from '../hooks/use_hig
 import highlightStyles from '../highlights.css?inline';
 import { KEYMOVE_HIGHLIGHT_NAME, ACTION_PRIORITY_BOOST } from '../constants.js';
 import { renderedParent } from './dom_tree.js';
+import { RelatedImageSelection } from './related_images.js';
+import { isImageDirection } from './image_schema.js';
 
 export function installFrameWorker() {
   let index: PageSearchIndex | null = null;
@@ -42,6 +44,8 @@ export function installFrameWorker() {
   let nodes = new Map<number, Element>();
   let textMatches: SearchResult['matchingText'] = [];
   const hover = new SelectionHover();
+  const imageSelection = new RelatedImageSelection();
+  let imageToken = '';
   const children = new FrameSearch(changed);
   let nestedQuery = '';
   let nestedResults: SearchResult[] = [];
@@ -71,6 +75,11 @@ export function installFrameWorker() {
     browser.runtime.sendMessage({ type: FRAME_MESSAGE, ...message }).catch(() => null);
   function changed() {
     hover.reconcile();
+    if (imageToken && !imageSelection.info(imageToken)) {
+      imageSelection.clear();
+      imageToken = '';
+      clearMarks();
+    }
     if (!generation || changeTimer !== undefined) return;
     changeTimer = setTimeout(() => {
       changeTimer = undefined;
@@ -136,7 +145,8 @@ export function installFrameWorker() {
         );
       };
     }
-    const local = matching.filter(node => !frameTarget(node));
+    const selectedImage = imageSelection.info(imageToken) ? imageSelection.node : null;
+    const local = selectedImage ? [selectedImage] : matching.filter(node => !frameTarget(node));
     if (!local.length) return;
     marks = document.createElement('div');
     marks.id = 'keymove-root';
@@ -147,7 +157,7 @@ export function installFrameWorker() {
       const rect = node.getBoundingClientRect();
       if (!rect.width || !rect.height) continue;
       const outline = document.createElement('div');
-      const current = node === selected;
+      const current = node === selected || node === selectedImage;
       outline.className = current
         ? 'keymove-selection keymove-selected-selection'
         : 'keymove-selection';
@@ -235,6 +245,8 @@ export function installFrameWorker() {
     return rows;
   }
   function stop() {
+    imageSelection.clear();
+    imageToken = '';
     controller?.abort();
     controller = null;
     generation = '';
@@ -255,6 +267,8 @@ export function installFrameWorker() {
   }
   async function handle(request: FrameRequest, requester: number): Promise<unknown> {
     if (request.op === 'search') {
+      imageSelection.clear();
+      imageToken = '';
       controller?.abort();
       controller = new AbortController();
       const signal = controller.signal;
@@ -343,6 +357,52 @@ export function installFrameWorker() {
     if (request.command === 'scroll' || request.command === 'select') remember(node!);
     const remote = frameTarget(node);
     if (remote) return remote.command(request.command);
+    if (typeof request.command === 'object') {
+      const { image, token } = request.command;
+      if (image === 'clear') {
+        // A late clear from an earlier selection cannot erase a newer image.
+        if (!token || token === imageToken) {
+          imageSelection.clear();
+          imageToken = '';
+          clearMarks();
+        }
+        return true;
+      }
+      if (image === 'next' || isImageDirection(image)) {
+        if (image !== 'next' && (imageSelection.source !== node || !imageSelection.info(token)))
+          return null;
+        const info =
+          image === 'next' ? imageSelection.next(node!) : await imageSelection.move(token, image);
+        if (request.generation !== generation || !available(node)) return null;
+        imageToken = info?.token ?? '';
+        if (info && imageSelection.node) {
+          remember(imageSelection.node);
+          Utils.clearPageSelection();
+          Utils.scrollToNodeAtIndexInList([imageSelection.node], 0);
+          paint({
+            op: 'paint',
+            generation,
+            selected: null,
+            ids: [],
+            color: '#a78bfa',
+            highlight: false,
+          });
+        }
+        return info;
+      }
+      if (imageSelection.source !== node) return null;
+      if (image === 'info') return imageSelection.info(token);
+      if (image === 'activate') return imageSelection.activate(token);
+      if (image === 'copy') {
+        try {
+          await imageSelection.copy(token);
+          return true;
+        } catch {
+          return false;
+        }
+      }
+      return null;
+    }
     switch (request.command) {
       case 'validate':
         return !isActionDisabled(node!);

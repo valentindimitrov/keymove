@@ -11,6 +11,7 @@ import { checkRenderedText } from './rendered-text-smoke.ts';
 import { checkReturnPosition } from './return-position-smoke.ts';
 import { checkControlNavigation } from './control-navigation-smoke.ts';
 import { checkActionMenu } from './action-menu-smoke.ts';
+import { checkRelatedImages } from './image-navigation-smoke.ts';
 import { checkTooltipsMode } from './tooltips-mode-smoke.ts';
 import { checkDynamicPage } from './dynamic-page-smoke.ts';
 import { checkShadowSearch } from './shadow-search-smoke.ts';
@@ -91,6 +92,7 @@ export async function runBrowserSmoke(client: ChromiumClient, browser: string): 
     await server.listen();
     const origin = server.resolvedUrls?.local[0];
     assert(origin, 'Fixture server did not expose its address');
+    await checkRelatedImages(client, origin);
     await checkIframes(client, origin);
     await measureIframes(client, origin);
     passed.push(

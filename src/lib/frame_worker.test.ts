@@ -4,12 +4,72 @@ import type { FrameReply, FrameRequest } from './frame_protocol.js';
 import { PageSearchIndex } from './page_search_index.js';
 import { setFrameTarget } from './frame_target.js';
 import { makeSearchResult } from '../test_support/factories.js';
+import { isImageInfo } from './image_schema.js';
 
 const transport = vi.hoisted(() => ({
   add: vi.fn(),
   remove: vi.fn(),
   send: vi.fn().mockResolvedValue(null),
 }));
+
+test('routes image selection with live tokens and cleans its frame overlay', async () => {
+  document.body.innerHTML =
+    '<figure><img src="https://example.com/photo.png" alt="Product"><figcaption>Samba</figcaption></figure><figure><img id="neighbour" src="https://example.com/other.png"></figure>';
+  for (const image of document.querySelectorAll('img')) image.scrollIntoView = vi.fn();
+  vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(100);
+  vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(100);
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    return new DOMRect(this.id === 'neighbour' ? 250 : 0, 0, 200, 200);
+  });
+  transport.add.mockClear();
+  const teardown = installFrameWorker();
+  const listener = transport.add.mock.calls[0]![0];
+  const request = (body: FrameRequest): Promise<unknown> =>
+    new Promise(resolve => {
+      listener(
+        { type: FRAME_MESSAGE, kind: 'deliver', requester: 0, request: body },
+        { id: 'test' },
+        resolve,
+      );
+    });
+  try {
+    const reply = (await request({
+      op: 'search',
+      query: 'Samba',
+      generation: 'images',
+      depth: 1,
+    })) as FrameReply;
+    const id = reply.rows.find(row => row.kind === 'text')!.id;
+    const command = { op: 'command' as const, generation: 'images', id };
+    const image = await request({ ...command, command: { image: 'next', token: '' } });
+    expect(isImageInfo(image)).toBe(true);
+    if (!isImageInfo(image)) throw new Error('Missing image');
+    expect(
+      document
+        .getElementById('keymove-root')
+        ?.shadowRoot?.querySelector('.keymove-selected-selection'),
+    ).not.toBeNull();
+    expect(await request({ ...command, command: { image: 'info', token: 'stale' } })).toBeNull();
+    expect(await request({ ...command, command: { image: 'info', token: image.token } })).toEqual(
+      image,
+    );
+    const moved = await request({ ...command, command: { image: 'right', token: image.token } });
+    expect(isImageInfo(moved)).toBe(true);
+    if (!isImageInfo(moved)) throw new Error('Missing neighbour image');
+    expect(moved.url).toBe('https://example.com/other.png');
+    expect(
+      await request({ ...command, command: { image: 'left', token: image.token } }),
+    ).toBeNull();
+    await request({ ...command, command: { image: 'clear', token: moved.token } });
+    expect(document.getElementById('keymove-root')).toBeNull();
+    await request({ op: 'stop' });
+    expect(await request({ ...command, command: { image: 'next', token: '' } })).toBeNull();
+  } finally {
+    teardown();
+    document.body.innerHTML = '';
+    vi.restoreAllMocks();
+  }
+});
 vi.mock('wxt/browser', () => ({
   browser: {
     runtime: {

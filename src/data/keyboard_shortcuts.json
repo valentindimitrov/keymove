@@ -1,12 +1,22 @@
 [
   {
+    "name": "select_related_image",
+    "eventMatcher": {
+      "code": "KeyI",
+      "flags": { "default": ["altKey"] },
+      "discludedFlags": { "default": ["ctrlKey", "metaKey", "shiftKey"] }
+    },
+    "displayKeys": { "default": ["Alt", "I"], "mac": ["Option", "I"] },
+    "text": "to select or cycle related images; then arrows move, Space opens actions, Enter follows the link, Escape returns"
+  },
+  {
     "name": "open_action_menu",
     "eventMatcher": {
       "code": "ArrowDown",
       "discludedFlags": { "default": ["shiftKey", "ctrlKey", "metaKey", "altKey"] }
     },
     "displayKeys": { "default": ["↓"] },
-    "text": "to open actions for the selected result"
+    "text": "to open actions for the selected text/action result (Space for a selected image)"
   },
   {
     "name": "next_match",
