@@ -103,8 +103,19 @@ export async function checkRelatedImages(client: ChromiumClient, origin: string)
     );
     await page.key('v', process.platform === 'darwin' ? 4 : 2);
     await waitFor(page, `document.querySelector('#paste-image img')`);
+    // Page-editor focus resets search; reopen and select the image for the address-copy check.
+    await page.key('f', 1);
+    for (const key of 'Samba shoe') await page.key(key);
+    await waitFor(
+      page,
+      `${root}?.querySelector('#keymove-suggestions')?.getAttribute('aria-busy') === 'false' && ${root}.querySelector('#keymove-actions-hint')`,
+    );
+    await page.key('i', 1);
+    await waitFor(
+      page,
+      `${root}.querySelector('[aria-label="Selected image: Purple training shoe"]')`,
+    );
     // Exercise the deferred ClipboardItem path with a real paste as well.
-    await page.evaluate(`${input}.focus()`);
     await page.key(' ');
     await waitFor(page, `${root}.querySelector('[role="menu"]')`);
     await page.key('4', 1);
