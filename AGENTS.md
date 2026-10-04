@@ -4,8 +4,8 @@
 
 This repository contains KeyMove, a keyboard-first in-page search browser extension. It is being
 prepared as a new extension rather than an update to an existing store listing. The KeyMove name
-and artwork are applied; repository metadata, store metadata, extension IDs, upstream relicensing
-permission, and upstream contribution documentation remain pending. Original KeyMove contributions
+and artwork are applied; store publication, permanent extension IDs, and upstream relicensing
+permission remain pending. Public contribution guidance is in `CONTRIBUTING.md`. Original KeyMove contributions
 by Valentin Dimitrov use Apache License 2.0; inherited and adapted Comake code retains BSD 4-Clause.
 The relicensing request to YipYip's creator has received no reply as of September 22, 2026.
 An Apache-2.0-only license for KeyMove's own and inherited YipYip code is possible if the creator
@@ -317,15 +317,17 @@ blindly replacing it can break selectors, stored preferences, and content/backgr
 
 ## Repository, secrets and publishing
 
-- `origin` is `valentindimitrov/keymove` (private). `upstream` is `comake/yip-yip` (public). Pushing
+- `origin` is `valentindimitrov/keymove` (public). `upstream` is `comake/yip-yip` (public). Pushing
   or opening a pull request upstream publishes to the world: do it only when the user asks for
   that specific change, and never send KeyMove branding or Apache-only code there.
-- `main` has no branch protection or rulesets (GitHub's free plan offers neither for private
-  repositories), so a mistaken push lands directly. Check the branch and remote before pushing.
+- `main` requires the GitHub Actions `quality` check and blocks force pushes and deletion.
+  Push a focused branch and open a pull request so the check runs before merging. Check the
+  current branch, remote, and live protection settings before pushing; never bypass protection.
 - Only this project's own work belongs in the repository. Do not copy code or text from other
   projects in unless the user asks and its license allows it; note where it came from.
-- Local `.env` and `.env.*` files are the only secret surface and are ignored by git
-  (`.env.example` is allowed but does not exist yet). Never commit, print or paste their values.
+- Local `.env` and `.env.*` files are ignored by git (`.env.example` is allowed but does not
+  exist yet). Signing and deployment credentials also live in external secret stores. Never
+  commit, print or paste secret values; follow `SECURITY.md` for vulnerability reports.
 - Releases are manual uploads to the Chrome Web Store and Firefox Add-ons, not a pipeline. A
   store submission is effectively irreversible: confirm with the user before any store action.
 - The website is the exception: every push to `main` that passes the quality checks publishes it
