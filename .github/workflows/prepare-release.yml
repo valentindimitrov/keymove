@@ -100,6 +100,7 @@ jobs:
             "keymove-v${RELEASE_VERSION}-chrome-mv3.zip"
             "keymove-v${RELEASE_VERSION}-chrome-mv3.crx"
             "keymove-v${RELEASE_VERSION}-firefox-mv3.zip"
+            "keymove-v${RELEASE_VERSION}-safari-mv3.zip"
             "keymove-v${RELEASE_VERSION}-sources.zip"
           )
 
@@ -140,6 +141,7 @@ jobs:
             ".output/keymove-v${RELEASE_VERSION}-chrome-mv3.zip#Chromium and Vivaldi" \
             ".output/keymove-v${RELEASE_VERSION}-chrome-mv3.crx#Signed Chrome Web Store upload" \
             ".output/keymove-v${RELEASE_VERSION}-firefox-mv3.zip#Firefox submission package" \
+            ".output/keymove-v${RELEASE_VERSION}-safari-mv3.zip#Safari macOS web resources (runtime unverified; requires Apple packaging)" \
             ".output/keymove-v${RELEASE_VERSION}-sources.zip#Source package for Firefox review" \
             ".output/SHA256SUMS.txt#SHA-256 checksums"
 

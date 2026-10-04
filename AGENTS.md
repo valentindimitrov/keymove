@@ -17,6 +17,11 @@ The runtime is Manifest V3 only. Chromium and Vivaldi use the Chrome target; Fir
 Firefox target. There is no MV2 compatibility layer and no user account, email, sign-in, or remote
 authentication flow.
 
+Safari has an experimental MV3 web-resources target for macOS only. Build/ZIP generation
+runs on all development hosts; Apple packaging must select only macOS. `docs/safari.md`
+documents the cloud and local Xcode routes and pending Safari checks. Never infer Safari
+runtime compatibility from a Windows build or Chromium smoke pass.
+
 ## Repository map
 
 ```text
@@ -47,7 +52,7 @@ authentication flow.
 ```
 
 Generated directories are `.output/` and `.wxt/`; do not edit or commit them. Production unpacked
-artifacts are `.output/chrome-mv3` and `.output/firefox-mv3`.
+artifacts are `.output/chrome-mv3`, `.output/firefox-mv3` and `.output/safari-mv3`.
 
 ## Runtime flow
 
@@ -495,6 +500,6 @@ and documentation-only exceptions above do not require this gate:
 yarn quality
 ```
 
-That command checks Oxfmt formatting, Oxlint linting, strict TypeScript, all tests, both MV3 builds, and
+That command checks Oxfmt formatting, Oxlint linting, strict TypeScript, all tests, all three MV3 builds, and
 the generated artifacts. If running steps separately, `yarn verify` requires a completed
 `yarn build` first.

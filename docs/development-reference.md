@@ -26,11 +26,13 @@ so every assertion still passes. Add a scenario when a state is worth looking at
 | `yarn preview:vivaldi` / `yarn preview:chrome` / `yarn preview:firefox` | Rebuild and preview in a specific browser. |
 | `yarn browser:open` | Open an already-built extension with the same automatic browser selection. |
 | `yarn preview:ui` | Serve the interface on `localhost:5174` for a visual check, without a browser extension install. |
-| `yarn build` | Build both production targets. |
+| `yarn build` | Build Chromium, Firefox and experimental Safari web resources. |
 | `yarn build:chromium` | Build the Chromium/Vivaldi artifact. |
 | `yarn build:vivaldi` | Explicit alias for the Chromium artifact used by Vivaldi. |
 | `yarn build:firefox` | Build the Firefox artifact. |
-| `yarn zip` | Package both browser builds under `.output`. |
+| `yarn build:safari` / `yarn zip:safari` | Build/package Safari MV3 web resources for the macOS-only app. |
+| `yarn safari:project <bundle-identifier>` | Generate a macOS-only Xcode project on a Mac; see [Safari](safari.md). |
+| `yarn zip` | Package all three browser builds under `.output`. |
 | `yarn package:chrome` | Build a signed Chrome Web Store CRX using the key in Proton Pass. |
 | `yarn verify:crx` | Verify the CRX signature and its exact ZIP payload without the private key. |
 | `yarn format` | Format supported source and configuration files with Oxfmt. |
@@ -40,7 +42,7 @@ so every assertion still passes. Add a scenario when a state is worth looking at
 | `yarn typecheck` | Run strict TypeScript checks without emitting files. |
 | `yarn test` | Run the Vitest/jsdom test suite. |
 | `yarn verify` | Validate completed manifests and bundles after a build. |
-| `yarn quality` | Run formatting, linting, types, tests, both builds, and artifact validation. |
+| `yarn quality` | Run formatting, linting, types, tests, all three builds, and artifact validation. |
 
 Preview commands use `web-ext` to load the extension in a fresh temporary browser profile, leaving
 your regular profile untouched. Vivaldi's welcome screen and exit confirmation are skipped in the test profile.

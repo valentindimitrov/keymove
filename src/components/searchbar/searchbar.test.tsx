@@ -6,6 +6,7 @@ import type { SearchResult } from '../../lib/page_search_index.js';
 import { MODAL_CHANGED_EVENT } from '../../lib/modal_context.js';
 import { stopFrameSearch } from '../../lib/find_in_page.js';
 import { RelatedImageSelection } from '../../lib/related_images.js';
+import { setFrameTarget } from '../../lib/frame_target.js';
 
 const searchMocks = vi.hoisted(() => ({
   findMatches: vi.fn(),
@@ -147,6 +148,108 @@ async function openLinkActionMenu() {
   expect(screen.getByRole('menu')).toBeInTheDocument();
   return { input, link };
 }
+
+test('starts image-address clipboard writing before asynchronous image validation completes', async () => {
+  const write = vi.fn().mockResolvedValue(undefined);
+  const item = vi.fn(function (this: object, data: unknown) {
+    Object.assign(this, { data });
+  });
+  vi.stubGlobal('ClipboardItem', item);
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { write } });
+  try {
+    const card = document.createElement('figure');
+    card.innerHTML = '<img src="https://example.com/shoe.png"><figcaption>Shoe</figcaption>';
+    document.body.append(card);
+    vi.spyOn(card.querySelector('img')!, 'getBoundingClientRect').mockReturnValue(
+      new DOMRect(0, 0, 200, 180),
+    );
+    searchMocks.findMatches.mockResolvedValue(
+      makeSearchResult({
+        matchingText: [makeTextMatch({ node: card.querySelector('figcaption')! })],
+      }),
+    );
+    render(<Searchbar />);
+    const input = screen.getByRole('combobox', { name: 'Search page' });
+    input.focus();
+    fireEvent.input(input, { target: { value: 'shoe' } });
+    await flushSearch();
+    fireEvent.keyDown(input, { key: 'i', code: 'KeyI', altKey: true });
+    await act(async () => {});
+    fireEvent.keyDown(input, { key: ' ', code: 'Space' });
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Copy image address' }));
+    // Safari requires the write itself in the original input event, before any await.
+    expect(write).toHaveBeenCalledOnce();
+    expect(item).toHaveBeenCalledWith({ 'text/plain': expect.any(Promise) });
+    await act(async () => {});
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
+
+test('starts frame-text copying in the input event and retains a reopened menu after completion', async () => {
+  const pending = Promise.withResolvers<unknown>();
+  const write = vi.fn(
+    (items: { data: Record<string, Promise<Blob>> }[]) => items[0]!.data['text/plain'],
+  );
+  vi.stubGlobal(
+    'ClipboardItem',
+    class {
+      constructor(public data: Record<string, Promise<Blob>>) {}
+    },
+  );
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { write } });
+  try {
+    const boundary = document.createElement('iframe');
+    document.body.append(boundary);
+    const node = document.createElement('p');
+    const command = vi
+      .fn()
+      .mockImplementation((operation: string) =>
+        Promise.resolve(operation === 'text' ? pending.promise : true),
+      );
+    setFrameTarget(node, {
+      boundary,
+      alive: () => boundary.isConnected,
+      command,
+      paint: vi.fn(),
+      row: {
+        id: 1,
+        kind: 'text',
+        action: null,
+        label: 'Frame report',
+        text: 'Frame report',
+        context: '',
+        href: null,
+        disabled: false,
+        focusable: false,
+        score: 1,
+        term: 'report',
+        distance: null,
+      },
+    });
+    searchMocks.findMatches.mockResolvedValue(
+      makeSearchResult({ matchingText: [makeTextMatch({ node, term: 'report' })] }),
+    );
+    render(<Searchbar />);
+    const input = screen.getByRole('combobox', { name: 'Search page' });
+    input.focus();
+    fireEvent.input(input, { target: { value: 'report' } });
+    await flushSearch();
+    fireEvent.keyDown(input, { key: 'ArrowDown', code: 'ArrowDown' });
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Copy text' }));
+    expect(command).toHaveBeenCalledWith('text');
+    expect(write).toHaveBeenCalledOnce();
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape', code: 'Escape' });
+    fireEvent.keyDown(input, { key: 'ArrowDown', code: 'ArrowDown' });
+    await act(async () => pending.resolve('Validated frame report'));
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    expect(input).toHaveValue('report');
+  } finally {
+    await act(async () => pending.resolve('Validated frame report'));
+    vi.unstubAllGlobals();
+  }
+});
 
 test('selects a related image on demand, offers image actions, then restores text and query', async () => {
   const card = document.createElement('figure');
