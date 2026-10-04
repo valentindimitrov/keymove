@@ -7,6 +7,7 @@ import popupStyles from '../src/popup.css?inline';
 import MatchesSummary from '../src/components/searchbar/matches_summary.js';
 import ResultsPanel from '../src/components/searchbar/results_panel.js';
 import ActionMenu from '../src/components/searchbar/action_menu.js';
+import ImageViewer from '../src/components/searchbar/image_viewer.js';
 import { ACTION_MENU_RESULT_HEIGHT } from '../src/constants.js';
 import { actionsForResult } from '../src/lib/result_actions.js';
 import SearchInput from '../src/components/searchbar/search_input.js';
@@ -395,6 +396,11 @@ const SuggestionSpacingPreview = () => {
 
 const SCENARIOS: Scenario[] = [
   {
+    name: 'image-viewer',
+    description: 'Related image viewer with keyboard close, narrow viewport fit and shared themes.',
+    render: () => <ImageViewerPreview />,
+  },
+  {
     name: 'suggestion-spacing',
     description:
       'Switch between tall and compact results and vary the row count to check trailing space.',
@@ -711,6 +717,44 @@ const SCENARIOS: Scenario[] = [
     ),
   },
 ];
+
+function ImageViewerPreview() {
+  const input = React.useRef<HTMLInputElement>(null);
+  const [open, setOpen] = React.useState(true);
+  const url = React.useMemo(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 900;
+    canvas.height = 600;
+    const context = canvas.getContext('2d')!;
+    context.fillStyle = '#ddd8ec';
+    context.fillRect(0, 0, 900, 600);
+    context.fillStyle = '#7558ae';
+    context.fillRect(150, 150, 600, 300);
+    return canvas.toDataURL('image/png');
+  }, []);
+  return (
+    <>
+      <input ref={input} aria-label="Preview search" defaultValue="Product photograph" />
+      <button type="button" onClick={() => setOpen(true)}>
+        View image
+      </button>
+      {open && (
+        <ImageViewer
+          image={{
+            token: 'preview',
+            url,
+            label: 'Product photograph',
+            link: null,
+            position: 1,
+            count: 1,
+          }}
+          input={input}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </>
+  );
+}
 
 export type { Scenario };
 export { SCENARIOS };

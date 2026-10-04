@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Related image navigation fixture</title>
+    <style>
+      body { font: 18px system-ui; background: #161616; color: #eee; margin: 32px; }
+      .cards { display: flex; gap: 24px; } figure, article { margin: 0; width: 260px; padding: 16px; background: #303030; }
+      header { position: relative; } .wishlist { position: absolute; right: 8px; top: 8px; }
+      .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+      img { width: 260px; height: 190px; object-fit: contain; background: #e9e8f1; }
+      a { color: #cbb9ff; } iframe { width: 90%; height: 400px; margin-top: 24px; }
+    </style>
+  </head>
+  <body>
+    <h1>Related images</h1>
+    <p>
+      Search “Samba”, then Alt+I. Arrows move between images; Space opens actions. Escape returns to
+      text.
+    </p>
+    <div class="cards">
+      <article>
+        <div>
+          <header>
+            <button class="wishlist">
+              <span aria-hidden="true">♡</span><span class="visually-hidden">Add to wishlist</span>
+            </button>
+            <a href="#samba" id="shoe-link"><img id="shoe" alt="Purple training shoe" /></a>
+          </header>
+          <a href="#samba"
+            ><footer><p id="shoe-caption">Samba shoe</p></footer></a
+          >
+        </div>
+      </article>
+      <figure>
+        <img id="other" alt="Orange walking shoe" />
+        <figcaption>Other product</figcaption>
+      </figure>
+      <figure><figcaption>No photograph here</figcaption></figure>
+    </div>
+    <div id="component"></div>
+    <div id="frames"></div>
+    <script type="module">
+      const canvas = document.createElement('canvas'); canvas.width = 780; canvas.height = 570;
+      const context = canvas.getContext('2d');
+      function photo(color) { context.fillStyle='#e9e8f1'; context.fillRect(0,0,780,570); context.fillStyle=color; context.beginPath(); context.moveTo(100,330); context.lineTo(170,200); context.lineTo(320,310); context.lineTo(600,345); context.quadraticCurveTo(720,460,90,410); context.fill(); return canvas.toDataURL('image/png'); }
+      document.getElementById('shoe').src = photo('#8064be');
+      document.getElementById('other').src = photo('#c87538');
+      // Uneven nesting reproduces one-way movement between content and a sidebar.
+      let column = document.querySelector('.cards > article');
+      for (let depth = 0; depth < 13; depth++) {
+        const wrapper = document.createElement('div'); column.replaceWith(wrapper);
+        wrapper.append(column); column = wrapper;
+      }
+      for (let i = 0; i < 1400; i++) column.append(document.createElement('span'));
+      const root = document.getElementById('component').attachShadow({mode:'open'});
+      root.innerHTML = '<figure><img style="width:180px;height:140px" alt="Camera photograph"><figcaption>Shadow camera</figcaption></figure>';
+      root.querySelector('img').src = photo('#2b8c88');
+      document.getElementById('shoe-link').addEventListener('click', event => { event.preventDefault(); document.body.dataset.activated='true'; });
+      if (!new URLSearchParams(location.search).has('child')) {
+        const iframe = document.createElement('iframe'); iframe.title='Cross-origin related images';
+        const url=new URL(location.href); url.hostname=location.hostname === 'localhost' ? '127.0.0.1' : 'localhost'; url.search='?child'; iframe.src=url.href;
+        document.getElementById('frames').append(iframe);
+      } else {
+        document.getElementById('shoe-caption').textContent='Embedded trainer';
+      }
+    </script>
+  </body>
+</html>

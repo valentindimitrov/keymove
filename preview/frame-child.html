@@ -13,14 +13,6 @@
     <label for="price">Minimum (EUR)</label><input id="price" type="number" value="40" />
     <button id="launch">Launch</button><output id="result">Not activated</output>
     <a href="https://example.com/">Example destination</a>
-    <script type="module">
-      const params = new URLSearchParams(location.search);
-      document.querySelector('#text').textContent = params.get('name') + ' otter paragraph to copy.';
-      document.querySelector('#launch').onclick = () => { document.querySelector('#result').textContent = 'Activated'; };
-      if (params.has('nested')) {
-        const frame = document.createElement('iframe');
-        frame.title = 'Nested form'; frame.src = './frame-child.html?name=nested'; document.body.append(frame);
-      }
-    </script>
+    <script type="module" src="./frame_child_fixture.ts"></script>
   </body>
 </html>

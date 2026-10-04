@@ -10,6 +10,7 @@ type SearchInputProps = {
   actionMenuOpen?: boolean;
   tooltipsMode?: boolean;
   actionsAvailable?: boolean;
+  imageSelected?: boolean;
   activeSuggestionIndex: number | null;
   updateSearchText: (value: string) => void;
   inputRef: React.RefObject<HTMLInputElement | null>;
@@ -94,7 +95,9 @@ const SearchInput = (props: SearchInputProps) => {
       />
       {props.actionsAvailable && props.tooltipsMode !== false && (
         <span id="keymove-actions-hint" hidden>
-          Press Down Arrow to open actions for the selected result.
+          {props.imageSelected
+            ? 'Arrow keys select nearby images. Space opens image actions. Enter follows the image link. Escape returns to the text result.'
+            : 'Press Down Arrow to open actions for the selected result.'}
         </span>
       )}
     </div>

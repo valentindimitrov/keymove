@@ -54,7 +54,7 @@ export async function checkActionMenu(client: ChromiumClient, origin: string) {
     assert.equal(await page.evaluate(`Boolean(${menu})`), false, 'Up alone is reserved');
     await page.key('ArrowDown');
     await waitFor(page, `${focusedLabel} === 'Open link'`);
-    assert.equal(await page.evaluate(`${menu}.querySelectorAll('[role="menuitem"]').length`), 6);
+    assert.equal(await page.evaluate(`${menu}.querySelectorAll('[role="menuitem"]').length`), 7);
     assert.equal(
       await page.evaluate(`${shadow}.querySelectorAll('.keymove-suggestion').length`),
       1,
@@ -69,7 +69,7 @@ export async function checkActionMenu(client: ChromiumClient, origin: string) {
       await page.evaluate(
         `Array.from(${menu}.querySelectorAll('.keymove-suggestion-position'), node => node.textContent)`,
       ),
-      [1, 2, 3, 4, 5, 6].map(
+      [1, 2, 3, 4, 5, 6, 7].map(
         number => `${process.platform === 'darwin' ? 'Option' : 'Alt'} + ${number}`,
       ),
     );
@@ -134,7 +134,7 @@ export async function checkActionMenu(client: ChromiumClient, origin: string) {
     await query(page, 'menu standalone');
     await page.key('ArrowDown');
     await waitFor(page, `${focusedLabel} === 'Copy text'`);
-    assert.equal(await page.evaluate(`${menu}.querySelectorAll('[role="menuitem"]').length`), 1);
+    assert.equal(await page.evaluate(`${menu}.querySelectorAll('[role="menuitem"]').length`), 2);
     await page.key('Enter');
     await waitFor(page, `!${menu}`);
     await page.evaluate(

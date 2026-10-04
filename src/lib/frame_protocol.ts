@@ -1,8 +1,11 @@
 import { isRecord } from './runtime_schema.js';
+import { isImageCommand } from './image_schema.js';
+import type { ImageCommand } from './image_schema.js';
 
 export const FRAME_MESSAGE = 'KEYMOVE_FRAME_V1';
 export const FRAME_PROBE = 'KEYMOVE_FRAME_PROBE_V1';
 export type FrameCommand =
+  | ImageCommand
   | 'activate'
   | 'focus'
   | 'scroll'
@@ -55,9 +58,10 @@ export function isFrameRequest(value: unknown): value is FrameRequest {
   if (value.op === 'command')
     return (
       id(value.id) &&
-      ['activate', 'focus', 'scroll', 'select', 'hover', 'unhover', 'text', 'validate'].includes(
-        String(value.command),
-      )
+      (isImageCommand(value.command) ||
+        ['activate', 'focus', 'scroll', 'select', 'hover', 'unhover', 'text', 'validate'].includes(
+          String(value.command),
+        ))
     );
   return (
     value.op === 'paint' &&
