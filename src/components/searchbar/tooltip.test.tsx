@@ -43,11 +43,11 @@ test('keeps an oversized tooltip origin inside a small viewport', () => {
   vi.stubGlobal('innerHeight', 300);
   const anchor = document.createElement('button');
   document.body.append(anchor);
-  const bounds = vi
-    .spyOn(Element.prototype, 'getBoundingClientRect')
-    .mockImplementation(function (this: Element) {
-      return this === anchor ? new DOMRect(350, 230, 30, 30) : new DOMRect(0, 0, 545, 420);
-    });
+  const bounds = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (
+    this: Element,
+  ) {
+    return this === anchor ? new DOMRect(350, 230, 30, 30) : new DOMRect(0, 0, 545, 420);
+  });
   try {
     render(
       <PortalTargetProvider target={document.body}>
