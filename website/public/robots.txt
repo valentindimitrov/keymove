@@ -1,0 +1,6 @@
+# Keep pages and rendering assets crawlable. The demo uses noindex in its HTML.
+# Cloudflare prepends its managed AI-crawler rules in production.
+User-agent: *
+Allow: /
+
+Sitemap: https://keymove.minddevops.eu/sitemap.xml

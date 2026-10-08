@@ -14,7 +14,7 @@ export default function SiteHeader({ patterns = false }: { patterns?: boolean })
           {identity.name}
         </a>
         <nav aria-label="Main navigation">
-          <a className="nav-how" href={patterns ? './' : './patterns.html'}>
+          <a className="nav-how" href={patterns ? './' : './patterns'}>
             {patterns ? 'Demo' : 'Navigation patterns'}
           </a>
           <div className="header-install">
@@ -24,25 +24,26 @@ export default function SiteHeader({ patterns = false }: { patterns?: boolean })
                   name: 'Vivaldi',
                   icon: vivaldiIcon,
                   store: 'Chrome Web Store',
-                  url: 'https://chromewebstore.google.com/',
+                  url: 'https://chromewebstore.google.com/detail/keymove/kllljoldaaendmbegkmkjccadcljpnhj',
                 },
                 {
                   name: 'Chrome',
                   icon: chromeIcon,
                   store: 'Chrome Web Store',
-                  url: 'https://chromewebstore.google.com/',
+                  url: 'https://chromewebstore.google.com/detail/keymove/kllljoldaaendmbegkmkjccadcljpnhj',
                 },
                 {
                   name: 'Edge',
                   icon: edgeIcon,
                   store: 'Microsoft Edge Add-ons',
                   url: 'https://microsoftedge.microsoft.com/addons/',
+                  placeholder: true,
                 },
                 {
                   name: 'Firefox',
                   icon: firefoxIcon,
                   store: 'Firefox Add-ons',
-                  url: 'https://addons.mozilla.org/firefox/',
+                  url: 'https://addons.mozilla.org/firefox/addon/keymove/',
                 },
               ].map(store => (
                 <a
@@ -52,7 +53,11 @@ export default function SiteHeader({ patterns = false }: { patterns?: boolean })
                   href={store.url}
                   target="_blank"
                   rel="noreferrer"
-                  title={`${store.store} — placeholder until KeyMove is published`}
+                  title={
+                    store.placeholder
+                      ? `${store.store} — placeholder until KeyMove is published here`
+                      : `Get KeyMove from ${store.store}`
+                  }
                 >
                   <img src={store.icon} width="20" height="20" alt="" />
                   <span className="store-name">{store.name}</span>

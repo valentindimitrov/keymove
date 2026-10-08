@@ -54,7 +54,8 @@ is deliberately only `cof`, demonstrating substring matching. Within the recordi
 accumulate as separate, content-sized badges beside the searchbar, including both Tab presses.
 The stack resets at each chapter boundary. The sidebar contains explanations and chapter links;
 the expanded transcript preserves an accessible written account of the input sequence.
-The player starts paused. Chapter jumps retain the playing or paused state, including requests
+The player starts paused and downloads the recording only after Play or a chapter is selected.
+Chapter jumps retain the playing or paused state, including requests
 made before metadata loads. The recording leaves two seconds between the opening shortcuts
 in the button chapter and includes a keyframe each second for responsive seeking. It provides
 the video through a fully downloaded Blob URL because the hosted asset can expose only a
@@ -94,8 +95,62 @@ permissions and a secure context; real failures are announced by the shared acti
 
 Parent/frame commands require matching origin, source window, and a recognized lesson identifier.
 Escape clears the query; another Escape returns focus outside the iframe. Reset reloads the sample
-page and clears its state. Store links are intentionally absent until real listings exist.
+page and clears its state. Chrome, Vivaldi, and Firefox link to the published store listings;
+the Edge store link remains a placeholder.
 
-Visual checks: use `yarn website:dev` for desktop and narrow layouts. Use `yarn preview:ui` for
-shared extension visual regression scenarios. The website and extension must both build before
-handoff; the repository's `yarn quality` gate remains unchanged.
+## Search and static rendering
+
+`yarn website:build` renders the home, patterns, and getting-started React components into HTML, and renders
+the shared header and footer into the static privacy page. `prerender-plugin.ts` uses Vite's
+build asset names, then the browser hydrates those same components. No runtime server or browser
+binary is needed for the build. Platform shortcut labels update after hydration; the demo iframe
+starts after its parent has attached its message listener. Dev mode uses ordinary client rendering.
+
+The HTML contains canonical URLs. `public/sitemap.xml` lists the four public content pages;
+`public/robots.txt` advertises it. Keep the iframe-only demo's `noindex` tag and exclude it from
+the sitemap. Cloudflare may prepend its managed crawler policy to robots.txt; preserve that
+policy when deploying. After deployment, submit the sitemap in the owner's Search Console and
+use URL Inspection to check rendered content and indexing status. A sitemap does not guarantee
+indexing or rankings.
+
+The homepage includes build-generated `WebSite` JSON-LD for the site name. This is an inert
+data block, not executable JavaScript; keep the strict script CSP intact. The getting-started
+guide reuses the shared navigation and platform-aware shortcut labels, and links to the existing
+pattern examples. Its text remains readable without JavaScript, with a macOS shortcut note as
+a fallback. The homepage links to the guide beside the demo instructions.
+
+Run `node website/verify-build.mjs` after building to check static content, asset references,
+canonical URLs, sitemap coverage, demo exclusion, and bundled font licenses without a browser.
+
+Fonts are self-hosted with their licenses in `fonts/`. `public/_headers` caches fingerprinted
+assets for one year; HTML remains revalidated so deployments can update its asset references.
+
+## Security headers and reporting
+
+`public/_headers` also supplies the production CSP, host-scoped HSTS, MIME sniffing protection,
+same-origin framing, referrer policy, and permissions policy. CSP allows only same-origin
+scripts and connections, self-hosted fonts, local/data/blob images, and local/blob media.
+Inline styles remain permitted because the real extension demo injects Shadow DOM styles
+and uses inline layout styles; inline scripts and eval remain blocked. Same-origin frames,
+clipboard writes, and fullscreen are retained for the demo and video controls. Camera,
+microphone, location, payment, USB, and clipboard reads are disabled. HSTS deliberately has
+no `includeSubDomains` or preload directive, so it does not opt other hosts into this policy.
+
+Test response headers using `npx --yes wrangler@4.147.0 dev --local --config website/wrangler.jsonc` after a
+website build; Vite preview does not apply Cloudflare's `_headers` or `_redirects` files.
+Keep production policies out of the Vite development server, whose hot reload has different
+script and connection requirements. Verify the actual Cloudflare response after deployment.
+
+`public/.well-known/security.txt` advertises the existing private GitHub vulnerability-reporting
+channel. `/security.txt` redirects there. Review its contact and policy URLs and renew its
+expiry before 2027-04-08; the build verification rejects an expired file. Robots.txt is a crawl
+preference, not an access-control policy. Do not block scripts/styles or the demo in robots.txt,
+because crawlers must be able to render pages and read the demo's `noindex` directive.
+The host-specific `X-Robots-Tag: noindex` rule keeps Cloudflare `workers.dev` preview URLs
+out of search results without applying noindex to the public custom domain.
+To exercise that rule locally, add `--local-upstream pr-check.example.workers.dev` to Wrangler;
+overriding only the HTTP Host header does not change Wrangler's configured upstream hostname.
+
+For website-only changes, follow `website/AGENTS.md`: format/lint/typecheck as applicable,
+build the website, and check the rendered pages and interactions at desktop and narrow widths.
+Extension tests and MV3 builds are needed only when shared extension code changes.

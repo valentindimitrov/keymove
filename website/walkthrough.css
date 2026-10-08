@@ -28,6 +28,12 @@
   background: rgb(255 255 255 / 85%);
   color: #303030;
 }
+.walkthrough-start {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
 .walkthrough-screen video {
   display: block;
   width: 100%;
