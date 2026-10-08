@@ -1,4 +1,3 @@
-import { createRoot } from 'react-dom/client';
 import SiteHeader from './site-header.js';
 import SiteFooter from './site-footer.js';
 import Shortcut from './shortcut.js';
@@ -7,7 +6,7 @@ import { patternGroups } from './patterns-data.js';
 import './website.css';
 import './patterns.css';
 
-function PatternsPage() {
+export default function PatternsPage() {
   return (
     <>
       <a className="skip-link" href="#pattern-library">
@@ -86,6 +85,3 @@ function PatternsPage() {
     </>
   );
 }
-
-const mount = document.getElementById('website');
-if (mount) createRoot(mount).render(<PatternsPage />);

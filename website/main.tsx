@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { createRoot } from 'react-dom/client';
 
 import { LESSONS, type LessonId } from './protocol.js';
 import Shortcut from './shortcut.js';
@@ -9,13 +8,14 @@ import SiteFooter from './site-footer.js';
 import { KEYMOVE_INPUT_ID, KEYMOVE_ROOT_ID } from '../src/constants.js';
 import './website.css';
 
-function Website() {
+export default function Website() {
   const frame = useRef<HTMLIFrameElement>(null);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
   const [active, setActive] = useState<LessonId>('find');
   const [started, setStarted] = useState(false);
   const [generation, setGeneration] = useState(0);
+  const [mounted, setMounted] = useState(false);
   const lesson = LESSONS.find(item => item.id === active) ?? LESSONS[0];
 
   useEffect(() => {
@@ -29,6 +29,8 @@ function Website() {
       if (event.data === 'keymove-demo:exit') document.getElementById('leave-demo')?.focus();
     };
     window.addEventListener('message', receive);
+    // Start the frame only after its parent is listening, including after hydration.
+    setMounted(true);
     const timer = window.setTimeout(() => setFailed(true), 15000);
     return () => {
       window.removeEventListener('message', receive);
@@ -113,7 +115,8 @@ function Website() {
               <h2 id="playground-title">Experience the flow yourself</h2>
               <p className="playground-note" id="leave-demo" tabIndex={-1}>
                 This demo searches only the sample page. Install KeyMove to bring it to the pages
-                you browse. New-tab actions require the extension.
+                you browse. New-tab actions require the extension.{' '}
+                <a href="./getting-started">Getting started</a>
               </p>
             </div>
             <span className="demo-label">Live demo · Real KeyMove</span>
@@ -194,11 +197,15 @@ function Website() {
               <iframe
                 key={generation}
                 ref={frame}
-                src="./demo.html"
+                src={mounted ? './demo.html' : undefined}
                 title="Interactive KeyMove demo on a sample weekend guide"
                 allow="clipboard-write"
                 onError={() => setFailed(true)}
               />
+              <noscript>
+                Enable JavaScript to use the interactive demo. The walkthrough and navigation guides
+                remain readable above and on the patterns page.
+              </noscript>
             </div>
           </div>
         </section>
@@ -248,6 +255,3 @@ function Website() {
     </>
   );
 }
-
-const mount = document.getElementById('website');
-if (mount) createRoot(mount).render(<Website />);

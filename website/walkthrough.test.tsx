@@ -19,10 +19,12 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-it('loads a complete local video for seeking even when the host does not support ranges', async () => {
+it('downloads on request and retains local seeking without HTTP range support', async () => {
   const blob = new Blob(['video'], { type: 'video/mp4' });
   vi.mocked(fetch).mockResolvedValue({ ok: true, blob: async () => blob } as Response);
   const video = setup();
+  expect(fetch).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Play walkthrough' }));
   await waitFor(() => expect(video.getAttribute('src')).toBe('blob:walkthrough'));
   expect(createObjectURL).toHaveBeenCalledWith(blob);
   cleanup();
@@ -32,6 +34,7 @@ it('loads a complete local video for seeking even when the host does not support
 it('shows the demo fallback if loading the complete recording fails', async () => {
   vi.mocked(fetch).mockResolvedValue({ ok: false } as Response);
   setup();
+  fireEvent.click(screen.getByRole('button', { name: 'Play walkthrough' }));
   await waitFor(() =>
     expect(screen.getByRole('status')).toHaveTextContent('The recording could not load'),
   );

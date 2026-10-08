@@ -103,11 +103,14 @@ const chapters = [
 export default function Walkthrough() {
   const video = useRef<HTMLVideoElement>(null);
   const pendingSeek = useRef<number | null>(null);
+  const playWhenReady = useRef(false);
+  const [requested, setRequested] = useState(false);
   const [recordingUrl, setRecordingUrl] = useState<string>();
   const [time, setTime] = useState(0);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
+    if (!requested) return;
     const controller = new AbortController();
     let objectUrl: string | undefined;
     // The hosted asset can report a zero-length seekable range. A complete local
@@ -129,7 +132,7 @@ export default function Walkthrough() {
       controller.abort();
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, []);
+  }, [requested]);
   const step = steps.findLast(item => time >= item.time) ?? steps[0];
   const chapterIndex = Math.max(
     0,
@@ -144,6 +147,7 @@ export default function Walkthrough() {
   }
 
   function seek(seconds: number) {
+    setRequested(true);
     // Land inside the chapter's first frame, avoiding decoder rounding at its boundary.
     pendingSeek.current = seconds + 0.05;
     setTime(seconds);
@@ -173,11 +177,19 @@ export default function Walkthrough() {
             src={recordingUrl}
             controls
             playsInline
-            preload="auto"
+            muted
+            preload="metadata"
             poster={poster}
             aria-label="KeyMove walkthrough: search, navigate, activate, open the action menu, and show shortcut help"
             aria-describedby="walkthrough-help"
             onLoadedMetadata={applyPendingSeek}
+            onLoadedData={event => {
+              if (!playWhenReady.current) return;
+              playWhenReady.current = false;
+              void event.currentTarget.play().catch(() => {
+                // If autoplay is restricted, native Play remains available.
+              });
+            }}
             onSeeking={event => {
               // Native timeline scrubbing can supersede an unfinished chapter jump.
               if (
@@ -194,7 +206,22 @@ export default function Walkthrough() {
             <track kind="captions" src={captions} srcLang="en" label="English walkthrough" />
             Your browser cannot play this video. Try the interactive demo below.
           </video>
-          {!recordingUrl && !failed && (
+          <noscript>
+            <a href={recording}>Watch or download the KeyMove walkthrough</a>
+          </noscript>
+          {!requested && (
+            <button
+              className="primary-button walkthrough-start"
+              type="button"
+              onClick={() => {
+                playWhenReady.current = true;
+                setRequested(true);
+              }}
+            >
+              Play walkthrough
+            </button>
+          )}
+          {requested && !recordingUrl && !failed && (
             <p className="walkthrough-loading" role="status">
               Preparing video…
             </p>
