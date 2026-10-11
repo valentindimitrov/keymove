@@ -1,12 +1,25 @@
-import { access } from 'node:fs/promises';
+import { access, mkdir } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
 import path from 'node:path';
-import { chromium, test as base, expect } from '@playwright/test';
+import { test as base, expect } from '@playwright/test';
 import { createServer } from 'vite';
 import { createPreviewCopy } from '../../scripts/preview-extension.js';
+import { launchExtensionContext } from '../../scripts/browser-context.js';
 
 const root = path.resolve(import.meta.dirname, '../..');
+const git = (args: string[]) => {
+  const result = spawnSync('git', args, {
+    cwd: root,
+    encoding: 'utf8',
+    windowsHide: true,
+    timeout: 5000,
+  });
+  return result.status === 0 ? result.stdout.trim() : null;
+};
+const commit = git(['rev-parse', 'HEAD']);
+const workingChanges = git(['status', '--porcelain']);
 
-export const test = base.extend<{ extensionId: string }, { fixtureOrigin: string }>({
+export const test = base.extend<{}, { fixtureOrigin: string }>({
   fixtureOrigin: [
     // Playwright parses fixture dependencies from this destructuring pattern.
     // oxlint-disable-next-line no-empty-pattern
@@ -41,7 +54,8 @@ export const test = base.extend<{ extensionId: string }, { fixtureOrigin: string
   baseURL: async ({ fixtureOrigin }, provide) => {
     await provide(fixtureOrigin);
   },
-  context: async ({ headless, viewport, baseURL }, provide) => {
+  context: async ({ headless, baseURL }, provide, testInfo) => {
+    await mkdir(path.join(root, '.artifacts'), { recursive: true });
     const build = path.join(root, '.output/chrome-mv3');
     await access(path.join(build, 'manifest.json')).catch(() => {
       throw new Error('Build missing. Run pnpm test:e2e or pnpm build:chromium first.');
@@ -50,15 +64,25 @@ export const test = base.extend<{ extensionId: string }, { fixtureOrigin: string
     try {
       // Empty userDataDir creates a fresh temporary profile for each test. Never
       // use a regular browser profile or the mutable production build directly.
-      const context = await chromium.launchPersistentContext('', {
-        channel: 'chromium',
+      const context = await launchExtensionContext(
+        preview.directory,
+        process.env['KEYMOVE_TEST_BROWSER'] ?? 'chromium',
         headless,
-        viewport,
-        ...(baseURL ? { baseURL } : {}),
-        args: [
-          `--disable-extensions-except=${preview.directory}`,
-          `--load-extension=${preview.directory}`,
-        ],
+        baseURL,
+      );
+      context.setDefaultTimeout(10000);
+      context.setDefaultNavigationTimeout(15000);
+      await testInfo.attach('browser runtime', {
+        body: JSON.stringify({
+          recordedAt: new Date().toISOString(),
+          browser: process.env['KEYMOVE_TEST_BROWSER'] ?? 'chromium',
+          browserVersion: context.browser()?.version(),
+          node: process.version,
+          commit,
+          dirty: workingChanges === null ? null : workingChanges.length > 0,
+          vivaldiChromiumShell: process.env['KEYMOVE_TEST_BROWSER'] === 'vivaldi',
+        }),
+        contentType: 'application/json',
       });
       const errors: string[] = [];
       context.on('weberror', event => errors.push(event.error().message));
@@ -69,17 +93,16 @@ export const test = base.extend<{ extensionId: string }, { fixtureOrigin: string
         await provide(context);
         expect(errors, 'Browser console errors and uncaught exceptions').toEqual([]);
       } finally {
+        if (errors.length)
+          await testInfo.attach('browser errors', {
+            body: JSON.stringify(errors),
+            contentType: 'application/json',
+          });
         await context.close();
       }
     } finally {
       preview.cleanup();
     }
-  },
-  extensionId: async ({ context }, provide) => {
-    const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
-    const id = new URL(worker.url()).hostname;
-    if (!id) throw new Error('The installed extension did not expose its service worker.');
-    await provide(id);
   },
   page: async ({ context }, provide) => {
     // Persistent Chromium starts with a blank tab. Reuse it so CLI debugging

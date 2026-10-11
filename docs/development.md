@@ -97,7 +97,7 @@ them. Avoid duplicate helper checks and tests that only echo their input props.
   at desktop and narrow viewport sizes: the list must sit on the correct side of
   the bar and stay inside the viewport. A CSS-class assertion cannot establish this.
 - `pnpm test:browser` rebuilds and loads the production extension in a fresh
-  temporary Vivaldi/Chrome profile, runs real keyboard interaction checks against
+  temporary Vivaldi/Chrome profile through Playwright, runs real keyboard interaction checks against
   local fixtures, and closes only its own browser. It exits unsuccessfully on a
   failed assertion. `pnpm preview --smoke` is equivalent.
 
@@ -106,6 +106,9 @@ without rebuilding. Run browser smoke for changes affecting input, navigation,
 search, popup settings, or extension mounting. Run `pnpm quality` before handoff.
 Automated smoke currently covers Chromium; Firefox still needs `pnpm preview:firefox`
 and a manual interaction check. No installed browser is an error, not a mocked pass.
+Automated Vivaldi uses its Chromium shell (`--disable-vivaldi`); interactive
+`pnpm preview:vivaldi` keeps the normal native UI. Both browser commands run the
+same scenarios as bundled Chromium, with Playwright reporting and CLI debugging.
 
 Browser smoke uses `preview/fixtures.html` with `preview/fixtures.ts`: hidden text,
 retargeted host keyboard handlers, nested controls, dynamic DOM and documents of
@@ -127,8 +130,9 @@ These are UI update timings, not paint timings or pure index benchmarks. Browser
 startup and protocol round trips are excluded. The cold sample includes lazy
 index initialization; warm samples retain the same live index.
 
-The ignored `.artifacts/browser-smoke.json` contains individual samples, browser
-version, Node version, commit and dirty status. Preserve this file outside the
+The ignored `.artifacts/playwright/<browser>/results.json` includes timing attachments and
+browser runtime metadata (browser/Node versions, commit and dirty status).
+Preserve this report outside the
 checkout before changing performance code and compare equivalent runs on the
 same machine. Measure at least three runs before drawing conclusions. The
 immediate-start contract is enforced deterministically in unit tests; wall-clock

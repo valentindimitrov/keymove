@@ -49,8 +49,8 @@
     "website:dev": "vite --config website/vite.config.ts",
     "website:build": "vite build --config website/vite.config.ts",
     "website:preview": "vite preview --config website/vite.config.ts",
-    "test:browser": "node scripts/preview-extension.ts --smoke",
-    "test:browser:built": "node scripts/preview-extension.ts --smoke --no-build",
+    "test:browser": "node scripts/test-browser.ts",
+    "test:browser:built": "node scripts/test-browser.ts --no-build",
     "worktree:check": "node scripts/worktree-check.ts",
     "build": "pnpm build:chromium && pnpm build:firefox && pnpm build:safari",
     "build:chromium": "wxt build -b chrome --mv3",
@@ -81,8 +81,10 @@
     "test:e2e": "pnpm build:chromium && playwright test",
     "test:e2e:built": "playwright test",
     "test:e2e:debug": "playwright test --debug=cli",
-    "test:e2e:report": "playwright show-report .artifacts/playwright/report",
+    "test:e2e:report": "playwright show-report .artifacts/playwright/chromium/report",
     "browser:install": "playwright install chromium",
-    "browser:cli": "playwright-cli"
+    "browser:cli": "playwright-cli",
+    "test:browser:vivaldi": "node scripts/test-browser.ts --browser=vivaldi --no-build",
+    "test:browser:chrome": "node scripts/test-browser.ts --browser=chrome --no-build"
   }
 }

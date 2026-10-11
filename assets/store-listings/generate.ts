@@ -1,15 +1,14 @@
 import assert from 'node:assert/strict';
-import { record, records, targets as readTargets } from '../../scripts/capture-data.ts';
-import type { PendingCommand } from '../../scripts/capture-data.ts';
-import type { TestPage } from '../../scripts/browser-driver.ts';
-import { spawn, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, existsSync, writeFileSync, cpSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { record, records } from '../../scripts/capture-data.ts';
+import type { BrowserContext, Page } from '@playwright/test';
+import { launchExtensionContext } from '../../scripts/browser-context.ts';
+import { spawnSync } from 'node:child_process';
+import { mkdirSync, readFileSync, existsSync, writeFileSync, cpSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
-import { findBrowser } from '../../scripts/preview-extension.ts';
-import { openPage, waitFor, boundedClient } from '../../scripts/browser-driver.ts';
+import { createPreviewCopy } from '../../scripts/preview-extension.ts';
+import { openPage, waitFor } from '../../scripts/browser-pages.ts';
 
 const output = path.resolve('.artifacts/chrome-web-store');
 const requested = new Set(process.argv.slice(2));
@@ -22,91 +21,28 @@ const captions: Record<string, string> = {
   '05-form-controls': 'Find controls by their labels',
 };
 mkdirSync(output, { recursive: true });
-const profile = mkdtempSync(path.join(tmpdir(), 'keymove-store-profile-'));
-const build = mkdtempSync(path.join(tmpdir(), 'keymove-store-build-'));
-cpSync('.output/chrome-mv3', build, { recursive: true });
-const child = spawn(
-  findBrowser('vivaldi').binary,
-  [
-    '--headless=new',
-    '--disable-extensions-except=' + build,
-    '--load-extension=' + build,
-    '--no-first-run',
-    '--no-default-browser-check',
-    '--remote-debugging-port=0',
-    '--user-data-dir=' + profile,
-    '--window-size=1800,1200',
-    'about:blank',
-  ],
-  { windowsHide: true, stdio: 'ignore' },
-);
-let socket: WebSocket | undefined;
+const preview = createPreviewCopy(path.resolve('.output/chrome-mv3'));
+const build = preview.directory;
+let captureContext: BrowserContext | undefined;
 const report: { file: string; width: number; height: number; caption?: string }[] = [];
 try {
-  for (let i = 0; i < 150 && !existsSync(path.join(profile, 'DevToolsActivePort')); i++)
-    await delay(100);
-  const [port, endpoint] = readFileSync(path.join(profile, 'DevToolsActivePort'), 'utf8')
-    .trim()
-    .split('\n');
-  const connection = new WebSocket(`ws://127.0.0.1:${port}${endpoint}`);
-  socket = connection;
-  await new Promise<void>((resolve, reject) => {
-    connection.onopen = () => resolve();
-    connection.onerror = reject;
-  });
-  let id = 0;
-  const pending = new Map<number, PendingCommand>();
-  connection.onmessage = (e: MessageEvent<string>) => {
-    const r = record(JSON.parse(e.data));
-    if (typeof r.id === 'number') {
-      const p = pending.get(r.id);
-      if (!p) return;
-      pending.delete(r.id);
-      r.error ? p.reject(r.error) : p.resolve(r.result);
-    }
-  };
-  let shotWidth = 1280,
-    shotHeight = 800,
-    shotX = 0,
-    shotY = 0;
-  const client = boundedClient({
-    sendCommand(method, params, sessionId) {
-      if (method === 'Page.captureScreenshot')
-        params = {
-          ...params,
-          captureBeyondViewport: true,
-          clip: { x: shotX, y: shotY, width: shotWidth, height: shotHeight, scale: 1 },
-        };
-      return new Promise<unknown>((resolve, reject) => {
-        const request = ++id;
-        pending.set(request, { resolve, reject });
-        connection.send(JSON.stringify({ id: request, method, params, sessionId }));
-      });
-    },
-  });
-  let worker: ReturnType<typeof readTargets>[number] | undefined;
-  for (let i = 0; i < 150 && !worker; i++) {
-    const targets = readTargets(await client.sendCommand('Target.getTargets', {}));
-    worker = targets.find(t => t.type === 'service_worker' && t.url.endsWith('/background.js'));
-    if (!worker) await delay(100);
-  }
-  if (!worker) throw new Error('Installed extension worker unavailable');
-  const popup = await openPage(client, new URL('popup.html', worker.url).href);
+  const context = await launchExtensionContext(build, 'vivaldi', true);
+  captureContext = context;
+  const worker =
+    context.serviceWorkers().find(worker => worker.url().endsWith('/background.js')) ??
+    (await context.waitForEvent('serviceworker', {
+      predicate: worker => worker.url().endsWith('/background.js'),
+    }));
+  const popup = await openPage(context, new URL('popup.html', worker.url()).href);
   const settings = async (theme: string) =>
     popup.evaluate(
       `chrome.storage.local.set({autoHide:false,alwaysOn:false,theme:${JSON.stringify(theme)},popupPosition:{x:.5,y:.70},popupWidth:510})`,
     );
   const root = "document.getElementById('keymove-root')?.shadowRoot";
-  const save = async (page: TestPage, name: string, width = 1280, height = 800) => {
-    shotWidth = width;
-    shotHeight = height;
-    await page.setViewport(width, height);
+  const save = async (page: Page, name: string, width = 1280, height = 800) => {
+    await page.setViewportSize({ width: width, height: height });
     await page.evaluate('document.fonts.ready.then(()=>true)');
     await delay(650);
-    const scroll = record(await page.evaluate('({x: scrollX, y: scrollY})'));
-    assert(typeof scroll.x === 'number' && typeof scroll.y === 'number');
-    shotX = scroll.x;
-    shotY = scroll.y;
     const raw = path.join(output, name + '.raw.png');
     writeFileSync(raw, await page.screenshot());
     const final = path.join(output, name + '.png');
@@ -164,13 +100,13 @@ try {
   const search = async (query: string, theme = 'light', actions = false, menu = false) => {
     await settings(theme);
     if (menu) await popup.evaluate('chrome.storage.local.set({popupPosition:{x:.25,y:.8}})');
-    const page = await openPage(client, 'http://127.0.0.1:5180/demo.html?extension=installed');
-    await page.setViewport(1280, 800);
-    await page.setColorScheme('light');
+    const page = await openPage(context, 'http://127.0.0.1:5180/demo.html?extension=installed');
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.emulateMedia({ colorScheme: 'light' });
     await waitFor(page, `!!${root}`);
-    await page.activate();
+    await page.bringToFront();
     for (let attempt = 0; attempt < 10; attempt++) {
-      await page.key('f', 1);
+      await page.keyboard.press('Alt+f');
       if (
         await page.evaluate(
           `!!${root}.querySelector('input') && ${root}.activeElement === ${root}.querySelector('input')`,
@@ -183,11 +119,11 @@ try {
       page,
       `!!${root}.querySelector('input') && ${root}.activeElement === ${root}.querySelector('input')`,
     );
-    if (actions) await page.key('s', 1);
-    for (const c of query) await page.key(c);
+    if (actions) await page.keyboard.press('Alt+s');
+    for (const c of query) await page.keyboard.type(c);
     await waitFor(page, `!!${root}.querySelector('.keymove-suggestion')`);
     if (menu) {
-      await page.key('ArrowDown');
+      await page.keyboard.press('ArrowDown');
       await waitFor(page, `!!${root}.querySelector('[role=menu]')`);
       await waitFor(
         page,
@@ -236,13 +172,15 @@ try {
       file,
       html.replace('</style>', `${smallTileStyles}#keymove-root{display:none!important}</style>`),
     );
-    const page = await openPage(client, pathToFileURL(file).href);
-    await page.setViewport(w, h);
+    const page = await openPage(context, pathToFileURL(file).href);
+    await page.setViewportSize({ width: w, height: h });
     await delay(500);
-    await page.key('Escape');
+    await page.keyboard.press('Escape');
     await save(page, name, w, h);
   }
-  const destination = path.resolve('assets/store-listings/chrome-web-store');
+  const destination = path.resolve(
+    process.env.KEYMOVE_STORE_OUTPUT ?? 'assets/store-listings/chrome-web-store',
+  );
   const previousReport = existsSync(path.join(destination, 'verification.json'))
     ? records(
         record(JSON.parse(readFileSync(path.join(destination, 'verification.json'), 'utf8')))
@@ -250,7 +188,10 @@ try {
       )
     : [];
   const images = requested.size
-    ? previousReport.map(entry => report.find(image => image.file === entry.file) ?? entry)
+    ? [
+        ...previousReport.map(entry => report.find(image => image.file === entry.file) ?? entry),
+        ...report.filter(image => !previousReport.some(entry => entry.file === image.file)),
+      ]
     : report;
   const manifest = record(JSON.parse(readFileSync(path.join(build, 'manifest.json'), 'utf8')));
   assert(typeof manifest.version === 'string');
@@ -271,9 +212,6 @@ try {
   cpSync(path.join(output, 'verification.json'), path.join(destination, 'verification.json'));
   console.log('All store images saved in ' + destination);
 } finally {
-  if (socket?.readyState === 1) socket.close();
-  child.kill();
-  console.log(
-    'Dedicated browser closed. Temporary profile/build retained: ' + profile + ' ; ' + build,
-  );
+  await captureContext?.close();
+  preview.cleanup();
 }

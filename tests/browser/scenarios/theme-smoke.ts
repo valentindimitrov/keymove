@@ -1,51 +1,45 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import type { ChromiumClient } from 'web-ext';
-import { openPage, waitFor, type TestPage } from './browser-driver.ts';
-import { settingsTab } from './settings-smoke.ts';
+import type { BrowserContext, Page } from '@playwright/test';
+import { openPage, waitFor } from '../pages.js';
+import { expect } from '@playwright/test';
+import { keymove } from '../keymove.js';
+import { settingsTab } from './settings-smoke.js';
 
-const artifacts = path.resolve(import.meta.dirname, '../.artifacts');
+const artifacts = path.resolve(import.meta.dirname, '../../../.artifacts');
 const host = `document.getElementById('keymove-root')`;
 const shadow = `${host}?.shadowRoot`;
-const preference = `document.querySelector('.keymove-theme-setting select')`;
 
-async function choose(popup: TestPage, theme: string) {
-  await popup.evaluate(`(() => {
-    const select = ${preference};
-    select.value = ${JSON.stringify(theme)};
-    select.dispatchEvent(new Event('change', {bubbles: true}));
-  })()`);
+async function choose(popup: Page, theme: string) {
+  await popup.getByRole('combobox', { name: 'Appearance', exact: true }).selectOption(theme);
 }
 
-async function expectTheme(page: TestPage, popup: TestPage, theme: string) {
+async function expectTheme(page: Page, popup: Page, theme: string) {
   // Activate each context before checking its rendered system appearance.
-  await page.activate();
-  await waitFor(page, `${host}?.dataset.keymoveTheme === '${theme}'`);
+  await page.bringToFront();
+  await expect(keymove(page).host).toHaveAttribute('data-keymove-theme', theme);
   const color = theme === 'light' ? 'rgb(30, 34, 43)' : 'rgb(255, 255, 255)';
-  assert.equal(
-    await page.evaluate(`getComputedStyle(${shadow}.querySelector('#keymove-input')).color`),
-    color,
-  );
-  await popup.activate();
-  await waitFor(popup, `document.documentElement.dataset.keymoveTheme === '${theme}'`);
-  assert.equal(await popup.evaluate(`getComputedStyle(document.body).color`), color);
+  await expect(keymove(page).input).toHaveCSS('color', color);
+  await popup.bringToFront();
+  await expect(popup.locator('html')).toHaveAttribute('data-keymove-theme', theme);
+  await expect(popup.locator('body')).toHaveCSS('color', color);
 }
 
-export async function checkTheme(page: TestPage, popup: TestPage) {
+export async function checkTheme(page: Page, popup: Page) {
   await settingsTab(popup, 'Appearance');
   mkdirSync(artifacts, { recursive: true });
   const pageAppearance =
     await page.evaluate(`({theme: document.documentElement.dataset.keymoveTheme,
     scheme: getComputedStyle(document.documentElement).colorScheme})`);
-  await popup.setViewport(420, 1000);
+  await popup.setViewportSize({ width: 420, height: 1000 });
   try {
-    await page.setColorScheme('light');
-    await popup.setColorScheme('light');
+    await page.emulateMedia({ colorScheme: 'light' });
+    await popup.emulateMedia({ colorScheme: 'light' });
     await choose(popup, 'system');
     await expectTheme(page, popup, 'light');
-    await page.setColorScheme('dark');
-    await popup.setColorScheme('dark');
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await popup.emulateMedia({ colorScheme: 'dark' });
     await expectTheme(page, popup, 'dark');
     await choose(popup, 'light');
     await expectTheme(page, popup, 'light');
@@ -57,8 +51,8 @@ export async function checkTheme(page: TestPage, popup: TestPage) {
       'The popup must fit beside its vertical scrollbar',
     );
     writeFileSync(path.join(artifacts, 'settings-light.png'), await popup.screenshot());
-    await page.setColorScheme('light');
-    await popup.setColorScheme('light');
+    await page.emulateMedia({ colorScheme: 'light' });
+    await popup.emulateMedia({ colorScheme: 'light' });
     await choose(popup, 'dark');
     await expectTheme(page, popup, 'dark');
     writeFileSync(path.join(artifacts, 'settings-dark.png'), await popup.screenshot());
@@ -66,13 +60,15 @@ export async function checkTheme(page: TestPage, popup: TestPage) {
       await popup.evaluate(`chrome.storage.local.get('theme').then(data => data.theme)`),
       'dark',
     );
-    await popup.evaluate('location.reload()');
-    await waitFor(
-      popup,
-      `document.querySelector('[role="tab"][aria-selected="true"]')?.textContent === 'General'`,
+    await popup.reload();
+    await expect(popup.getByRole('tab', { name: 'General', exact: true })).toHaveAttribute(
+      'aria-selected',
+      'true',
     );
     await settingsTab(popup, 'Appearance');
-    await waitFor(popup, `${preference}?.value === 'dark'`);
+    await expect(popup.getByRole('combobox', { name: 'Appearance', exact: true })).toHaveValue(
+      'dark',
+    );
     await expectTheme(page, popup, 'dark');
     await choose(popup, 'system');
     await expectTheme(page, popup, 'light');
@@ -83,14 +79,14 @@ export async function checkTheme(page: TestPage, popup: TestPage) {
       'The extension must not change the host document theme',
     );
   } finally {
-    await page.setColorScheme('');
-    await popup.setColorScheme('');
-    await popup.setViewport(1280, 900);
+    await page.emulateMedia({ colorScheme: null });
+    await popup.emulateMedia({ colorScheme: null });
+    await popup.setViewportSize({ width: 1280, height: 900 });
     await settingsTab(popup, 'General');
   }
 }
 
-export async function checkThemePreviews(client: ChromiumClient, origin: string) {
+export async function checkThemePreviews(context: BrowserContext, origin: string) {
   mkdirSync(artifacts, { recursive: true });
   for (const theme of ['light', 'dark']) {
     for (const width of [1280, 360]) {
@@ -101,11 +97,11 @@ export async function checkThemePreviews(client: ChromiumClient, origin: string)
         'suggestion-spacing',
         'action-menu-narrow',
       ]) {
-        const page = await openPage(client, `${origin}?scenario=${scenario}&theme=${theme}`);
+        const page = await openPage(context, `${origin}?scenario=${scenario}&theme=${theme}`);
         try {
-          await page.activate();
-          await page.setViewport(width, 900);
-          await waitFor(page, `${host}?.dataset.keymoveTheme === '${theme}'`);
+          await page.bringToFront();
+          await page.setViewportSize({ width: width, height: 900 });
+          await expect(keymove(page).host).toHaveAttribute('data-keymove-theme', theme);
           await waitFor(
             page,
             `${shadow}?.querySelector('${scenario === 'theme-settings' ? '#keymove-popup' : '#keymove-container'}')`,
@@ -158,10 +154,7 @@ export async function checkThemePreviews(client: ChromiumClient, origin: string)
                 select.value = '${count}';
                 select.dispatchEvent(new Event('change', { bubbles: true }));
               })()`);
-              await waitFor(
-                page,
-                `${shadow}.querySelectorAll('[role="option"]').length === ${count}`,
-              );
+              await expect(keymove(page).options).toHaveCount(count);
               const gap = await page.evaluate(`(() => {
                 const panel = ${shadow}.querySelector('.keymove-suggestions');
                 return panel.getBoundingClientRect().bottom - panel.lastElementChild.getBoundingClientRect().bottom;

@@ -2,8 +2,8 @@
 
 Keep Node for scripts and Vitest for application and tooling tests. Playwright Test
 adds repeatable installed-extension checks; playwright-cli lets a person or agent
-inspect a paused test. Neither replaces the exhaustive algorithm tests or the
-existing Vivaldi smoke suite.
+inspect a paused test. All browser smoke checks now use Playwright; Vitest keeps
+the exhaustive algorithm and application tests.
 
 ## Setup
 
@@ -28,6 +28,9 @@ pnpm test:e2e
 pnpm test:e2e:built
 pnpm test:e2e:built --grep "frames"
 pnpm test:e2e:built --headed
+pnpm test:browser:built
+pnpm test:browser:vivaldi
+pnpm test:browser:chrome --grep "frames"
 pnpm test:e2e:report
 ```
 
@@ -37,21 +40,60 @@ a fresh temporary persistent profile. The fixture server gets a free loopback
 port per worker; tests never touch a regular browser profile. Missing builds or
 browsers fail the run.
 
-The initial suite covers per-keystroke search on small and large pages, semantic
-selection and native copy/paste, DOM updates, nested open roots, native modals,
-same-origin and cross-origin iframe actions, and settings propagation/persistence.
+The suite preserves the existing smoke coverage: per-keystroke search and cold/warm
+timings on small and large pages, stable suggestions, native selection and clipboard,
+Unicode and rendered whitespace, dynamic DOM, shadow roots, modal controls, iframe
+actions and timings, image navigation, hover, action menus, tab focus, live settings,
+and light/dark layouts at desktop and narrow widths.
 Vitest excludes `tests/browser/`, and Playwright runs only that directory.
 
-Failure screenshots and traces, plus the HTML report, live under the ignored
-`.artifacts/playwright/` directory. Open a trace with
+The 15 scenario tests own this coverage; there is no separate starter suite
+repeating their basic interactions. The consolidated checks are:
+
+| Behavior | Scenario |
+| --- | --- |
+| Per-keystroke counts, whole-block copy/paste and editing after selection on small and large pages | `core-smoke.ts` |
+| Active-query refresh after DOM insertion and removal | `core-smoke.ts` |
+| Nested open-shadow-root control activation | `shadow-search-smoke.ts` |
+| Native modal selection and exclusion of background text | `control-navigation-smoke.ts` |
+| Same-origin and cross-origin frame button activation, with one top-level searchbar | `iframe-smoke.ts` |
+| Settings propagation, persistence after reload and shortcut-only activation | `core-smoke.ts`, `theme-smoke.ts`, `settings-smoke.ts` |
+
+Use `keymove(page)` from `tests/browser/keymove.ts` for the extension host,
+search input, status, suggestions and menu. These locators follow the host across
+open shadow roots and modal moves. Prefer role/name locators and Playwright's
+retrying assertions for controls; `replaceQuery` and `searchFor` share keyboard
+setup without automatically repairing lost focus while typing. Use DOM evaluation
+for geometry, native selection, highlight ranges and browser timing observers.
+
+Failure screenshots and traces, rendered-state diagnostics, timing attachments,
+and HTML/JSON reports live under the ignored `.artifacts/playwright/` directory. Open a trace with
 `pnpm exec playwright show-trace <path-to-trace.zip>`. CI runs these checks after
 the full quality gate and retains Playwright artifacts on failure.
+Each browser gets its own report and result directories. `test:e2e:report` opens
+Chromium's HTML report; use
+`pnpm exec playwright show-report .artifacts/playwright/vivaldi/report` for Vivaldi.
 
-Retain `pnpm test:browser:built` for the broader existing Vivaldi/Chrome interaction
-and timing suite. `pnpm preview --smoke` still rebuilds and runs that suite.
-Playwright's baseline uses its bundled Chromium: it does not establish Vivaldi,
-Firefox, or Safari extension compatibility. Use the documented installed-browser
-previews and manual platform checks for those browsers.
+`test:e2e` uses bundled Chromium. `test:browser` rebuilds and runs the same suite
+with the preferred installed browser (Vivaldi, then Chrome); `test:browser:built`
+skips the rebuild. `pnpm preview --smoke` is equivalent to `test:browser`.
+The explicit Vivaldi/Chrome commands also use the existing build and accept
+Playwright flags such as `--grep`, `--headed`, and `--debug=cli`.
+
+Automated Vivaldi runs use its installed executable with `--disable-vivaldi`:
+this tests its Chromium renderer and extension APIs in the Chromium shell.
+Its native UI hangs or crashes when Playwright creates tabs on the tested version.
+`pnpm preview:vivaldi` retains the normal Vivaldi UI through web-ext for manual
+checks. Firefox and Safari still require their separate manual platform checks.
+Detection and custom executable paths follow the preview launcher; set
+`KEYMOVE_VIVALDI_BINARY` or `KEYMOVE_CHROME_BINARY` for a custom installation.
+Installed Chrome uses `Extensions.loadUnpacked` through a native Playwright CDP
+session because current Chrome no longer accepts `--load-extension`.
+
+The pattern-video recorder and store-image generator also use native Playwright
+pages and the shared isolated extension launcher. To verify them without replacing
+published media, set `KEYMOVE_RECORDING_OUTPUT` or `KEYMOVE_STORE_OUTPUT` to an
+ignored directory under `.artifacts/`.
 
 ## playwright-cli debugging
 
