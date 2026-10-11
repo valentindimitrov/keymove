@@ -1,9 +1,8 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import type { ChromiumClient } from 'web-ext';
-import { openPage, waitFor } from './browser-driver.ts';
-import type { TestPage } from './browser-driver.ts';
+import type { BrowserContext, Page } from '@playwright/test';
+import { openPage, waitFor } from '../pages.js';
 
 const shadow = `document.getElementById('keymove-root')?.shadowRoot`;
 const input = `${shadow}?.querySelector('[aria-label="Search page"]')`;
@@ -11,7 +10,7 @@ const menu = `${shadow}?.querySelector('[role="menu"]')`;
 const focused = `${shadow}?.activeElement`;
 const focusedLabel = `${focused}?.querySelector('.keymove-action-label')?.textContent`;
 
-async function checkSelectedRow(page: TestPage) {
+async function checkSelectedRow(page: Page) {
   const layout = await page.evaluate(`(() => {
     const root = ${shadow};
     const row = root.querySelector('.keymove-action-menu-result');
@@ -25,10 +24,10 @@ async function checkSelectedRow(page: TestPage) {
   assert.deepEqual(layout, { belowBar: true, visible: true, singleLine: true, outsideMenu: true });
 }
 
-async function query(page: TestPage, text: string) {
-  await page.key('f', 1);
-  await page.key('Backspace', process.platform === 'darwin' ? 4 : 2);
-  for (const character of text) await page.key(character);
+async function query(page: Page, text: string) {
+  await page.keyboard.press('Alt+f');
+  await page.keyboard.press('ControlOrMeta+Backspace');
+  for (const character of text) await page.keyboard.type(character);
   await waitFor(
     page,
     `${shadow}?.querySelector('#keymove-suggestions')?.getAttribute('aria-busy') === 'false'`,
@@ -36,12 +35,12 @@ async function query(page: TestPage, text: string) {
   await waitFor(page, `${shadow}?.querySelector('#keymove-actions-hint')`);
 }
 
-export async function checkActionMenu(client: ChromiumClient, origin: string) {
-  const artifacts = path.resolve(import.meta.dirname, '../.artifacts');
+export async function checkActionMenu(context: BrowserContext, origin: string) {
+  const artifacts = path.resolve(import.meta.dirname, '../../../.artifacts');
   mkdirSync(artifacts, { recursive: true });
-  const page = await openPage(client, `${origin}fixtures.html?menu`);
+  const page = await openPage(context, `${origin}fixtures.html?menu`);
   try {
-    await page.activate();
+    await page.bringToFront();
     await waitFor(page, `${shadow}?.querySelector('#keymove-bar')?.dataset.alwaysOn === 'true'`);
     await page.evaluate(`(() => {
       const section = document.createElement('section');
@@ -50,9 +49,9 @@ export async function checkActionMenu(client: ChromiumClient, origin: string) {
       document.getElementById('menu-link').addEventListener('click', e => { e.preventDefault(); document.body.dataset.menuActivated = 'yes'; });
     })()`);
     await query(page, 'menu demonstration');
-    await page.key('ArrowUp');
+    await page.keyboard.press('ArrowUp');
     assert.equal(await page.evaluate(`Boolean(${menu})`), false, 'Up alone is reserved');
-    await page.key('ArrowDown');
+    await page.keyboard.press('ArrowDown');
     await waitFor(page, `${focusedLabel} === 'Open link'`);
     assert.equal(await page.evaluate(`${menu}.querySelectorAll('[role="menuitem"]').length`), 7);
     assert.equal(
@@ -73,74 +72,74 @@ export async function checkActionMenu(client: ChromiumClient, origin: string) {
         number => `${process.platform === 'darwin' ? 'Option' : 'Alt'} + ${number}`,
       ),
     );
-    await page.key('ArrowDown');
+    await page.keyboard.press('ArrowDown');
     await waitFor(page, `${focusedLabel} === 'Open in new tab'`);
-    await page.key('ArrowUp');
+    await page.keyboard.press('ArrowUp');
     await waitFor(page, `${focusedLabel} === 'Open link'`);
-    await page.key('Escape');
+    await page.keyboard.press('Escape');
     await waitFor(page, `!${menu} && ${focused} === ${input}`);
     assert.equal(await page.evaluate(`${input}.value`), 'menu demonstration');
     const queryLength = 'menu demonstration'.length;
     await page.evaluate(`${input}.setSelectionRange(${queryLength}, ${queryLength})`);
-    await page.key('ArrowLeft');
+    await page.keyboard.press('ArrowLeft');
     assert.equal(await page.evaluate(`${input}.selectionStart`), queryLength - 1);
-    await page.key('ArrowRight');
+    await page.keyboard.press('ArrowRight');
     assert.equal(await page.evaluate(`${input}.selectionStart`), queryLength);
-    await page.key('ArrowDown');
+    await page.keyboard.press('ArrowDown');
     await waitFor(page, `${menu}`);
-    await page.key('ArrowLeft');
+    await page.keyboard.press('ArrowLeft');
     await waitFor(page, `!${menu} && ${focused} === ${input}`);
     assert.equal(await page.evaluate(`${input}.value`), 'menu demonstration');
-    await page.key('ArrowDown');
+    await page.keyboard.press('ArrowDown');
     await waitFor(page, `${menu}`);
     writeFileSync(path.join(artifacts, 'action-menu-extension.png'), await page.screenshot());
     await checkSelectedRow(page);
-    await page.key('Tab');
+    await page.keyboard.press('Tab');
     await waitFor(page, `!${menu} && ${focused} === ${input}`);
-    await page.key('ArrowDown');
-    await page.key('4', 1);
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Alt+4');
     await waitFor(page, `!${menu} && ${focused} === ${input}`);
     await page.evaluate(`document.getElementById('menu-paste').focus()`);
-    await page.key('v', process.platform === 'darwin' ? 4 : 2);
+    await page.keyboard.press('ControlOrMeta+v');
     assert.equal(
       await page.evaluate(`document.getElementById('menu-paste').value`),
       `${origin}fixtures.html?menu#menu-target`,
     );
     await query(page, 'menu demonstration');
-    await page.key('ArrowDown');
-    await page.key('6', 1);
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Alt+6');
     await waitFor(page, `!${menu} && ${focused} === ${input}`);
     await page.evaluate(
       `document.getElementById('menu-paste').value = ''; document.getElementById('menu-paste').focus()`,
     );
-    await page.key('v', process.platform === 'darwin' ? 4 : 2);
+    await page.keyboard.press('ControlOrMeta+v');
     assert.equal(
       await page.evaluate(`document.getElementById('menu-paste').value`),
       'Menu demonstration link',
     );
     await query(page, 'menu demonstration');
-    await page.key('ArrowDown');
-    for (let i = 0; i < 4; i++) await page.key('ArrowDown');
+    await page.keyboard.press('ArrowDown');
+    for (let i = 0; i < 4; i++) await page.keyboard.press('ArrowDown');
     await waitFor(page, `${focusedLabel} === 'Focus without activating'`);
-    await page.key('ArrowRight');
+    await page.keyboard.press('ArrowRight');
     await waitFor(page, `document.activeElement?.id === 'menu-link' && !${menu}`);
     assert.equal(await page.evaluate('document.body.dataset.menuActivated'), undefined);
-    await page.key('Tab');
+    await page.keyboard.press('Tab');
     await waitFor(page, `document.activeElement?.id === 'menu-next'`);
     await query(page, 'menu demonstration');
-    await page.key('ArrowDown');
-    await page.key('Enter');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Enter');
     await waitFor(page, `document.body.dataset.menuActivated === 'yes' && !${menu}`);
     await query(page, 'menu standalone');
-    await page.key('ArrowDown');
+    await page.keyboard.press('ArrowDown');
     await waitFor(page, `${focusedLabel} === 'Copy text'`);
     assert.equal(await page.evaluate(`${menu}.querySelectorAll('[role="menuitem"]').length`), 2);
-    await page.key('Enter');
+    await page.keyboard.press('Enter');
     await waitFor(page, `!${menu}`);
     await page.evaluate(
       `const paste = document.getElementById('menu-paste'); paste.value = ''; paste.focus();`,
     );
-    await page.key('v', process.platform === 'darwin' ? 4 : 2);
+    await page.keyboard.press('ControlOrMeta+v');
     assert.equal(
       await page.evaluate(`document.getElementById('menu-paste').value`),
       'Menu standalone paragraph with complete text.',
@@ -153,9 +152,9 @@ export async function checkActionMenu(client: ChromiumClient, origin: string) {
       dialog.showModal();
     })()`);
     await query(page, 'menu dialog command');
-    await page.key('ArrowDown');
+    await page.keyboard.press('ArrowDown');
     await waitFor(page, `${focusedLabel} === 'Activate control'`);
-    await page.key('Enter');
+    await page.keyboard.press('Enter');
     await waitFor(page, `document.body.dataset.menuModalActivated === 'yes' && !${menu}`);
   } finally {
     await page.close();
@@ -168,9 +167,9 @@ export async function checkActionMenu(client: ChromiumClient, origin: string) {
     'suggestions-hints',
     'suggestions-clean',
   ]) {
-    const preview = await openPage(client, `${origin}?scenario=${scenario}`);
+    const preview = await openPage(context, `${origin}?scenario=${scenario}`);
     try {
-      await preview.activate();
+      await preview.bringToFront();
       const panel = `${shadow}?.querySelector('${scenario.startsWith('suggestions') ? '#keymove-suggestions' : '#keymove-action-menu-container'}')`;
       await waitFor(preview, panel);
       const bounds = (await preview.evaluate(`(() => {

@@ -1,76 +1,28 @@
 import assert from 'node:assert/strict';
-import { record, records, targets as readTargets, tabs as readTabs } from './capture-data.ts';
-import type { PendingCommand } from './capture-data.ts';
-import type { TestPage } from './browser-driver.ts';
-import { spawn, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, existsSync, writeFileSync } from 'node:fs';
+import { records, tabs as readTabs } from './capture-data.ts';
+import type { BrowserContext, Page } from '@playwright/test';
+import { launchExtensionContext } from './browser-context.ts';
+import { spawnSync } from 'node:child_process';
+import { mkdirSync, readFileSync, existsSync, writeFileSync } from 'node:fs';
 import { setTimeout as delay } from 'node:timers/promises';
-import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { findBrowser, createPreviewCopy } from './preview-extension.ts';
-import { openPage, waitFor, boundedClient } from './browser-driver.ts';
+import { createPreviewCopy } from './preview-extension.ts';
+import { openPage, waitFor } from './browser-pages.ts';
 const artifacts = new URL('../.artifacts/pattern-recordings/', import.meta.url);
 mkdirSync(artifacts, { recursive: true });
-const profile = mkdtempSync(path.join(tmpdir(), 'keymove-website-profile-'));
 const base = process.argv[2] ?? 'http://127.0.0.1:5182/';
 const preview = createPreviewCopy(path.resolve('.output/chrome-mv3'));
-const child = spawn(
-  findBrowser('vivaldi').binary,
-  [
-    '--headless=new',
-    '--disable-extensions-except=' + preview.directory,
-    '--load-extension=' + preview.directory,
-    '--no-first-run',
-    '--no-default-browser-check',
-    '--remote-debugging-port=0',
-    `--user-data-dir=${profile}`,
-    '--window-size=1440,1000',
-    'about:blank',
-  ],
-  { windowsHide: true, stdio: 'ignore' },
-);
-let socket: WebSocket | undefined;
+let recordingContext: BrowserContext | undefined;
 try {
-  for (let i = 0; i < 100 && !existsSync(`${profile}/DevToolsActivePort`); i++) await delay(100);
-  const [port, endpoint] = readFileSync(`${profile}/DevToolsActivePort`, 'utf8').trim().split('\n');
-  const connection = new WebSocket(`ws://127.0.0.1:${port}${endpoint}`);
-  socket = connection;
-  await new Promise<void>((resolve, reject) => {
-    connection.onopen = () => resolve();
-    connection.onerror = reject;
-  });
-  let id = 0;
-  const pending = new Map<number, PendingCommand>();
-  connection.onmessage = (e: MessageEvent<string>) => {
-    const result = record(JSON.parse(e.data));
-    if (typeof result.id === 'number') {
-      const p = pending.get(result.id);
-      if (!p) return;
-      pending.delete(result.id);
-      result.error ? p.reject(result.error) : p.resolve(result.result);
-    }
-  };
-  const client = boundedClient({
-    sendCommand(method, params, sessionId) {
-      return new Promise<unknown>((resolve, reject) => {
-        const request = ++id;
-        pending.set(request, { resolve, reject });
-        connection.send(JSON.stringify({ id: request, method, params, sessionId }));
-      });
-    },
-  });
-
-  let targets: ReturnType<typeof readTargets> = [];
-  for (let i = 0; i < 100; i++) {
-    targets = readTargets(await client.sendCommand('Target.getTargets', {}));
-    if (targets.some(t => t.type === 'service_worker' && t.url.endsWith('/background.js'))) break;
-    await delay(100);
-  }
-
-  const worker = targets.find(t => t.type === 'service_worker' && t.url.endsWith('/background.js'));
-  if (!worker) throw new Error('No installed extension worker');
-  const popup = await openPage(client, new URL('popup.html', worker.url).href);
+  const context = await launchExtensionContext(preview.directory, 'vivaldi', true);
+  recordingContext = context;
+  const worker =
+    context.serviceWorkers().find(worker => worker.url().endsWith('/background.js')) ??
+    (await context.waitForEvent('serviceworker', {
+      predicate: worker => worker.url().endsWith('/background.js'),
+    }));
+  const popup = await openPage(context, new URL('popup.html', worker.url()).href);
   await popup.evaluate(
     "chrome.storage.local.set({autoHide:false,alwaysOn:false,theme:'light',popupPosition:{x:.5,y:.68},popupWidth:510})",
   );
@@ -81,7 +33,7 @@ try {
     '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
   ].find(p => p && existsSync(p));
   if (!font) throw new Error('Set KEYMOVE_RECORDING_FONT to an installed TrueType font.');
-  const output = path.resolve('website/media/patterns');
+  const output = path.resolve(process.env.KEYMOVE_RECORDING_OUTPUT ?? 'website/media/patterns');
   mkdirSync(output, { recursive: true });
   const root = "document.getElementById('keymove-root').shadowRoot";
   const input = `${root}.querySelector('input')`;
@@ -90,7 +42,7 @@ try {
   const report = existsSync(new URL('verification.json', artifacts))
     ? records(JSON.parse(readFileSync(new URL('verification.json', artifacts), 'utf8')))
     : [];
-  let page: TestPage;
+  let page: Page;
   let frames: {
     filename: string;
     duration: number;
@@ -120,7 +72,17 @@ try {
   ) => {
     keys = label;
     caption = description;
-    await page.key(key, modifiers);
+    await page.keyboard.press(
+      [
+        modifiers & 1 ? 'Alt' : '',
+        modifiers & 2 ? 'Control' : '',
+        modifiers & 4 ? 'Meta' : '',
+        modifiers & 8 ? 'Shift' : '',
+        key === ' ' ? 'Space' : key,
+      ]
+        .filter(Boolean)
+        .join('+'),
+    );
     await delay(230);
     await capture(hold);
   };
@@ -128,7 +90,7 @@ try {
     caption = description;
     for (const c of text) {
       keys = c === ' ' ? 'Space' : c;
-      await page.key(c);
+      await page.keyboard.type(c);
       await capture(0.1);
     }
     keys = text;
@@ -461,45 +423,22 @@ try {
         if (await page.evaluate(`${input}.value`))
           await press('a', 2, 'Ctrl / Command + A', 'Replace the query', 0.3);
         await type('Read the walking route');
-        const beforeForeground = readTargets(await client.sendCommand('Target.getTargets', {}));
+        const foregroundPageOpened = context.waitForEvent('page');
         await press('Enter', 8, 'Shift + Enter', 'Open another tab and switch to it');
         const next = readTabs(await popup.evaluate('chrome.tabs.query({})'));
         const foreground = next.find(t => !after.some(old => old.id === t.id));
         if (!foreground?.active || !foreground.url?.endsWith('#riverside'))
           throw new Error('Foreground tab was not activated');
         evidence.push('Installed extension opened and activated the foreground tab');
-        // Attach to the actual tab created by the extension; do not create a stand-in.
-        const infos = readTargets(await client.sendCommand('Target.getTargets', {}));
-        const target = infos.find(
-          t =>
-            t.url === foreground.url &&
-            !beforeForeground.some(previous => previous.targetId === t.targetId),
-        );
-        if (!target) throw new Error('Could not identify the actual foreground tab target');
-        const attached = record(
-          await client.sendCommand('Target.attachToTarget', {
-            targetId: target.targetId,
-            flatten: true,
-          }),
-        );
-        assert(typeof attached.sessionId === 'string');
-        await client.sendCommand(
-          'Emulation.setDeviceMetricsOverride',
-          { width: 960, height: 640, deviceScaleFactor: 1, mobile: false },
-          attached.sessionId,
-        );
-        await client.sendCommand(
-          'Emulation.setEmulatedMedia',
-          { features: [{ name: 'prefers-color-scheme', value: 'light' }] },
-          attached.sessionId,
-        );
+        // Capture the actual tab created by the extension through Playwright.
+        const foregroundPage = await foregroundPageOpened;
+        await foregroundPage.waitForURL(foreground.url);
+        await foregroundPage.setViewportSize({ width: 960, height: 640 });
+        await foregroundPage.emulateMedia({ colorScheme: 'light' });
         await delay(500);
-        const shot = record(
-          await client.sendCommand('Page.captureScreenshot', { format: 'png' }, attached.sessionId),
-        );
-        assert(typeof shot.data === 'string');
+        const shot = await foregroundPage.screenshot();
         const filename = `${String(frames.length).padStart(4, '0')}.png`;
-        writeFileSync(path.join(directory, filename), Buffer.from(shot.data, 'base64'));
+        writeFileSync(path.join(directory, filename), shot);
         frames.push({
           filename,
           duration: 2.5,
@@ -525,10 +464,10 @@ try {
     evidence.length = 0;
     directory = path.join(fileURLToPath(artifacts), id);
     mkdirSync(directory, { recursive: true });
-    page = await openPage(client, base + 'demo.html?extension=installed');
-    await page.activate();
-    await page.setViewport(960, 640);
-    await page.setColorScheme('light');
+    page = await openPage(context, base + 'demo.html?extension=installed');
+    await page.bringToFront();
+    await page.setViewportSize({ width: 960, height: 640 });
+    await page.emulateMedia({ colorScheme: 'light' });
     await waitFor(
       page,
       `document.getElementById('keymove-root')?.shadowRoot?.querySelector('input')`,
@@ -634,9 +573,7 @@ try {
       await page.close();
     }
   }
-  await client.sendCommand('Browser.close', {});
 } finally {
-  socket?.close();
-  child.kill();
+  await recordingContext?.close();
   preview.cleanup();
 }

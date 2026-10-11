@@ -173,7 +173,7 @@ overlays through the owning frame and recheck actual control availability there.
 navigable and exact matches ahead of fuzzy results across documents. Hidden/removed frames and
 search dismissal release indexes, observers and marks. Protected or inaccessible frames are
 skipped after a bounded wait. Do not add new host permissions or bypass frame sandboxing.
-Verify with `preview/frames.html`, `scripts/iframe-smoke.ts` and the manual checklist in
+Verify with `preview/frames.html`, `tests/browser/scenarios/iframe-smoke.ts` and the manual checklist in
 `docs/iframe-testing.md`. Firefox behavior requires a separate manual test.
 
 ## Language support
@@ -461,8 +461,8 @@ then removes its temporary build copy.
 - `pnpm preview`: rebuild and open the preferred installed browser.
 - `pnpm browser:install`: install Playwright's bundled Chromium once.
 - `pnpm test:e2e`: rebuild Chromium and run Playwright installed-extension tests.
-- `pnpm test:e2e:built`: test the existing build after `pnpm quality`. Playwright
-  is separate from Vitest and the broader installed Vivaldi smoke below. Its fresh
+- `pnpm test:e2e:built`: test the existing build after `pnpm quality` in bundled Chromium.
+  Playwright runs the full browser smoke suite separately from Vitest. Its fresh
   profiles and snapshots preserve the same isolation rule. See `docs/browser-testing.md`
   for coverage, failure artifacts, and playwright-cli debugging.
 - `pnpm preview --smoke` / `pnpm test:browser`: rebuild, run the actual extension's
@@ -471,6 +471,10 @@ then removes its temporary build copy.
 - `pnpm test:browser:built`: run smoke on existing production output after `pnpm quality`.
   Run it for input, navigation, search, settings, and extension-mounting changes.
   Firefox behavior still requires a manual installed-browser check.
+- `pnpm test:browser:vivaldi` / `pnpm test:browser:chrome`: run the same Playwright
+  suite against an explicit installed browser, without rebuilding. Automated Vivaldi
+  uses `--disable-vivaldi` to exercise its Chromium shell; normal Vivaldi UI remains
+  covered by the interactive preview launcher.
 - `pnpm preview:vivaldi`, `pnpm preview:chrome`, `pnpm preview:firefox`: rebuild and open that browser.
 - `pnpm browser:open`: open the existing production build after `pnpm quality` or `pnpm build`,
   avoiding a redundant rebuild. It uses the same browser preference order.

@@ -1,23 +1,24 @@
+import type { Page } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { waitFor, type TestPage } from './browser-driver.ts';
-import EXTENSION_IDENTITY from '../src/extension_identity.ts';
+import { waitFor } from '../pages.js';
+import EXTENSION_IDENTITY from '../../../src/extension_identity.js';
 
-export async function settingsTab(popup: TestPage, name: string) {
+export async function settingsTab(popup: Page, name: string) {
   const tab = `Array.from(document.querySelectorAll('[role="tab"]')).find(tab => tab.textContent === ${JSON.stringify(name)})`;
   await waitFor(popup, tab);
   await popup.evaluate(`${tab}.click()`);
   await waitFor(popup, `${tab}.getAttribute('aria-selected') === 'true'`);
 }
-export async function setActivation(popup: TestPage, value: 'type' | 'shortcut') {
+export async function setActivation(popup: Page, value: 'type' | 'shortcut') {
   await settingsTab(popup, 'General');
   await popup.evaluate(
     `(() => {const select=document.querySelector('[aria-label="Default activation"]');select.value='${value}';select.dispatchEvent(new Event('change',{bubbles:true}));})()`,
   );
 }
 
-export async function checkSiteSettings(page: TestPage, popup: TestPage) {
+export async function checkSiteSettings(page: Page, popup: Page) {
   const shadow = `document.getElementById('keymove-root').shadowRoot`;
   const input = `${shadow}.querySelector('[aria-label="Search page"]')`;
   const container = `${shadow}.querySelector('#keymove-bar')`;
@@ -52,21 +53,21 @@ export async function checkSiteSettings(page: TestPage, popup: TestPage) {
   };
   await chooseSite('shortcut');
   await settingsTab(popup, 'Shortcuts');
-  await popup.activate();
+  await popup.bringToFront();
   await waitFor(popup, 'document.hasFocus()');
   await popup.evaluate(`document.querySelector('[aria-label="Open KeyMove"]').focus()`);
-  await popup.key('k', 1);
+  await popup.keyboard.press('Alt+k');
   await waitFor(popup, `document.querySelector('[aria-label="Open KeyMove"]').value === 'Alt+K'`);
   await popup.evaluate(`chrome.storage.local.set({'siteBehavior:github.com':'paused'})`);
   try {
     await settingsTab(popup, 'Sites');
     await waitFor(popup, `document.querySelectorAll('.keymove-site-overrides li').length === 2`);
     await waitFor(page, `${container}.dataset.siteBehavior === 'shortcut'`);
-    await page.activate();
+    await page.bringToFront();
     await waitFor(page, 'document.hasFocus()');
-    await page.key('k', 1);
+    await page.keyboard.press('Alt+k');
     await waitFor(page, `${shadow}.activeElement === ${input}`);
-    await page.key('Escape');
+    await page.keyboard.press('Escape');
     await waitFor(page, `${input}.value === '' && ${shadow}.activeElement !== ${input}`);
     // The old Alt+F may now open the browser menu. Check page interception without
     // invoking that browser-level action, then use real keys for the new binding.
@@ -76,11 +77,11 @@ export async function checkSiteSettings(page: TestPage, popup: TestPage) {
       ),
       true,
     );
-    await page.key('g');
+    await page.keyboard.press('g');
     assert.equal(await page.evaluate(`${input}.value`), '');
     assert.equal(await page.evaluate(`${shadow}.activeElement === ${input}`), false);
-    await page.key('k', 1);
-    await page.key('q');
+    await page.keyboard.press('Alt+k');
+    await page.keyboard.press('q');
     await waitFor(page, `${input}.value === 'q'`);
     await chooseSite('paused');
     await waitFor(page, `${container}.dataset.siteBehavior === 'paused' && ${input}.value === ''`);
@@ -88,21 +89,21 @@ export async function checkSiteSettings(page: TestPage, popup: TestPage) {
       popup,
       `document.querySelector('.keymove-show-search-button').disabled && document.querySelector('.keymove-show-search').textContent.includes('Resume in Sites')`,
     );
-    await page.key('k', 1);
-    await page.key('g');
+    await page.keyboard.press('Alt+k');
+    await page.keyboard.press('g');
     assert.equal(await page.evaluate(`${shadow}.activeElement === ${input}`), false);
     await popup.evaluate(
       `document.querySelector('[aria-label="Remove override for ${String(host)}"]').click()`,
     );
     await waitFor(page, `${container}.dataset.siteBehavior === 'type'`);
-    await page.key('q');
+    await page.keyboard.press('q');
     await waitFor(page, `${input}.value === 'q'`);
-    await page.key('Escape');
+    await page.keyboard.press('Escape');
     await settingsTab(popup, 'Shortcuts');
     await popup.evaluate(
       `Array.from(document.querySelectorAll('button')).find(button => button.textContent === 'Restore opening shortcut').click()`,
     );
-    await page.key('f', 1);
+    await page.keyboard.press('Alt+f');
     await waitFor(page, `${shadow}.activeElement === ${input}`);
   } finally {
     await popup.evaluate(
@@ -112,18 +113,18 @@ export async function checkSiteSettings(page: TestPage, popup: TestPage) {
   }
 }
 
-export async function checkShowSearch(page: TestPage, popup: TestPage) {
+export async function checkShowSearch(page: Page, popup: Page) {
   const shadow = `document.getElementById('keymove-root').shadowRoot`;
   const input = `${shadow}.querySelector('[aria-label="Search page"]')`;
-  await page.activate();
+  await page.bringToFront();
   await waitFor(page, 'document.hasFocus()');
-  await page.key('Escape');
+  await page.keyboard.press('Escape');
   await waitFor(page, `${input}.getClientRects().length === 0`);
-  await popup.activate();
+  await popup.bringToFront();
   await waitFor(popup, 'document.hasFocus()');
   await settingsTab(popup, 'General');
   await waitFor(popup, `!document.querySelector('.keymove-show-search-button').disabled`);
-  await popup.setViewport(456, 600);
+  await popup.setViewportSize({ width: 456, height: 600 });
   const links = await popup.evaluate(
     `Array.from(document.querySelectorAll('.keymove-popup-links a')).map(a => ({href:a.href, target:a.target, width:a.getBoundingClientRect().width}))`,
   );
@@ -139,7 +140,7 @@ export async function checkShowSearch(page: TestPage, popup: TestPage) {
   );
   assert(links.every(link => Math.abs(link.width - links[0].width) < 1));
   writeFileSync(
-    path.resolve(import.meta.dirname, '../.artifacts/settings-show-search.png'),
+    path.resolve(import.meta.dirname, '../../../.artifacts/settings-show-search.png'),
     await popup.screenshot(),
   );
   // Return from evaluation before this settings document closes itself.
@@ -150,7 +151,7 @@ export async function checkShowSearch(page: TestPage, popup: TestPage) {
     page,
     `document.hasFocus() && ${input}.getClientRects().length > 0 && ${shadow}.activeElement === ${input}`,
   );
-  await page.key('q');
+  await page.keyboard.press('q');
   await waitFor(page, `${input}.value === 'q'`);
-  await page.key('Escape');
+  await page.keyboard.press('Escape');
 }

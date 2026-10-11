@@ -1,15 +1,15 @@
 import assert from 'node:assert/strict';
-import type { ChromiumClient } from 'web-ext';
-import { openPage, waitFor } from './browser-driver.ts';
+import type { BrowserContext } from '@playwright/test';
+import { openPage, waitFor } from '../pages.js';
 
 const shadow = `document.getElementById('keymove-root')?.shadowRoot`;
 const input = `${shadow}?.querySelector('[aria-label="Search page"]')`;
-const modifier = process.platform === 'darwin' ? 4 : 2;
+const modifier = process.platform === 'darwin' ? 'Meta' : 'Control';
 
-export async function checkRenderedText(client: ChromiumClient, origin: string) {
-  const page = await openPage(client, `${origin}fixtures.html?rendered-text`);
+export async function checkRenderedText(context: BrowserContext, origin: string) {
+  const page = await openPage(context, `${origin}fixtures.html?rendered-text`);
   try {
-    await page.activate();
+    await page.bringToFront();
     // The renderer can expose the target before the DOM and stored settings are ready.
     await waitFor(
       page,
@@ -83,10 +83,10 @@ export async function checkRenderedText(client: ChromiumClient, origin: string) 
       },
     ];
     for (const scenario of scenarios) {
-      await page.key('f', 1);
+      await page.keyboard.press('Alt+f');
       await waitFor(page, `${shadow}.activeElement === ${input}`);
-      await page.key('a', modifier);
-      await page.key('Backspace');
+      await page.keyboard.press(`${modifier}+a`);
+      await page.keyboard.press('Backspace');
       await waitFor(page, `${input}.value === ''`);
       await page.evaluate(
         `document.getElementById('fixture').innerHTML = ${JSON.stringify(
@@ -98,7 +98,13 @@ export async function checkRenderedText(client: ChromiumClient, origin: string) 
         await page.evaluate(`document.getElementById('sample').innerText`),
         scenario.copied,
       );
-      for (const character of scenario.query) await page.key(character);
+      for (const character of scenario.query) {
+        // Playwright inserts characters outside its keyboard layout without a
+        // keydown. Restore the query caret before that composition-style input.
+        if (!/^[\x20-\x7e]$/.test(character)) await page.keyboard.press('End');
+        await page.keyboard.type(character);
+      }
+      assert.equal(await page.evaluate(`${input}.value`), scenario.query);
       const summary = `Text ${scenario.fuzzy ? '~ ' : ''}1 / 1`;
       await waitFor(
         page,
@@ -109,11 +115,11 @@ export async function checkRenderedText(client: ChromiumClient, origin: string) 
         `CSS.highlights.get('keymove-search-results')?.size === 1 &&
         [...CSS.highlights.get('keymove-search-results')][0].toString() === ${JSON.stringify(scenario.range)}`,
       );
-      await page.key('Tab');
+      await page.keyboard.press('Tab');
       assert.equal(await page.evaluate(`getSelection().toString()`), scenario.copied);
-      await page.key('c', modifier);
+      await page.keyboard.press(`${modifier}+c`);
       await page.evaluate(`document.querySelector('textarea').focus()`);
-      await page.key('v', modifier);
+      await page.keyboard.press(`${modifier}+v`);
       await waitFor(
         page,
         `document.querySelector('textarea').value === ${JSON.stringify(scenario.copied)}`,

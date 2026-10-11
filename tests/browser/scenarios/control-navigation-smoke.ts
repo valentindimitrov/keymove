@@ -1,26 +1,25 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import type { ChromiumClient } from 'web-ext';
-import { openPage, waitFor } from './browser-driver.ts';
-import type { TestPage } from './browser-driver.ts';
+import type { BrowserContext, Page } from '@playwright/test';
+import { openPage, waitFor } from '../pages.js';
 
 const shadow = `document.getElementById('keymove-root')?.shadowRoot`;
 const input = `${shadow}?.querySelector('[aria-label="Search page"]')`;
 const status = `${shadow}?.querySelector('[role="status"]')?.textContent`;
 
-async function expectState(page: TestPage, state: string) {
+async function expectState(page: Page, state: string) {
   await waitFor(
     page,
     `${shadow}?.querySelector('[role="listbox"]')?.textContent.includes(${JSON.stringify(state)})`,
   );
 }
 
-async function searchAction(page: TestPage, query: string, count = 1) {
-  await page.key('f', 1);
+async function searchAction(page: Page, query: string, count = 1) {
+  await page.keyboard.press('Alt+f');
   await waitFor(page, `${shadow}.activeElement === ${input}`);
-  await page.key('Backspace', process.platform === 'darwin' ? 4 : 2);
-  for (const character of query) await page.key(character);
+  await page.keyboard.press('ControlOrMeta+Backspace');
+  for (const character of query) await page.keyboard.type(character);
   await waitFor(page, `${input}?.value === ${JSON.stringify(query)}`);
   if (query.length >= 3) {
     await waitFor(
@@ -30,18 +29,19 @@ async function searchAction(page: TestPage, query: string, count = 1) {
   } else {
     await waitFor(page, `${status}?.startsWith('Text') || ${status}?.startsWith('Actions')`);
   }
-  if (((await page.evaluate(status)) as string).startsWith('Text')) await page.key('s', 1);
+  if (((await page.evaluate(status)) as string).startsWith('Text'))
+    await page.keyboard.press('Alt+s');
   await waitFor(page, `${status} === 'Actions 1 / ${count}'`);
 }
 
-export async function checkControlNavigation(client: ChromiumClient, origin: string) {
-  const artifacts = path.resolve(import.meta.dirname, '../.artifacts');
+export async function checkControlNavigation(context: BrowserContext, origin: string) {
+  const artifacts = path.resolve(import.meta.dirname, '../../../.artifacts');
   mkdirSync(artifacts, { recursive: true });
-  await checkTransformedModal(client, origin, artifacts, false);
-  await checkTransformedModal(client, origin, artifacts, true);
-  const page = await openPage(client, `${origin}fixtures.html?controls`);
+  await checkTransformedModal(context, origin, artifacts, false);
+  await checkTransformedModal(context, origin, artifacts, true);
+  const page = await openPage(context, `${origin}fixtures.html?controls`);
   try {
-    await page.activate();
+    await page.bringToFront();
     await waitFor(page, `${shadow}?.querySelector('#keymove-bar')?.dataset.alwaysOn === 'true'`);
     await page.evaluate(`(() => {
       const fixture = document.createElement('section');
@@ -54,11 +54,11 @@ export async function checkControlNavigation(client: ChromiumClient, origin: str
       document.getElementById('modal-close').addEventListener('click', () => document.getElementById('control-modal').close());
     })()`);
     await searchAction(page, 'contact mailbox');
-    await page.key('Enter');
+    await page.keyboard.press('Enter');
     assert.equal(await page.evaluate('document.activeElement.id'), 'control-email');
     await searchAction(page, 'weekly digest');
     await expectState(page, 'checkbox · unchecked');
-    await page.key('Enter');
+    await page.keyboard.press('Enter');
     assert.equal(await page.evaluate(`document.getElementById('control-check').checked`), true);
     await searchAction(page, 'weekly digest');
     await expectState(page, 'checkbox · checked');
@@ -71,16 +71,16 @@ export async function checkControlNavigation(client: ChromiumClient, origin: str
     writeFileSync(path.join(artifacts, 'control-state-live.png'), await page.screenshot());
     await searchAction(page, 'express delivery');
     await expectState(page, 'radio · unselected');
-    await page.key('Enter');
+    await page.keyboard.press('Enter');
     assert.equal(await page.evaluate(`document.getElementById('control-radio').checked`), true);
     await searchAction(page, 'express delivery');
     await expectState(page, 'radio · selected');
     await searchAction(page, 'confirm order');
-    await page.key('Enter');
+    await page.keyboard.press('Enter');
     assert.equal(await page.evaluate('document.body.dataset.orderSubmitted'), 'yes');
     await searchAction(page, 'advanced preferences');
     await expectState(page, 'disclosure · collapsed');
-    await page.key('Enter');
+    await page.keyboard.press('Enter');
     assert.equal(
       await page.evaluate(`document.querySelector('#controls-fixture details').open`),
       true,
@@ -88,11 +88,11 @@ export async function checkControlNavigation(client: ChromiumClient, origin: str
     await searchAction(page, 'advanced preferences');
     await expectState(page, 'disclosure · expanded');
     await searchAction(page, 'message editor');
-    await page.key('Enter');
+    await page.keyboard.press('Enter');
     assert.equal(await page.evaluate('document.activeElement.id'), 'control-editor');
     await searchAction(page, 'night lighting');
     await expectState(page, 'switch · off');
-    await page.key('Enter');
+    await page.keyboard.press('Enter');
     assert.equal(
       await page.evaluate(`document.getElementById('control-switch').getAttribute('aria-checked')`),
       'true',
@@ -108,7 +108,7 @@ export async function checkControlNavigation(client: ChromiumClient, origin: str
       (await page.evaluate(`${shadow}.querySelector('[role="listbox"]').textContent`)) as string,
       /unavailable/,
     );
-    await page.key('Enter');
+    await page.keyboard.press('Enter');
     assert.equal(await page.evaluate(`${input}.value`), 'unavailable operation');
 
     await page.evaluate(`document.getElementById('control-modal').showModal()`);
@@ -117,14 +117,14 @@ export async function checkControlNavigation(client: ChromiumClient, origin: str
       `document.getElementById('keymove-root').parentElement.id === 'control-modal'`,
     );
     await searchAction(page, 'save');
-    await page.key('s', 1);
+    await page.keyboard.press('Alt+s');
     await waitFor(page, `${status} === 'Text 1 / 1'`);
     assert.equal(await page.evaluate(`${shadow}.querySelectorAll('[role="option"]').length`), 1);
     writeFileSync(path.join(artifacts, 'native-modal-navigation.png'), await page.screenshot());
-    await page.key('Enter');
+    await page.keyboard.press('Enter');
     assert.equal(await page.evaluate('document.body.dataset.addressSaved'), 'yes');
     await searchAction(page, 'close editor');
-    await page.key('Enter');
+    await page.keyboard.press('Enter');
     await waitFor(page, `document.getElementById('keymove-root').parentElement === document.body`);
     await searchAction(page, 'save account');
     await page.evaluate(`document.getElementById('aria-modal').hidden = false`);
@@ -149,9 +149,9 @@ export async function checkControlNavigation(client: ChromiumClient, origin: str
     'control-states-narrow',
     'transformed-modal',
   ]) {
-    const preview = await openPage(client, `${origin}?scenario=${scenario}`);
+    const preview = await openPage(context, `${origin}?scenario=${scenario}`);
     try {
-      await preview.activate();
+      await preview.bringToFront();
       await waitFor(preview, `${shadow}?.querySelector('[role="listbox"]')`);
       assert.equal(
         await preview.evaluate(`(() => {
@@ -169,19 +169,19 @@ export async function checkControlNavigation(client: ChromiumClient, origin: str
 }
 
 async function checkTransformedModal(
-  client: ChromiumClient,
+  context: BrowserContext,
   origin: string,
   artifacts: string,
   native: boolean,
 ) {
-  const page = await openPage(client, `${origin}fixtures.html?drawer${native ? '&native' : ''}`);
+  const page = await openPage(context, `${origin}fixtures.html?drawer${native ? '&native' : ''}`);
   try {
-    await page.activate();
+    await page.bringToFront();
     await waitFor(page, `${shadow}?.querySelector('#keymove-bar')?.dataset.alwaysOn === 'true'`);
     await searchAction(page, 'prix');
-    await page.key('s', 1);
+    await page.keyboard.press('Alt+s');
     await waitFor(page, `${status}?.startsWith('Text 1 /')`);
-    await page.key('Tab');
+    await page.keyboard.press('Tab');
     await waitFor(page, `${shadow}.querySelector('.keymove-selected-selection')`);
     writeFileSync(
       path.join(artifacts, `transformed-${native ? 'native' : 'aria'}-modal.png`),
@@ -215,7 +215,7 @@ async function checkTransformedModal(
     await checkInputValues(page, artifacts, native);
     // Activation clears the query; restore an active search before testing its Escape.
     await searchAction(page, 'haut - bas');
-    await page.key('Escape');
+    await page.keyboard.press('Escape');
     assert.equal(
       await page.evaluate(`document.getElementById('keymove-root').matches(':popover-open')`),
       true,
@@ -237,7 +237,7 @@ async function checkTransformedModal(
   }
 }
 
-async function checkInputValues(page: TestPage, artifacts: string, native: boolean) {
+async function checkInputValues(page: Page, artifacts: string, native: boolean) {
   await page.evaluate(`(() => {
     const section = document.createElement('section');
     section.innerHTML = '<p>40 €</p><label for="price-minimum">Minimum (EUR)</label><input id="price-minimum" type="${native ? 'number' : 'text'}" value="10"><label for="price-maximum">Maximum (EUR)</label><input id="price-maximum" type="number">';
@@ -246,14 +246,14 @@ async function checkInputValues(page: TestPage, artifacts: string, native: boole
     document.getElementById('price-maximum').value = '160';
   })()`);
   await searchAction(page, '40');
-  await page.key('s', 1);
+  await page.keyboard.press('Alt+s');
   await waitFor(page, `${status} === 'Text 1 / 1'`);
-  await page.key('s', 1);
-  await page.key('Enter');
+  await page.keyboard.press('Alt+s');
+  await page.keyboard.press('Enter');
   assert.equal(await page.evaluate('document.activeElement.id'), 'price-minimum');
-  await page.key('a', process.platform === 'darwin' ? 4 : 2);
-  await page.key('5');
-  await page.key('5');
+  await page.keyboard.press('ControlOrMeta+a');
+  await page.keyboard.press('5');
+  await page.keyboard.press('5');
   assert.equal(await page.evaluate(`document.getElementById('price-minimum').value`), '55');
   await searchAction(page, '55');
   await page.evaluate(`(() => {
@@ -276,7 +276,7 @@ async function checkInputValues(page: TestPage, artifacts: string, native: boole
   );
 }
 
-async function checkStyledToggles(page: TestPage, artifacts: string, native: boolean) {
+async function checkStyledToggles(page: Page, artifacts: string, native: boolean) {
   await page.evaluate(`(() => {
     const list = document.querySelector('#transformed-drawer ul');
     list.innerHTML = '<li><label for="price-high-to-low" id="sort-high-label"><input type="radio" name="sorting-rules" id="price-high-to-low" value="price-high-to-low" style="opacity:0;position:absolute"><span aria-hidden="true">◯ </span><span>Prix (Haut - Bas)</span></label><label for="price-high-to-low" aria-hidden="true"></label></li><li><label for="price-low-to-high"><input type="radio" name="sorting-rules" id="price-low-to-high" value="price-low-to-high" checked style="display:none"><span aria-hidden="true">◯ </span><span>Prix (Bas - Haut)</span></label><label for="price-low-to-high" aria-hidden="true"></label></li><li><label><input id="styled-check" type="checkbox" style="opacity:0;position:absolute"><span>Lifestyle</span></label></li>';
@@ -292,7 +292,7 @@ async function checkStyledToggles(page: TestPage, artifacts: string, native: boo
     path.join(artifacts, `styled-radio-${native ? 'native' : 'aria'}.png`),
     await page.screenshot(),
   );
-  await page.key('Enter');
+  await page.keyboard.press('Enter');
   assert.equal(
     await page.evaluate(
       `document.getElementById('price-high-to-low').checked && !document.getElementById('price-low-to-high').checked`,
@@ -300,9 +300,9 @@ async function checkStyledToggles(page: TestPage, artifacts: string, native: boo
     true,
   );
   await searchAction(page, 'bas - haut');
-  await page.key('s', 1);
+  await page.keyboard.press('Alt+s');
   await waitFor(page, `${status} === 'Text 1 / 1'`);
-  await page.key('Enter');
+  await page.keyboard.press('Enter');
   assert.equal(
     await page.evaluate(
       `!document.getElementById('price-high-to-low').checked && document.getElementById('price-low-to-high').checked`,
@@ -311,7 +311,7 @@ async function checkStyledToggles(page: TestPage, artifacts: string, native: boo
   );
   for (const checked of [true, false]) {
     await searchAction(page, 'lifestyle');
-    await page.key('Enter');
+    await page.keyboard.press('Enter');
     assert.equal(await page.evaluate(`document.getElementById('styled-check').checked`), checked);
   }
   assert.equal(

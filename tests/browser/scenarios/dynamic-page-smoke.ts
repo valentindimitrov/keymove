@@ -1,15 +1,15 @@
 import assert from 'node:assert/strict';
-import type { ChromiumClient } from 'web-ext';
-import { openPage, waitFor } from './browser-driver.ts';
+import type { BrowserContext } from '@playwright/test';
+import { openPage, waitFor } from '../pages.js';
 
 const shadow = `document.getElementById('keymove-root')?.shadowRoot`;
 const input = `${shadow}?.querySelector('[aria-label="Search page"]')`;
 const status = `${shadow}?.querySelector('[role="status"]')?.textContent`;
 
-export async function checkDynamicPage(client: ChromiumClient, origin: string) {
-  const page = await openPage(client, `${origin}fixtures.html?size=large&dynamic`);
+export async function checkDynamicPage(context: BrowserContext, origin: string) {
+  const page = await openPage(context, `${origin}fixtures.html?size=large&dynamic`);
   try {
-    await page.activate();
+    await page.bringToFront();
     await waitFor(page, `document.documentElement?.dataset.fixtureReady && ${input}`);
     await waitFor(page, `${shadow}.querySelector('#keymove-bar').dataset.alwaysOn === 'true'`);
     await waitFor(page, 'document.hasFocus()');
@@ -30,17 +30,17 @@ export async function checkDynamicPage(client: ChromiumClient, origin: string) {
       });
       observer.observe(${shadow}, {subtree:true, childList:true, characterData:true});
     })()`);
-    await page.key('q');
+    await page.keyboard.press('q');
     await waitFor(page, `typeof globalThis.__dynamicTiming === 'number'`);
     const searchMs = await page.evaluate('globalThis.__dynamicTiming');
     assert.equal(typeof searchMs, 'number');
     // Keep the animation running through subsequent keystrokes and selection changes.
-    for (const character of 'xyz') await page.key(character);
+    for (const character of 'xyz') await page.keyboard.type(character);
     await waitFor(page, `${status} === 'Text 1 / 1'`);
     await waitFor(page, `globalThis.__dynamicChanges >= 5`);
-    await page.key('Tab');
+    await page.keyboard.press('Tab');
     await waitFor(page, `getSelection().toString().includes('semantic block')`);
-    await page.key('ArrowDown');
+    await page.keyboard.press('ArrowDown');
     await waitFor(page, `${shadow}.querySelector('[role="menu"]')`);
     const changes = await page.evaluate('globalThis.__dynamicChanges');
     assert.equal(typeof changes, 'number');
@@ -51,7 +51,7 @@ export async function checkDynamicPage(client: ChromiumClient, origin: string) {
       'Page animation must not dismiss the action menu',
     );
     assert.equal(await page.evaluate(`${shadow}.activeElement?.getAttribute('role')`), 'menuitem');
-    await page.key('Escape');
+    await page.keyboard.press('Escape');
     await waitFor(page, `${shadow}.activeElement === ${input}`);
     await page.evaluate(`(() => {
       globalThis.__pageClicks = 0;
