@@ -17,8 +17,12 @@ async function expectState(page: Page, state: string) {
 
 async function searchAction(page: Page, query: string, count = 1) {
   await page.keyboard.press('Alt+f');
-  await waitFor(page, `${shadow}.activeElement === ${input}`);
-  await page.keyboard.press('ControlOrMeta+Backspace');
+  await waitFor(
+    page,
+    `document.activeElement === document.getElementById('keymove-root') && ${shadow}.activeElement === ${input}`,
+  );
+  await page.keyboard.press('ControlOrMeta+a');
+  await page.keyboard.press('Backspace');
   for (const character of query) await page.keyboard.type(character);
   await waitFor(page, `${input}?.value === ${JSON.stringify(query)}`);
   if (query.length >= 3) {
@@ -52,6 +56,7 @@ export async function checkControlNavigation(context: BrowserContext, origin: st
       document.getElementById('control-switch').addEventListener('click', e => e.currentTarget.setAttribute('aria-checked', 'true'));
       document.getElementById('modal-save').addEventListener('click', () => document.body.dataset.addressSaved = 'yes');
       document.getElementById('modal-close').addEventListener('click', () => document.getElementById('control-modal').close());
+      document.getElementById('control-modal').addEventListener('close', () => document.body.dataset.modalClosed = 'yes');
     })()`);
     await searchAction(page, 'contact mailbox');
     await page.keyboard.press('Enter');
@@ -125,7 +130,12 @@ export async function checkControlNavigation(context: BrowserContext, origin: st
     assert.equal(await page.evaluate('document.body.dataset.addressSaved'), 'yes');
     await searchAction(page, 'close editor');
     await page.keyboard.press('Enter');
-    await waitFor(page, `document.getElementById('keymove-root').parentElement === document.body`);
+    // The host can move before the dialog's queued close event and native focus
+    // restoration finish. Start the next search after that transition completes.
+    await waitFor(
+      page,
+      `document.body.dataset.modalClosed === 'yes' && document.getElementById('keymove-root').parentElement === document.body`,
+    );
     await searchAction(page, 'save account');
     await page.evaluate(`document.getElementById('aria-modal').hidden = false`);
     await waitFor(

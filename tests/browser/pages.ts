@@ -26,26 +26,33 @@ export async function waitFor(page: Page, expression: string): Promise<void> {
       )
       .toBe(true);
   } catch (error) {
-    await test.info().attach('rendered state', {
-      body: JSON.stringify(
-        await page.evaluate(() => {
-          const root = document.getElementById('keymove-root')?.shadowRoot;
-          return {
-            url: location.href,
-            focused: document.hasFocus(),
-            query: root?.querySelector<HTMLInputElement>('input')?.value,
-            status: root?.querySelector('[role="status"]')?.textContent,
-            selection: getSelection()?.toString(),
-          };
-        }),
-        null,
-        2,
-      ),
-      contentType: 'application/json',
-    });
-    await captureFailure(page);
+    // A closing page or interrupted navigation can also prevent diagnostics.
+    // Preserve the assertion failure even when an attachment cannot be captured.
+    await Promise.allSettled([captureFailure(page), attachRenderedState(page)]);
     throw error;
   }
+}
+
+async function attachRenderedState(page: Page): Promise<void> {
+  await test.info().attach('rendered state', {
+    body: JSON.stringify(
+      await page.evaluate(() => {
+        const root = document.getElementById('keymove-root')?.shadowRoot;
+        return {
+          url: location.href,
+          focused: document.hasFocus(),
+          activeElement: document.activeElement?.id,
+          shadowActiveElement: root?.activeElement?.id,
+          query: root?.querySelector<HTMLInputElement>('input')?.value,
+          status: root?.querySelector('[role="status"]')?.textContent,
+          selection: getSelection()?.toString(),
+        };
+      }),
+      null,
+      2,
+    ),
+    contentType: 'application/json',
+  });
 }
 
 export async function captureFailure(page: Page): Promise<void> {

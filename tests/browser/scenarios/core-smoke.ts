@@ -327,11 +327,15 @@ export async function checkCore(context: BrowserContext, origin: string, size: s
     true,
   );
   await page.evaluate(`${shadow}.querySelectorAll('[role="option"]')[4].click()`);
+  const resolvedTheme = await page.evaluate(
+    `document.getElementById('keymove-root').dataset.keymoveTheme`,
+  );
+  assert.ok(resolvedTheme === 'light' || resolvedTheme === 'dark');
   assert.equal(
     await page.evaluate(
       `getComputedStyle(${shadow}.querySelectorAll('[role="option"]')[4]).backgroundColor`,
     ),
-    'rgb(65, 65, 65)',
+    resolvedTheme === 'light' ? 'rgb(225, 229, 237)' : 'rgb(65, 65, 65)',
   );
   await setCount(3);
   await waitFor(page, `${shadow}.querySelectorAll('[role="option"]').length === 3`);
