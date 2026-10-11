@@ -2,7 +2,7 @@
 
 ### Checking the interface
 
-`yarn preview:ui` serves the searchbar on `http://localhost:5174` in the shadow root it really
+`pnpm preview:ui` serves the searchbar on `http://localhost:5174` in the shadow root it really
 uses, with the real stylesheet and the real components. Each state is its own URL, so a screenshot
 is reproducible and a diff is obvious:
 
@@ -20,29 +20,29 @@ so every assertion still passes. Add a scenario when a state is worth looking at
 
 | Command | Purpose |
 | --- | --- |
-| `yarn dev` | Start the Chromium MV3 development build. |
-| `yarn dev:firefox` | Start the Firefox MV3 development build. |
-| `yarn preview` | Rebuild and open the repository with the extension in the first installed browser: Vivaldi, Chrome, Firefox. |
-| `yarn preview:vivaldi` / `yarn preview:chrome` / `yarn preview:firefox` | Rebuild and preview in a specific browser. |
-| `yarn browser:open` | Open an already-built extension with the same automatic browser selection. |
-| `yarn preview:ui` | Serve the interface on `localhost:5174` for a visual check, without a browser extension install. |
-| `yarn build` | Build Chromium, Firefox and experimental Safari web resources. |
-| `yarn build:chromium` | Build the Chromium/Vivaldi artifact. |
-| `yarn build:vivaldi` | Explicit alias for the Chromium artifact used by Vivaldi. |
-| `yarn build:firefox` | Build the Firefox artifact. |
-| `yarn build:safari` / `yarn zip:safari` | Build/package Safari MV3 web resources for the macOS-only app. |
-| `yarn safari:project <bundle-identifier>` | Generate a macOS-only Xcode project on a Mac; see [Safari](safari.md). |
-| `yarn zip` | Package all three browser builds under `.output`. |
-| `yarn package:chrome` | Build a signed Chrome Web Store CRX using the key in Proton Pass. |
-| `yarn verify:crx` | Verify the CRX signature and its exact ZIP payload without the private key. |
-| `yarn format` | Format supported source and configuration files with Oxfmt. |
-| `yarn format:check` | Check formatting without writing files. |
-| `yarn lint` | Run Oxlint correctness, React Hooks, and type-aware promise checks. |
-| `yarn lint:fix` | Apply Oxlint's safe automatic fixes. |
-| `yarn typecheck` | Run strict TypeScript checks without emitting files. |
-| `yarn test` | Run the Vitest/jsdom test suite. |
-| `yarn verify` | Validate completed manifests and bundles after a build. |
-| `yarn quality` | Run formatting, linting, types, tests, all three builds, and artifact validation. |
+| `pnpm dev` | Start the Chromium MV3 development build. |
+| `pnpm dev:firefox` | Start the Firefox MV3 development build. |
+| `pnpm preview` | Rebuild and open the repository with the extension in the first installed browser: Vivaldi, Chrome, Firefox. |
+| `pnpm preview:vivaldi` / `pnpm preview:chrome` / `pnpm preview:firefox` | Rebuild and preview in a specific browser. |
+| `pnpm browser:open` | Open an already-built extension with the same automatic browser selection. |
+| `pnpm preview:ui` | Serve the interface on `localhost:5174` for a visual check, without a browser extension install. |
+| `pnpm build` | Build Chromium, Firefox and experimental Safari web resources. |
+| `pnpm build:chromium` | Build the Chromium/Vivaldi artifact. |
+| `pnpm build:vivaldi` | Explicit alias for the Chromium artifact used by Vivaldi. |
+| `pnpm build:firefox` | Build the Firefox artifact. |
+| `pnpm build:safari` / `pnpm zip:safari` | Build/package Safari MV3 web resources for the macOS-only app. |
+| `pnpm safari:project <bundle-identifier>` | Generate a macOS-only Xcode project on a Mac; see [Safari](safari.md). |
+| `pnpm zip` | Package all three browser builds under `.output`. |
+| `pnpm package:chrome` | Build a signed Chrome Web Store CRX using the key in Proton Pass. |
+| `pnpm verify:crx` | Verify the CRX signature and its exact ZIP payload without the private key. |
+| `pnpm format` | Format supported source and configuration files with Oxfmt. |
+| `pnpm format:check` | Check formatting without writing files. |
+| `pnpm lint` | Run Oxlint correctness, React Hooks, and type-aware promise checks. |
+| `pnpm lint:fix` | Apply Oxlint's safe automatic fixes. |
+| `pnpm typecheck` | Run strict TypeScript checks without emitting files. |
+| `pnpm test` | Run the Vitest/jsdom test suite. |
+| `pnpm verify` | Validate completed manifests and bundles after a build. |
+| `pnpm quality` | Run formatting, linting, types, tests, all three builds, and artifact validation. |
 
 Preview commands use `web-ext` to load the extension in a fresh temporary browser profile, leaving
 your regular profile untouched. Vivaldi's welcome screen and exit confirmation are skipped in the test profile.
@@ -50,25 +50,25 @@ Each preview installs a separate temporary copy of the build, removed when the p
 Use a new preview after changes: a page hard refresh does not reload the extension itself.
 Production builds still update `.output/chrome-mv3`, which may also be loaded in a regular profile.
 They stay running until you close the test browser or press Ctrl+C.
-After meaningful implementation changes, use `yarn preview`; after `yarn quality`, use
-`yarn browser:open` to reuse the verified build. For custom browser locations, set
+After meaningful implementation changes, use `pnpm preview`; after `pnpm quality`, use
+`pnpm browser:open` to reuse the verified build. For custom browser locations, set
 `KEYMOVE_VIVALDI_BINARY`, `KEYMOVE_CHROME_BINARY`, or `KEYMOVE_FIREFOX_BINARY` to the absolute
 executable path. The browser opens `https://github.com/valentindimitrov/keymove` for testing.
 
 Formatting preferences live in `.oxfmtrc.json`; lint rules and WXT/Vitest globals live in
 `.oxlintrc.json`. Generated output, coverage, and dependencies are excluded. Markdown and the
-Yarn lockfile remain outside formatting. Formatter-managed source files use LF endings, enforced
+pnpm lockfile remain outside formatting. Formatter-managed source files use LF endings, enforced
 on checkout by `.gitattributes`.
 
 Oxlint uses an explicit ruleset with React Hooks dependency checks at warning severity. Assignment
 checks cover conditions and return values; they do not cover every expression context previously
 checked by Biome. Duplicate parameters and `with` statements are rejected by the module parser.
 Type-aware linting uses `oxlint-tsgolint` to check floating promises, misused promises, and awaiting
-non-thenable values. It runs automatically through `yarn lint`, `yarn lint:fix`, and `yarn quality`.
-The generated WXT types must be available (`yarn install` runs `wxt prepare`). Strict TypeScript
+non-thenable values. It runs automatically through `pnpm lint`, `pnpm lint:fix`, and `pnpm quality`.
+The generated WXT types must be available (`pnpm run postinstall` runs `wxt prepare`). Strict TypeScript
 checking remains a separate required step.
 
-Run `yarn audit` to check dependency advisories. Two scoped `package.json` resolutions select
+Run `pnpm audit` to check dependency advisories. Two scoped `pnpm-workspace.yaml` overrides select
 patched development dependencies: `cosmiconfig/js-yaml` and `addons-linter/image-size`. Remove each
 pin when its parent requests a patched version itself. Babel and ansi-regex resolve normally.
 
@@ -87,7 +87,7 @@ KeyMove's desktop preview does not request that bridge, and CRX signing and veri
 if Android/ADB tooling is introduced. This is a scoped usage assessment, not a package-wide safety
 exception.
 
-Pull requests and pushes to `main` run `yarn quality`. Release preparation runs the same full gate
+Pull requests and pushes to `main` run `pnpm quality`. Release preparation runs the same full gate
 before packaging and revalidates the resulting artifacts, including the settings popup and its assets.
 Installed-browser smoke remains a separate local check.
 

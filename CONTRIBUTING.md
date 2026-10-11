@@ -10,12 +10,13 @@ issues once a proposal is ready. Follow [SECURITY.md](SECURITY.md) for private v
 
 1. Fork the repository and create a focused branch. Keep concurrent implementation tasks in
    separate worktrees as described in the [development workflow](docs/development.md).
-2. Check the Node requirement in `package.json` and run `yarn install --frozen-lockfile`.
+2. Check the Node and pnpm versions in `package.json`, run `pnpm install --frozen-lockfile`,
+   then `pnpm run postinstall` to prepare WXT types even if install scripts were skipped.
 3. Read [AGENTS.md](AGENTS.md) for runtime, accessibility, privacy, and licensing invariants.
    Keep each change focused; reproduce bugs before fixing them and preserve unrelated work.
 4. Verify the affected behavior. Documentation needs a diff and link review plus `git diff --check`.
    Website changes follow [website/AGENTS.md](website/AGENTS.md). Extension or shared-code changes
-   require `yarn quality` and the relevant rendered or installed-browser checks described in
+   require `pnpm quality` and the relevant rendered or installed-browser checks described in
    [the development workflow](docs/development.md).
 5. Open a pull request against `main` using the supplied template. Explain the problem, resulting
    behavior, and verification. Explain checks that do not apply. The `quality` check must pass;

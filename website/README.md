@@ -8,9 +8,9 @@ the extension is mounted directly inside that document by `demo.tsx`.
 From the repository root:
 
 ```sh
-yarn website:dev
-yarn website:build
-yarn website:preview
+pnpm website:dev
+pnpm website:build
+pnpm website:preview
 ```
 
 The standalone static output is `.output/public/`. Deploy the entire directory, including
@@ -100,7 +100,7 @@ the Edge store link remains a placeholder.
 
 ## Search and static rendering
 
-`yarn website:build` renders the home, patterns, and getting-started React components into HTML, and renders
+`pnpm website:build` renders the home, patterns, and getting-started React components into HTML, and renders
 the shared header and footer into the static privacy page. `prerender-plugin.ts` uses Vite's
 build asset names, then the browser hydrates those same components. No runtime server or browser
 binary is needed for the build. Platform shortcut labels update after hydration; the demo iframe

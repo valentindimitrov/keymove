@@ -1,9 +1,9 @@
 # Signed Chrome Web Store uploads
 
-`yarn package:chrome` rebuilds and zips Chromium, then writes
+`pnpm package:chrome` rebuilds and zips Chromium, then writes
 `.output/keymove-v<version>-chrome-mv3.crx`. The signer checks the saved public key,
 verifies the CRX3 signature, and checks that its payload equals the Chromium ZIP.
-`yarn verify:crx` repeats those checks without needing the private key.
+`pnpm verify:crx` repeats those checks without needing the private key.
 
 Local signing reads the RSA-4096 key from Proton Pass vault `minddevops`, item
 `KeyMove Chrome Web Store CRX signing`. It requires an authenticated `pass-cli` and

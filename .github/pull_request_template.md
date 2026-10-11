@@ -6,7 +6,7 @@
 
 <!-- Check the relevant items. Explain anything omitted or performed differently. -->
 
-- [ ] Agent or local `yarn quality` run completed
+- [ ] Agent or local `pnpm quality` run completed
 - [ ] Fresh installed-browser preview or browser smoke
 - [ ] Firefox manual check, when browser-specific behavior changed
 - [ ] Visual scenario or screenshot, when appearance changed

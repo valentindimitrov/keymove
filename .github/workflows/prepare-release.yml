@@ -41,6 +41,8 @@ jobs:
         with:
           node-version-file: package.json
           package-manager-cache: false
+      - name: Set up pinned pnpm
+        run: npm install --global "$(node -p "require('./package.json').packageManager")"
 
       - name: Validate release request
         shell: bash
@@ -75,21 +77,22 @@ jobs:
           fi
 
       - name: Install locked dependencies
-        run: yarn install --frozen-lockfile --non-interactive
+        run: pnpm install --frozen-lockfile
+      - run: pnpm run postinstall
 
       - name: Run the full quality gate
-        run: yarn quality
+        run: pnpm quality
 
       - name: Package verified source
-        run: yarn zip
+        run: pnpm zip
 
       - name: Validate packaged builds
-        run: yarn verify
+        run: pnpm verify
 
       - name: Sign and verify Chromium upload
         env:
           KEYMOVE_CRX_PRIVATE_KEY: ${{ secrets.KEYMOVE_CRX_PRIVATE_KEY }}
-        run: yarn sign:chrome
+        run: pnpm sign:chrome
 
       - name: Create checksums
         shell: bash

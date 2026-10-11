@@ -47,8 +47,8 @@ related image found” rather than guessing across a page.
 
 ## Manual test
 
-Run `yarn preview:ui --host 127.0.0.1 --port 5175 --strictPort`, then
-`yarn preview:vivaldi` in another terminal. In that dedicated browser, open
+Run `pnpm preview:ui --host 127.0.0.1 --port 5175 --strictPort`, then
+`pnpm preview:vivaldi` in another terminal. In that dedicated browser, open
 `http://127.0.0.1:5175/images.html`.
 
 1. Search `Samba shoe`, press Alt+I: only the purple shoe should be outlined.
@@ -62,6 +62,6 @@ Run `yarn preview:ui --host 127.0.0.1 --port 5175 --strictPort`, then
 7. In a real page, test Copy image on a cross-origin photo. A blocked copy must
    show a message, retain the menu, and still allow copying its address.
 
-Automated installed-browser coverage is part of `yarn test:browser`; screenshots
+Automated installed-browser coverage is part of `pnpm test:browser`; screenshots
 are written to `.artifacts/image-viewer.png` and `image-viewer-narrow.png`.
 Firefox needs a separate manual installed-browser check.

@@ -31,7 +31,7 @@ runtime compatibility from a Windows build or Chromium smoke pass.
 |   |-- background.ts        WXT background entrypoint
 |   |-- frames.content.ts    Child-frame search and navigation helper
 |   `-- content.tsx          WXT content-script and React mount
-|-- preview/                 Shadow-root harness for visual checks, served by `yarn preview:ui`
+|-- preview/                 Shadow-root harness for visual checks, served by `pnpm preview:ui`
 |-- scripts/
 |   `-- validate-builds.ts   Manifest and generated-bundle checks
 |-- src/
@@ -311,18 +311,19 @@ focused type guard before use. TypeScript types alone are not runtime validation
 
 ## Dependency footprint and Node version
 
-The project declares only two direct runtime packages (`react` and `react-dom`) plus 18 direct
+The project declares only two direct runtime packages (`react` and `react-dom`) plus 20 direct
 development packages. The packages under `node_modules/` are predominantly transitive dependencies
 of WXT/Vite, web-ext (the development browser launcher), Vitest/jsdom/Testing Library, TypeScript,
 Oxlint/tsgolint, Oxfmt, React tooling, and SVGR.
-Yarn 1 hoists these transitive packages into the
-top-level installation, so their presence does not mean the extension imports or ships all of them.
+pnpm links declared dependencies into the top-level installation and shares package files
+through its content-addressable store. Keep each checkout's own dependency layout; its
+development packages do not mean the extension imports or ships all of them.
 
 `node_modules/` is local, ignored development state. WXT tree-shakes and bundles reachable runtime
 code only. Measure the current unpacked artifacts in `.output/`; both include the main content
 script, a child-frame helper, and a separate settings popup with shared chunks. Do not
 judge the published extension footprint from the development installation size, and do not remove a
-transitive package manually from `node_modules/` or `yarn.lock`.
+transitive package manually from `node_modules/` or `pnpm-lock.yaml`.
 
 `package.json` is the single repository source for the supported Node range and currently requires
 Node `>=24.15.0`. There is no `.nvmrc`; developers should verify `node --version` before installing
@@ -360,9 +361,9 @@ blindly replacing it can break selectors, stored preferences, and content/backgr
 
 ## Development rules
 
-- Before work, run `yarn worktree:check` and verify the checkout path and branch.
+- Before work, run `pnpm worktree:check` and verify the checkout path and branch.
   Each concurrent implementation task must own a separate worktree; run
-  `yarn worktree:check --require-linked` there before editing. Do not assign two
+  `pnpm worktree:check --require-linked` there before editing. Do not assign two
   writers to the same linked checkout. Subagents do not get isolation automatically:
   when delegation is requested, create and assign an absolute worktree path before
   a subagent edits or builds. Read-only review may share files. A single foreground
@@ -387,7 +388,7 @@ blindly replacing it can break selectors, stored preferences, and content/backgr
 - Keep the content bundle free of CommonJS `require()` calls.
 - Appearance is invisible to the test suite: a wrong font, a mismatched transparency or a bad
   wrap changes no structure, role or class, so every assertion still passes. Check anything
-  visual through `yarn preview:ui`, which renders the real components in the real shadow root,
+  visual through `pnpm preview:ui`, which renders the real components in the real shadow root,
   and add a scenario for a state worth looking at again.
 - `:host` sets `all: initial`, so anything that does not declare a font inherits the browser
   default, a serif at 16px. `#keymove-app` and `#keymove-portal` declare the interface type for
@@ -416,7 +417,7 @@ blindly replacing it can break selectors, stored preferences, and content/backgr
 - A passing test must not log unexpected errors or React `act` warnings. Supply responses for
   every mocked async operation, await resulting updates, and explicitly assert expected failures.
 - CSS class assertions do not prove layout. Check suggestion placement with the `slate-above`
-  and `slate-below` scenarios in `yarn preview:ui`, including a narrow viewport. Keep the CSS
+  and `slate-below` scenarios in `pnpm preview:ui`, including a narrow viewport. Keep the CSS
   custom-property fallback regression; do not enforce blanket vendor-prefix or `!important`
   bans through unit tests.
 - Preserve unrelated user changes and leave generated build output untracked.
@@ -435,9 +436,9 @@ Choose verification by the behavior affected, not by the repository containing t
   `entrypoints/`, shared assets, dependencies, or common build/test configuration can affect the
   extension even when motivated by the website. For mixed changes, verify both affected surfaces.
 
-After each meaningful extension runtime or UI implementation batch, run `yarn preview`. Test-only and
+After each meaningful extension runtime or UI implementation batch, run `pnpm preview`. Test-only and
 documentation changes do not require a fresh installed-browser launch unless they change the
-launcher or browser checks themselves. `yarn preview` rebuilds the production MV3
+launcher or browser checks themselves. `pnpm preview` rebuilds the production MV3
 extension, selects the first installed browser in this order: Vivaldi, Chrome, Firefox, and opens
 `https://github.com/valentindimitrov/keymove` with the extension loaded in a fresh temporary test
 profile, using a separate temporary copy of the build for each launch. This launch is authorized
@@ -457,15 +458,21 @@ temporary copy. Close the previous test window when finished with it; do not ter
 browser processes. The command stays running until the test browser closes or Ctrl+C stops it,
 then removes its temporary build copy.
 
-- `yarn preview`: rebuild and open the preferred installed browser.
-- `yarn preview --smoke` / `yarn test:browser`: rebuild, run the actual extension's
+- `pnpm preview`: rebuild and open the preferred installed browser.
+- `pnpm browser:install`: install Playwright's bundled Chromium once.
+- `pnpm test:e2e`: rebuild Chromium and run Playwright installed-extension tests.
+- `pnpm test:e2e:built`: test the existing build after `pnpm quality`. Playwright
+  is separate from Vitest and the broader installed Vivaldi smoke below. Its fresh
+  profiles and snapshots preserve the same isolation rule. See `docs/browser-testing.md`
+  for coverage, failure artifacts, and playwright-cli debugging.
+- `pnpm preview --smoke` / `pnpm test:browser`: rebuild, run the actual extension's
   automated Chromium interaction checks, record cold/warm timings under `.artifacts/`,
   and close the dedicated browser. This also fulfills the preview launch requirement.
-- `yarn test:browser:built`: run smoke on existing production output after `yarn quality`.
+- `pnpm test:browser:built`: run smoke on existing production output after `pnpm quality`.
   Run it for input, navigation, search, settings, and extension-mounting changes.
   Firefox behavior still requires a manual installed-browser check.
-- `yarn preview:vivaldi`, `yarn preview:chrome`, `yarn preview:firefox`: rebuild and open that browser.
-- `yarn browser:open`: open the existing production build after `yarn quality` or `yarn build`,
+- `pnpm preview:vivaldi`, `pnpm preview:chrome`, `pnpm preview:firefox`: rebuild and open that browser.
+- `pnpm browser:open`: open the existing production build after `pnpm quality` or `pnpm build`,
   avoiding a redundant rebuild. It uses the same browser preference order.
 
 Detection covers standard Windows/macOS installation locations and executable directories on PATH.
@@ -474,32 +481,32 @@ For a custom installation, set `KEYMOVE_VIVALDI_BINARY`, `KEYMOVE_CHROME_BINARY`
 loading fails, report the actual blocker; do not claim an installed-browser test from a mocked page.
 Opening the browser alone is not a behavioral test: report separately what was actually checked.
 
-During development, default to affected tests plus `yarn typecheck`, not repeated full quality
+During development, default to affected tests plus `pnpm typecheck`, not repeated full quality
 runs. Use the narrowest command that covers the behavior being changed:
 
-- `yarn test:changed`: application tests affected by staged or unstaged changes.
-- `yarn test:changed main`: application tests affected since the comparison branch; use a
+- `pnpm test:changed`: application tests affected by staged or unstaged changes.
+- `pnpm test:changed main`: application tests affected since the comparison branch; use a
   suitable base when already on `main` (for example `HEAD~1` for the last commit).
-- `yarn test:related src/lib/popup_width_schema.ts`: application tests importing a source file.
-- `yarn test src/lib/fuzzy_match.test.ts`: one file; add `-t "pattern"` to select named cases.
-- `yarn test:watch searchbar`: watch a focused area, excluding tooling tests.
-- `yarn test:unit`: all application tests; `yarn test:tooling`: script tests, including the
+- `pnpm test:related src/lib/popup_width_schema.ts`: application tests importing a source file.
+- `pnpm test src/lib/fuzzy_match.test.ts`: one file; add `-t "pattern"` to select named cases.
+- `pnpm test:watch searchbar`: watch a focused area, excluding tooling tests.
+- `pnpm test:unit`: all application tests; `pnpm test:tooling`: script tests, including the
   real-Git worktree check. Run tooling tests when scripts change.
 
 Changed/related selection follows imports, not arbitrary filesystem reads. The config forces
-a rerun for `src/content.css` and `yarn.lock`, retaining Vitest's default config/package triggers.
+a rerun for `src/content.css` and `pnpm-lock.yaml`, retaining Vitest's default config/package triggers.
 For other non-imported inputs, run their owning tests explicitly; layout changes still need
 rendered checks and runtime interaction changes still need browser smoke. No selected tests
-does not prove a change is covered. `yarn test` continues to run application and tooling tests.
+does not prove a change is covered. `pnpm test` continues to run application and tooling tests.
 
 Before handing off extension or shared-code changes, run the full gate once after the final edits;
 repeat only if subsequent changes, failures or unresolved concerns warrant it. The website-only
 and documentation-only exceptions above do not require this gate:
 
 ```text
-yarn quality
+pnpm quality
 ```
 
 That command checks Oxfmt formatting, Oxlint linting, strict TypeScript, all tests, all three MV3 builds, and
-the generated artifacts. If running steps separately, `yarn verify` requires a completed
-`yarn build` first.
+the generated artifacts. If running steps separately, `pnpm verify` requires a completed
+`pnpm build` first.

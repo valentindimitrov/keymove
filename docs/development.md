@@ -6,8 +6,8 @@ In Codex, select **Worktree** under the composer when starting each task. Each t
 must have its own directory, even when two tasks work on unrelated files. A branch
 alone does not isolate files, dependency installs, `.wxt`, or `.output`.
 
-Start each task with `yarn worktree:check`. For concurrent writing tasks, use
-`yarn worktree:check --require-linked`; it exits unsuccessfully in the primary
+Start each task with `pnpm worktree:check`. For concurrent writing tasks, use
+`pnpm worktree:check --require-linked`; it exits unsuccessfully in the primary
 checkout. Compare the reported root with the directory assigned to the task.
 The check detects a linked checkout; it cannot detect two agents assigned to that
 same checkout. Assign one owner per directory. Detached HEAD is valid for
@@ -19,13 +19,14 @@ For command-line sessions, create a separate checkout before starting the agent:
 git worktree add ../keymove-search-fix -b codex/search-fix
 cd ../keymove-search-fix
 node --version
-yarn install --frozen-lockfile
-yarn worktree:check --require-linked
+pnpm install --frozen-lockfile
+pnpm run postinstall
+pnpm worktree:check --require-linked
 ```
 
 Use a unique task name for both the directory and branch. Each checkout installs
 its own dependencies and creates its own build output; do not symlink those
-directories to another checkout. Configure `yarn install --frozen-lockfile` as
+directories to another checkout. Configure `pnpm install --frozen-lockfile && pnpm run postinstall` as
 the Codex local-environment setup script if you want automatic setup.
 
 Subagents share their parent's working directory by default. When delegating
@@ -52,26 +53,26 @@ afterward. A passing typecheck or build is not evidence of correct interaction.
 
 ### Focused test runs
 
-Use affected tests and `yarn typecheck` while editing. Keep the full `yarn quality`
+Use affected tests and `pnpm typecheck` while editing. Keep the full `pnpm quality`
 gate for the final handoff and CI; it still includes every application and tooling test.
 
 | Scope | Command |
 | --- | --- |
-| Staged and unstaged application changes | `yarn test:changed` |
-| Application changes since a branch or commit | `yarn test:changed main` |
-| Application tests importing a source file | `yarn test:related src/lib/popup_width_schema.ts` |
-| One file | `yarn test src/lib/fuzzy_match.test.ts` |
-| Named cases in a file | `yarn test searchbar.test.tsx -t "menu"` |
-| Watch a focused area | `yarn test:watch searchbar` |
-| All application tests | `yarn test:unit` |
-| Script tests, including the real-Git worktree check | `yarn test:tooling` |
-| All application and tooling tests | `yarn test` |
+| Staged and unstaged application changes | `pnpm test:changed` |
+| Application changes since a branch or commit | `pnpm test:changed main` |
+| Application tests importing a source file | `pnpm test:related src/lib/popup_width_schema.ts` |
+| One file | `pnpm test src/lib/fuzzy_match.test.ts` |
+| Named cases in a file | `pnpm test searchbar.test.tsx -t "menu"` |
+| Watch a focused area | `pnpm test:watch searchbar` |
+| All application tests | `pnpm test:unit` |
+| Script tests, including the real-Git worktree check | `pnpm test:tooling` |
+| All application and tooling tests | `pnpm test` |
 
 Changed, related and watch commands exclude `scripts/`; run `test:tooling` when
 changing tooling. On `main`, use `HEAD~1` to include the last commit rather than
 comparing the branch to itself. Import-based selection cannot discover arbitrary
 filesystem reads. `vitest.config.ts` forces reruns for `src/content.css` and
-`yarn.lock`, alongside Vitest's default config/package triggers. Run owning tests
+`pnpm-lock.yaml`, alongside Vitest's default config/package triggers. Run owning tests
 explicitly for other non-imported inputs. An empty selection is not verification.
 
 Use Node environments for pure calculations, validation and filesystem checks;
@@ -81,32 +82,37 @@ them. Avoid duplicate helper checks and tests that only echo their input props.
 
 ### Rendered and installed-browser checks
 
-- `yarn test` checks indexing, scoring, cancellation, navigation and storage in
+- `pnpm test:e2e` rebuilds and tests the installed extension with Playwright's
+  bundled Chromium. After `pnpm quality`, use `pnpm test:e2e:built`. See
+  [browser testing and CLI debugging](browser-testing.md) for setup, coverage,
+  failure traces, and attaching playwright-cli to a paused test.
+
+- `pnpm test` checks indexing, scoring, cancellation, navigation and storage in
   isolation. The searchbar regression test requires every keystroke, including
   the first, to invoke search immediately and abort superseded work.
-- `yarn preview:ui` opens the existing real-component Shadow DOM harness. Use it
+- `pnpm preview:ui` opens the existing real-component Shadow DOM harness. Use it
   for fonts, layout, colours, and visual states; extend its scenarios when adding
   UI states. It does not install or exercise the extension runtime.
   For suggestion placement, check `?scenario=slate-above` and `?scenario=slate-below`
   at desktop and narrow viewport sizes: the list must sit on the correct side of
   the bar and stay inside the viewport. A CSS-class assertion cannot establish this.
-- `yarn test:browser` rebuilds and loads the production extension in a fresh
+- `pnpm test:browser` rebuilds and loads the production extension in a fresh
   temporary Vivaldi/Chrome profile, runs real keyboard interaction checks against
   local fixtures, and closes only its own browser. It exits unsuccessfully on a
-  failed assertion. `yarn preview --smoke` is equivalent.
+  failed assertion. `pnpm preview --smoke` is equivalent.
 
-After `yarn quality`, use `yarn test:browser:built` to test those exact artifacts
+After `pnpm quality`, use `pnpm test:browser:built` to test those exact artifacts
 without rebuilding. Run browser smoke for changes affecting input, navigation,
-search, popup settings, or extension mounting. Run `yarn quality` before handoff.
-Automated smoke currently covers Chromium; Firefox still needs `yarn preview:firefox`
+search, popup settings, or extension mounting. Run `pnpm quality` before handoff.
+Automated smoke currently covers Chromium; Firefox still needs `pnpm preview:firefox`
 and a manual interaction check. No installed browser is an error, not a mocked pass.
 
 Browser smoke uses `preview/fixtures.html` with `preview/fixtures.ts`: hidden text,
 retargeted host keyboard handlers, nested controls, dynamic DOM and documents of
 100 or 5,000 filler blocks. It serves them on an automatically assigned loopback
 port, so concurrent worktrees do not collide. To view a fixture manually, run
-`yarn preview:ui` and follow its fixture link. For concurrent visual servers,
-choose distinct ports, e.g. `yarn preview:ui --port 5175`.
+`pnpm preview:ui` and follow its fixture link. For concurrent visual servers,
+choose distinct ports, e.g. `pnpm preview:ui --port 5175`.
 
 ## Responsiveness contract
 

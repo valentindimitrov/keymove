@@ -14,5 +14,5 @@
   "endOfLine": "lf",
   "sortPackageJson": false,
   "embeddedLanguageFormatting": "off",
-  "ignorePatterns": [".output", ".wxt", "coverage", "**/*.md", "yarn.lock"]
+  "ignorePatterns": [".output", ".wxt", "coverage", "**/*.md", "pnpm-lock.yaml"]
 }

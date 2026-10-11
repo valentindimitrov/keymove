@@ -7,8 +7,8 @@ both `127.0.0.1` and `localhost`; different hostnames make this a real cross-ori
 
 From the checkout containing the iframe changes:
 
-1. Run `yarn preview:ui --host 127.0.0.1 --port 5175 --strictPort` and leave it running.
-2. In another terminal run `yarn preview:vivaldi`. This builds and opens a separate test profile;
+1. Run `pnpm preview:ui --host 127.0.0.1 --port 5175 --strictPort` and leave it running.
+2. In another terminal run `pnpm preview:vivaldi`. This builds and opens a separate test profile;
    your normal browser profile is not changed.
 3. In that test window open `http://127.0.0.1:5175/frames.html`.
 
@@ -45,7 +45,7 @@ No frame gets its own searchbar.
 
 ## Automated checks and performance
 
-Run `yarn quality`, then `yarn test:browser:built`. The browser suite installs the actual
+Run `pnpm quality`, then `pnpm test:browser:built`. The browser suite installs the actual
 production extension in a temporary profile, tests frame discovery/navigation/input focus,
 copy/paste, hiding, reload and cleanup, and closes that test browser.
 

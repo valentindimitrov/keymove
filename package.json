@@ -6,7 +6,7 @@
   "license": "(Apache-2.0 AND BSD-4-Clause)",
   "private": false,
   "type": "module",
-  "packageManager": "yarn@1.22.22",
+  "packageManager": "pnpm@12.11.2",
   "engines": {
     "node": ">=24.15.0"
   },
@@ -14,11 +14,9 @@
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },
-  "resolutions": {
-    "**/cosmiconfig/js-yaml": "^4.3.2",
-    "**/addons-linter/image-size": "2.0.4"
-  },
   "devDependencies": {
+    "@playwright/cli": "0.1.22",
+    "@playwright/test": "1.64.0",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/jest-dom": "7.0.1",
     "@testing-library/react": "^16.3.3",
@@ -54,17 +52,17 @@
     "test:browser": "node scripts/preview-extension.ts --smoke",
     "test:browser:built": "node scripts/preview-extension.ts --smoke --no-build",
     "worktree:check": "node scripts/worktree-check.ts",
-    "build": "yarn build:chromium && yarn build:firefox && yarn build:safari",
+    "build": "pnpm build:chromium && pnpm build:firefox && pnpm build:safari",
     "build:chromium": "wxt build -b chrome --mv3",
     "build:vivaldi": "wxt build -b chrome --mv3",
     "build:firefox": "wxt build -b firefox --mv3",
     "build:safari": "wxt build -b safari --mv3",
-    "zip": "yarn zip:chromium && yarn zip:firefox && yarn zip:safari",
+    "zip": "pnpm zip:chromium && pnpm zip:firefox && pnpm zip:safari",
     "zip:chromium": "wxt zip -b chrome --mv3",
     "zip:firefox": "wxt zip -b firefox --mv3",
     "zip:safari": "wxt zip -b safari --mv3",
     "safari:project": "node scripts/safari-project.ts",
-    "package:chrome": "yarn zip:chromium && yarn sign:chrome",
+    "package:chrome": "pnpm zip:chromium && pnpm sign:chrome",
     "sign:chrome": "node scripts/sign-chrome.ts",
     "verify:crx": "node scripts/sign-chrome.ts --verify",
     "verify": "node scripts/validate-builds.ts",
@@ -79,6 +77,12 @@
     "format:check": "oxfmt --check .",
     "lint": "oxlint .",
     "lint:fix": "oxlint --fix .",
-    "quality": "yarn format:check && yarn lint && yarn typecheck && yarn test && yarn build && yarn verify"
+    "quality": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm verify",
+    "test:e2e": "pnpm build:chromium && playwright test",
+    "test:e2e:built": "playwright test",
+    "test:e2e:debug": "playwright test --debug=cli",
+    "test:e2e:report": "playwright show-report .artifacts/playwright/report",
+    "browser:install": "playwright install chromium",
+    "browser:cli": "playwright-cli"
   }
 }
