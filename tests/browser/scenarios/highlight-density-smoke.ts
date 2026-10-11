@@ -3,6 +3,8 @@ import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { BrowserContext } from '@playwright/test';
 import { openPage, waitFor } from '../pages.js';
+import { expect } from '@playwright/test';
+import { keymove } from '../keymove.js';
 
 const root = `document.getElementById('keymove-root')?.shadowRoot`;
 const input = `${root}?.querySelector('[aria-label="Search page"]')`;
@@ -19,18 +21,18 @@ export async function checkHighlightDensity(context: BrowserContext, origin: str
       `document.hasFocus() && ${root}?.querySelector('#keymove-bar')?.dataset.alwaysOn === 'true'`,
     );
     await page.keyboard.press('Alt+f');
-    await waitFor(page, `${root}.activeElement === ${input}`);
+    await expect(keymove(page).input).toBeFocused();
     await page.keyboard.press('s');
-    await waitFor(page, `${status}?.startsWith('Text 1 /')`);
+    await expect(keymove(page).status).toHaveText(/^Text 1 \//);
     await page.keyboard.press('Alt+s');
-    await waitFor(page, `${status} === 'Actions 1 / 12'`);
+    await expect(keymove(page).status).toHaveText('Actions 1 / 12');
     for (let index = 1; index <= 12; index++) {
-      await waitFor(page, `${status} === 'Actions ${index} / 12'`);
+      await expect(keymove(page).status).toHaveText(`Actions ${index} / 12`);
       assert.equal(await page.evaluate(`${outlines}.length`), 1);
       assert.equal(await page.evaluate(marks), false);
       await page.keyboard.press('Tab');
     }
-    await waitFor(page, `${status} === 'Actions 1 / 12'`);
+    await expect(keymove(page).status).toHaveText('Actions 1 / 12');
     writeFileSync(path.resolve('.artifacts/highlights-short.png'), await page.screenshot());
     await page.keyboard.press('n');
     await waitFor(page, `${input}.value === 'sn' && ${status} === 'Actions 1 / 12'`);
@@ -45,7 +47,7 @@ export async function checkHighlightDensity(context: BrowserContext, origin: str
     assert.equal(await page.evaluate(`CSS.highlights.get('keymove-search-results').size`), 12);
     writeFileSync(path.resolve('.artifacts/highlights-long.png'), await page.screenshot());
     await page.keyboard.press('Alt+s');
-    await waitFor(page, `${status} === 'Text 1 / 12'`);
+    await expect(keymove(page).status).toHaveText('Text 1 / 12');
     assert.equal(await page.evaluate(`${outlines}.length`), 12);
     assert.equal(
       await page.evaluate(`${root}.querySelectorAll('.keymove-selected-selection').length`),
@@ -54,18 +56,18 @@ export async function checkHighlightDensity(context: BrowserContext, origin: str
     writeFileSync(path.resolve('.artifacts/highlights-long-text.png'), await page.screenshot());
     await page.keyboard.press('Backspace');
     await waitFor(page, `${input}.value === 'sn' && !${marks}`);
-    await waitFor(page, `${status} === 'Text 1 / 12'`);
+    await expect(keymove(page).status).toHaveText('Text 1 / 12');
     assert.equal(await page.evaluate(`${outlines}.length`), 1);
     assert.equal(await page.evaluate('getSelection().toString()'), 'Sneakers classic');
     await page.keyboard.press('Tab');
-    await waitFor(page, `${status} === 'Text 2 / 12'`);
+    await expect(keymove(page).status).toHaveText('Text 2 / 12');
     assert.equal(await page.evaluate('getSelection().toString()'), 'Sneakers canvas');
     await page.keyboard.press('Escape');
     await waitFor(page, `${outlines}.length === 0 && !${marks}`);
     await page.keyboard.press('Alt+f');
-    await waitFor(page, `${root}.activeElement === ${input}`);
+    await expect(keymove(page).input).toBeFocused();
     await page.keyboard.press('4');
-    await waitFor(page, `${root}.querySelectorAll('[role="option"]').length === 2`);
+    await expect(keymove(page).options).toHaveCount(2);
     await page.keyboard.press('0');
     await waitFor(page, `${input}.value === '40' && ${status} === 'Text 1 / 1'`);
     await waitFor(
@@ -76,7 +78,7 @@ export async function checkHighlightDensity(context: BrowserContext, origin: str
     assert.equal(await page.evaluate(marks), false);
     writeFileSync(path.resolve('.artifacts/short-input-suggestion.png'), await page.screenshot());
     await page.keyboard.press('Alt+1');
-    await waitFor(page, `${status} === 'Actions 1 / 1'`);
+    await expect(keymove(page).status).toHaveText('Actions 1 / 1');
     await page.keyboard.press('Enter');
     await waitFor(page, `document.activeElement === document.getElementById('minimum')`);
   } finally {

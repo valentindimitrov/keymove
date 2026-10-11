@@ -3,26 +3,17 @@ import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { BrowserContext, Page } from '@playwright/test';
 import { openPage, waitFor } from '../pages.js';
+import { expect } from '@playwright/test';
+import { keymove, searchFor } from '../keymove.js';
 
 const root = `document.getElementById('keymove-root')?.shadowRoot`;
 const input = `${root}.querySelector('[aria-label="Search page"]')`;
 const status = `${root}.querySelector('[role="status"]').textContent`;
 const modifier = process.platform === 'darwin' ? 'Meta' : 'Control';
-async function search(page: Page, text: string, mode = 'Actions', count = 1) {
+async function search(page: Page, text: string, mode: 'Text' | 'Actions' = 'Actions', count = 1) {
   await page.bringToFront();
   await waitFor(page, 'document.hasFocus()');
-  await page.keyboard.press('Alt+f');
-  await waitFor(page, `${root}.activeElement === ${input}`);
-  await page.keyboard.press(`${modifier}+a`);
-  await page.keyboard.press('Backspace');
-  for (const char of text) await page.keyboard.type(char);
-  await waitFor(
-    page,
-    `${root}.querySelector('[role="listbox"]')?.getAttribute('aria-busy') === 'false'`,
-  );
-  if (!((await page.evaluate(status)) as string).startsWith(mode))
-    await page.keyboard.press('Alt+s');
-  await waitFor(page, `${status} === '${mode} 1 / ${count}'`);
+  await searchFor(page, text, mode, count);
 }
 
 export async function checkSelectionHover(context: BrowserContext, origin: string) {
@@ -47,17 +38,14 @@ export async function checkSelectionHover(context: BrowserContext, origin: strin
     const enters = `Array.from(document.querySelectorAll('#automatic-hover button'), button => Number(button.dataset.enters))`;
     assert.deepEqual(await page.evaluate(enters), [1, 0]);
     await page.keyboard.press('Tab');
-    await waitFor(page, `${status} === 'Actions 2 / 2'`);
+    await expect(keymove(page).status).toHaveText('Actions 2 / 2');
     assert.deepEqual(await page.evaluate(enters), [1, 1]);
     // Real pointer takeover and the resulting DOM refresh must not re-enter the result.
     await page.mouse.move(1, 1);
     await page.evaluate(
       `document.querySelector('#automatic-hover').append(document.createTextNode('Refresh marker'))`,
     );
-    await waitFor(
-      page,
-      `${root}.querySelector('[role="listbox"]')?.getAttribute('aria-busy') === 'false'`,
-    );
+    await expect(keymove(page).suggestions).toHaveAttribute('aria-busy', 'false');
     assert.deepEqual(await page.evaluate(enters), [1, 1]);
     await page.keyboard.press('Escape');
     await page.evaluate(`document.querySelector('#automatic-hover').remove()`);

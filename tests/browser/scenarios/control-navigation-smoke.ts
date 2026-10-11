@@ -3,9 +3,10 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { BrowserContext, Page } from '@playwright/test';
 import { openPage, waitFor } from '../pages.js';
+import { expect } from '@playwright/test';
+import { keymove, searchFor, replaceQuery } from '../keymove.js';
 
 const shadow = `document.getElementById('keymove-root')?.shadowRoot`;
-const input = `${shadow}?.querySelector('[aria-label="Search page"]')`;
 const status = `${shadow}?.querySelector('[role="status"]')?.textContent`;
 
 async function expectState(page: Page, state: string) {
@@ -16,26 +17,7 @@ async function expectState(page: Page, state: string) {
 }
 
 async function searchAction(page: Page, query: string, count = 1) {
-  await page.keyboard.press('Alt+f');
-  await waitFor(
-    page,
-    `document.activeElement === document.getElementById('keymove-root') && ${shadow}.activeElement === ${input}`,
-  );
-  await page.keyboard.press('ControlOrMeta+a');
-  await page.keyboard.press('Backspace');
-  for (const character of query) await page.keyboard.type(character);
-  await waitFor(page, `${input}?.value === ${JSON.stringify(query)}`);
-  if (query.length >= 3) {
-    await waitFor(
-      page,
-      `${shadow}.querySelector('[role="listbox"]')?.getAttribute('aria-busy') === 'false'`,
-    );
-  } else {
-    await waitFor(page, `${status}?.startsWith('Text') || ${status}?.startsWith('Actions')`);
-  }
-  if (((await page.evaluate(status)) as string).startsWith('Text'))
-    await page.keyboard.press('Alt+s');
-  await waitFor(page, `${status} === 'Actions 1 / ${count}'`);
+  await searchFor(page, query, 'Actions', count);
 }
 
 export async function checkControlNavigation(context: BrowserContext, origin: string) {
@@ -46,7 +28,7 @@ export async function checkControlNavigation(context: BrowserContext, origin: st
   const page = await openPage(context, `${origin}fixtures.html?controls`);
   try {
     await page.bringToFront();
-    await waitFor(page, `${shadow}?.querySelector('#keymove-bar')?.dataset.alwaysOn === 'true'`);
+    await expect(keymove(page).bar).toHaveAttribute('data-always-on', 'true');
     await page.evaluate(`(() => {
       const fixture = document.createElement('section');
       fixture.id = 'controls-fixture';
@@ -109,12 +91,9 @@ export async function checkControlNavigation(context: BrowserContext, origin: st
     );
     await expectState(page, 'switch · off');
     await searchAction(page, 'unavailable operation');
-    assert.match(
-      (await page.evaluate(`${shadow}.querySelector('[role="listbox"]').textContent`)) as string,
-      /unavailable/,
-    );
+    assert.match((await keymove(page).suggestions.textContent()) as string, /unavailable/);
     await page.keyboard.press('Enter');
-    assert.equal(await page.evaluate(`${input}.value`), 'unavailable operation');
+    assert.equal(await keymove(page).input.inputValue(), 'unavailable operation');
 
     await page.evaluate(`document.getElementById('control-modal').showModal()`);
     await waitFor(
@@ -123,7 +102,7 @@ export async function checkControlNavigation(context: BrowserContext, origin: st
     );
     await searchAction(page, 'save');
     await page.keyboard.press('Alt+s');
-    await waitFor(page, `${status} === 'Text 1 / 1'`);
+    await expect(keymove(page).status).toHaveText('Text 1 / 1');
     assert.equal(await page.evaluate(`${shadow}.querySelectorAll('[role="option"]').length`), 1);
     writeFileSync(path.join(artifacts, 'native-modal-navigation.png'), await page.screenshot());
     await page.keyboard.press('Enter');
@@ -143,10 +122,7 @@ export async function checkControlNavigation(context: BrowserContext, origin: st
       `document.getElementById('keymove-root').parentElement.id === 'aria-modal'`,
     );
     await searchAction(page, 'save');
-    assert.match(
-      (await page.evaluate(`${shadow}.querySelector('[role="listbox"]').textContent`)) as string,
-      /Save preferences/,
-    );
+    assert.match((await keymove(page).suggestions.textContent()) as string, /Save preferences/);
     await page.evaluate(`document.getElementById('aria-modal').remove()`);
     await waitFor(page, `document.getElementById('keymove-root').parentElement === document.body`);
     await searchAction(page, 'save account');
@@ -162,7 +138,7 @@ export async function checkControlNavigation(context: BrowserContext, origin: st
     const preview = await openPage(context, `${origin}?scenario=${scenario}`);
     try {
       await preview.bringToFront();
-      await waitFor(preview, `${shadow}?.querySelector('[role="listbox"]')`);
+      await expect(keymove(preview).suggestions).toBeAttached();
       assert.equal(
         await preview.evaluate(`(() => {
         const panel = ${shadow}.querySelector('[role="listbox"]');
@@ -187,11 +163,17 @@ async function checkTransformedModal(
   const page = await openPage(context, `${origin}fixtures.html?drawer${native ? '&native' : ''}`);
   try {
     await page.bringToFront();
-    await waitFor(page, `${shadow}?.querySelector('#keymove-bar')?.dataset.alwaysOn === 'true'`);
+    await expect(keymove(page).bar).toHaveAttribute('data-always-on', 'true');
     await searchAction(page, 'prix');
     await page.keyboard.press('Alt+s');
-    await waitFor(page, `${status}?.startsWith('Text 1 /')`);
+    await expect(keymove(page).status).toHaveText(/^Text 1 \//);
     await page.keyboard.press('Tab');
+    if (native) {
+      await expect(
+        page.getByRole('dialog', { name: 'Sort products' }).locator('#keymove-root'),
+      ).toHaveCount(1);
+      await expect.poll(() => page.evaluate(() => getSelection()?.toString())).toMatch(/^Prix \(/);
+    }
     await waitFor(page, `${shadow}.querySelector('.keymove-selected-selection')`);
     writeFileSync(
       path.join(artifacts, `transformed-${native ? 'native' : 'aria'}-modal.png`),
@@ -223,6 +205,14 @@ async function checkTransformedModal(
     );
     await checkStyledToggles(page, artifacts, native);
     await checkInputValues(page, artifacts, native);
+    if (native) {
+      // The starter modal test's background query exclusion belongs to this
+      // existing transformed-native-modal scenario.
+      await page.keyboard.press('Alt+s');
+      await expect(keymove(page).status).toHaveText(/^Text/);
+      await replaceQuery(page, 'qxyzdelta');
+      await expect(keymove(page).status).toHaveText('Text ~ 0 / 0');
+    }
     // Activation clears the query; restore an active search before testing its Escape.
     await searchAction(page, 'haut - bas');
     await page.keyboard.press('Escape');
@@ -257,7 +247,7 @@ async function checkInputValues(page: Page, artifacts: string, native: boolean) 
   })()`);
   await searchAction(page, '40');
   await page.keyboard.press('Alt+s');
-  await waitFor(page, `${status} === 'Text 1 / 1'`);
+  await expect(keymove(page).status).toHaveText('Text 1 / 1');
   await page.keyboard.press('Alt+s');
   await page.keyboard.press('Enter');
   assert.equal(await page.evaluate('document.activeElement.id'), 'price-minimum');
@@ -276,10 +266,7 @@ async function checkInputValues(page: Page, artifacts: string, native: boolean) 
   await waitFor(page, `${status} === 'Actions 0 / 0' || ${status} === 'Text 0 / 0'`);
   await searchAction(page, '60', 2); // Also matches the visible maximum value, 160.
   await searchAction(page, 'minimum');
-  assert.match(
-    (await page.evaluate(`${shadow}.querySelector('[role="listbox"]').textContent`)) as string,
-    /Minimum \(EUR\) — 60/,
-  );
+  assert.match((await keymove(page).suggestions.textContent()) as string, /Minimum \(EUR\) — 60/);
   writeFileSync(
     path.join(artifacts, `input-value-${native ? 'number' : 'text'}.png`),
     await page.screenshot(),
@@ -294,10 +281,7 @@ async function checkStyledToggles(page: Page, artifacts: string, native: boolean
     list.addEventListener('change', () => list.dataset.changes = String(Number(list.dataset.changes) + 1));
   })()`);
   await searchAction(page, 'haut - bas');
-  assert.match(
-    (await page.evaluate(`${shadow}.querySelector('[role="listbox"]').textContent`)) as string,
-    /radio/,
-  );
+  assert.match((await keymove(page).suggestions.textContent()) as string, /radio/);
   writeFileSync(
     path.join(artifacts, `styled-radio-${native ? 'native' : 'aria'}.png`),
     await page.screenshot(),
@@ -311,7 +295,7 @@ async function checkStyledToggles(page: Page, artifacts: string, native: boolean
   );
   await searchAction(page, 'bas - haut');
   await page.keyboard.press('Alt+s');
-  await waitFor(page, `${status} === 'Text 1 / 1'`);
+  await expect(keymove(page).status).toHaveText('Text 1 / 1');
   await page.keyboard.press('Enter');
   assert.equal(
     await page.evaluate(

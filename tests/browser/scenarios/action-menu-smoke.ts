@@ -3,6 +3,8 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { BrowserContext, Page } from '@playwright/test';
 import { openPage, waitFor } from '../pages.js';
+import { expect } from '@playwright/test';
+import { keymove, replaceQuery } from '../keymove.js';
 
 const shadow = `document.getElementById('keymove-root')?.shadowRoot`;
 const input = `${shadow}?.querySelector('[aria-label="Search page"]')`;
@@ -25,14 +27,9 @@ async function checkSelectedRow(page: Page) {
 }
 
 async function query(page: Page, text: string) {
-  await page.keyboard.press('Alt+f');
-  await page.keyboard.press('ControlOrMeta+Backspace');
-  for (const character of text) await page.keyboard.type(character);
-  await waitFor(
-    page,
-    `${shadow}?.querySelector('#keymove-suggestions')?.getAttribute('aria-busy') === 'false'`,
-  );
-  await waitFor(page, `${shadow}?.querySelector('#keymove-actions-hint')`);
+  await replaceQuery(page, text);
+  await expect(keymove(page).suggestions).toHaveAttribute('aria-busy', 'false');
+  await expect(keymove(page).host.locator('#keymove-actions-hint')).toBeAttached();
 }
 
 export async function checkActionMenu(context: BrowserContext, origin: string) {
@@ -41,7 +38,7 @@ export async function checkActionMenu(context: BrowserContext, origin: string) {
   const page = await openPage(context, `${origin}fixtures.html?menu`);
   try {
     await page.bringToFront();
-    await waitFor(page, `${shadow}?.querySelector('#keymove-bar')?.dataset.alwaysOn === 'true'`);
+    await expect(keymove(page).bar).toHaveAttribute('data-always-on', 'true');
     await page.evaluate(`(() => {
       const section = document.createElement('section');
       section.innerHTML = '<a id="menu-link" href="#menu-target">Menu demonstration link</a><button id="menu-next">Neighbour control</button><p id="menu-text">Menu standalone paragraph with complete text.</p><textarea id="menu-paste" aria-label="Paste check"></textarea>';
@@ -78,7 +75,7 @@ export async function checkActionMenu(context: BrowserContext, origin: string) {
     await waitFor(page, `${focusedLabel} === 'Open link'`);
     await page.keyboard.press('Escape');
     await waitFor(page, `!${menu} && ${focused} === ${input}`);
-    assert.equal(await page.evaluate(`${input}.value`), 'menu demonstration');
+    assert.equal(await keymove(page).input.inputValue(), 'menu demonstration');
     const queryLength = 'menu demonstration'.length;
     await page.evaluate(`${input}.setSelectionRange(${queryLength}, ${queryLength})`);
     await page.keyboard.press('ArrowLeft');
@@ -89,7 +86,7 @@ export async function checkActionMenu(context: BrowserContext, origin: string) {
     await waitFor(page, `${menu}`);
     await page.keyboard.press('ArrowLeft');
     await waitFor(page, `!${menu} && ${focused} === ${input}`);
-    assert.equal(await page.evaluate(`${input}.value`), 'menu demonstration');
+    assert.equal(await keymove(page).input.inputValue(), 'menu demonstration');
     await page.keyboard.press('ArrowDown');
     await waitFor(page, `${menu}`);
     writeFileSync(path.join(artifacts, 'action-menu-extension.png'), await page.screenshot());

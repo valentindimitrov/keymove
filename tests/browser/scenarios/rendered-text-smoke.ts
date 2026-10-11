@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import type { BrowserContext } from '@playwright/test';
 import { openPage, waitFor } from '../pages.js';
+import { expect } from '@playwright/test';
+import { keymove } from '../keymove.js';
 
 const shadow = `document.getElementById('keymove-root')?.shadowRoot`;
-const input = `${shadow}?.querySelector('[aria-label="Search page"]')`;
 const modifier = process.platform === 'darwin' ? 'Meta' : 'Control';
 
 export async function checkRenderedText(context: BrowserContext, origin: string) {
@@ -84,10 +85,10 @@ export async function checkRenderedText(context: BrowserContext, origin: string)
     ];
     for (const scenario of scenarios) {
       await page.keyboard.press('Alt+f');
-      await waitFor(page, `${shadow}.activeElement === ${input}`);
+      await expect(keymove(page).input).toBeFocused();
       await page.keyboard.press(`${modifier}+a`);
       await page.keyboard.press('Backspace');
-      await waitFor(page, `${input}.value === ''`);
+      await expect(keymove(page).input).toHaveValue('');
       await page.evaluate(
         `document.getElementById('fixture').innerHTML = ${JSON.stringify(
           scenario.html + '<textarea aria-label="Paste target"></textarea>',
@@ -104,7 +105,7 @@ export async function checkRenderedText(context: BrowserContext, origin: string)
         if (!/^[\x20-\x7e]$/.test(character)) await page.keyboard.press('End');
         await page.keyboard.type(character);
       }
-      assert.equal(await page.evaluate(`${input}.value`), scenario.query);
+      assert.equal(await keymove(page).input.inputValue(), scenario.query);
       const summary = `Text ${scenario.fuzzy ? '~ ' : ''}1 / 1`;
       await waitFor(
         page,

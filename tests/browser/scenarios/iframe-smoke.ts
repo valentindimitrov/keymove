@@ -3,15 +3,19 @@ import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { BrowserContext, Page } from '@playwright/test';
 import { openPage, waitFor } from '../pages.js';
+import { expect } from '@playwright/test';
+import { keymove, replaceQuery } from '../keymove.js';
 
 const root = `document.getElementById('keymove-root')?.shadowRoot`;
 const input = `${root}?.querySelector('[aria-label="Search page"]')`;
 const status = `${root}?.querySelector('[role="status"]')?.textContent`;
 async function firstAction(page: Page) {
   await waitFor(page, `/^Actions [1-3] \\/ 3$/.test(${status})`);
-  const current = Number(String(await page.evaluate(status)).match(/^Actions (\d+)/)?.[1]);
+  const current = Number(
+    String(await keymove(page).status.textContent()).match(/^Actions (\d+)/)?.[1],
+  );
   for (let position = current; position > 1; position--) await page.keyboard.press('Shift+Tab');
-  await waitFor(page, `${status} === 'Actions 1 / 3'`);
+  await expect(keymove(page).status).toHaveText('Actions 1 / 3');
 }
 export async function checkIframes(context: BrowserContext, origin: string) {
   const page = await openPage(context, `${origin}frames.html`);
@@ -22,11 +26,11 @@ export async function checkIframes(context: BrowserContext, origin: string) {
       `${root}?.querySelector('#keymove-bar')?.dataset.alwaysOn === 'true' && document.querySelector('iframe').contentDocument?.getElementById('price')`,
     );
     await page.keyboard.press('Alt+f');
-    await waitFor(page, `${root}.activeElement === ${input}`);
+    await expect(keymove(page).input).toBeFocused();
     for (const key of '40') await page.keyboard.type(key);
     await page.keyboard.press('Alt+s');
     await firstAction(page);
-    const labels = await page.evaluate(`${root}.querySelector('[role="listbox"]').textContent`);
+    const labels = await keymove(page).suggestions.textContent();
     assert(String(labels).includes('Minimum (EUR) — 40'));
     writeFileSync(path.resolve('.artifacts/iframe-search.png'), await page.screenshot());
     await page.keyboard.press('Enter');
@@ -36,17 +40,35 @@ export async function checkIframes(context: BrowserContext, origin: string) {
     );
     // From inside the embedded editor, the opening shortcut returns to the one top bar.
     await page.keyboard.press('Alt+f');
-    await waitFor(page, `${root}.activeElement === ${input}`);
+    await expect(keymove(page).input).toBeFocused();
     for (const key of '40') await page.keyboard.type(key);
     await page.keyboard.press('Alt+s');
     await firstAction(page);
     await page.keyboard.press('Tab');
     await page.keyboard.press('Enter');
     await waitFor(page, `document.activeElement?.id === 'cross'`);
+    const local = page.frameLocator('iframe[title="Same-origin form"]');
+    const cross = page.frameLocator('#cross');
+    await expect(local.getByRole('button', { name: 'Launch', exact: true })).toBeVisible();
+    await expect(cross.getByRole('button', { name: 'Launch', exact: true })).toBeVisible();
+    for (const [frame, advance] of [
+      [local, false],
+      [cross, true],
+    ] as const) {
+      await replaceQuery(page, 'Launch');
+      await expect(keymove(page).status).toHaveText(/^(Text|Actions) [1-9] \/ [1-9]$/);
+      if ((await keymove(page).status.textContent())?.startsWith('Text'))
+        await page.keyboard.press('Alt+s');
+      await firstAction(page);
+      if (advance) await page.keyboard.press('Tab');
+      await page.keyboard.press('Enter');
+      await expect(frame.locator('#result')).toHaveText('Activated');
+    }
+    await expect(keymove(page).host).toHaveCount(1);
     await page.keyboard.press('Alt+f');
-    await waitFor(page, `${root}.activeElement === ${input}`);
+    await expect(keymove(page).input).toBeFocused();
     for (const key of 'otter') await page.keyboard.type(key);
-    await waitFor(page, `${status}?.endsWith('/ 4')`);
+    await expect(keymove(page).status).toHaveText(/\/ 4$/);
     await page.keyboard.press('Tab');
     await waitFor(
       page,
@@ -66,16 +88,16 @@ export async function checkIframes(context: BrowserContext, origin: string) {
       `document.getElementById('paste').value === 'local otter paragraph to copy.'`,
     );
     await page.keyboard.press('Alt+f');
-    await waitFor(page, `${root}.activeElement === ${input}`);
+    await expect(keymove(page).input).toBeFocused();
     for (const key of 'otter') await page.keyboard.type(key);
-    await waitFor(page, `${status}?.endsWith('/ 4')`);
+    await expect(keymove(page).status).toHaveText(/\/ 4$/);
     await page.evaluate(`document.getElementById('paste').remove()`);
-    await waitFor(page, `${status}?.endsWith('/ 4')`);
+    await expect(keymove(page).status).toHaveText(/\/ 4$/);
     // Hiding the outer cross-origin frame removes it and its nested frame, not the local one.
     await page.evaluate(`document.getElementById('cross').hidden = true`);
-    await waitFor(page, `${status}?.endsWith('/ 2')`);
+    await expect(keymove(page).status).toHaveText(/\/ 2$/);
     await page.evaluate(`document.getElementById('cross').hidden = false`);
-    await waitFor(page, `${status}?.endsWith('/ 4')`);
+    await expect(keymove(page).status).toHaveText(/\/ 4$/);
     await page.evaluate(`document.getElementById('cross').src += '&reload=1'`);
     await waitFor(
       page,
@@ -106,7 +128,7 @@ export async function checkIframes(context: BrowserContext, origin: string) {
       doc.getElementById('hover-item').addEventListener('click', () => doc.body.dataset.hoverActivated = 'yes');
     })()`);
     await page.keyboard.press('Alt+f');
-    await waitFor(page, `${root}.activeElement === ${input}`);
+    await expect(keymove(page).input).toBeFocused();
     for (const key of 'zephyr menu') await page.keyboard.type(key);
     await waitFor(page, `!${child}.getElementById('hover-items').hidden`);
     await page.keyboard.press('ControlOrMeta+a');
@@ -116,10 +138,11 @@ export async function checkIframes(context: BrowserContext, origin: string) {
       page,
       `${input}.value === 'item' && ${root}.querySelector('[role="listbox"]')?.getAttribute('aria-busy') === 'false'`,
     );
-    if (String(await page.evaluate(status)).startsWith('Text')) await page.keyboard.press('Alt+s');
-    await waitFor(page, `${status} === 'Actions 1 / 1'`);
+    if (String(await keymove(page).status.textContent()).startsWith('Text'))
+      await page.keyboard.press('Alt+s');
+    await expect(keymove(page).status).toHaveText('Actions 1 / 1');
     await page.keyboard.press('Tab');
-    await waitFor(page, `${status} === 'Actions 1 / 1'`);
+    await expect(keymove(page).status).toHaveText('Actions 1 / 1');
     assert.equal(await page.evaluate(`${child}.getElementById('hover-items').hidden`), false);
     await page.keyboard.press('Enter');
     await waitFor(page, `${child}.body.dataset.hoverActivated === 'yes'`);
@@ -139,7 +162,7 @@ export async function measureIframes(context: BrowserContext, origin: string) {
         `document.documentElement.dataset.fixtureReady && ${root}?.querySelector('#keymove-bar')?.dataset.alwaysOn === 'true'`,
       );
       await page.keyboard.press('Alt+f');
-      await waitFor(page, `${root}.activeElement === ${input}`);
+      await expect(keymove(page).input).toBeFocused();
       await page.evaluate(`(() => {
         globalThis.__iframeTimes = { firstLocalMs: null, allFramesMs: null };
         let start;

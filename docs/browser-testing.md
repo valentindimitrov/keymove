@@ -47,6 +47,25 @@ actions and timings, image navigation, hover, action menus, tab focus, live sett
 and light/dark layouts at desktop and narrow widths.
 Vitest excludes `tests/browser/`, and Playwright runs only that directory.
 
+The 15 scenario tests own this coverage; there is no separate starter suite
+repeating their basic interactions. The consolidated checks are:
+
+| Behavior | Scenario |
+| --- | --- |
+| Per-keystroke counts, whole-block copy/paste and editing after selection on small and large pages | `core-smoke.ts` |
+| Active-query refresh after DOM insertion and removal | `core-smoke.ts` |
+| Nested open-shadow-root control activation | `shadow-search-smoke.ts` |
+| Native modal selection and exclusion of background text | `control-navigation-smoke.ts` |
+| Same-origin and cross-origin frame button activation, with one top-level searchbar | `iframe-smoke.ts` |
+| Settings propagation, persistence after reload and shortcut-only activation | `core-smoke.ts`, `theme-smoke.ts`, `settings-smoke.ts` |
+
+Use `keymove(page)` from `tests/browser/keymove.ts` for the extension host,
+search input, status, suggestions and menu. These locators follow the host across
+open shadow roots and modal moves. Prefer role/name locators and Playwright's
+retrying assertions for controls; `replaceQuery` and `searchFor` share keyboard
+setup without automatically repairing lost focus while typing. Use DOM evaluation
+for geometry, native selection, highlight ranges and browser timing observers.
+
 Failure screenshots and traces, rendered-state diagnostics, timing attachments,
 and HTML/JSON reports live under the ignored `.artifacts/playwright/` directory. Open a trace with
 `pnpm exec playwright show-trace <path-to-trace.zip>`. CI runs these checks after

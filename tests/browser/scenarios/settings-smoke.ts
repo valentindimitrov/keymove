@@ -1,3 +1,5 @@
+import { expect } from '@playwright/test';
+import { keymove } from '../keymove.js';
 import type { Page } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
@@ -6,16 +8,15 @@ import { waitFor } from '../pages.js';
 import EXTENSION_IDENTITY from '../../../src/extension_identity.js';
 
 export async function settingsTab(popup: Page, name: string) {
-  const tab = `Array.from(document.querySelectorAll('[role="tab"]')).find(tab => tab.textContent === ${JSON.stringify(name)})`;
-  await waitFor(popup, tab);
-  await popup.evaluate(`${tab}.click()`);
-  await waitFor(popup, `${tab}.getAttribute('aria-selected') === 'true'`);
+  const tab = popup.getByRole('tab', { name, exact: true });
+  await tab.click();
+  await expect(tab).toHaveAttribute('aria-selected', 'true');
 }
 export async function setActivation(popup: Page, value: 'type' | 'shortcut') {
   await settingsTab(popup, 'General');
-  await popup.evaluate(
-    `(() => {const select=document.querySelector('[aria-label="Default activation"]');select.value='${value}';select.dispatchEvent(new Event('change',{bubbles:true}));})()`,
-  );
+  await popup
+    .getByRole('combobox', { name: 'Default activation', exact: true })
+    .selectOption(value);
 }
 
 export async function checkSiteSettings(page: Page, popup: Page) {
@@ -66,7 +67,7 @@ export async function checkSiteSettings(page: Page, popup: Page) {
     await page.bringToFront();
     await waitFor(page, 'document.hasFocus()');
     await page.keyboard.press('Alt+k');
-    await waitFor(page, `${shadow}.activeElement === ${input}`);
+    await expect(keymove(page).input).toBeFocused();
     await page.keyboard.press('Escape');
     await waitFor(page, `${input}.value === '' && ${shadow}.activeElement !== ${input}`);
     // The old Alt+F may now open the browser menu. Check page interception without
@@ -78,11 +79,11 @@ export async function checkSiteSettings(page: Page, popup: Page) {
       true,
     );
     await page.keyboard.press('g');
-    assert.equal(await page.evaluate(`${input}.value`), '');
+    assert.equal(await keymove(page).input.inputValue(), '');
     assert.equal(await page.evaluate(`${shadow}.activeElement === ${input}`), false);
     await page.keyboard.press('Alt+k');
     await page.keyboard.press('q');
-    await waitFor(page, `${input}.value === 'q'`);
+    await expect(keymove(page).input).toHaveValue('q');
     await chooseSite('paused');
     await waitFor(page, `${container}.dataset.siteBehavior === 'paused' && ${input}.value === ''`);
     await waitFor(
@@ -97,14 +98,14 @@ export async function checkSiteSettings(page: Page, popup: Page) {
     );
     await waitFor(page, `${container}.dataset.siteBehavior === 'type'`);
     await page.keyboard.press('q');
-    await waitFor(page, `${input}.value === 'q'`);
+    await expect(keymove(page).input).toHaveValue('q');
     await page.keyboard.press('Escape');
     await settingsTab(popup, 'Shortcuts');
     await popup.evaluate(
       `Array.from(document.querySelectorAll('button')).find(button => button.textContent === 'Restore opening shortcut').click()`,
     );
     await page.keyboard.press('Alt+f');
-    await waitFor(page, `${shadow}.activeElement === ${input}`);
+    await expect(keymove(page).input).toBeFocused();
   } finally {
     await popup.evaluate(
       `chrome.storage.local.remove([${siteKey},'siteBehavior:github.com','openingShortcut'])`,
@@ -119,7 +120,7 @@ export async function checkShowSearch(page: Page, popup: Page) {
   await page.bringToFront();
   await waitFor(page, 'document.hasFocus()');
   await page.keyboard.press('Escape');
-  await waitFor(page, `${input}.getClientRects().length === 0`);
+  await expect(keymove(page).input).not.toBeVisible();
   await popup.bringToFront();
   await waitFor(popup, 'document.hasFocus()');
   await settingsTab(popup, 'General');
@@ -152,6 +153,6 @@ export async function checkShowSearch(page: Page, popup: Page) {
     `document.hasFocus() && ${input}.getClientRects().length > 0 && ${shadow}.activeElement === ${input}`,
   );
   await page.keyboard.press('q');
-  await waitFor(page, `${input}.value === 'q'`);
+  await expect(keymove(page).input).toHaveValue('q');
   await page.keyboard.press('Escape');
 }

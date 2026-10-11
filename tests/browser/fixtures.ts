@@ -19,7 +19,7 @@ const git = (args: string[]) => {
 const commit = git(['rev-parse', 'HEAD']);
 const workingChanges = git(['status', '--porcelain']);
 
-export const test = base.extend<{ extensionId: string }, { fixtureOrigin: string }>({
+export const test = base.extend<{}, { fixtureOrigin: string }>({
   fixtureOrigin: [
     // Playwright parses fixture dependencies from this destructuring pattern.
     // oxlint-disable-next-line no-empty-pattern
@@ -103,12 +103,6 @@ export const test = base.extend<{ extensionId: string }, { fixtureOrigin: string
     } finally {
       preview.cleanup();
     }
-  },
-  extensionId: async ({ context }, provide) => {
-    const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
-    const id = new URL(worker.url()).hostname;
-    if (!id) throw new Error('The installed extension did not expose its service worker.');
-    await provide(id);
   },
   page: async ({ context }, provide) => {
     // Persistent Chromium starts with a blank tab. Reuse it so CLI debugging

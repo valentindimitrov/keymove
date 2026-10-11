@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { expect } from '@playwright/test';
 import type { BrowserContext, Page } from '@playwright/test';
 import { openPage, waitFor } from '../pages.js';
+import { keymove } from '../keymove.js';
 import { checkReturnPosition } from './return-position-smoke.js';
 import { checkTooltipsMode } from './tooltips-mode-smoke.js';
 import { checkTheme } from './theme-smoke.js';
@@ -22,11 +23,11 @@ async function type(page: Page, value: string) {
 
 async function clear(page: Page) {
   await page.keyboard.press(`${modifier}+Backspace`);
-  await waitFor(page, `${input}?.value === ''`);
+  await expect(keymove(page).input).toHaveValue('');
 }
 
 async function expectSummary(page: Page, expected: string) {
-  await waitFor(page, `${summary} === ${JSON.stringify(expected)}`);
+  await expect(keymove(page).status).toHaveText(expected);
 }
 
 // Measure keydown to committed result text in the browser, excluding protocol
@@ -64,7 +65,7 @@ export async function checkCore(context: BrowserContext, origin: string, size: s
   await waitFor(page, `document.documentElement?.dataset.fixtureReady && ${input}`);
   // Mounting precedes storage hydration. The startup regression tests cover the
   // deliberate no-capture interval; these checks exercise the enabled behavior.
-  await waitFor(page, `${shadow}?.querySelector('#keymove-bar')?.dataset.alwaysOn === 'true'`);
+  await expect(keymove(page).bar).toHaveAttribute('data-always-on', 'true');
   console.log(`${size}: extension mounted; checking typing and latency`);
   await waitFor(page, 'document.hasFocus()');
   assert.equal(
@@ -93,7 +94,7 @@ export async function checkCore(context: BrowserContext, origin: string, size: s
     }
   }
   measurements.push({ size, coldMs, warmMs });
-  assert.equal(await page.evaluate(`${input}.value`), 'qxyz', 'Every character must be accepted');
+  assert.equal(await keymove(page).input.inputValue(), 'qxyz', 'Every character must be accepted');
   passed.push(
     `${size}: real typing, distinct prefix counts, hidden text excluded, automatic first selection, forward/backward Tab`,
   );
@@ -127,32 +128,34 @@ export async function checkCore(context: BrowserContext, origin: string, size: s
   });
   await type(page, 'zzzz');
   await expectSummary(page, 'Text ~ 0 / 0');
-  await waitFor(page, `!${shadow}.querySelector('[role="listbox"]')`);
+  await expect(keymove(page).suggestions).not.toBeAttached();
   for (let index = 0; index < 4; index++) await page.keyboard.press('Backspace');
   await expectSummary(page, 'Text 1 / 1');
-  await waitFor(page, `${shadow}.querySelector('[role="listbox"]') !== null`);
+  await expect(keymove(page).suggestions).toBeAttached();
   passed.push(
     `${size}: suggestion frame preserves pending height, closes on empty results and reopens on matches`,
   );
-  if (size === 'large') return { passed, measurements };
-
   await page.keyboard.press('Tab');
   await expectSummary(page, 'Text 1 / 1');
   const wholeBlock = await page.evaluate(`document.getElementById('copy-block').textContent`);
   assert.equal(await page.evaluate('getSelection().toString()'), wholeBlock);
   await page.keyboard.press(`${modifier}+c`);
   await page.keyboard.press('d');
-  await waitFor(page, `${input}.value === 'qxyzd'`);
+  await expect(keymove(page).input).toHaveValue('qxyzd');
   await expectSummary(page, 'Text 1 / 1');
-  await page.evaluate(`document.querySelector('textarea').focus()`);
+  const paste = page.getByRole('textbox', { name: 'Native paste target', exact: true });
+  await paste.focus();
   await page.keyboard.press(`${modifier}+v`);
-  await waitFor(page, `document.querySelector('textarea').value === ${JSON.stringify(wholeBlock)}`);
+  await expect(paste).toHaveValue(String(wholeBlock));
   // Exclude the paste target from subsequent query counts.
   await page.evaluate(`document.querySelector('textarea').value = ''`);
   await page.keyboard.press('Alt+f');
+  await expect(keymove(page).input).toBeFocused();
+  await expect(keymove(page).input).toHaveValue('');
   passed.push(
     'Tab selects whole semantic block; native copy/paste; editing resumes after selection',
   );
+  if (size === 'large') return { passed, measurements };
 
   await clear(page);
   await type(page, 'mango');
@@ -226,7 +229,7 @@ export async function checkCore(context: BrowserContext, origin: string, size: s
   await expectSummary(page, 'Actions 1 / 1');
   await page.evaluate(`${shadow}.querySelector('.keymove-mode-button').click()`);
   await expectSummary(page, 'Text 1 / 1');
-  assert.equal(await page.evaluate(`${input}.value`), 'nectarine');
+  assert.equal(await keymove(page).input.inputValue(), 'nectarine');
   passed.push('Clicking Text/Actions switches mode without clearing the query');
   await page.keyboard.press('Tab');
   await page.keyboard.press('Enter');
@@ -236,7 +239,7 @@ export async function checkCore(context: BrowserContext, origin: string, size: s
   await page.evaluate(`${input}.blur()`);
   await page.keyboard.press('q');
   await expectSummary(page, 'Text 1 / 4');
-  assert.equal(await page.evaluate(`${input}.value`), 'q');
+  assert.equal(await keymove(page).input.inputValue(), 'q');
   passed.push('Always-on typing from the host page preserves the first character');
 
   // Open the actual bundled popup document. This checks its storage writes and
@@ -311,7 +314,7 @@ export async function checkCore(context: BrowserContext, origin: string, size: s
   await expectSummary(page, 'Text 1 / 30');
   for (const count of [5, 1, 5]) {
     await setCount(count);
-    await waitFor(page, `${shadow}.querySelectorAll('[role="option"]').length === ${count}`);
+    await expect(keymove(page).options).toHaveCount(count);
   }
   for (const number of [4, 5]) {
     await page.keyboard.press(`Alt+${number}`);
@@ -338,7 +341,7 @@ export async function checkCore(context: BrowserContext, origin: string, size: s
     resolvedTheme === 'light' ? 'rgb(225, 229, 237)' : 'rgb(65, 65, 65)',
   );
   await setCount(3);
-  await waitFor(page, `${shadow}.querySelectorAll('[role="option"]').length === 3`);
+  await expect(keymove(page).options).toHaveCount(3);
   await clear(page);
   await page.evaluate(`document.getElementById('dynamic').replaceChildren()`);
   passed.push(
@@ -360,7 +363,7 @@ export async function checkCore(context: BrowserContext, origin: string, size: s
   await page.bringToFront();
   await waitFor(page, 'document.hasFocus()');
   await page.keyboard.press('Alt+f');
-  await waitFor(page, `${shadow}?.activeElement === ${input}`);
+  await expect(keymove(page).input).toBeFocused();
   await clear(page);
   await type(page, 'qxyz');
   await expectSummary(page, 'Text 1 / 1');
@@ -387,6 +390,11 @@ export async function checkCore(context: BrowserContext, origin: string, size: s
     'Layout lock persists when settings reopen and disables/re-enables resizing in the open page',
   );
   await setActivation(popup, 'shortcut');
+  await expect(keymove(page).bar).toHaveAttribute('data-always-on', 'false');
+  await popup.reload();
+  await expect(
+    popup.getByRole('combobox', { name: 'Default activation', exact: true }),
+  ).toHaveValue('shortcut');
   for (const label of ['Autohide']) {
     await popup.evaluate(
       `(() => { const label = Array.from(document.querySelectorAll('label')).find(label => label.textContent === ${JSON.stringify(label)}); if (label.control.checked !== ${label === 'Autohide'}) label.click(); })()`,
@@ -414,7 +422,9 @@ export async function checkCore(context: BrowserContext, origin: string, size: s
   );
   await type(page, 'qxyz');
   await expectSummary(page, 'Text 1 / 1');
-  passed.push('Actual popup settings propagate to an open tab; hidden bar reopens with Alt+F');
+  passed.push(
+    'Actual popup settings persist after reload and propagate to an open tab; hidden bar reopens with Alt+F',
+  );
   await setActivation(popup, 'type');
   for (const label of ['Autohide']) {
     await popup.evaluate(

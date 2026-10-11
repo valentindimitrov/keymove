@@ -3,33 +3,27 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { BrowserContext, Page } from '@playwright/test';
 import { openPage, waitFor } from '../pages.js';
+import { expect } from '@playwright/test';
+import { keymove } from '../keymove.js';
 import { settingsTab } from './settings-smoke.js';
 
 const artifacts = path.resolve(import.meta.dirname, '../../../.artifacts');
 const host = `document.getElementById('keymove-root')`;
 const shadow = `${host}?.shadowRoot`;
-const preference = `document.querySelector('.keymove-theme-setting select')`;
 
 async function choose(popup: Page, theme: string) {
-  await popup.evaluate(`(() => {
-    const select = ${preference};
-    select.value = ${JSON.stringify(theme)};
-    select.dispatchEvent(new Event('change', {bubbles: true}));
-  })()`);
+  await popup.getByRole('combobox', { name: 'Appearance', exact: true }).selectOption(theme);
 }
 
 async function expectTheme(page: Page, popup: Page, theme: string) {
   // Activate each context before checking its rendered system appearance.
   await page.bringToFront();
-  await waitFor(page, `${host}?.dataset.keymoveTheme === '${theme}'`);
+  await expect(keymove(page).host).toHaveAttribute('data-keymove-theme', theme);
   const color = theme === 'light' ? 'rgb(30, 34, 43)' : 'rgb(255, 255, 255)';
-  assert.equal(
-    await page.evaluate(`getComputedStyle(${shadow}.querySelector('#keymove-input')).color`),
-    color,
-  );
+  await expect(keymove(page).input).toHaveCSS('color', color);
   await popup.bringToFront();
-  await waitFor(popup, `document.documentElement.dataset.keymoveTheme === '${theme}'`);
-  assert.equal(await popup.evaluate(`getComputedStyle(document.body).color`), color);
+  await expect(popup.locator('html')).toHaveAttribute('data-keymove-theme', theme);
+  await expect(popup.locator('body')).toHaveCSS('color', color);
 }
 
 export async function checkTheme(page: Page, popup: Page) {
@@ -66,13 +60,15 @@ export async function checkTheme(page: Page, popup: Page) {
       await popup.evaluate(`chrome.storage.local.get('theme').then(data => data.theme)`),
       'dark',
     );
-    await popup.evaluate('location.reload()');
-    await waitFor(
-      popup,
-      `document.querySelector('[role="tab"][aria-selected="true"]')?.textContent === 'General'`,
+    await popup.reload();
+    await expect(popup.getByRole('tab', { name: 'General', exact: true })).toHaveAttribute(
+      'aria-selected',
+      'true',
     );
     await settingsTab(popup, 'Appearance');
-    await waitFor(popup, `${preference}?.value === 'dark'`);
+    await expect(popup.getByRole('combobox', { name: 'Appearance', exact: true })).toHaveValue(
+      'dark',
+    );
     await expectTheme(page, popup, 'dark');
     await choose(popup, 'system');
     await expectTheme(page, popup, 'light');
@@ -105,7 +101,7 @@ export async function checkThemePreviews(context: BrowserContext, origin: string
         try {
           await page.bringToFront();
           await page.setViewportSize({ width: width, height: 900 });
-          await waitFor(page, `${host}?.dataset.keymoveTheme === '${theme}'`);
+          await expect(keymove(page).host).toHaveAttribute('data-keymove-theme', theme);
           await waitFor(
             page,
             `${shadow}?.querySelector('${scenario === 'theme-settings' ? '#keymove-popup' : '#keymove-container'}')`,
@@ -158,10 +154,7 @@ export async function checkThemePreviews(context: BrowserContext, origin: string
                 select.value = '${count}';
                 select.dispatchEvent(new Event('change', { bubbles: true }));
               })()`);
-              await waitFor(
-                page,
-                `${shadow}.querySelectorAll('[role="option"]').length === ${count}`,
-              );
+              await expect(keymove(page).options).toHaveCount(count);
               const gap = await page.evaluate(`(() => {
                 const panel = ${shadow}.querySelector('.keymove-suggestions');
                 return panel.getBoundingClientRect().bottom - panel.lastElementChild.getBoundingClientRect().bottom;

@@ -1,30 +1,13 @@
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
-import type { BrowserContext, Page } from '@playwright/test';
+import type { BrowserContext } from '@playwright/test';
 import { openPage, waitFor } from '../pages.js';
+import { expect } from '@playwright/test';
+import { keymove, searchFor as search } from '../keymove.js';
 
-const shadow = 'globalThis.__shadowKeyMove.shadowRoot';
-const input = `${shadow}.querySelector('[aria-label="Search page"]')`;
-const status = `${shadow}.querySelector('[role="status"]').textContent`;
 const component = `document.getElementById('component').shadowRoot`;
 const modifier = process.platform === 'darwin' ? 'Meta' : 'Control';
-async function search(page: Page, query: string, mode: 'Text' | 'Actions', count = 1) {
-  await page.keyboard.press('Alt+f');
-  await waitFor(page, `${shadow}.activeElement === ${input}`);
-  await page.keyboard.press(`${modifier}+a`);
-  await page.keyboard.press('Backspace');
-  await waitFor(page, `${input}.value === ''`);
-  for (const char of query) await page.keyboard.type(char);
-  await waitFor(
-    page,
-    `${shadow}.querySelector('[role="listbox"]')?.getAttribute('aria-busy') === 'false'`,
-  );
-  if (!((await page.evaluate(status)) as string).startsWith(mode))
-    await page.keyboard.press('Alt+s');
-  await waitFor(page, `${status} === '${mode} 1 / ${count}'`);
-}
-
 export async function checkShadowSearch(context: BrowserContext, origin: string) {
   const page = await openPage(context, `${origin}shadow.html`);
   try {
@@ -99,7 +82,7 @@ export async function checkShadowSearch(context: BrowserContext, origin: string)
     await page.evaluate(
       `${component}.getElementById('nested').shadowRoot.querySelector('p').textContent = 'Changed starlight'`,
     );
-    await waitFor(page, `${status}.endsWith('0 / 0')`);
+    await expect(keymove(page).status).toHaveText(/0 \/ 0$/);
     await search(page, 'changed starlight', 'Text');
     await search(page, 'open component dialog', 'Actions');
     await page.keyboard.press('Enter');
@@ -121,7 +104,7 @@ export async function checkShadowSearch(context: BrowserContext, origin: string)
     await waitFor(page, `document.getElementById('component').dataset.imageAction === 'yes'`);
     await search(page, 'launch capsule', 'Actions');
     await page.evaluate(`document.getElementById('component').style.display = 'none'`);
-    await waitFor(page, `${status}.endsWith('0 / 0')`);
+    await expect(keymove(page).status).toHaveText(/0 \/ 0$/);
     await waitFor(page, `${component}.adoptedStyleSheets.length === 1`);
     assert.equal(
       await page.evaluate(

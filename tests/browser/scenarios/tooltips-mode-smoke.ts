@@ -3,6 +3,8 @@ import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { BrowserContext, Page } from '@playwright/test';
 import { openPage, waitFor } from '../pages.js';
+import { expect } from '@playwright/test';
+import { keymove } from '../keymove.js';
 
 import { settingsTab } from './settings-smoke.js';
 
@@ -50,7 +52,7 @@ export async function checkTooltipsMode(context: BrowserContext, origin: string,
       const paste = document.createElement('textarea'); paste.id = 'tooltips-paste'; document.body.append(paste);
     })()`);
     await page.keyboard.press('Alt+f');
-    await waitFor(page, `${shadow}.activeElement === ${input}`);
+    await expect(keymove(page).input).toBeFocused();
     for (const character of 'tooltip demonstration') await page.keyboard.type(character);
     await waitFor(page, `${badge}?.textContent === ${JSON.stringify(shortcut)}`);
     await page.keyboard.press('Alt+1');
@@ -85,7 +87,7 @@ export async function checkTooltipsMode(context: BrowserContext, origin: string,
     // The same numbered action still works immediately with the hints hidden.
     await page.keyboard.press('Alt+4');
     await waitFor(page, `!${menu} && ${badge}?.textContent === '1'`);
-    assert.equal(await page.evaluate(`${input}.value`), 'tooltip demonstration');
+    assert.equal(await keymove(page).input.inputValue(), 'tooltip demonstration');
     await page.evaluate(`document.getElementById('tooltips-paste').focus()`);
     await page.keyboard.press(`${modifier}+v`);
     assert.equal(
@@ -93,7 +95,7 @@ export async function checkTooltipsMode(context: BrowserContext, origin: string,
       `${origin}fixtures.html?tooltips#tooltip-target`,
     );
     await page.keyboard.press('Alt+f');
-    await waitFor(page, `${shadow}.activeElement === ${input}`);
+    await expect(keymove(page).input).toBeFocused();
     for (const character of 'tooltip demonstration') await page.keyboard.type(character);
     await waitFor(page, `${badge}?.textContent === '1'`);
     await page.keyboard.press('Alt+1');

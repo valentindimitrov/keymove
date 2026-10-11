@@ -1,16 +1,17 @@
+import { expect } from '@playwright/test';
+import { keymove } from '../keymove.js';
 import type { Page } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { waitFor } from '../pages.js';
 
 const shadow = `document.getElementById('keymove-root').shadowRoot`;
 const input = `${shadow}.querySelector('[aria-label="Search page"]')`;
-const summary = `${shadow}.querySelector('[role="status"]').textContent`;
 const autohide = `Array.from(document.querySelectorAll('label')).find(label => label.textContent === 'Autohide').control`;
 
 async function query(page: Page, value: string) {
   await page.keyboard.press('Alt+f');
   for (const character of value) await page.keyboard.type(character);
-  await waitFor(page, `${summary} === 'Text 1 / 1'`);
+  await expect(keymove(page).status).toHaveText('Text 1 / 1');
   await waitFor(page, `${shadow}.querySelector('[role="option"][aria-disabled="false"]')`);
 }
 
@@ -37,7 +38,7 @@ export async function checkReturnPosition(page: Page, popup: Page) {
       const original = await page.evaluate('scrollY');
       // Start by typing while reading, with no page control focused (the MDN case).
       for (const character of 'improve') await page.keyboard.type(character);
-      await waitFor(page, `${summary} === 'Text 1 / 1'`);
+      await expect(keymove(page).status).toHaveText('Text 1 / 1');
       await waitFor(page, `${shadow}.querySelector('[role="option"][aria-disabled="false"]')`);
       await page.keyboard.press(shortcut);
       await waitFor(
@@ -46,20 +47,20 @@ export async function checkReturnPosition(page: Page, popup: Page) {
       );
       assert(((await page.evaluate('scrollY')) as number) > (original as number));
       await page.keyboard.press('Alt+Backspace');
-      await waitFor(page, `${input}.getClientRects().length === 0`);
+      await expect(keymove(page).input).not.toBeVisible();
       assert.equal(
         await page.evaluate('scrollY'),
         original,
         `${shortcut}: return to original position`,
       );
-      assert.equal(await page.evaluate(`${input}.value`), '');
+      assert.equal(await keymove(page).input.inputValue(), '');
     }
 
     await query(page, 'improve');
     await page.keyboard.press('Tab');
     const jumped = await page.evaluate('scrollY');
     await page.keyboard.press('Escape');
-    await waitFor(page, `${input}.getClientRects().length === 0`);
+    await expect(keymove(page).input).not.toBeVisible();
     assert.equal(
       await page.evaluate('scrollY'),
       jumped,

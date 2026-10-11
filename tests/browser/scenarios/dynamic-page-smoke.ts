@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import type { BrowserContext } from '@playwright/test';
 import { openPage, waitFor } from '../pages.js';
+import { expect } from '@playwright/test';
+import { keymove } from '../keymove.js';
 
 const shadow = `document.getElementById('keymove-root')?.shadowRoot`;
 const input = `${shadow}?.querySelector('[aria-label="Search page"]')`;
@@ -11,7 +13,7 @@ export async function checkDynamicPage(context: BrowserContext, origin: string) 
   try {
     await page.bringToFront();
     await waitFor(page, `document.documentElement?.dataset.fixtureReady && ${input}`);
-    await waitFor(page, `${shadow}.querySelector('#keymove-bar').dataset.alwaysOn === 'true'`);
+    await expect(keymove(page).bar).toHaveAttribute('data-always-on', 'true');
     await waitFor(page, 'document.hasFocus()');
     await page.evaluate(`(() => {
       globalThis.__dynamicChanges = 0;
@@ -36,12 +38,12 @@ export async function checkDynamicPage(context: BrowserContext, origin: string) 
     assert.equal(typeof searchMs, 'number');
     // Keep the animation running through subsequent keystrokes and selection changes.
     for (const character of 'xyz') await page.keyboard.type(character);
-    await waitFor(page, `${status} === 'Text 1 / 1'`);
+    await expect(keymove(page).status).toHaveText('Text 1 / 1');
     await waitFor(page, `globalThis.__dynamicChanges >= 5`);
     await page.keyboard.press('Tab');
     await waitFor(page, `getSelection().toString().includes('semantic block')`);
     await page.keyboard.press('ArrowDown');
-    await waitFor(page, `${shadow}.querySelector('[role="menu"]')`);
+    await expect(keymove(page).menu).toBeAttached();
     const changes = await page.evaluate('globalThis.__dynamicChanges');
     assert.equal(typeof changes, 'number');
     await waitFor(page, `globalThis.__dynamicChanges >= ${Number(changes) + 12}`);
@@ -52,7 +54,7 @@ export async function checkDynamicPage(context: BrowserContext, origin: string) 
     );
     assert.equal(await page.evaluate(`${shadow}.activeElement?.getAttribute('role')`), 'menuitem');
     await page.keyboard.press('Escape');
-    await waitFor(page, `${shadow}.activeElement === ${input}`);
+    await expect(keymove(page).input).toBeFocused();
     await page.evaluate(`(() => {
       globalThis.__pageClicks = 0;
       globalThis.__pageClickErrors = 0;

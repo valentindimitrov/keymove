@@ -3,6 +3,8 @@ import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { BrowserContext } from '@playwright/test';
 import { openPage, waitFor } from '../pages.js';
+import { expect } from '@playwright/test';
+import { keymove } from '../keymove.js';
 
 const root = `document.getElementById('keymove-root')?.shadowRoot`;
 const input = `${root}?.querySelector('[aria-label="Search page"]')`;
@@ -36,7 +38,7 @@ export async function checkRelatedImages(context: BrowserContext, origin: string
       `${root}.querySelector('[aria-label="Selected image: Orange walking shoe"]')`,
     );
     await page.keyboard.press('Space');
-    await waitFor(page, `${root}.querySelector('[role="menu"]')`);
+    await expect(keymove(page).menu).toBeAttached();
     assert.equal(await page.evaluate(`${root}.querySelectorAll('[role="menuitem"]').length`), 4);
     writeFileSync(path.resolve('.artifacts/image-actions.png'), await page.screenshot());
     await page.keyboard.press('Enter');
@@ -117,9 +119,9 @@ export async function checkRelatedImages(context: BrowserContext, origin: string
     );
     // Exercise the deferred ClipboardItem path with a real paste as well.
     await page.keyboard.press('Space');
-    await waitFor(page, `${root}.querySelector('[role="menu"]')`);
+    await expect(keymove(page).menu).toBeAttached();
     await page.keyboard.press('Alt+4');
-    await waitFor(page, `!${root}.querySelector('[role="menu"]')`);
+    await expect(keymove(page).menu).not.toBeAttached();
     await page.evaluate(
       `(() => { const field=document.createElement('textarea'); field.id='paste-image-address'; document.body.append(field); field.focus(); })()`,
     );
@@ -131,7 +133,7 @@ export async function checkRelatedImages(context: BrowserContext, origin: string
     await page.keyboard.press('Alt+f');
     await page.keyboard.press('ControlOrMeta+a');
     await page.keyboard.press('Backspace');
-    await waitFor(page, `${input}.value === ''`);
+    await expect(keymove(page).input).toHaveValue('');
     for (const key of 'Embedded trainer') await page.keyboard.type(key);
     await waitFor(page, `${root}.querySelector('[role="status"]')?.textContent?.includes('1 / 1')`);
     await waitFor(
@@ -157,10 +159,10 @@ export async function checkRelatedImages(context: BrowserContext, origin: string
     );
     await page.keyboard.press('Escape');
     await page.keyboard.press('Space');
-    await waitFor(page, `${root}.querySelector('[role="menu"]')`);
+    await expect(keymove(page).menu).toBeAttached();
     await page.keyboard.press('Escape');
     await waitFor(page, `${imageStatus} !== 'Image 1 / 1'`);
-    assert.equal(await page.evaluate(`${input}.value`), 'Embedded trainer');
+    assert.equal(await keymove(page).input.inputValue(), 'Embedded trainer');
     await page.keyboard.press('ControlOrMeta+Backspace');
     for (const key of 'Shadow camera') await page.keyboard.type(key);
     await waitFor(page, `${root}.querySelector('.keymove-selected-selection')`);
