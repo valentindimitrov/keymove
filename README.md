@@ -51,16 +51,18 @@ See the [full shortcut and settings reference](docs/user-guide.md).
 ### Requirements
 
 - Node.js `24.15.0` or newer
-- Yarn `1.22`
+- pnpm `12.11.2` (pinned in `package.json`)
 
-Clone the repository and build the browser targets:
+Install the pnpm version pinned in `package.json` (`npm install --global pnpm@12.11.2`),
+then clone the repository and build the browser targets:
 
 ```sh
 git clone https://github.com/valentindimitrov/keymove.git
 cd keymove
 node --version
-yarn install --frozen-lockfile
-yarn build
+pnpm install --frozen-lockfile
+pnpm run postinstall
+pnpm build
 ```
 
 The build creates:

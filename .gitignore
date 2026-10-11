@@ -10,6 +10,10 @@
 /.wxt
 /coverage
 /.artifacts
+/.playwright
+/.playwright-cli
+/test-results
+/playwright-report
 
 # misc
 .DS_Store

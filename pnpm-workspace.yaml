@@ -1,0 +1,6 @@
+overrides:
+  'cosmiconfig>js-yaml': ^4.3.2
+  'addons-linter>image-size': 2.0.4
+permissions:
+  '@playwright/cli':
+    skills: false

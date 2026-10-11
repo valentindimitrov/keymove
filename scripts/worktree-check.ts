@@ -20,7 +20,7 @@ if (import.meta.main) {
   try {
     const args = process.argv.slice(2);
     if (args.some(arg => arg !== '--require-linked'))
-      throw new Error('Usage: yarn worktree:check [--require-linked]');
+      throw new Error('Usage: pnpm worktree:check [--require-linked]');
     const info = inspectWorktree();
     console.log(JSON.stringify(info, null, 2));
     if (args.includes('--require-linked') && !info.linked) {

@@ -31,14 +31,14 @@ if (import.meta.main) {
   try {
     if (process.platform !== 'darwin') {
       throw new Error(
-        'Xcode project generation requires macOS and Xcode. On this OS, run yarn zip:safari and use the macOS-only App Store Connect route in docs/safari.md.',
+        'Xcode project generation requires macOS and Xcode. On this OS, run pnpm zip:safari and use the macOS-only App Store Connect route in docs/safari.md.',
       );
     }
     const args = safariProjectArgs(process.argv[2] ?? '');
     if (process.argv.length !== 3)
-      throw new Error('Usage: yarn safari:project <bundle-identifier>');
+      throw new Error('Usage: pnpm safari:project <bundle-identifier>');
     if (!existsSync(path.join(root, '.output/safari-mv3/manifest.json'))) {
-      throw new Error('Run yarn build:safari before generating the Xcode project.');
+      throw new Error('Run pnpm build:safari before generating the Xcode project.');
     }
     if (existsSync(path.join(root, '.output/safari-xcode'))) {
       throw new Error(

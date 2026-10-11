@@ -212,7 +212,7 @@ async function main(): Promise<void> {
   const smoke = args.includes('--smoke');
   if (smoke && browser.name === 'firefox') {
     throw new Error(
-      'Automated browser smoke currently requires Vivaldi or Chrome. Use yarn preview:firefox for manual Firefox checks.',
+      'Automated browser smoke currently requires Vivaldi or Chrome. Use pnpm preview:firefox for manual Firefox checks.',
     );
   }
   const target = browser.name === 'firefox' ? 'firefox' : 'chrome';
@@ -227,7 +227,7 @@ async function main(): Promise<void> {
     ]);
   }
   if (!existsSync(path.join(sourceDir, 'manifest.json'))) {
-    throw new Error(`Build missing at ${sourceDir}. Run yarn preview to build it first.`);
+    throw new Error(`Build missing at ${sourceDir}. Run pnpm preview to build it first.`);
   }
   const preview = createPreviewCopy(sourceDir);
   process.once('exit', () => {

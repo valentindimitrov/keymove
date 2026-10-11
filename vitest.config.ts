@@ -5,6 +5,7 @@ import svgr from 'vite-plugin-svgr';
 export default defineConfig({
   plugins: [svgr(), react()],
   test: {
+    exclude: [...configDefaults.exclude, 'tests/browser/**'],
     environment: 'jsdom',
     // Avoid oversubscribing memory and DOM initialization when the suite runs on high-core hosts.
     maxWorkers: 4,
@@ -14,7 +15,7 @@ export default defineConfig({
     forceRerunTriggers: [
       ...configDefaults.forceRerunTriggers,
       '**/src/content.css',
-      '**/yarn.lock',
+      '**/pnpm-lock.yaml',
     ],
   },
 });

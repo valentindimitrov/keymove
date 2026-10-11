@@ -24,8 +24,22 @@ jobs:
         with:
           node-version-file: package.json
           package-manager-cache: false
-      - run: yarn install --frozen-lockfile --non-interactive
-      - run: yarn quality
+      - name: Set up pinned pnpm
+        run: npm install --global "$(node -p "require('./package.json').packageManager")"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run postinstall
+      - run: pnpm quality
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e:built
+      - name: Upload browser failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: playwright-failure
+          path: .artifacts/playwright/
+          include-hidden-files: true
+          retention-days: 7
+          if-no-files-found: ignore
 
   # Publishes the website to Cloudflare once the checks pass: main goes to production, pull
   # requests from this repository get a preview URL. Skipped until the CLOUDFLARE_ACCOUNT_ID
@@ -53,8 +67,11 @@ jobs:
         with:
           node-version-file: package.json
           package-manager-cache: false
-      - run: yarn install --frozen-lockfile --non-interactive
-      - run: yarn website:build
+      - name: Set up pinned pnpm
+        run: npm install --global "$(node -p "require('./package.json').packageManager")"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run postinstall
+      - run: pnpm website:build
       - name: Deploy to production
         if: github.event_name == 'push'
         env:

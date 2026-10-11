@@ -43,7 +43,7 @@ the nine-square picker before the resize gesture; lock status stays with its con
 Scrollable settings panels reserve 12px between their controls and the scrollbar. Shortcut
 fallback guidance follows the complete shortcut list in both the toolbar settings and in-page help.
 
-Run `yarn preview:ui` and open `?scenario=theme-settings` to switch themes on the shared settings
+Run `pnpm preview:ui` and open `?scenario=theme-settings` to switch themes on the shared settings
 components, including all four settings tabs and example site overrides (preview only).
 The popup retains its tabs and compact footer while long tab contents scroll, bounded to
 the browser's 600px popup height. Other scenarios accept `&theme=light`, `&theme=dark`, or `&theme=system`.

@@ -14,9 +14,10 @@ has been completed by someone with a Mac.
 Use the Node version required by `package.json`, then:
 
 ```sh
-yarn install --frozen-lockfile
-yarn build:safari
-yarn zip:safari
+pnpm install --frozen-lockfile
+pnpm run postinstall
+pnpm build:safari
+pnpm zip:safari
 ```
 
 WXT receives `-b safari --mv3` explicitly. Its default Safari manifest version is
@@ -24,8 +25,8 @@ MV2, which KeyMove does not support. Output is `.output/safari-mv3/`; the ZIP is
 `.output/keymove-v<version>-safari-mv3.zip`. It contains the manifest, JavaScript,
 styles, icons and licenses, not a signed Apple application.
 
-`yarn build`, `yarn zip`, `yarn quality` and draft release preparation include Safari
-alongside Chromium and Firefox. `yarn verify` validates all three completed builds.
+`pnpm build`, `pnpm zip`, `pnpm quality` and draft release preparation include Safari
+alongside Chromium and Firefox. `pnpm verify` validates all three completed builds.
 The draft release includes the Safari ZIP and its SHA-256 checksum, labelled as
 unverified web resources requiring Apple packaging.
 
@@ -53,8 +54,8 @@ needed for local builds. Store submission still requires the owner's confirmatio
 With current Xcode installed:
 
 ```sh
-yarn build:safari
-yarn safari:project <your-registered-bundle-identifier>
+pnpm build:safari
+pnpm safari:project <your-registered-bundle-identifier>
 ```
 
 This runs Apple's `xcrun safari-web-extension-packager` with `--macos-only`, Swift
@@ -68,7 +69,7 @@ See Apple's [packager documentation](https://developer.apple.com/documentation/s
 Open the generated project manually, choose your signing team and review the
 deployment target before building. Follow Apple's
 [running instructions](https://developer.apple.com/documentation/safariservices/running-your-safari-web-extension)
-to enable the extension. The existing `yarn preview` launcher covers
+to enable the extension. The existing `pnpm preview` launcher covers
 Vivaldi/Chrome/Firefox, not Safari.
 
 ## Compatibility boundaries
@@ -100,7 +101,7 @@ and WebKit's [clipboard requirements](https://webkit.org/blog/10855/async-clipbo
 ## Installed Safari checklist (pending)
 
 Record the macOS/Safari versions and how the app was packaged. Serve fixtures with
-`yarn preview:ui`; test the installed extension, not just the React preview.
+`pnpm preview:ui`; test the installed extension, not just the React preview.
 
 - Enable/disable website access, reload and navigate; verify one searchbar per tab.
 - Search exact, fuzzy, accented and IME text; navigate text/actions in both directions.
