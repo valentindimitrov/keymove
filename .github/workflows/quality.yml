@@ -16,6 +16,10 @@ jobs:
   quality:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      # A placeholder, never a real listing: it makes every build exercise the configured
+      # Firefox ID path, which validate-builds.ts compares with the packaged manifest.
+      WXT_FIREFOX_EXTENSION_ID: keymove-ci@keymove.invalid
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -24,8 +28,8 @@ jobs:
         with:
           node-version-file: package.json
           package-manager-cache: false
-      - name: Set up pinned pnpm
-        run: npm install --global "$(node -p "require('./package.json').packageManager")"
+      - name: Set up verified pnpm
+        uses: ./.github/actions/setup-pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm run postinstall
       - run: pnpm quality
@@ -40,38 +44,69 @@ jobs:
           include-hidden-files: true
           retention-days: 7
           if-no-files-found: ignore
+      # The deploy job below publishes these static files without installing or running
+      # anything from this checkout.
+      - run: pnpm website:build
+      - name: Upload the website build
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: website
+          path: .output/public/
+          include-hidden-files: true # keeps .well-known/security.txt
+          retention-days: 3
+          if-no-files-found: error
 
   # Publishes the website to Cloudflare once the checks pass: main goes to production, pull
   # requests from this repository get a preview URL. Skipped until the CLOUDFLARE_ACCOUNT_ID
-  # variable is set, and for pull requests from forks, which have no access to the token.
+  # variable is set, for pull requests from forks, and for Dependabot, none of which receive
+  # the token.
+  #
+  # The token-bearing steps run no code or configuration from the pull request: the build
+  # arrives as an artifact, and Wrangler, its lockfile and wrangler.jsonc come from the base
+  # commit (main). A pull request's own changes to those files take effect after merging.
   website:
     needs: quality
     if: >-
       vars.CLOUDFLARE_ACCOUNT_ID != '' &&
       ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
       (github.event_name == 'pull_request' &&
-      github.event.pull_request.head.repo.full_name == github.repository))
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login != 'dependabot[bot]'))
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:
       name: ${{ github.event_name == 'push' && 'production' || 'preview' }}
       url: ${{ github.event_name == 'push' && 'https://keymove.minddevops.eu' || steps.upload.outputs.url }}
-    # The token is passed only to the Wrangler steps, never to dependency install scripts or the build.
     env:
-      WRANGLER: npx --yes wrangler@4.147.0
+      WRANGLER: website/deploy/node_modules/.bin/wrangler
+      WRANGLER_SEND_METRICS: 'false'
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Check out trusted deployment configuration
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.sha }}
           persist-credentials: false
+          sparse-checkout: |
+            .github/actions/setup-pnpm
+            package.json
+            pnpm-lock.yaml
+            website/wrangler.jsonc
+            website/deploy
+          sparse-checkout-cone-mode: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version-file: package.json
           package-manager-cache: false
-      - name: Set up pinned pnpm
-        run: npm install --global "$(node -p "require('./package.json').packageManager")"
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm run postinstall
-      - run: pnpm website:build
+      - name: Set up verified pnpm
+        uses: ./.github/actions/setup-pnpm
+      - name: Install the locked Wrangler only
+        working-directory: website/deploy
+        run: pnpm install --frozen-lockfile
+      - name: Download the website build
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: website
+          path: .output/public
       - name: Deploy to production
         if: github.event_name == 'push'
         env:

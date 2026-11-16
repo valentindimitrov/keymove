@@ -96,9 +96,20 @@ KeyMove's desktop preview does not request that bridge, and CRX signing and veri
 if Android/ADB tooling is introduced. This is a scoped usage assessment, not a package-wide safety
 exception.
 
-Pull requests and pushes to `main` run `pnpm quality`. Release preparation runs the same full gate
-before packaging and revalidates the resulting artifacts, including the settings popup and its assets.
-Installed-browser smoke remains a separate local check.
+Pull requests and pushes to `main` run `pnpm quality`. CI sets the placeholder Firefox ID
+`keymove-ci@keymove.invalid` so every build exercises the configured-ID path; `pnpm verify`
+requires the packaged ID to equal `WXT_FIREFOX_EXTENSION_ID` when set and to be absent otherwise.
+Release preparation runs the same full gate, zips the builds, then validates both the build
+directories (`pnpm verify`, including the settings popup and its assets) and the ZIPs themselves
+(`pnpm verify:packages`). The signing job validates the downloaded ZIPs again before signing; see
+[CRX signing](crx-signing.md). Installed-browser smoke remains a separate local check.
+
+CI installs pnpm through `.github/actions/setup-pnpm`, which downloads the native Linux binary for
+the `packageManager` version and checks it against the integrity pnpm records in `pnpm-lock.yaml`
+(`packageManagerDependencies`) before use. The `packageManager` field also carries the wrapper's
+corepack-style `+sha512` hash. When upgrading pnpm, update both: run the new pnpm's install so the
+lockfile records it, and replace the hash with the new tarball's SHA-512 (hex, from
+`npm view pnpm@<version> dist.integrity`). Keep `website/deploy/package.json` on the same value.
 
 ### Architecture
 

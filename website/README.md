@@ -21,7 +21,15 @@ The `website` job in `.github/workflows/quality.yml` publishes it to Cloudflare 
 `keymove-website` (`website/wrangler.jsonc`, static assets only) after the quality checks pass.
 Pushes to `main` deploy to https://keymove.minddevops.eu. Pull requests from this repository upload
 a preview version at `pr-<number>-keymove-website.<subdomain>.workers.dev`, linked from the job
-summary, without changing production. Fork pull requests are not deployed. The job needs the
+summary, without changing production. Fork and Dependabot pull requests are not deployed; neither
+receives the token.
+
+The quality job builds the site and uploads `.output/public` as an artifact. The deploy job runs
+nothing from the pull request: it checks out `website/wrangler.jsonc` and `website/deploy/` from the
+base commit, installs only the Wrangler pinned in `website/deploy/pnpm-lock.yaml` (a standalone
+pnpm project with its own `pnpm-workspace.yaml`), and uploads the artifact. Changes to those
+deployment files therefore take effect once merged to `main`; a pull request that introduces them
+cannot preview them, and its preview job fails until `main` has them. The job needs the
 repository variable `CLOUDFLARE_ACCOUNT_ID` and the secret `CLOUDFLARE_API_TOKEN` (a token from the
 "Edit Cloudflare Workers" template, limited to that account and the `minddevops.eu` zone); it is
 skipped while the variable is unset. Cloudflare creates the DNS record and certificate for the
@@ -136,8 +144,10 @@ clipboard writes, and fullscreen are retained for the demo and video controls. C
 microphone, location, payment, USB, and clipboard reads are disabled. HSTS deliberately has
 no `includeSubDomains` or preload directive, so it does not opt other hosts into this policy.
 
-Test response headers using `npx --yes wrangler@4.147.0 dev --local --config website/wrangler.jsonc` after a
-website build; Vite preview does not apply Cloudflare's `_headers` or `_redirects` files.
+Test response headers after a website build with the same locked Wrangler the deploy uses:
+`pnpm --dir website/deploy install --frozen-lockfile`, then
+`website/deploy/node_modules/.bin/wrangler dev --local --config website/wrangler.jsonc`.
+Vite preview does not apply Cloudflare's `_headers` or `_redirects` files.
 Keep production policies out of the Vite development server, whose hot reload has different
 script and connection requirements. Verify the actual Cloudflare response after deployment.
 

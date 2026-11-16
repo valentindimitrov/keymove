@@ -354,10 +354,16 @@ blindly replacing it can break selectors, stored preferences, and content/backgr
 - Local `.env` and `.env.*` files are ignored by git (`.env.example` is allowed but does not
   exist yet). Signing and deployment credentials also live in external secret stores. Never
   commit, print or paste secret values; follow `SECURITY.md` for vulnerability reports.
-- Releases are manual uploads to the Chrome Web Store and Firefox Add-ons, not a pipeline. A
-  store submission is effectively irreversible: confirm with the user before any store action.
+- Releases: the manually dispatched `.github/workflows/prepare-release.yml` builds, validates and
+  signs the packages and stops at a draft GitHub release. Its signing job runs in the protected
+  `release` environment (`main` only, required reviewer; see `docs/crx-signing.md`). Publishing
+  the draft and the Chrome Web Store and Firefox Add-ons uploads stay manual. Do not dispatch
+  the workflow or publish a release unless the user asks. A store submission is effectively
+  irreversible: confirm with the user before any store action.
 - The website is the exception: every push to `main` that passes the quality checks publishes it
   to https://keymove.minddevops.eu, so website changes on `main` go live (`website/README.md`).
+  The deploy job runs no pull-request code: it deploys the uploaded build with the Wrangler
+  locked in `website/deploy/` and the base commit's `website/wrangler.jsonc`.
 
 ## Development rules
 
