@@ -1,4 +1,17 @@
-import { DO_NOT_SEARCH_NODE_TYPES, KEYMOVE_ROOT_ID } from '../constants.js';
+import { DO_NOT_SEARCH_NODE_TYPES } from '../constants.js';
+
+// KeyMove recognises the roots it created by reference. Page script can give any
+// element KeyMove's ids, but it cannot add to this set, so an impostor stays page
+// content: searchable, and never mistaken for KeyMove's interface.
+const keyMoveRoots = new WeakSet<Element>();
+
+export function markKeyMoveRoot(element: Element) {
+  keyMoveRoots.add(element);
+}
+
+export function isKeyMoveRoot(node: Node): boolean {
+  return node instanceof Element && keyMoveRoots.has(node);
+}
 
 /** DOM ownership (including hosts), distinct from rendered ancestry through slots. */
 export function ownerParent(node: Node): Element | null {
@@ -46,7 +59,7 @@ export function renderedContains(parent: Node, node: Node): boolean {
 
 export function isKeyMoveNode(node: Node): boolean {
   for (let current: Node | null = node; current; current = ownerParent(current)) {
-    if (current instanceof Element && current.id === KEYMOVE_ROOT_ID) return true;
+    if (isKeyMoveRoot(current)) return true;
   }
   return false;
 }
@@ -90,7 +103,7 @@ export function* walkOwnedElements(
       continue;
     }
     const node = step.value;
-    if (node.id === KEYMOVE_ROOT_ID || DO_NOT_SEARCH_NODE_TYPES.includes(node.nodeName)) continue;
+    if (isKeyMoveRoot(node) || DO_NOT_SEARCH_NODE_TYPES.includes(node.nodeName)) continue;
     yield node;
     stack.push(node.children[Symbol.iterator]());
     if (enterShadowRoots && node.shadowRoot)
@@ -110,7 +123,7 @@ export function* walkRenderedElements(root: Element): Generator<Element> {
     const node = step.value;
     if (
       !(node instanceof Element) ||
-      node.id === KEYMOVE_ROOT_ID ||
+      isKeyMoveRoot(node) ||
       DO_NOT_SEARCH_NODE_TYPES.includes(node.nodeName)
     )
       continue;

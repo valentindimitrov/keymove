@@ -1,7 +1,6 @@
 import {
   ACTION_PRIORITY_BOOST,
   DO_NOT_SEARCH_NODE_TYPES,
-  KEYMOVE_ROOT_ID,
   MIN_SUGGESTION_QUERY_LENGTH,
 } from '../constants.js';
 import NodeScorer from './node_scorer.js';
@@ -21,6 +20,7 @@ import { activeModal, actionIsInScope, MODAL_CHANGED_EVENT } from './modal_conte
 import {
   containsAcrossRoots,
   isKeyMoveNode,
+  isKeyMoveRoot,
   walkOwnedElements,
   walkRenderedElements,
   renderedChildren,
@@ -295,7 +295,7 @@ class PageSearchIndex {
   isCandidate(node: Node | null): node is Element {
     return (
       node instanceof Element &&
-      node.id !== KEYMOVE_ROOT_ID &&
+      !isKeyMoveRoot(node) &&
       !DO_NOT_SEARCH_NODE_TYPES.includes(node.nodeName) &&
       (this.hasDirectSearchableText(node) ||
         node.matches(TEXT_BLOCK_SELECTOR) ||
@@ -412,9 +412,7 @@ class PageSearchIndex {
       }
       return (
         mutation.type !== 'childList' ||
-        [...mutation.addedNodes, ...mutation.removedNodes].some(
-          node => !(node instanceof Element) || node.id !== KEYMOVE_ROOT_ID,
-        )
+        [...mutation.addedNodes, ...mutation.removedNodes].some(node => !isKeyMoveRoot(node))
       );
     });
     if (pageMutations.length === 0) {

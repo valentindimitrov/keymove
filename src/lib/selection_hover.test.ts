@@ -1,5 +1,6 @@
 import { setFrameTarget } from './frame_target.js';
 import { SelectionHover } from './selection_hover.js';
+import { markKeyMoveRoot } from './dom_tree.js';
 
 afterEach(() => {
   document.body.innerHTML = '';
@@ -56,6 +57,7 @@ test('crosses open roots and slots with composed over events and non-bubbling en
 test('rejects unavailable targets and clears stale hover on removal or modal changes', () => {
   document.body.innerHTML =
     '<div><button>Menu</button></div><button disabled>Disabled</button><p hidden>Hidden</p><div id="keymove-root"><a>UI</a></div>';
+  markKeyMoveRoot(document.getElementById('keymove-root')!);
   const button = document.querySelector('button')!;
   const container = button.parentElement!;
   const leave = vi.fn();

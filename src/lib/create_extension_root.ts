@@ -3,6 +3,7 @@ import { activeModal, MODAL_CHANGED_EVENT } from './modal_context.js';
 import {
   pageShadowRoots,
   isKeyMoveNode,
+  markKeyMoveRoot,
   PAGE_ROOTS_CHANGED,
   retainPageRoot,
   releasePageRoot,
@@ -21,16 +22,13 @@ type ExtensionRoot = {
   shadowRoot: ShadowRoot;
 };
 
-function createExtensionRoot(stylesText: string, browserName?: string): ExtensionRoot | null {
-  if (
-    document.getElementById(KEYMOVE_ROOT_ID) ||
-    pageShadowRoots().some(root => root.getElementById(KEYMOVE_ROOT_ID))
-  ) {
-    return null;
-  }
-
+// The id is a styling and testing hook, not identity: a page may already use it.
+// Whether another KeyMove copy already serves this document is decided by
+// runSingleContentScript, which page script cannot influence.
+function createExtensionRoot(stylesText: string, browserName?: string): ExtensionRoot {
   const host = document.createElement('div');
   host.id = KEYMOVE_ROOT_ID;
+  markKeyMoveRoot(host);
   if (browserName === 'firefox') {
     host.classList.add('keymove-firefox');
   }

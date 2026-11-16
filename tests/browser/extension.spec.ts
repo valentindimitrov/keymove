@@ -306,3 +306,162 @@ test('page-dispatched focus, blur and mouse events cannot steer a real search or
   await page.waitForTimeout(500);
   expect(context.pages()).toHaveLength(pagesBefore);
 });
+
+const KEYMOVE_HOSTS = () => document.querySelectorAll('#keymove-root').length;
+
+/** Injects the content scripts into the tab at `url` the way background.ts does at installation. */
+async function injectContentScripts(manager: Page, extensionId: string, url: string) {
+  await expect(async () => {
+    await manager.goto(`chrome-extension://${extensionId}/popup.html`);
+  }).toPass();
+  await manager.evaluate(async url => {
+    const api = (
+      globalThis as unknown as {
+        chrome: {
+          tabs: { query(query: object): Promise<{ id?: number; url?: string }[]> };
+          scripting: { executeScript(injection: object): Promise<unknown> };
+        };
+      }
+    ).chrome;
+    const tab = (await api.tabs.query({})).find(candidate => candidate.url === url);
+    if (tab?.id === undefined) throw new Error('fixture tab not found');
+    await api.scripting.executeScript({
+      target: { tabId: tab.id },
+      files: ['/content-scripts/content.js'],
+    });
+    await api.scripting.executeScript({
+      target: { tabId: tab.id, allFrames: true },
+      files: ['/content-scripts/frames.js'],
+    });
+  }, url);
+}
+
+test('a page cannot retire KeyMove by forging the content-script replacement signal', async ({
+  page,
+  extensionId,
+}) => {
+  await page.addInitScript(() => {
+    const seen: unknown[] = [];
+    Object.defineProperty(window, '__keymoveMessages', { value: seen });
+    window.addEventListener('message', event => seen.push(event.data));
+  });
+  await page.goto('fixtures.html');
+  await expect(page.locator('#keymove-bar')).toHaveAttribute('data-site-behavior', 'type');
+  // The started event's type is no longer posted where page script can read it.
+  const posted = await page.evaluate(() =>
+    JSON.stringify((window as unknown as { __keymoveMessages: unknown[] }).__keymoveMessages),
+  );
+  expect(posted).not.toContain('content-script-started');
+  // The type is predictable from the public extension id, so forge it anyway.
+  await page.evaluate(id => {
+    for (const name of ['content', 'frames']) {
+      document.dispatchEvent(
+        new CustomEvent(`${id}:${name}:wxt:content-script-started`, {
+          detail: { contentScriptName: name, messageId: 'page-forged-different-id' },
+        }),
+      );
+      document.dispatchEvent(new Event(`keymove:content-script-started:${name}`));
+    }
+  }, extensionId);
+  await page.waitForTimeout(200);
+  expect(await page.evaluate(KEYMOVE_HOSTS)).toBe(1);
+  await page.keyboard.press('Alt+f');
+  const input = page.getByRole('combobox', { name: 'Search page', exact: true });
+  await expect(input).toBeFocused();
+  await input.pressSequentially('qxyz');
+  await expect(page.getByRole('status')).toHaveText('Text 1 / 1');
+});
+
+test('mounts beside a page element that already uses the root id and searches it', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    document.addEventListener('DOMContentLoaded', () => {
+      const impostor = document.createElement('div');
+      impostor.id = 'keymove-root';
+      impostor.innerHTML = '<p>Impostor quokka paragraph</p>';
+      document.body.prepend(impostor);
+    });
+  });
+  const input = await openSearch(page);
+  expect(await page.evaluate(KEYMOVE_HOSTS)).toBe(2);
+  await input.pressSequentially('quokka');
+  await expect(page.getByRole('status')).toHaveText('Text 1 / 1');
+  await input.press('Tab');
+  await expect
+    .poll(() => page.evaluate(() => window.getSelection()?.toString()))
+    .toBe('Impostor quokka paragraph');
+});
+
+test('an orphaned copy retires for the copy injected after an extension reload', async ({
+  page,
+  context,
+  extensionId,
+}) => {
+  await page.goto('fixtures.html');
+  await expect(page.locator('#keymove-bar')).toHaveAttribute('data-site-behavior', 'type');
+  // A forged signal beforehand must not stop the genuine retirement later.
+  await page.evaluate(id => {
+    document.dispatchEvent(
+      new CustomEvent(`${id}:content:wxt:content-script-started`, {
+        detail: { contentScriptName: 'content', messageId: 'page-forged-different-id' },
+      }),
+    );
+  }, extensionId);
+  const pageUrl = page.url();
+
+  // Reload the unpacked extension the way chrome://extensions' reload button does.
+  const manager = await context.newPage();
+  await manager.goto('chrome://extensions');
+  await manager.evaluate(async id => {
+    type DeveloperPrivate = {
+      updateProfileConfiguration(update: object, done: () => void): void;
+      reload(id: string, options: object, done: () => void): void;
+    };
+    const api = (globalThis as unknown as { chrome: { developerPrivate: DeveloperPrivate } }).chrome
+      .developerPrivate;
+    await new Promise<void>(done =>
+      api.updateProfileConfiguration({ inDeveloperMode: true }, done),
+    );
+    await new Promise<void>(done => api.reload(id, { failQuietly: true }, done));
+  }, extensionId);
+  // Chromium does not inject manifest scripts into open tabs after a reload: the orphan
+  // is still there, with an invalid runtime.
+  await page.waitForTimeout(500);
+  expect(await page.evaluate(KEYMOVE_HOSTS)).toBe(1);
+
+  // Inject the new copy as background.ts does for tabs open at installation.
+  await injectContentScripts(manager, extensionId, pageUrl);
+  await manager.close();
+
+  await expect.poll(() => page.evaluate(KEYMOVE_HOSTS)).toBe(1);
+  await page.bringToFront();
+  await page.keyboard.press('Alt+f');
+  const input = page.getByRole('combobox', { name: 'Search page', exact: true });
+  await expect(input).toHaveCount(1);
+  await expect(input).toBeFocused();
+  await input.pressSequentially('qxyz');
+  await expect(page.getByRole('status')).toHaveText('Text 1 / 1');
+});
+
+test('a copy injected beside a working one neither mounts twice nor duplicates frame results', async ({
+  page,
+  context,
+  extensionId,
+}) => {
+  const input = await openSearch(page, 'frames.html');
+  const manager = await context.newPage();
+  await injectContentScripts(manager, extensionId, page.url());
+  await manager.close();
+  await page.bringToFront();
+  expect(await page.evaluate(KEYMOVE_HOSTS)).toBe(1);
+  await page.keyboard.press('Alt+f');
+  await expect(input).toBeFocused();
+  await input.pressSequentially('Launch');
+  // Three actions: the page's and one per frame, not a second reply per frame.
+  await firstFrameAction(page, input);
+  await input.press('Enter');
+  await expect(page.frameLocator('iframe[title="Same-origin form"]').locator('#result')).toHaveText(
+    'Activated',
+  );
+});

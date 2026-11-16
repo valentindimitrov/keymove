@@ -130,6 +130,21 @@ received the input and propagates only to ancestors, so child frames cannot chec
 relayed commands; the top frame checks before sending them. jsdom cannot create trusted
 events: `src/setupTests.ts` sets the test seam, and rejection tests switch it off.
 
+Page script must not be able to switch KeyMove off. Content scripts start through
+`runSingleContentScript` (`src/lib/content_script_lifecycle.ts`): WXT's script-started
+signal and KeyMove's own `keymove:content-script-started:<name>` event are forgeable
+hints, accepted untrusted, that only make a copy check `browser.runtime.id`. A copy
+tears down only once its extension context is really gone (reload, update, disable,
+uninstall); never tear down from `ctx.onInvalidated` alone. Live copies are recorded on
+the isolated world's global object, so a second working copy (installation-time
+injection racing the manifest script) does not mount. Entrypoints set
+`noScriptStartedPostMessage`. Orphan teardown runs without `browser.storage` or
+`browser.runtime`, so cleanup uses optional access to them.
+KeyMove's own DOM is recognised by reference (`markKeyMoveRoot`/`isKeyMoveRoot`/
+`isKeyMoveNode` in `dom_tree.ts`), never by id: a page element with `id="keymove-root"`
+or another KeyMove id is ordinary, searchable page content. The ids stay as styling and
+test hooks. Mark any new root KeyMove appends to a page document.
+
 ## Control discovery and modal navigation
 
 Control names resolve associated labels, `aria-labelledby`, `aria-label`, and image alternative
