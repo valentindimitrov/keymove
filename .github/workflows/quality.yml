@@ -44,8 +44,8 @@ jobs:
           include-hidden-files: true
           retention-days: 7
           if-no-files-found: ignore
-      # The deploy job below publishes these static files without installing or running
-      # anything from this checkout.
+      # Static files only: the production deploy below and the Website preview workflow
+      # (website-preview.yml) publish them without installing or running anything from them.
       - run: pnpm website:build
       - name: Upload the website build
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
@@ -56,35 +56,30 @@ jobs:
           retention-days: 3
           if-no-files-found: error
 
-  # Publishes the website to Cloudflare once the checks pass: main goes to production, pull
-  # requests from this repository get a preview URL. Skipped until the CLOUDFLARE_ACCOUNT_ID
-  # variable is set, for pull requests from forks, and for Dependabot, none of which receive
-  # the token.
+  # Deploys pushes to main to production once the checks pass. Skipped until the
+  # CLOUDFLARE_ACCOUNT_ID variable is set. On a push to main this workflow file, the build and
+  # this job's checkout are all main's, so the token meets only code already merged to main.
   #
-  # The token-bearing steps run no code or configuration from the pull request: the build
-  # arrives as an artifact, and Wrangler, its lockfile and wrangler.jsonc come from the base
-  # commit (main). A pull request's own changes to those files take effect after merging.
+  # Pull request previews are not uploaded here: in a pull_request run this file comes from the
+  # pull request branch, which could rewrite any job holding the token. They run in
+  # website-preview.yml, a workflow_run workflow whose definition always comes from main.
   website:
     needs: quality
     if: >-
       vars.CLOUDFLARE_ACCOUNT_ID != '' &&
-      ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-      (github.event_name == 'pull_request' &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      github.event.pull_request.user.login != 'dependabot[bot]'))
+      github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:
-      name: ${{ github.event_name == 'push' && 'production' || 'preview' }}
-      url: ${{ github.event_name == 'push' && 'https://keymove.minddevops.eu' || steps.upload.outputs.url }}
+      name: production
+      url: https://keymove.minddevops.eu
     env:
       WRANGLER: website/deploy/node_modules/.bin/wrangler
       WRANGLER_SEND_METRICS: 'false'
     steps:
-      - name: Check out trusted deployment configuration
+      - name: Check out the deployment configuration
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.sha }}
           persist-credentials: false
           sparse-checkout: |
             .github/actions/setup-pnpm
@@ -108,22 +103,7 @@ jobs:
           name: website
           path: .output/public
       - name: Deploy to production
-        if: github.event_name == 'push'
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: $WRANGLER deploy --config website/wrangler.jsonc
-      - name: Upload a preview
-        id: upload
-        if: github.event_name == 'pull_request'
-        shell: bash
-        env:
-          ALIAS: pr-${{ github.event.pull_request.number }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: |
-          set -euo pipefail
-          $WRANGLER versions upload --config website/wrangler.jsonc --preview-alias "$ALIAS" | tee upload.log
-          url="$(grep -oE "https://$ALIAS-[a-z0-9.-]+\.workers\.dev" upload.log | head -n 1 || true)"
-          echo "url=$url" >> "$GITHUB_OUTPUT"
-          echo "Preview: ${url:-see the upload log}" >> "$GITHUB_STEP_SUMMARY"

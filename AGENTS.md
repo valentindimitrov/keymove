@@ -362,8 +362,11 @@ blindly replacing it can break selectors, stored preferences, and content/backgr
   irreversible: confirm with the user before any store action.
 - The website is the exception: every push to `main` that passes the quality checks publishes it
   to https://keymove.minddevops.eu, so website changes on `main` go live (`website/README.md`).
-  The deploy job runs no pull-request code: it deploys the uploaded build with the Wrangler
-  locked in `website/deploy/` and the base commit's `website/wrangler.jsonc`.
+  Pull request previews run in `.github/workflows/website-preview.yml`, a `workflow_run`
+  workflow whose definition comes from `main`; it publishes the pull request's build artifact
+  as validated static files with `main`'s locked Wrangler. The Cloudflare token is out of reach
+  of branches only while it is an environment secret limited to `main`; anyone who can push to
+  `main` controls both workflows. See `website/README.md`, "Deployment".
 
 ## Development rules
 
