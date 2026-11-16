@@ -616,6 +616,21 @@ describe('text owned by a node', () => {
     ]);
   });
 
+  test('finds a block indexed before the wrapper that leaves it out', async () => {
+    document.body.innerHTML =
+      '<div id="outer"><a href="#" style="display:block"><span>Total </span><b>revenue</b></a></div>';
+    index = new PageSearchIndex();
+    await index.search(scorerFor('total revenue'));
+    document.getElementById('outer')!.prepend('Intro');
+    await Promise.resolve();
+    const link = document.querySelector('a');
+    for (const query of ['total revenue', 'total revenoe']) {
+      const result = await index.search(scorerFor(query));
+      expect(result.matchingText.map(match => match.node)).toEqual([link]);
+      expect(result.matchingLinksAndButtons).toEqual([link]);
+    }
+  });
+
   test('gives the same results as a new index after the page changes', async () => {
     document.body.innerHTML =
       '<div id="outer">Intro<div id="own"><span>Total </span><b>revenue</b></div></div>';

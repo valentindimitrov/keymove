@@ -115,6 +115,9 @@ type MatchCollector = {
   blockMatches: Set<TextMatch>;
   // Occurrences each text result stands for, to tell a repeated block from one holding more.
   occurrences: Map<Element, number>;
+  // Text matches of nodes with no text node of their own, held until the scan has found
+  // every left-out block, since a block can be scanned before the node that leaves it out.
+  deferredText: { node: Element; textMatch: ScoredText }[] | null;
 };
 type SearchOptions = { signal?: AbortSignal };
 type SearchResult = {
@@ -574,6 +577,7 @@ class PageSearchIndex {
       textMatchesByContainer: new Map(),
       blockMatches: new Set(),
       occurrences: new Map(),
+      deferredText: [],
     };
     const styles = collector.styles;
     // Only retained when a fuzzy pass could follow, since it holds the visible text of the
@@ -657,6 +661,10 @@ class PageSearchIndex {
       );
     }
 
+    const deferredText = collector.deferredText ?? [];
+    collector.deferredText = null;
+    for (const { node, textMatch } of deferredText)
+      this.collectTextMatch(node, textMatch, collector);
     const isFuzzy =
       rescorable && collector.matchingText.length === 0 && collector.actions.length === 0;
     if (isFuzzy) {
@@ -837,7 +845,7 @@ class PageSearchIndex {
     textMatch: ScoredText,
     collector: MatchCollector,
   ) {
-    const { actions, matchingText, textMatchesByContainer } = collector;
+    const { actions } = collector;
     const labelledControl = labelledToggle(node);
     if (
       actionMatch.score > 0 &&
@@ -854,14 +862,22 @@ class PageSearchIndex {
         distance: actionMatch.distance,
       });
     }
+    this.collectTextMatch(node, textMatch, collector);
+  }
+
+  private collectTextMatch(node: Element, textMatch: ScoredText, collector: MatchCollector) {
+    const { matchingText, textMatchesByContainer } = collector;
     const { score, term: textTerm, distance } = textMatch;
     if (score <= 0 || textTerm === null) return;
     const ownsText = this.hasDirectSearchableText(node) || node.matches(TEXT_BLOCK_SELECTOR);
-    if (
-      !ownsText &&
-      !(this.ownedBlocks.has(node) && !isInlineLevel(window.getComputedStyle(node).display))
-    )
-      return;
+    if (!ownsText) {
+      if (collector.deferredText) {
+        collector.deferredText.push({ node, textMatch });
+        return;
+      }
+      if (!this.ownedBlocks.has(node) || isInlineLevel(window.getComputedStyle(node).display))
+        return;
+    }
     const container = this.textContainerForNode(node);
     const textContainer = actionIsInScope(container, collector.modal) ? container : node;
     const action = this.actionableAncestorForNode(node, collector.modal);
