@@ -496,3 +496,86 @@ test('never gives one node two places in the slate', async () => {
   const button = document.querySelector('button');
   expect(suggestions.filter(entry => entry.node === button)).toHaveLength(1);
 });
+
+describe('text owned by a node', () => {
+  // EDGAR filings open with unclosed SGML header tags, so the parser nests the whole
+  // filing inside elements that also hold a few characters of their own.
+  const edgarHeader =
+    '<DOCUMENT><TYPE>S-1/A<SEQUENCE>1<FILENAME>filing.htm<DESCRIPTION>S-1/A' +
+    '<div><p>Total revenue grew</p><div><font>Our revenue in 2025</font></div>' +
+    '<div><a href="#notes">See revenue notes</a></div></div>';
+
+  test.each(['revenue', 'revenoe'])('never selects an EDGAR header wrapper for %s', async query => {
+    document.body.innerHTML = edgarHeader;
+    index = new PageSearchIndex();
+    const result = await index.search(scorerFor(query));
+    expect(result.isFuzzy).toBe(query === 'revenoe');
+    expect(result.matchingText.map(match => match.node)).toEqual([
+      document.querySelector('p'),
+      document.querySelector('font'),
+      document.querySelector('a'),
+    ]);
+    expect(result.matchingLinksAndButtons).toEqual([document.querySelector('a')]);
+  });
+
+  test('still finds the text a header wrapper holds itself', async () => {
+    document.body.innerHTML = edgarHeader;
+    index = new PageSearchIndex();
+    const result = await index.search(scorerFor('filing.htm'));
+    expect(result.matchingText.map(match => match.node)).toContain(
+      document.querySelector('filename'),
+    );
+  });
+
+  test('ignores stray wrapper text when the match is in a nested block', async () => {
+    document.body.innerHTML = '<div id="outer">stray text <div id="inner">the revenue</div></div>';
+    index = new PageSearchIndex();
+    const result = await index.search(scorerFor('revenue'));
+    expect(result.matchingText.map(match => match.node)).toEqual([
+      document.getElementById('inner'),
+    ]);
+  });
+
+  test('treats a descendant styled as a block as its own block', async () => {
+    document.body.innerHTML =
+      '<div id="outer">Intro <span id="inner" style="display:block">revenue</span></div>';
+    index = new PageSearchIndex();
+    const result = await index.search(scorerFor('revenue'));
+    expect(result.matchingText.map(match => match.node)).toEqual([
+      document.getElementById('inner'),
+    ]);
+  });
+
+  test('keeps inline descendants as part of the block that holds them', async () => {
+    document.body.innerHTML = '<div id="outer">Total <b>revenue</b> grew</div>';
+    index = new PageSearchIndex();
+    const result = await index.search(scorerFor('total revenue grew'));
+    expect(result.matchingText).toMatchObject([
+      { node: document.getElementById('outer'), term: 'total revenue grew' },
+    ]);
+  });
+
+  test('keeps nested list items from repeating their parent item', async () => {
+    document.body.innerHTML =
+      '<ul><li id="outer">Outer<ul><li id="inner">revenue</li></ul></li></ul>';
+    index = new PageSearchIndex();
+    const result = await index.search(scorerFor('revenue'));
+    expect(result.matchingText.map(match => match.node)).toEqual([
+      document.getElementById('inner'),
+    ]);
+  });
+
+  test('matches an action by all of its text while text results stay in their blocks', async () => {
+    document.body.innerHTML = '<a href="#report">Read <div id="title">revenue report</div></a>';
+    index = new PageSearchIndex();
+    const link = document.querySelector('a')!;
+    const result = await index.search(scorerFor('read revenue'));
+    expect(result.matchingLinksAndButtons).toEqual([link]);
+    expect(result.matchingText).toEqual([]);
+    const byTitle = await index.search(scorerFor('revenue'));
+    expect(byTitle.matchingLinksAndButtons).toEqual([link]);
+    expect(byTitle.matchingText).toMatchObject([
+      { node: document.getElementById('title'), action: link },
+    ]);
+  });
+});

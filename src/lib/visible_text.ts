@@ -79,6 +79,23 @@ function whitespaceFor(element: Element | null, cache: StyleCache): string {
   return entry.whitespace;
 }
 
+type OwnedText = { skipped: number; boundary: (element: Element, display: string) => boolean };
+type RenderedTextOptions = {
+  /**
+   * Read only the text this element owns, leaving out each descendant subtree for which
+   * `boundary` is true. A left-out subtree still contributes a line separator, and
+   * `skipped` counts how many were left out.
+   */
+  ownedOnly?: OwnedText;
+};
+
+// Inline-level boxes share their parent's lines. Anything else (block, flex, grid, list
+// items, table parts, and positioned or floated boxes, which browsers blockify) is laid
+// out as a box of its own.
+function isInlineLevel(display: string): boolean {
+  return display === '' || /^(inline|contents|ruby)/.test(display);
+}
+
 function textPart(
   text: string,
   node: Text,
@@ -98,7 +115,9 @@ function textPart(
 function* iterateRenderedText(
   node: Element | Text,
   cache: StyleCache = new WeakMap(),
+  options: RenderedTextOptions = {},
 ): Generator<RenderedTextPart | null> {
+  const owned = options.ownedOnly;
   let pending: RenderedTextPart | null = null;
   let lineStart = true;
   function* append(part: RenderedTextPart): Generator<RenderedTextPart> {
@@ -191,9 +210,15 @@ function* iterateRenderedText(
         }
         continue;
       }
+      const display = computedStyle(child, cache).display;
+      if (owned?.boundary(child, display)) {
+        owned.skipped++;
+        separate(child, 0);
+        continue;
+      }
       const block =
         /^(block|flow-root|list-item|flex|grid|table|table-row|table-cell|table-caption)$/.test(
-          computedStyle(child, cache).display,
+          display,
         );
       if (block) separate(child, 0);
       stack.push({ element: child, children: renderedChildren(child), block });
@@ -209,5 +234,5 @@ function visibleText(node: Element, cache: StyleCache = new WeakMap()): string {
   return parts.join('');
 }
 
-export { isTextVisible, iterateRenderedText, visibleText };
-export type { StyleCache, RenderedTextPart, TextBoundary };
+export { isInlineLevel, isTextVisible, iterateRenderedText, visibleText };
+export type { StyleCache, OwnedText, RenderedTextPart, TextBoundary };

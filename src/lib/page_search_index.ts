@@ -12,9 +12,9 @@ import {
   labelledToggle,
   searchableAttributeValuesForNode,
 } from './searchable_attributes.js';
-import { isTextVisible, iterateRenderedText } from './visible_text.js';
+import { isInlineLevel, isTextVisible, iterateRenderedText } from './visible_text.js';
 import { normalizeSearchText } from './search_text.js';
-import type { StyleCache } from './visible_text.js';
+import type { OwnedText, StyleCache } from './visible_text.js';
 import { iterateControlName } from './control_name.js';
 import { hasSearchableInputValue, inputDisplayValue } from './input_value.js';
 import { activeModal, actionIsInScope, MODAL_CHANGED_EVENT } from './modal_context.js';
@@ -37,6 +37,13 @@ const SEARCH_WORK_BUDGET_MS = 8;
 const TEXT_BLOCK_SELECTOR =
   'p, li, blockquote, pre, td, th, dt, dd, figcaption, h1, h2, h3, h4, h5, h6';
 
+// A semantic text block covers everything inside it, including descendants laid out as
+// blocks, except a nested semantic block, which is a result of its own.
+const isNestedTextBlock = (element: Element) => element.matches(TEXT_BLOCK_SELECTOR);
+// Any other element owns its text and inline content, not the boxes laid out inside it.
+const isSeparateBlock = (element: Element, display: string) =>
+  !isInlineLevel(display) || isNestedTextBlock(element);
+
 type SearchRecord = {
   attributeValues: string[];
   nameRevision?: number;
@@ -58,7 +65,15 @@ type TextMatch = {
   score: number;
   distance: number | null;
 };
-type ScannedNode = { node: Element; innerText: string; attributeValues: string[] };
+// `innerText` is the text the node owns; `actionText` is all of its text, which differs
+// only for a node containing blocks of its own.
+type ScannedNode = {
+  node: Element;
+  innerText: string;
+  actionText: string;
+  attributeValues: string[];
+};
+type ScoredText = { score: number; term: string | null; distance: number | null };
 // `distance` is how many edits separate the query from what matched, for approximate
 // results only. It is what lets a row say how much of a stretch it is.
 type RankedMatch = {
@@ -556,20 +571,40 @@ class PageSearchIndex {
       const value = inputDisplayValue(node);
       if (value) attributeValues.push(normalizeSearchText(value));
       // Visibility can change through ancestor styles without changing this node's text.
-      const textParts: string[] = [];
-      for (const part of iterateRenderedText(node, styles)) {
-        if (part) textParts.push(part.searchText);
-        const pause = budget.checkpoint(searchSignal);
-        if (pause) await pause;
+      // A text result is decided by the text the node owns, so a wrapper is not a result
+      // merely because blocks nested inside it match. Those blocks are candidates themselves.
+      const owned: OwnedText = {
+        skipped: 0,
+        boundary: node.matches(TEXT_BLOCK_SELECTOR) ? isNestedTextBlock : isSeparateBlock,
+      };
+      const innerText = await this.readText(node, styles, budget, searchSignal, owned);
+      // An action is still named by everything it contains, such as a card link's blocks.
+      const actionText =
+        isLinkOrButtonOrInput(node) && owned.skipped > 0
+          ? await this.readText(node, styles, budget, searchSignal)
+          : innerText;
+      if (
+        rescorable &&
+        (actionText.length > 0 || innerText.length > 0 || attributeValues.length > 0)
+      ) {
+        scanned.push({ node, innerText, actionText, attributeValues });
       }
-      const innerText = normalizeSearchText(textParts.join('')).trim();
-      if (rescorable && (innerText.length > 0 || attributeValues.length > 0)) {
-        scanned.push({ node, innerText, attributeValues });
-      }
-      const score = nodeScorer.score(node, innerText, attributeValues);
-      const textTerm =
-        score > 0 && nodeScorer.textMatchesWithValue(innerText) ? nodeScorer.queryText : null;
-      this.collectScoredNode(node, score, textTerm, null, collector);
+      const textMatches = nodeScorer.textMatchesWithValue(innerText);
+      const textScore = textMatches ? nodeScorer.score(node, innerText, attributeValues) : 0;
+      const actionScore =
+        actionText === innerText && textMatches
+          ? textScore
+          : nodeScorer.score(node, actionText, attributeValues);
+      this.collectScoredNode(
+        node,
+        {
+          score: actionScore,
+          term: nodeScorer.textMatchesWithValue(actionText) ? nodeScorer.queryText : null,
+          distance: null,
+        },
+        { score: textScore, term: textMatches ? nodeScorer.queryText : null, distance: null },
+        collector,
+      );
     }
 
     const isFuzzy =
@@ -638,35 +673,61 @@ class PageSearchIndex {
       const pause = budget.checkpoint(searchSignal);
       if (pause) await pause;
       if (!containsAcrossRoots(this.root, entry.node)) continue;
-      const { score, textTerm, distance } = nodeScorer.fuzzyScore(
+      const text = nodeScorer.fuzzyScore(entry.node, entry.innerText, entry.attributeValues);
+      const action =
+        entry.actionText === entry.innerText
+          ? text
+          : nodeScorer.fuzzyScore(entry.node, entry.actionText, entry.attributeValues);
+      this.collectScoredNode(
         entry.node,
-        entry.innerText,
-        entry.attributeValues,
+        { score: action.score, term: action.textTerm, distance: action.distance },
+        { score: text.score, term: text.textTerm, distance: text.distance },
+        collector,
       );
-      this.collectScoredNode(entry.node, score, textTerm, distance, collector);
     }
+  }
+
+  private async readText(
+    node: Element,
+    styles: StyleCache,
+    budget: SearchWorkBudget,
+    signal: AbortSignal,
+    ownedOnly?: OwnedText,
+  ) {
+    const parts: string[] = [];
+    for (const part of iterateRenderedText(node, styles, ownedOnly ? { ownedOnly } : {})) {
+      if (part) parts.push(part.searchText);
+      const pause = budget.checkpoint(signal);
+      if (pause) await pause;
+    }
+    return normalizeSearchText(parts.join('')).trim();
   }
 
   private collectScoredNode(
     node: Element,
-    score: number,
-    textTerm: string | null,
-    distance: number | null,
+    actionMatch: ScoredText,
+    textMatch: ScoredText,
     collector: MatchCollector,
   ) {
-    if (score <= 0) return;
     const { actions, matchingText, textMatchesByContainer } = collector;
     const labelledControl = labelledToggle(node);
     if (
+      actionMatch.score > 0 &&
       node instanceof HTMLElement &&
       isLinkOrButtonOrInput(node) &&
       actionIsInScope(node, collector.modal) &&
       // A visible native input is already an action; its label must not duplicate it.
       (!labelledControl || !this.isVisible(labelledControl, collector.styles))
     ) {
-      actions.push({ node, score, term: textTerm, distance });
+      actions.push({
+        node,
+        score: actionMatch.score,
+        term: actionMatch.term,
+        distance: actionMatch.distance,
+      });
     }
-    if (textTerm === null) return;
+    const { score, term: textTerm, distance } = textMatch;
+    if (score <= 0 || textTerm === null) return;
     if (!this.hasDirectSearchableText(node) && !node.matches(TEXT_BLOCK_SELECTOR)) return;
     const container = this.textContainerForNode(node);
     const textContainer = actionIsInScope(container, collector.modal) ? container : node;
