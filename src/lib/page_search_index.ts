@@ -856,13 +856,18 @@ class PageSearchIndex {
     if (blockMatches.size === 0) return;
     const blocks = new Map([...blockMatches].map(match => [match.node, match]));
     const redundant = new Set<TextMatch>();
+    // A block repeats a match only when that match lies in text the block owns. A match
+    // inside a block of its own is a separate occurrence, and nothing above it owns it.
+    const startsOwnBlock = (element: Element) =>
+      isSeparateBlock(element, window.getComputedStyle(element).display);
     for (const match of collector.matchingText) {
       for (
-        let ancestor = renderedParent(match.node);
-        ancestor && ancestor !== document.body;
-        ancestor = renderedParent(ancestor)
+        let node: Element | null = match.node;
+        node && node !== document.body && !startsOwnBlock(node);
+        node = renderedParent(node)
       ) {
-        const block = blocks.get(ancestor);
+        const parent = renderedParent(node);
+        const block = parent && blocks.get(parent);
         if (block) redundant.add(block);
         const pause = budget.checkpoint(signal);
         if (pause) await pause;

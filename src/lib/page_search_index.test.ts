@@ -581,6 +581,18 @@ describe('text owned by a node', () => {
     ).toEqual([document.querySelector('b')]);
   });
 
+  test('keeps a block whose own phrase is separate from a matching nested block', async () => {
+    document.body.innerHTML =
+      '<div>Intro <div id="own"><span>Total </span><b>revenue</b>' +
+      '<p id="nested">Total revenue</p></div></div>';
+    index = new PageSearchIndex();
+    const result = await index.search(scorerFor('total revenue'));
+    expect(result.matchingText.map(match => match.node)).toEqual([
+      document.getElementById('own'),
+      document.getElementById('nested'),
+    ]);
+  });
+
   test('reads slotted text through a slot styled as a block', async () => {
     document.body.innerHTML = '<x-report>revenue</x-report>';
     const host = document.querySelector('x-report')!;
