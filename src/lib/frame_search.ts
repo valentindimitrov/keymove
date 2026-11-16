@@ -31,7 +31,7 @@ type Entry = {
   nodes: Map<string, HTMLElement>;
   ready: Promise<void>;
   resolve: () => void;
-  load: () => void;
+  load: (event: Event) => void;
   update?: (reply: FrameReply) => void;
   cancel?: () => void;
 };
@@ -135,7 +135,9 @@ export class FrameSearch {
         nodes: new Map(),
         ready: readiness.promise,
         resolve: readiness.resolve,
-        load: () => {
+        load: event => {
+          // A page can dispatch `load` at its own iframe; only a real navigation resets it.
+          if (!isTrustedInput(event)) return;
           entry.cancel?.();
           delete entry.update;
           delete entry.frameId;

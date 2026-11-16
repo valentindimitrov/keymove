@@ -57,3 +57,14 @@ test('page-dispatched events cannot close the viewer or move its focus', () => {
   expect(onClose).not.toHaveBeenCalled();
   expect(outside).toHaveFocus();
 });
+
+test('a page-dispatched error event cannot replace a displayed image', () => {
+  renderViewer();
+  const picture = screen.getByRole('img', { name: 'Product photo' });
+  acceptSyntheticInputForTesting(false);
+  fireEvent.error(picture);
+  expect(screen.queryByRole('alert')).toBeNull();
+  acceptSyntheticInputForTesting(true);
+  fireEvent.error(picture);
+  expect(screen.getByRole('alert')).toBeInTheDocument();
+});

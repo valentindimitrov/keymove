@@ -304,3 +304,36 @@ test('ignores page-dispatched frame availability messages', async () => {
     vi.restoreAllMocks();
   }
 });
+
+test('ignores a page-dispatched load event on a frame', async () => {
+  const frame = document.createElement('iframe');
+  document.body.append(frame);
+  vi.spyOn(frame, 'getClientRects').mockReturnValue([
+    { width: 100, height: 100 },
+  ] as unknown as DOMRectList);
+  transport.send.mockResolvedValue(null);
+  const post = vi.spyOn(frame.contentWindow!, 'postMessage').mockImplementation(() => undefined);
+  const changed = vi.fn();
+  const coordinator = new FrameSearch(changed);
+  const search = new AbortController();
+  const done = coordinator.search('query', search.signal, vi.fn());
+  await vi.waitFor(() => expect(post).toHaveBeenCalled());
+  const probes = post.mock.calls.length;
+  try {
+    acceptSyntheticInputForTesting(false);
+    frame.dispatchEvent(new Event('load'));
+    expect(post).toHaveBeenCalledTimes(probes);
+    expect(changed).not.toHaveBeenCalled();
+    acceptSyntheticInputForTesting(true);
+    frame.dispatchEvent(new Event('load'));
+    expect(post).toHaveBeenCalledTimes(probes + 1);
+    expect(changed).toHaveBeenCalledTimes(1);
+  } finally {
+    acceptSyntheticInputForTesting(true);
+    search.abort();
+    coordinator.stop();
+    await done.catch(() => undefined);
+    frame.remove();
+    vi.restoreAllMocks();
+  }
+});

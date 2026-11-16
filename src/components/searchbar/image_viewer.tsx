@@ -73,7 +73,7 @@ export default function ImageViewer({
             src={image.url}
             alt={image.label}
             referrerPolicy="no-referrer"
-            onError={() => setFailed(true)}
+            onError={trusted(() => setFailed(true))}
           />
         )}
         <p>{image.label}</p>
