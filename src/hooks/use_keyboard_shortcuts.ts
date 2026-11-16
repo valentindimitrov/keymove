@@ -1,6 +1,7 @@
 import React from 'react';
 import { keyboardShortcuts } from '../lib/static_data.js';
 import Utils from '../lib/utils.js';
+import { isTrustedInput } from '../lib/trusted_input.js';
 import {
   DEFAULT_OPENING_SHORTCUT,
   matchesOpeningShortcut,
@@ -46,7 +47,12 @@ const useKeyboardShortcuts = (
 
   const findShortcutMatchingEvent = React.useCallback(
     (event: KeyboardEvent) => {
-      if (event.isComposing || event.defaultPrevented || event.getModifierState('AltGraph')) {
+      if (
+        !isTrustedInput(event) ||
+        event.isComposing ||
+        event.defaultPrevented ||
+        event.getModifierState('AltGraph')
+      ) {
         return;
       }
       return keyboardShortcuts.find(shortcut =>

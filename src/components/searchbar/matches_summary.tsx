@@ -1,5 +1,6 @@
 import { SEARCH_MODES } from '../../hooks/use_search_navigation.js';
 import type { SearchMode } from '../../hooks/use_search_navigation.js';
+import { trusted } from '../../lib/trusted_input.js';
 
 type MatchesSummaryProps = {
   mode: SearchMode;
@@ -28,7 +29,7 @@ const MatchesSummary = (props: MatchesSummaryProps) => {
             aria-label={`Switch to ${mode === SEARCH_MODES.TEXT ? 'actions' : 'text'}`}
             title={props.tooltipsMode !== false ? 'Switch search mode (Alt+S)' : undefined}
             onMouseDown={event => event.preventDefault()}
-            onClick={props.onToggleMode}
+            onClick={trusted(() => props.onToggleMode?.())}
           >
             {modeLabel}
           </button>

@@ -9,6 +9,7 @@ import useWindowSize from '../../hooks/use_window_size.js';
 import type { PopupPosition } from '../../lib/popup_position_schema.js';
 
 import Utils from '../../lib/utils.js';
+import { isTrustedInput } from '../../lib/trusted_input.js';
 
 type DragOffset = { x: number; y: number };
 type ResizeEdge = -1 | 1;
@@ -109,7 +110,7 @@ const DraggableContainer = (props: DraggableContainerProps) => {
 
   const onDragStart = React.useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
-      if (locked) return;
+      if (locked || !isTrustedInput(event)) return;
       const target = event.target;
       if (target instanceof Element && target.closest('button, a')) {
         return;
@@ -182,7 +183,7 @@ const DraggableContainer = (props: DraggableContainerProps) => {
   // once on release rather than on every pixel of the drag, the same way moving the bar does.
   const startResize = React.useCallback(
     (edge: ResizeEdge) => (event: React.MouseEvent) => {
-      if (locked) return;
+      if (locked || !isTrustedInput(event)) return;
       event.preventDefault();
       event.stopPropagation();
       const left = pixelPosition(

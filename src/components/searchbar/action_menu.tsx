@@ -4,6 +4,7 @@ import type { Suggestion } from '../../hooks/use_suggestions.js';
 import SuggestionContent from './suggestion_content.js';
 import Utils from '../../lib/utils.js';
 import ShortcutBadge from './shortcut_badge.js';
+import { isTrustedInput, trusted } from '../../lib/trusted_input.js';
 
 type ActionMenuProps = {
   actions: ResultAction[];
@@ -93,7 +94,7 @@ const ActionMenu = ({
         }}
         onKeyDown={event => {
           event.stopPropagation();
-          if (event.nativeEvent.isComposing) return;
+          if (!isTrustedInput(event) || event.nativeEvent.isComposing) return;
           if (
             event.altKey &&
             !event.ctrlKey &&
@@ -161,7 +162,7 @@ const ActionMenu = ({
               aria-disabled={action.disabled || busy || undefined}
               aria-keyshortcuts={`Alt+${index + 1}`}
               onFocus={() => setSelected(index)}
-              onClick={() => void execute(action.id)}
+              onClick={trusted(() => void execute(action.id))}
             >
               <ShortcutBadge position={index + 1} tooltipsMode={tooltipsMode} />
               <span className="keymove-action-label">{action.label}</span>

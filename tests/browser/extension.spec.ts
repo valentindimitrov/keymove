@@ -135,3 +135,90 @@ test('settings changes persist and reach an already open page', async ({
   await input.pressSequentially('qxyz');
   await expect(page.getByRole('status')).toHaveText('Text 1 / 1');
 });
+
+test('ignores page-dispatched keyboard and input events while real input still works', async ({
+  page,
+  context,
+}) => {
+  await page.goto('fixtures.html');
+  await expect(page.locator('#keymove-bar')).toHaveAttribute('data-site-behavior', 'type');
+  const input = page.getByRole('combobox', { name: 'Search page', exact: true });
+  // The hostile page adds its own link, then drives KeyMove with synthetic events.
+  await page.evaluate(() => {
+    const link = document.createElement('a');
+    link.href = '/fixtures.html?opened';
+    link.textContent = 'Zephyr destination';
+    link.addEventListener('click', event => {
+      event.preventDefault();
+      link.dataset['clicks'] = String(Number(link.dataset['clicks'] ?? 0) + 1);
+    });
+    document.body.append(link);
+    const key = (target: EventTarget, init: KeyboardEventInit) =>
+      target.dispatchEvent(
+        new KeyboardEvent('keydown', { bubbles: true, cancelable: true, composed: true, ...init }),
+      );
+    key(document.body, { key: 'z', code: 'KeyZ' });
+    key(document.body, { key: 'f', code: 'KeyF', altKey: true });
+    const field = document
+      .getElementById('keymove-root')!
+      .shadowRoot!.querySelector<HTMLInputElement>('#keymove-input')!;
+    field.value = 'Zephyr';
+    field.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+  });
+  // The bar stays hidden, so its input is absent from the accessibility tree.
+  const field = page.locator('#keymove-input');
+  await expect(field).not.toBeFocused();
+  await expect(field).toHaveValue('');
+
+  await page.keyboard.press('Alt+f');
+  await expect(input).toBeFocused();
+  await input.pressSequentially('Zephyr');
+  await input.press('Alt+s');
+  await expect(page.getByRole('status')).toHaveText('Actions 1 / 1');
+  const pagesBefore = context.pages().length;
+  await page.evaluate(() => {
+    const field = document
+      .getElementById('keymove-root')!
+      .shadowRoot!.querySelector<HTMLInputElement>('#keymove-input')!;
+    for (const modifiers of [{}, { shiftKey: true }, { ctrlKey: true }])
+      field.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: 'Enter',
+          code: 'Enter',
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          ...modifiers,
+        }),
+      );
+    field.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'ArrowDown',
+        code: 'ArrowDown',
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+      }),
+    );
+  });
+  const link = page.getByRole('link', { name: 'Zephyr destination' });
+  // A synthetic Shift/Ctrl+Enter would ask the background for a tab asynchronously.
+  await page.waitForTimeout(500);
+  expect(context.pages()).toHaveLength(pagesBefore);
+  await expect(link).not.toHaveAttribute('data-clicks');
+  await expect(page.getByRole('menu')).toHaveCount(0);
+  await expect(page.getByRole('status')).toHaveText('Actions 1 / 1');
+
+  const opened = context.waitForEvent('page');
+  await input.press('Shift+Enter');
+  const tab = await opened;
+  await expect(tab).toHaveURL(/\/fixtures\.html\?opened$/);
+  await tab.close();
+  await page.bringToFront();
+  await page.keyboard.press('Alt+f');
+  await input.pressSequentially('Zephyr');
+  await input.press('Alt+s');
+  await expect(page.getByRole('status')).toHaveText('Actions 1 / 1');
+  await input.press('Enter');
+  await expect(link).toHaveAttribute('data-clicks', '1');
+});

@@ -110,6 +110,20 @@ artifacts are `.output/chrome-mv3`, `.output/firefox-mv3` and `.output/safari-mv
 - Browsers may reserve `Ctrl + Tab` before content scripts receive it. Do not claim that page code
   can override a browser-level shortcut reservation.
 
+## Untrusted page input
+
+Page script shares the DOM and can dispatch keydown, input, copy and click events, and reach
+the open shadow root. Every KeyMove handler for page-observable input (keyboard shortcuts,
+type-to-search, image keys, copy, search-field input, action-menu keys and clicks, result
+rows, settings/mode/auto-hide buttons, drag and resize) ignores untrusted events through
+`src/lib/trusted_input.ts`; never test `event.isTrusted` inline. `use_selection_hover.ts` is the
+exception: it must ignore KeyMove's own synthetic pointer events even in tests, so it reads
+`isTrusted` directly. Activating a result, opening a tab from it and opening an image in a
+tab also require `hasUserActivation()` in the top frame. Activation belongs to the frame that
+received the input and propagates only to ancestors, so child frames cannot check it for
+relayed commands; the top frame checks before sending them. jsdom cannot create trusted
+events: `src/setupTests.ts` sets the test seam, and rejection tests switch it off.
+
 ## Control discovery and modal navigation
 
 Control names resolve associated labels, `aria-labelledby`, `aria-label`, and image alternative

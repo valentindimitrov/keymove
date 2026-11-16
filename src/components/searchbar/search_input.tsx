@@ -2,6 +2,7 @@ import React from 'react';
 import { EXTENSION_NAME } from '../../extension_identity.js';
 import { KEYMOVE_INPUT_ID, KEYMOVE_SUGGESTIONS_ID } from '../../constants.js';
 import Utils from '../../lib/utils.js';
+import { trusted } from '../../lib/trusted_input.js';
 
 type SearchInputProps = {
   searchText: string;
@@ -47,8 +48,11 @@ const SearchInput = (props: SearchInputProps) => {
   const { searchText, updateSearchText, inputRef, onBlur, suggestionCount, activeSuggestionIndex } =
     props;
 
-  const onSearchTextChange = React.useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => updateSearchText(event.target.value),
+  // Page script can set this input's value and dispatch input events through the open
+  // shadow root. React restores the controlled value when the handler ignores them.
+  const onSearchTextChange = React.useMemo(
+    () =>
+      trusted((event: React.ChangeEvent<HTMLInputElement>) => updateSearchText(event.target.value)),
     [updateSearchText],
   );
 

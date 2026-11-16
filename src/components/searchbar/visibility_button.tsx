@@ -1,6 +1,7 @@
 import React from 'react';
 import useHover from '../../hooks/use_hover.js';
 import Tooltip from './tooltip.js';
+import { trusted } from '../../lib/trusted_input.js';
 import ShowIcon from '../../icons/show.svg?react';
 import HideIcon from '../../icons/hide.svg?react';
 
@@ -28,7 +29,7 @@ const VisibilityButton = (props: VisibilityButtonProps) => {
         onMouseLeave={onMouseLeave}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
-        onClick={toggleAutoHide}
+        onClick={trusted(() => toggleAutoHide())}
         aria-label={label}
       >
         {autoHide ? <ShowIcon /> : <HideIcon />}

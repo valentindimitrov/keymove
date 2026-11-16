@@ -20,6 +20,7 @@ import { isActionDisabled } from './searchable_attributes.js';
 import { labelForNode, kindLabelForNode, landmarkForNode } from './suggestion_context.js';
 import { SelectionHover } from './selection_hover.js';
 import Utils from './utils.js';
+import { isTrustedInput } from './trusted_input.js';
 import {
   matchesOpeningShortcut,
   parseOpeningShortcut,
@@ -454,7 +455,7 @@ export function installFrameWorker() {
     if (
       !ready ||
       behavior === 'paused' ||
-      !event.isTrusted ||
+      !isTrustedInput(event) ||
       event.defaultPrevented ||
       event.isComposing ||
       event.getModifierState('AltGraph')

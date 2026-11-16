@@ -26,6 +26,7 @@ import { isImageDirection, isImageInfo } from '../../lib/image_schema.js';
 import ImageViewer from './image_viewer.js';
 
 import Utils from '../../lib/utils.js';
+import { hasUserActivation, isTrustedInput } from '../../lib/trusted_input.js';
 import { isActionDisabled } from '../../lib/searchable_attributes.js';
 import { activeModal, actionIsInScope, MODAL_CHANGED_EVENT } from '../../lib/modal_context.js';
 import { isMovingExtensionRoot } from '../../lib/create_extension_root.js';
@@ -275,6 +276,9 @@ const Searchbar = () => {
 
   const activateSelectedMatchingNodeAndReset = React.useCallback(
     async (event: KeyboardEvent | null, activation: ActionActivation = 'current') => {
+      // Child frames run relayed commands without activation of their own, so the gesture
+      // is checked here, in the frame that received the input, before any command is sent.
+      if (!hasUserActivation()) return;
       if (selectedImage) {
         event?.preventDefault();
         event?.stopPropagation();
@@ -747,6 +751,7 @@ const Searchbar = () => {
             }),
           );
         } else {
+          if (id === 'image-open' && !hasUserActivation()) return;
           const info = await imageCommand('info');
           if (!isImageInfo(info)) {
             clearImage();
@@ -951,6 +956,7 @@ const Searchbar = () => {
     if (!isInteractive || !selectedImage) return;
     const navigateImage = (event: KeyboardEvent) => {
       if (
+        !isTrustedInput(event) ||
         !Utils.elementIsActive(searchInputRef.current) ||
         event.defaultPrevented ||
         event.isComposing ||
@@ -975,6 +981,7 @@ const Searchbar = () => {
     (event: KeyboardEvent) => {
       const differentInputIsActive = Utils.differentInputIsActive(searchInputRef.current);
       if (
+        isTrustedInput(event) &&
         !event.isComposing &&
         !event.defaultPrevented &&
         !Utils.isExtensionElement(event.composedPath()[0] ?? event.target) &&
@@ -996,7 +1003,7 @@ const Searchbar = () => {
 
   const handleCopy = React.useCallback(
     (event: ClipboardEvent) => {
-      if (selectedImage) return;
+      if (selectedImage || !isTrustedInput(event)) return;
       if (
         !isInteractive ||
         !Utils.elementIsActive(searchInputRef.current) ||
