@@ -230,6 +230,9 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+      pull-requests: read # confirm the commit is still the pull request's head before uploading
+    # A newer run for the same pull request cancels an older upload still in progress. An older
+    # run that starts after a newer one finished is stopped by the head check before the upload.
     concurrency:
       group: website-preview-pr-${{ needs.resolve.outputs.number }}
       cancel-in-progress: true
@@ -241,6 +244,7 @@ jobs:
       WRANGLER_SEND_METRICS: 'false'
     outputs:
       url: ${{ steps.upload.outputs.url }}
+      superseded: ${{ steps.head.outputs.superseded }}
     steps:
       - name: Check out main's deployment configuration
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -270,8 +274,32 @@ jobs:
         with:
           name: website-preview
           path: .output/public
+      # Every pull request commit uploads to the same alias, so a run for an older commit
+      # that reaches this point late must not replace the newer commit's preview.
+      - name: Confirm the commit is still the pull request's head
+        id: head
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          NUMBER: ${{ needs.resolve.outputs.number }}
+          SHA: ${{ needs.resolve.outputs.sha }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$NUMBER" =~ ^[1-9][0-9]{0,6}$ || ! "$SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Unexpected pull request number or commit." >&2
+            exit 1
+          fi
+          current="$(gh api "repos/$REPO/pulls/$NUMBER" --jq 'select(.state == "open") | .head.sha')"
+          if [[ "$current" == "$SHA" ]]; then
+            echo "superseded=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "superseded=true" >> "$GITHUB_OUTPUT"
+            echo "Skipped: pull request #$NUMBER no longer points at $SHA." >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: Upload a preview
         id: upload
+        if: steps.head.outputs.superseded == 'false'
         shell: bash
         env:
           ALIAS: pr-${{ needs.resolve.outputs.number }}
@@ -306,10 +334,15 @@ jobs:
           REPO: ${{ github.repository }}
           SHA: ${{ needs.resolve.outputs.sha }}
           RESULT: ${{ needs.deploy.result }}
+          SUPERSEDED: ${{ needs.deploy.outputs.superseded }}
           URL: ${{ needs.deploy.outputs.url }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
+          if [[ "$SUPERSEDED" == true || "$RESULT" == cancelled ]]; then
+            echo "A newer commit replaced this one; no status published."
+            exit 0
+          fi
           if [[ "$RESULT" == success ]]; then
             state=success
             if [[ "$URL" =~ ^https://pr-[0-9]+-[a-z0-9.-]+\.workers\.dev$ ]]; then
