@@ -231,11 +231,10 @@ jobs:
     permissions:
       contents: read
       pull-requests: read # confirm the commit is still the pull request's head before uploading
-    # A newer run for the same pull request cancels an older upload still in progress. An older
-    # run that starts after a newer one finished is stopped by the head check before the upload.
-    concurrency:
-      group: website-preview-pr-${{ needs.resolve.outputs.number }}
-      cancel-in-progress: true
+    # No concurrency group on purpose: runs enter a group in arrival order, not commit order,
+    # so a late run for an older commit would cancel or displace the newer commit's upload.
+    # The head check just before the upload is what stops an older commit; a newer commit
+    # needs a whole Quality run before it gets here, long after that check and upload.
     environment:
       name: preview
       url: ${{ steps.upload.outputs.url }}
