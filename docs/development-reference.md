@@ -37,7 +37,7 @@ so every assertion still passes. Add a scenario when a state is worth looking at
 | `pnpm verify:crx` | Verify the CRX signature and its exact ZIP payload without the private key. |
 | `pnpm format` | Format supported source and configuration files with Oxfmt. |
 | `pnpm format:check` | Check formatting without writing files. |
-| `pnpm lint` | Run Oxlint correctness, React Hooks, and type-aware promise checks. |
+| `pnpm lint` | Run Oxlint's explicit ruleset, React Hooks, and type-aware promise checks. |
 | `pnpm lint:fix` | Apply Oxlint's safe automatic fixes. |
 | `pnpm typecheck` | Run strict TypeScript checks without emitting files. |
 | `pnpm test` | Run the Vitest/jsdom test suite. |
@@ -79,13 +79,14 @@ wait for the weekly version-update schedule. Each resulting pull request runs th
 passing tests alone do not establish that a vulnerability is unreachable. Do not give the build
 workflow permission to dismiss alerts or dismiss every development dependency automatically.
 
-As of October 4, 2026, `node-forge` 1.4.0 has no published fix for
-[GHSA-86w9-cpqp-85rv](https://github.com/advisories/GHSA-86w9-cpqp-85rv). Its dependency path is
-`web-ext -> @devicefarmer/adbkit -> node-forge`; adbkit's TCP/USB bridge does call RSA verification.
-KeyMove's desktop preview does not request that bridge, and CRX signing and verification use
-`node:crypto` in `scripts/crx3.ts`. Keep the alert open for an upstream fix and reassess this exposure
-if Android/ADB tooling is introduced. This is a scoped usage assessment, not a package-wide safety
-exception.
+As of November 16, 2026, `pnpm audit` reports published fixes for
+[GHSA-86w9-cpqp-85rv](https://github.com/advisories/GHSA-86w9-cpqp-85rv) and the other `node-forge`
+advisories (patched in 1.4.1, with later ones in 1.4.3), but the lockfile still resolves `node-forge`
+1.4.0. Its dependency path is `web-ext -> @devicefarmer/adbkit -> node-forge`; adbkit's TCP/USB bridge
+does call RSA verification. KeyMove's desktop preview does not request that bridge, and CRX signing
+and verification use `node:crypto` in `scripts/crx3.ts`. Keep the alerts open until the lockfile
+resolves a patched version, and reassess this exposure if Android/ADB tooling is introduced. This is
+a scoped usage assessment, not a package-wide safety exception.
 
 Pull requests and pushes to `main` run `pnpm quality`. Release preparation runs the same full gate
 before packaging and revalidates the resulting artifacts, including the settings popup and its assets.
