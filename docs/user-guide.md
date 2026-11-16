@@ -78,7 +78,7 @@ permissions or sandbox restrictions are skipped. See [the iframe testing checkli
 | `Ctrl + Backspace` | Clear the search. Use `Command + Backspace` on macOS. |
 | `Alt + F` | Focus KeyMove. Use `Option + F` on macOS. |
 | `Alt + 1` … `Alt + 5` | Select the numbered result in the panel and scroll to it. Use `Option` on macOS. |
-| `Escape` | Close KeyMove, staying at the current position. With an image selected, the first press returns to the original result and a second press closes KeyMove. |
+| `Escape` | Close KeyMove, staying at the current position. With an image selected, Escape first closes the image viewer or image menu if one is open, then returns to the original result; the next press closes KeyMove. |
 | `Alt + Backspace` | Return to the position where the current search began and close KeyMove. Use `Option + Backspace` on macOS. |
 
 With the action menu closed, Escape and Alt+Backspace are handled only while the search field has focus. Searching and jumping
