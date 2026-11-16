@@ -2,6 +2,7 @@ import React from 'react';
 import { EXTENSION_NAME } from '../../extension_identity.js';
 import { KEYMOVE_INPUT_ID, KEYMOVE_SUGGESTIONS_ID } from '../../constants.js';
 import Utils from '../../lib/utils.js';
+import { isTrustedInput, trusted } from '../../lib/trusted_input.js';
 
 type SearchInputProps = {
   searchText: string;
@@ -24,6 +25,7 @@ function stopKeyboardPropagation(event: React.KeyboardEvent<HTMLInputElement>) {
 
 function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
   stopKeyboardPropagation(event);
+  if (!isTrustedInput(event)) return;
   const isCopy = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c';
   if (
     !isCopy &&
@@ -43,12 +45,20 @@ function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
   }
 }
 
+// Editing hands the caret back to the input, dropping the result block's native selection.
+const restoreSelection = trusted((event: React.SyntheticEvent<HTMLInputElement>) =>
+  Utils.restoreInputSelection(event.currentTarget),
+);
+
 const SearchInput = (props: SearchInputProps) => {
   const { searchText, updateSearchText, inputRef, onBlur, suggestionCount, activeSuggestionIndex } =
     props;
 
-  const onSearchTextChange = React.useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => updateSearchText(event.target.value),
+  // Page script can set this input's value and dispatch input events through the open
+  // shadow root. React restores the controlled value when the handler ignores them.
+  const onSearchTextChange = React.useMemo(
+    () =>
+      trusted((event: React.ChangeEvent<HTMLInputElement>) => updateSearchText(event.target.value)),
     [updateSearchText],
   );
 
@@ -85,9 +95,9 @@ const SearchInput = (props: SearchInputProps) => {
         onKeyDown={handleKeyDown}
         onKeyPress={stopKeyboardPropagation}
         onKeyUp={stopKeyboardPropagation}
-        onPaste={event => Utils.restoreInputSelection(event.currentTarget)}
-        onCut={event => Utils.restoreInputSelection(event.currentTarget)}
-        onCompositionStart={event => Utils.restoreInputSelection(event.currentTarget)}
+        onPaste={restoreSelection}
+        onCut={restoreSelection}
+        onCompositionStart={restoreSelection}
         autoComplete={'off'}
         name={'keymove-search'}
         data-lpignore="true"

@@ -2,11 +2,14 @@ import React from 'react';
 import { SelectionHover } from '../lib/selection_hover.js';
 import { isKeyMoveNode } from '../lib/dom_tree.js';
 import { MODAL_CHANGED_EVENT } from '../lib/modal_context.js';
+import { isOwnEvent } from '../lib/trusted_input.js';
 
 export default function useSelectionHover() {
   const [hover] = React.useState(() => new SelectionHover());
   React.useEffect(() => {
-    const reconcile = () => hover.reconcile();
+    const reconcile = (event: Event) => {
+      if (isOwnEvent(event)) hover.reconcile();
+    };
     const pointer = (event: PointerEvent) => {
       const target = event.composedPath()[0];
       if (event.isTrusted && target instanceof Node && !isKeyMoveNode(target))

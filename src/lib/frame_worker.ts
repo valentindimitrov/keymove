@@ -20,6 +20,7 @@ import { isActionDisabled } from './searchable_attributes.js';
 import { labelForNode, kindLabelForNode, landmarkForNode } from './suggestion_context.js';
 import { SelectionHover } from './selection_hover.js';
 import Utils from './utils.js';
+import { isTrustedInput } from './trusted_input.js';
 import {
   matchesOpeningShortcut,
   parseOpeningShortcut,
@@ -426,6 +427,7 @@ export function installFrameWorker() {
   }
   const probe = (event: MessageEvent) => {
     if (
+      !isTrustedInput(event) ||
       event.source !== window.parent ||
       !event.data ||
       event.data.type !== FRAME_PROBE ||
@@ -454,7 +456,7 @@ export function installFrameWorker() {
     if (
       !ready ||
       behavior === 'paused' ||
-      !event.isTrusted ||
+      !isTrustedInput(event) ||
       event.defaultPrevented ||
       event.isComposing ||
       event.getModifierState('AltGraph')
@@ -482,6 +484,11 @@ export function installFrameWorker() {
       }
     });
   };
+  // Page script can dispatch pagehide while the document stays open. Authenticated stop
+  // commands and teardown still call stop() directly.
+  const pagehide = (event: Event) => {
+    if (isTrustedInput(event)) stop();
+  };
   window.addEventListener('message', probe);
   window.parent.postMessage({ type: FRAME_PROBE, available: true }, '*');
   browser.runtime.onMessage.addListener(listener);
@@ -489,7 +496,7 @@ export function installFrameWorker() {
   document.addEventListener('keydown', key, true);
   window.addEventListener('scroll', refreshPaint, true);
   window.addEventListener('resize', refreshPaint);
-  window.addEventListener('pagehide', stop);
+  window.addEventListener('pagehide', pagehide);
   loadShortcut();
   return () => {
     disposed = true;
@@ -500,6 +507,6 @@ export function installFrameWorker() {
     document.removeEventListener('keydown', key, true);
     window.removeEventListener('scroll', refreshPaint, true);
     window.removeEventListener('resize', refreshPaint);
-    window.removeEventListener('pagehide', stop);
+    window.removeEventListener('pagehide', pagehide);
   };
 }
