@@ -32,9 +32,9 @@ export async function checkSiteSettings(page: TestPage, popup: TestPage) {
     const source=tabs.find(tab => tab.url === ${JSON.stringify(pageUrl)});
     await chrome.tabs.update(current.id,{openerTabId:source.id});
     document.documentElement.dataset.reloading='true';
-    // Let this awaited browser-API evaluation return before destroying its context.
-    setTimeout(() => location.reload(), 50);
   })()`);
+  // Reload only after the evaluation above has returned, so it cannot destroy its own context.
+  await popup.reload();
   await waitFor(
     popup,
     `!document.documentElement?.dataset.reloading && document.querySelector('[role="tab"]')`,
@@ -56,7 +56,12 @@ export async function checkSiteSettings(page: TestPage, popup: TestPage) {
   await waitFor(popup, 'document.hasFocus()');
   await popup.evaluate(`document.querySelector('[aria-label="Open KeyMove"]').focus()`);
   await popup.key('k', 1);
-  await waitFor(popup, `document.querySelector('[aria-label="Open KeyMove"]').value === 'Alt+K'`);
+  // The settings label names the Alt key as macOS does; the browser runs on this host.
+  const altLabel = process.platform === 'darwin' ? 'Option' : 'Alt';
+  await waitFor(
+    popup,
+    `document.querySelector('[aria-label="Open KeyMove"]').value === '${altLabel}+K'`,
+  );
   await popup.evaluate(`chrome.storage.local.set({'siteBehavior:github.com':'paused'})`);
   try {
     await settingsTab(popup, 'Sites');

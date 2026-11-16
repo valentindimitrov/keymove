@@ -54,13 +54,21 @@ After meaningful implementation changes, use `pnpm preview`; after `pnpm quality
 `pnpm browser:open` to reuse the verified build. For custom browser locations, set
 `KEYMOVE_VIVALDI_BINARY`, `KEYMOVE_CHROME_BINARY`, or `KEYMOVE_FIREFOX_BINARY` to the absolute
 executable path. The browser opens `https://github.com/valentindimitrov/keymove` for testing.
+Smoke runs (`pnpm test:browser`) skip that page and use only local fixtures, so a GitHub or
+network outage does not fail them. Ctrl+C or a termination signal still removes the temporary
+build copy.
+
+On macOS, Chromium handles Command shortcuts such as Command+C/V/A as application-menu
+commands that synthetic DevTools key events never reach. `scripts/browser-driver.ts` therefore
+names the matching editing command (`copy`, `paste`, `selectAll`, ...) with those key events,
+which runs the browser's native clipboard and selection code just as the menu would.
 
 Formatting preferences live in `.oxfmtrc.json`; lint rules and WXT/Vitest globals live in
 `.oxlintrc.json`. Generated output, coverage, and dependencies are excluded. Markdown and the
 pnpm lockfile remain outside formatting. Formatter-managed source files use LF endings, enforced
 on checkout by `.gitattributes`.
 
-Oxlint uses an explicit ruleset with React Hooks dependency checks at warning severity. Assignment
+Oxlint uses an explicit ruleset with React Hooks dependency checks at error severity. Assignment
 checks cover conditions and return values; they do not cover every expression context previously
 checked by Biome. Duplicate parameters and `with` statements are rejected by the module parser.
 Type-aware linting uses `oxlint-tsgolint` to check floating promises, misused promises, and awaiting

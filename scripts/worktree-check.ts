@@ -1,17 +1,20 @@
 import { execFileSync } from 'node:child_process';
+import { realpathSync } from 'node:fs';
 import path from 'node:path';
 
 export function inspectWorktree(cwd = process.cwd()) {
   const git = (...args: string[]) =>
     execFileSync('git', args, { cwd, encoding: 'utf8', windowsHide: true }).trim();
   const root = git('rev-parse', '--show-toplevel');
-  const gitDirectory = git('rev-parse', '--absolute-git-dir');
-  const commonDirectory = path.resolve(cwd, git('rev-parse', '--git-common-dir'));
+  // Git resolves symlinks in --absolute-git-dir (macOS reports /var as /private/var) but
+  // returns --git-common-dir relative to the unresolved cwd, so compare real paths.
+  const gitDirectory = realpathSync(git('rev-parse', '--absolute-git-dir'));
+  const commonDirectory = realpathSync(path.resolve(cwd, git('rev-parse', '--git-common-dir')));
   return {
     root,
     branch: git('rev-parse', '--abbrev-ref', 'HEAD'),
     commit: git('rev-parse', 'HEAD'),
-    linked: path.resolve(gitDirectory) !== commonDirectory,
+    linked: gitDirectory !== commonDirectory,
     worktrees: git('worktree', 'list', '--porcelain'),
   };
 }
