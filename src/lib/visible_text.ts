@@ -79,12 +79,13 @@ function whitespaceFor(element: Element | null, cache: StyleCache): string {
   return entry.whitespace;
 }
 
-type OwnedText = { skipped: number; boundary: (element: Element, display: string) => boolean };
+type OwnedText = { skipped: Element[]; boundary: (element: Element, display: string) => boolean };
 type RenderedTextOptions = {
   /**
    * Read only the text this element owns, leaving out each descendant subtree for which
-   * `boundary` is true. A left-out subtree still contributes a line separator, and
-   * `skipped` counts how many were left out.
+   * `boundary` is true. A left-out subtree still contributes a line separator, and is
+   * appended to `skipped` before the next part is yielded, so a reader can tell where the
+   * owned text is interrupted.
    */
   ownedOnly?: OwnedText;
 };
@@ -212,7 +213,7 @@ function* iterateRenderedText(
       }
       const display = computedStyle(child, cache).display;
       if (owned?.boundary(child, display)) {
-        owned.skipped++;
+        owned.skipped.push(child);
         separate(child, 0);
         continue;
       }

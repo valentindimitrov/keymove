@@ -565,6 +565,39 @@ describe('text owned by a node', () => {
     ]);
   });
 
+  test('finds a phrase in a nested block that has no text node of its own', async () => {
+    document.body.innerHTML =
+      '<div>Intro <div id="inner"><span>Total </span><b>revenue</b></div></div>';
+    index = new PageSearchIndex();
+    for (const query of ['total revenue', 'total revenoe']) {
+      const result = await index.search(scorerFor(query));
+      expect(result.matchingText.map(match => match.node)).toEqual([
+        document.getElementById('inner'),
+      ]);
+    }
+    // A word one inline child holds is that child's result, not the block's as well.
+    expect(
+      (await index.search(scorerFor('revenue'))).matchingText.map(match => match.node),
+    ).toEqual([document.querySelector('b')]);
+  });
+
+  test('reads slotted text through a slot styled as a block', async () => {
+    document.body.innerHTML = '<x-report>revenue</x-report>';
+    const host = document.querySelector('x-report')!;
+    host.attachShadow({ mode: 'open' }).innerHTML = '<slot style="display:block"></slot>';
+    index = new PageSearchIndex();
+    const result = await index.search(scorerFor('revenue'));
+    expect(result.matchingText.map(match => match.node)).toEqual([host]);
+  });
+
+  test('never joins the text on either side of a nested block into one phrase', async () => {
+    document.body.innerHTML = '<div id="outer">Total<div>unrelated text</div>revenue</div>';
+    index = new PageSearchIndex();
+    expect((await index.search(scorerFor('total revenue'))).matchingText).toEqual([]);
+    const fuzzy = await index.search(scorerFor('total revenoe'));
+    expect(fuzzy.matchingText).toEqual([]);
+  });
+
   test('matches an action by all of its text while text results stay in their blocks', async () => {
     document.body.innerHTML = '<a href="#report">Read <div id="title">revenue report</div></a>';
     index = new PageSearchIndex();

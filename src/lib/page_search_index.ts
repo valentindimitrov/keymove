@@ -41,8 +41,9 @@ const TEXT_BLOCK_SELECTOR =
 // blocks, except a nested semantic block, which is a result of its own.
 const isNestedTextBlock = (element: Element) => element.matches(TEXT_BLOCK_SELECTOR);
 // Any other element owns its text and inline content, not the boxes laid out inside it.
+// Slots only forward assigned content, which their host owns whatever their display.
 const isSeparateBlock = (element: Element, display: string) =>
-  !isInlineLevel(display) || isNestedTextBlock(element);
+  !(element instanceof HTMLSlotElement) && (!isInlineLevel(display) || isNestedTextBlock(element));
 
 type SearchRecord = {
   attributeValues: string[];
@@ -65,11 +66,12 @@ type TextMatch = {
   score: number;
   distance: number | null;
 };
-// `innerText` is the text the node owns; `actionText` is all of its text, which differs
-// only for a node containing blocks of its own.
+// `innerText` is the text the node owns, one entry for each run uninterrupted by a block of
+// its own, so no phrase can be matched across a block left out. `actionText` is all of its
+// text, which differs only for a node containing such blocks.
 type ScannedNode = {
   node: Element;
-  innerText: string;
+  innerText: string[];
   actionText: string;
   attributeValues: string[];
 };
@@ -89,6 +91,9 @@ type MatchCollector = {
   actions: ActionMatch[];
   matchingText: TextMatch[];
   textMatchesByContainer: Map<Element, TextMatch>;
+  // Matches of left-out blocks with no text node of their own, kept only for a phrase no
+  // descendant matches by itself.
+  blockMatches: Set<TextMatch>;
 };
 type SearchOptions = { signal?: AbortSignal };
 type SearchResult = {
@@ -215,6 +220,11 @@ class PageSearchIndex {
   private readonly pendingSubtrees = new Map<Element | ShadowRoot, number>();
   private readonly shadowObservers = new Map<ShadowRoot, MutationObserver>();
   private readonly handledControlEvents = new WeakSet<Event>();
+  // Blocks some candidate's owned text left out. They own their inline text even without
+  // a text node of their own, so they can be text results.
+  private readonly ownedBlocks = new WeakSet<Element>();
+  // Left-out blocks indexed only for that reason, not as candidates in their own right.
+  private readonly lazyBlocks = new WeakSet<Element>();
   private subtreeRevision = 0;
   private needsPruning = false;
   private nameRevision = 0;
@@ -364,8 +374,11 @@ class PageSearchIndex {
   refreshCandidate(node: Node | null) {
     if (this.isCandidate(node)) {
       this.records.set(node, null);
+      this.lazyBlocks.delete(node);
     } else if (node instanceof Element) {
       this.records.delete(node);
+      this.ownedBlocks.delete(node);
+      this.lazyBlocks.delete(node);
     }
   }
 
@@ -533,6 +546,7 @@ class PageSearchIndex {
       actions: [],
       matchingText: [],
       textMatchesByContainer: new Map(),
+      blockMatches: new Set(),
     };
     const styles = collector.styles;
     // Only retained when a fuzzy pass could follow, since it holds the visible text of the
@@ -546,6 +560,11 @@ class PageSearchIndex {
       if (searchSignal.aborted) throw abortError();
       if (!containsAcrossRoots(this.root, node) || isKeyMoveNode(node)) {
         this.records.delete(node);
+        continue;
+      }
+
+      if (this.lazyBlocks.has(node)) {
+        await this.scanLazyBlock(node, nodeScorer, collector, scanned, budget, searchSignal);
         continue;
       }
 
@@ -574,35 +593,38 @@ class PageSearchIndex {
       // A text result is decided by the text the node owns, so a wrapper is not a result
       // merely because blocks nested inside it match. Those blocks are candidates themselves.
       const owned: OwnedText = {
-        skipped: 0,
+        skipped: [],
         boundary: node.matches(TEXT_BLOCK_SELECTOR) ? isNestedTextBlock : isSeparateBlock,
       };
-      const innerText = await this.readText(node, styles, budget, searchSignal, owned);
+      const innerText = await this.readOwnedText(node, styles, budget, searchSignal, owned);
+      // A left-out block is searched by itself, including one with no text node of its
+      // own whose inline children cannot match a phrase separately. The record map's
+      // iteration reaches entries added during it.
+      this.queueSkippedBlocks(owned);
       // An action is still named by everything it contains, such as a card link's blocks.
       const actionText =
-        isLinkOrButtonOrInput(node) && owned.skipped > 0
+        isLinkOrButtonOrInput(node) && owned.skipped.length > 0
           ? await this.readText(node, styles, budget, searchSignal)
-          : innerText;
-      if (
-        rescorable &&
-        (actionText.length > 0 || innerText.length > 0 || attributeValues.length > 0)
-      ) {
+          : (innerText[0] ?? '');
+      if (rescorable && (innerText.length > 0 || actionText || attributeValues.length > 0)) {
         scanned.push({ node, innerText, actionText, attributeValues });
       }
-      const textMatches = nodeScorer.textMatchesWithValue(innerText);
-      const textScore = textMatches ? nodeScorer.score(node, innerText, attributeValues) : 0;
+      const matchingRun = innerText.find(run => nodeScorer.textMatchesWithValue(run));
+      const textScore =
+        matchingRun === undefined ? 0 : nodeScorer.score(node, matchingRun, attributeValues);
+      const actionMatches = nodeScorer.textMatchesWithValue(actionText);
       const actionScore =
-        actionText === innerText && textMatches
+        actionMatches && actionText === matchingRun
           ? textScore
           : nodeScorer.score(node, actionText, attributeValues);
       this.collectScoredNode(
         node,
+        { score: actionScore, term: actionMatches ? nodeScorer.queryText : null, distance: null },
         {
-          score: actionScore,
-          term: nodeScorer.textMatchesWithValue(actionText) ? nodeScorer.queryText : null,
+          score: textScore,
+          term: matchingRun === undefined ? null : nodeScorer.queryText,
           distance: null,
         },
-        { score: textScore, term: textMatches ? nodeScorer.queryText : null, distance: null },
         collector,
       );
     }
@@ -612,6 +634,7 @@ class PageSearchIndex {
     if (isFuzzy) {
       await this.rescoreFuzzily(scanned, nodeScorer, collector, searchSignal, budget);
     }
+    await this.dropRedundantBlockMatches(collector, budget, searchSignal);
     collector.actions = await budget.sort(
       collector.actions,
       (left, right) => right.score - left.score,
@@ -673,9 +696,14 @@ class PageSearchIndex {
       const pause = budget.checkpoint(searchSignal);
       if (pause) await pause;
       if (!containsAcrossRoots(this.root, entry.node)) continue;
-      const text = nodeScorer.fuzzyScore(entry.node, entry.innerText, entry.attributeValues);
+      let text = nodeScorer.fuzzyScore(entry.node, '', entry.attributeValues);
+      for (const run of entry.innerText) {
+        const candidate = nodeScorer.fuzzyScore(entry.node, run, entry.attributeValues);
+        if (candidate.textTerm !== null && (text.textTerm === null || candidate.score > text.score))
+          text = candidate;
+      }
       const action =
-        entry.actionText === entry.innerText
+        entry.innerText.length === 1 && entry.actionText === entry.innerText[0]
           ? text
           : nodeScorer.fuzzyScore(entry.node, entry.actionText, entry.attributeValues);
       this.collectScoredNode(
@@ -692,15 +720,86 @@ class PageSearchIndex {
     styles: StyleCache,
     budget: SearchWorkBudget,
     signal: AbortSignal,
-    ownedOnly?: OwnedText,
   ) {
     const parts: string[] = [];
-    for (const part of iterateRenderedText(node, styles, ownedOnly ? { ownedOnly } : {})) {
+    for (const part of iterateRenderedText(node, styles)) {
       if (part) parts.push(part.searchText);
       const pause = budget.checkpoint(signal);
       if (pause) await pause;
     }
     return normalizeSearchText(parts.join('')).trim();
+  }
+
+  private queueSkippedBlocks(owned: OwnedText) {
+    for (const block of owned.skipped) {
+      this.ownedBlocks.add(block);
+      if (this.records.has(block)) continue;
+      this.records.set(block, null);
+      this.lazyBlocks.add(block);
+    }
+  }
+
+  /**
+   * A block queued only because a candidate left it out is neither an action nor a
+   * semantic block, so only its owned text matters. Most such blocks own none, being
+   * containers of other blocks, and are passed over before any per-node lookups.
+   */
+  private async scanLazyBlock(
+    node: Element,
+    nodeScorer: NodeScorer,
+    collector: MatchCollector,
+    scanned: ScannedNode[],
+    budget: SearchWorkBudget,
+    signal: AbortSignal,
+  ) {
+    const { styles } = collector;
+    if (!actionIsInScope(node, collector.modal)) return;
+    const owned: OwnedText = { skipped: [], boundary: isSeparateBlock };
+    const innerText = await this.readOwnedText(node, styles, budget, signal, owned);
+    this.queueSkippedBlocks(owned);
+    if (innerText.length === 0 || !this.isVisible(node, styles)) return;
+    if (nodeScorer.supportsFuzzy())
+      scanned.push({ node, innerText, actionText: '', attributeValues: [] });
+    const matchingRun = innerText.find(run => nodeScorer.textMatchesWithValue(run));
+    if (matchingRun === undefined) return;
+    this.collectScoredNode(
+      node,
+      { score: 0, term: null, distance: null },
+      {
+        score: nodeScorer.score(node, matchingRun, []),
+        term: nodeScorer.queryText,
+        distance: null,
+      },
+      collector,
+    );
+  }
+
+  private async readOwnedText(
+    node: Element,
+    styles: StyleCache,
+    budget: SearchWorkBudget,
+    signal: AbortSignal,
+    owned: OwnedText,
+  ) {
+    const runs: string[] = [];
+    let parts: string[] = [];
+    let interruptions = 0;
+    const finishRun = () => {
+      const run = normalizeSearchText(parts.join('')).trim();
+      if (run) runs.push(run);
+      parts = [];
+    };
+    for (const part of iterateRenderedText(node, styles, { ownedOnly: owned })) {
+      if (owned.skipped.length !== interruptions) {
+        interruptions = owned.skipped.length;
+        finishRun();
+      }
+      if (part) parts.push(part.searchText);
+      const pause = budget.checkpoint(signal);
+      if (pause) await pause;
+    }
+    finishRun();
+    return runs;
   }
 
   private collectScoredNode(
@@ -728,7 +827,12 @@ class PageSearchIndex {
     }
     const { score, term: textTerm, distance } = textMatch;
     if (score <= 0 || textTerm === null) return;
-    if (!this.hasDirectSearchableText(node) && !node.matches(TEXT_BLOCK_SELECTOR)) return;
+    const ownsText = this.hasDirectSearchableText(node) || node.matches(TEXT_BLOCK_SELECTOR);
+    if (
+      !ownsText &&
+      !(this.ownedBlocks.has(node) && !isInlineLevel(window.getComputedStyle(node).display))
+    )
+      return;
     const container = this.textContainerForNode(node);
     const textContainer = actionIsInScope(container, collector.modal) ? container : node;
     const action = this.actionableAncestorForNode(node, collector.modal);
@@ -740,6 +844,33 @@ class PageSearchIndex {
     const match = { node: textContainer, action, term: textTerm, score, distance };
     matchingText.push(match);
     textMatchesByContainer.set(textContainer, match);
+    if (!ownsText && textContainer === node) collector.blockMatches.add(match);
+  }
+
+  private async dropRedundantBlockMatches(
+    collector: MatchCollector,
+    budget: SearchWorkBudget,
+    signal: AbortSignal,
+  ) {
+    const { blockMatches } = collector;
+    if (blockMatches.size === 0) return;
+    const blocks = new Map([...blockMatches].map(match => [match.node, match]));
+    const redundant = new Set<TextMatch>();
+    for (const match of collector.matchingText) {
+      for (
+        let ancestor = renderedParent(match.node);
+        ancestor && ancestor !== document.body;
+        ancestor = renderedParent(ancestor)
+      ) {
+        const block = blocks.get(ancestor);
+        if (block) redundant.add(block);
+        const pause = budget.checkpoint(signal);
+        if (pause) await pause;
+      }
+    }
+    if (redundant.size === 0) return;
+    collector.matchingText = collector.matchingText.filter(match => !redundant.has(match));
+    for (const match of redundant) collector.textMatchesByContainer.delete(match.node);
   }
 
   disconnect() {
