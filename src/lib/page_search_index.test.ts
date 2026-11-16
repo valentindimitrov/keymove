@@ -605,6 +605,17 @@ describe('text owned by a node', () => {
     ]);
   });
 
+  test('counts overlapping occurrences before dropping a block', async () => {
+    document.body.innerHTML =
+      '<div>Intro<div id="own"><span>ban</span><b id="child">ana</b></div></div>';
+    index = new PageSearchIndex();
+    const result = await index.search(scorerFor('ana'));
+    expect(result.matchingText.map(match => match.node)).toEqual([
+      document.getElementById('own'),
+      document.getElementById('child'),
+    ]);
+  });
+
   test('gives the same results as a new index after the page changes', async () => {
     document.body.innerHTML =
       '<div id="outer">Intro<div id="own"><span>Total </span><b>revenue</b></div></div>';

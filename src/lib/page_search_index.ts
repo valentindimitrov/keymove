@@ -84,11 +84,12 @@ type ScoredText = {
   occurrences?: number;
 };
 
+// Overlapping occurrences each count: "ana" is in "banana" twice.
 function countOccurrences(runs: string[], query: string) {
   let count = 0;
   if (!query) return count;
   for (const run of runs) {
-    for (let at = run.indexOf(query); at !== -1; at = run.indexOf(query, at + query.length)) {
+    for (let at = run.indexOf(query); at !== -1; at = run.indexOf(query, at + 1)) {
       count += 1;
     }
   }
