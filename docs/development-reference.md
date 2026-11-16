@@ -42,6 +42,7 @@ so every assertion still passes. Add a scenario when a state is worth looking at
 | `pnpm typecheck` | Run strict TypeScript checks without emitting files. |
 | `pnpm test` | Run the Vitest/jsdom test suite. |
 | `pnpm verify` | Validate completed manifests and bundles after a build. |
+| `pnpm verify:packages` | Open the release ZIPs after `pnpm zip` and check each manifest, version, LICENSE and referenced file, the sources package's contents, and that each browser ZIP matches its build directory when present. |
 | `pnpm quality` | Run formatting, linting, types, tests, all three builds, and artifact validation. |
 
 Preview commands use `web-ext` to load the extension in a fresh temporary browser profile, leaving

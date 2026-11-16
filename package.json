@@ -66,6 +66,7 @@
     "sign:chrome": "node scripts/sign-chrome.ts",
     "verify:crx": "node scripts/sign-chrome.ts --verify",
     "verify": "node scripts/validate-builds.ts",
+    "verify:packages": "node scripts/validate-builds.ts --packages",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:unit": "vitest run src",
