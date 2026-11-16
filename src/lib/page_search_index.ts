@@ -663,8 +663,13 @@ class PageSearchIndex {
 
     const deferredText = collector.deferredText ?? [];
     collector.deferredText = null;
-    for (const { node, textMatch } of deferredText)
+    for (const { node, textMatch } of deferredText) {
+      if (searchSignal.aborted) throw abortError();
+      const pause = budget.checkpoint(searchSignal);
+      if (pause) await pause;
+      if (searchSignal.aborted) throw abortError();
       this.collectTextMatch(node, textMatch, collector);
+    }
     const isFuzzy =
       rescorable && collector.matchingText.length === 0 && collector.actions.length === 0;
     if (isFuzzy) {

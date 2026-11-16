@@ -631,6 +631,32 @@ describe('text owned by a node', () => {
     }
   });
 
+  test('stops deciding held-back block results once the search is cancelled', async () => {
+    document.body.innerHTML = `<div>Intro${'<div><span>Total </span><b>revenue</b></div>'.repeat(50)}</div>`;
+    index = new PageSearchIndex();
+    const controller = new AbortController();
+    const internals = index as unknown as {
+      collectTextMatch: (
+        node: Element,
+        match: unknown,
+        collector: { deferredText: unknown },
+      ) => void;
+    };
+    const collect = internals.collectTextMatch.bind(index);
+    let decided = 0;
+    internals.collectTextMatch = (node, match, collector) => {
+      if (collector.deferredText === null) {
+        decided += 1;
+        controller.abort();
+      }
+      collect(node, match, collector);
+    };
+    await expect(
+      index.search(scorerFor('total revenue'), { signal: controller.signal }),
+    ).rejects.toMatchObject({ name: 'AbortError' });
+    expect(decided).toBe(1);
+  });
+
   test('gives the same results as a new index after the page changes', async () => {
     document.body.innerHTML =
       '<div id="outer">Intro<div id="own"><span>Total </span><b>revenue</b></div></div>';
