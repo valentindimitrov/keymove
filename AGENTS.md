@@ -112,13 +112,19 @@ artifacts are `.output/chrome-mv3`, `.output/firefox-mv3` and `.output/safari-mv
 
 ## Untrusted page input
 
-Page script shares the DOM and can dispatch keydown, input, copy and click events, and reach
-the open shadow root. Every KeyMove handler for page-observable input (keyboard shortcuts,
-type-to-search, image keys, copy, search-field input, action-menu keys and clicks, result
-rows, settings/mode/auto-hide buttons, drag and resize) ignores untrusted events through
-`src/lib/trusted_input.ts`; never test `event.isTrusted` inline. `use_selection_hover.ts` is the
-exception: it must ignore KeyMove's own synthetic pointer events even in tests, so it reads
-`isTrusted` directly. Activating a result, opening a tab from it and opening an image in a
+Page script shares the DOM and can dispatch any event at KeyMove's listeners, and reach
+the open shadow root. Every KeyMove listener whose effect is a state change, focus move,
+storage write or cleanup ignores untrusted events through `src/lib/trusted_input.ts`; never
+test `event.isTrusted` inline. That covers keyboard, input, copy, paste/cut/composition,
+click and pointer input, focus and blur, mouse moves and releases during drag and resize,
+lifecycle events such as `pagehide`, and window messages. Script `.focus()` produces
+trusted focus events, so focus notifications must also match real focus (the deep active
+element) before they move a cursor. KeyMove's own DOM notifications, such as
+`MODAL_CHANGED_EVENT`, are untrusted too: send them with `dispatchOwnEvent` and accept
+them with `isOwnEvent`. Handlers that only re-read current DOM or layout (scroll, resize,
+theme, root reconciliation) may stay unguarded. `use_selection_hover.ts` reads `isTrusted`
+directly because it must ignore KeyMove's own synthetic pointer events even in tests.
+Activating a result, opening a tab from it and opening an image in a
 tab also require `hasUserActivation()` in the top frame. Activation belongs to the frame that
 received the input and propagates only to ancestors, so child frames cannot check it for
 relayed commands; the top frame checks before sending them. jsdom cannot create trusted

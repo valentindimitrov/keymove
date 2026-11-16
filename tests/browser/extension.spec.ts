@@ -222,3 +222,87 @@ test('ignores page-dispatched keyboard and input events while real input still w
   await input.press('Enter');
   await expect(link).toHaveAttribute('data-clicks', '1');
 });
+
+test('page-dispatched focus, blur and mouse events cannot steer a real search or drag', async ({
+  page,
+  context,
+}) => {
+  await page.goto('fixtures.html');
+  await expect(page.locator('#keymove-bar')).toHaveAttribute('data-site-behavior', 'type');
+  await page.evaluate(() => {
+    const link = document.createElement('a');
+    link.href = '/fixtures.html?opened';
+    link.textContent = 'Zephyr destination';
+    link.addEventListener('click', event => {
+      event.preventDefault();
+      link.dataset['clicks'] = String(Number(link.dataset['clicks'] ?? 0) + 1);
+    });
+    document.body.append(link);
+  });
+  await page.keyboard.press('Alt+f');
+  const input = page.getByRole('combobox', { name: 'Search page', exact: true });
+  await expect(input).toBeFocused();
+  await input.pressSequentially('Zephyr');
+  await input.press('Alt+s');
+  const status = page.locator('#keymove-matches-summary');
+  await expect(status).toHaveText('Actions 1 / 1');
+
+  // A synthetic focusout claims focus left for the page; it never did.
+  await page.evaluate(() =>
+    document
+      .getElementById('keymove-root')!
+      .shadowRoot!.querySelector('#keymove-input')!
+      .dispatchEvent(
+        new FocusEvent('focusout', { bubbles: true, composed: true, relatedTarget: document.body }),
+      ),
+  );
+  await expect(input).toBeFocused();
+  await expect(input).toHaveValue('Zephyr');
+  await expect(status).toHaveText('Actions 1 / 1');
+
+  // While the user drags the bar, page mouse events must not move or commit it.
+  const bar = page.locator('#keymove-container');
+  const place = () =>
+    bar.evaluate(element => ({
+      left: Number.parseFloat((element as HTMLElement).style.left),
+      top: Number.parseFloat((element as HTMLElement).style.top),
+    }));
+  const box = (await bar.boundingBox())!;
+  const before = await place();
+  await page.mouse.move(box.x + 8, box.y + 8);
+  await page.mouse.down();
+  await page.evaluate(() => {
+    for (const type of ['mousemove', 'mouseup'])
+      document.dispatchEvent(
+        new MouseEvent(type, { bubbles: true, cancelable: true, clientX: 5, clientY: 5 }),
+      );
+  });
+  expect(await place()).toEqual(before);
+  await page.mouse.move(box.x + 48, box.y + 8);
+  await page.mouse.up();
+  // The real drag continues from where the user grabbed the bar.
+  expect(await place()).toEqual({ left: before.left + 40, top: before.top });
+  await expect(input).toHaveValue('Zephyr');
+
+  // A synthetic focusin on another menu item must not change what a real Enter runs.
+  await input.focus();
+  await input.press('ArrowDown');
+  const openLink = page.getByRole('menuitem', { name: 'Open link' });
+  await expect(openLink).toBeFocused();
+  await page.evaluate(() => {
+    const items = document
+      .getElementById('keymove-root')!
+      .shadowRoot!.querySelectorAll<HTMLElement>('[role="menuitem"]');
+    const newTab = [...items].find(item => item.textContent?.includes('Open in new tab'))!;
+    newTab.dispatchEvent(new FocusEvent('focusin', { bubbles: true, composed: true }));
+    document.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, composed: true }));
+  });
+  await expect(openLink).toBeFocused();
+  await expect(page.getByRole('menu')).toHaveCount(1);
+  const pagesBefore = context.pages().length;
+  await page.keyboard.press('Enter');
+  const link = page.getByRole('link', { name: 'Zephyr destination' });
+  await expect(link).toHaveAttribute('data-clicks', '1');
+  await page.waitForTimeout(500);
+  expect(context.pages()).toHaveLength(pagesBefore);
+});

@@ -137,7 +137,7 @@ const DraggableContainer = (props: DraggableContainerProps) => {
 
   const onDragEnd = React.useCallback(
     (event: MouseEvent) => {
-      if (locked) return;
+      if (locked || !isTrustedInput(event)) return;
       setIsDragging(false);
       updatePosition(currentPositionRef.current);
       if (event.target === searchInputRef.current) {
@@ -149,7 +149,7 @@ const DraggableContainer = (props: DraggableContainerProps) => {
 
   const drag = React.useCallback(
     (event: MouseEvent) => {
-      if (locked) return;
+      if (locked || !isTrustedInput(event)) return;
       event.preventDefault();
       if (!dragOffset) {
         return;
@@ -208,7 +208,7 @@ const DraggableContainer = (props: DraggableContainerProps) => {
 
   const resize = React.useCallback(
     (event: MouseEvent) => {
-      if (locked || !resizeOrigin) return;
+      if (locked || !resizeOrigin || !isTrustedInput(event)) return;
       event.preventDefault();
       const travel = (event.clientX - resizeOrigin.pointerX) * resizeOrigin.edge;
       // Growing symmetrically means the nearer viewport edge is what runs out first.
@@ -222,12 +222,15 @@ const DraggableContainer = (props: DraggableContainerProps) => {
     [resizeOrigin, windowSize, locked],
   );
 
-  const onResizeEnd = React.useCallback(() => {
-    if (locked) return;
-    setResizeOrigin(null);
-    updateWidth(currentWidthRef.current);
-    updatePosition(currentPositionRef.current);
-  }, [updateWidth, updatePosition, locked]);
+  const onResizeEnd = React.useCallback(
+    (event: MouseEvent) => {
+      if (locked || !isTrustedInput(event)) return;
+      setResizeOrigin(null);
+      updateWidth(currentWidthRef.current);
+      updatePosition(currentPositionRef.current);
+    },
+    [updateWidth, updatePosition, locked],
+  );
 
   React.useLayoutEffect(() => {
     if (!locked && resizeOrigin) {

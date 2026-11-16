@@ -1,10 +1,11 @@
 import { FrameSearch, mergeFrameResults } from './frame_search.js';
-import { FRAME_MESSAGE } from './frame_protocol.js';
+import { FRAME_MESSAGE, FRAME_PROBE } from './frame_protocol.js';
 import type { FrameReply } from './frame_protocol.js';
 import { makeSearchResult, makeRankedMatch, makeTextMatch } from '../test_support/factories.js';
 import { frameTarget, setFrameTarget, resultIsConnected } from './frame_target.js';
 import { isTextVisible } from './visible_text.js';
 import { actionIsInScope } from './modal_context.js';
+import { acceptSyntheticInputForTesting } from './trusted_input.js';
 
 const transport = vi.hoisted(() => ({ send: vi.fn(), add: vi.fn(), remove: vi.fn() }));
 vi.mock('wxt/browser', () => ({
@@ -265,4 +266,41 @@ test('detached remote handles obey their actual iframe lifetime and modal scope'
   expect(resultIsConnected(node)).toBe(false);
   expect(frameTarget(document.createElement('p'))).toBeUndefined();
   modal.remove();
+});
+
+test('ignores page-dispatched frame availability messages', async () => {
+  const frame = document.createElement('iframe');
+  document.body.append(frame);
+  vi.spyOn(frame, 'getClientRects').mockReturnValue([
+    { width: 100, height: 100 },
+  ] as unknown as DOMRectList);
+  transport.send.mockResolvedValue(null);
+  const post = vi.spyOn(frame.contentWindow!, 'postMessage').mockImplementation(() => undefined);
+  const coordinator = new FrameSearch(vi.fn());
+  const search = new AbortController();
+  const done = coordinator.search('query', search.signal, vi.fn());
+  await vi.waitFor(() => expect(post).toHaveBeenCalled());
+  const probes = post.mock.calls.length;
+  const available = () =>
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        source: frame.contentWindow,
+        data: { type: FRAME_PROBE, available: true },
+      }),
+    );
+  try {
+    acceptSyntheticInputForTesting(false);
+    available();
+    expect(post).toHaveBeenCalledTimes(probes);
+    acceptSyntheticInputForTesting(true);
+    available();
+    expect(post).toHaveBeenCalledTimes(probes + 1);
+  } finally {
+    acceptSyntheticInputForTesting(true);
+    search.abort();
+    coordinator.stop();
+    await done.catch(() => undefined);
+    frame.remove();
+    vi.restoreAllMocks();
+  }
 });

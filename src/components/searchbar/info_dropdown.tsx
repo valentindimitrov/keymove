@@ -5,6 +5,7 @@ import InfoPanel from './info_panel/info_panel.js';
 import Tooltip from './tooltip.js';
 import HelpIcon from '../../icons/help.svg?react';
 import type { OpeningShortcut } from '../../lib/interaction_settings_schema.js';
+import { trusted } from '../../lib/trusted_input.js';
 
 const InfoDropdown = ({
   tooltipsMode = true,
@@ -30,15 +31,15 @@ const InfoDropdown = ({
         id={'keymove-info-dropdown-button'}
         className={'keymove-icon-button'}
         ref={containerRef}
-        onMouseEnter={onMouseEnter}
-        onMouseLeave={onMouseLeave}
-        onClick={() => setIsOpen(open => !open)}
-        onKeyDown={event => {
+        onMouseEnter={trusted(onMouseEnter)}
+        onMouseLeave={trusted(onMouseLeave)}
+        onClick={trusted(() => setIsOpen(open => !open))}
+        onKeyDown={trusted(event => {
           if (event.key === 'Escape') {
             event.stopPropagation();
             dismiss();
           }
-        }}
+        })}
         aria-label={`${EXTENSION_NAME} keyboard shortcuts`}
         aria-controls="keymove-info-panel"
         aria-expanded={showInfoPanel}

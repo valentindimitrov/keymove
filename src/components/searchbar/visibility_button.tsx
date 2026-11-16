@@ -25,10 +25,10 @@ const VisibilityButton = (props: VisibilityButtonProps) => {
         id={'keymove-visibility-button'}
         className={'keymove-icon-button'}
         ref={containerRef}
-        onMouseEnter={onMouseEnter}
-        onMouseLeave={onMouseLeave}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
+        onMouseEnter={trusted(onMouseEnter)}
+        onMouseLeave={trusted(onMouseLeave)}
+        onFocus={trusted(() => setFocused(true))}
+        onBlur={trusted(() => setFocused(false))}
         onClick={trusted(() => toggleAutoHide())}
         aria-label={label}
       >

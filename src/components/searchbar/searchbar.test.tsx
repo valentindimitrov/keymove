@@ -2623,4 +2623,80 @@ describe('page-dispatched input', () => {
       active: true,
     });
   });
+
+  test('cannot substitute the action a real Enter runs by dispatching focus at another item', async () => {
+    const { input, clicked } = await searchForLink();
+    fireEvent.keyDown(input, { key: 'ArrowDown', code: 'ArrowDown' });
+    const openLink = screen.getByRole('menuitem', { name: 'Open link' });
+    const newTab = screen.getByRole('menuitem', { name: 'Open in new tab' });
+    expect(openLink).toHaveFocus();
+
+    acceptSyntheticInputForTesting(false);
+    fireEvent.focusIn(newTab);
+    acceptSyntheticInputForTesting(true);
+    // Even a trusted notification cannot move the selection away from real focus.
+    fireEvent.focusIn(newTab);
+    expect(openLink).toHaveFocus();
+
+    fireEvent.keyDown(openLink, { key: 'Enter', code: 'Enter' });
+    await act(async () => {});
+    expect(searchMocks.sendMessage).not.toHaveBeenCalled();
+    expect(clicked).toHaveBeenCalledOnce();
+  });
+
+  test('cannot clear the search with a synthetic blur while focus stays in the input', async () => {
+    const { input } = await searchForLink();
+    acceptSyntheticInputForTesting(false);
+
+    fireEvent.focusOut(input, { relatedTarget: document.body });
+    await act(async () => {});
+    expect(input).toHaveValue('result');
+    expect(screen.getByRole('status')).toHaveTextContent('Text 1 / 1');
+    expect(window.getSelection()?.toString()).toBe('Open result');
+  });
+
+  test('cannot remove the result selection through synthetic editing events', async () => {
+    const { input } = await searchForLink();
+    expect(window.getSelection()?.toString()).toBe('Open result');
+    acceptSyntheticInputForTesting(false);
+
+    fireEvent.paste(input);
+    fireEvent.cut(input);
+    fireEvent.compositionStart(input);
+    fireEvent.keyDown(input, { key: 'a', code: 'KeyA' });
+    fireEvent.keyDown(input, { key: 'Backspace', code: 'Backspace' });
+    expect(window.getSelection()?.toString()).toBe('Open result');
+  });
+
+  test('cannot close the action menu through synthetic pointer or blur events', async () => {
+    const { input } = await searchForLink();
+    fireEvent.keyDown(input, { key: 'ArrowDown', code: 'ArrowDown' });
+    const openLink = screen.getByRole('menuitem', { name: 'Open link' });
+    acceptSyntheticInputForTesting(false);
+
+    fireEvent.pointerDown(document.body);
+    fireEvent.focusOut(openLink, { relatedTarget: document.body });
+    await act(async () => {});
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    expect(openLink).toHaveFocus();
+
+    acceptSyntheticInputForTesting(true);
+    fireEvent.pointerDown(document.body);
+    await act(async () => {});
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  test('cannot reset the results or menu by dispatching a modal change', async () => {
+    const { input } = await searchForLink();
+    fireEvent.keyDown(input, { key: 'ArrowDown', code: 'ArrowDown' });
+    const searches = searchMocks.findMatches.mock.calls.length;
+    const selection = window.getSelection()?.toString();
+    acceptSyntheticInputForTesting(false);
+
+    document.dispatchEvent(new Event(MODAL_CHANGED_EVENT));
+    await act(async () => {});
+    expect(searchMocks.findMatches).toHaveBeenCalledTimes(searches);
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    expect(window.getSelection()?.toString()).toBe(selection);
+  });
 });

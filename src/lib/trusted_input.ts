@@ -28,6 +28,28 @@ export function trusted<E extends InputEventLike, A extends unknown[]>(
   };
 }
 
+// KeyMove's own notifications, such as a modal change, travel as DOM events that page
+// script can also dispatch, and both are untrusted. Only the event being dispatched right
+// now by dispatchOwnEvent counts as KeyMove's: a page cannot re-dispatch an event while it
+// is in flight, and a finished one it kept is no longer the current one.
+let ownEvent: Event | null = null;
+
+/** Dispatches an event that KeyMove's own listeners will accept through isOwnEvent. */
+export function dispatchOwnEvent(target: EventTarget, event: Event): boolean {
+  const previous = ownEvent;
+  ownEvent = event;
+  try {
+    return target.dispatchEvent(event);
+  } finally {
+    ownEvent = previous;
+  }
+}
+
+/** True only for an event KeyMove itself is dispatching, never for a page-dispatched one. */
+export function isOwnEvent(event: Event): boolean {
+  return event === ownEvent || acceptSyntheticInput;
+}
+
 /**
  * Whether this frame has transient user activation, required before KeyMove activates a
  * result or requests a tab. Activation belongs to the frame that received the input and

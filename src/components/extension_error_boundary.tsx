@@ -1,5 +1,6 @@
 import React from 'react';
 import { EXTENSION_NAME } from '../extension_identity.js';
+import { trusted } from '../lib/trusted_input.js';
 
 type ExtensionErrorBoundaryState = {
   failed: boolean;
@@ -20,9 +21,9 @@ class ExtensionErrorBoundary extends React.Component<
     console.error(`${EXTENSION_NAME} search interface failed: ${message}`);
   }
 
-  retry = () => {
+  retry = trusted(() => {
     this.setState({ failed: false });
-  };
+  });
 
   override render() {
     if (this.state.failed) {

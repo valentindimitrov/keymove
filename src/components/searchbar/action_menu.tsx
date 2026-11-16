@@ -87,6 +87,7 @@ const ActionMenu = ({
         onMouseDown={event => event.stopPropagation()}
         onBlur={event => {
           if (
+            isTrustedInput(event) &&
             event.relatedTarget instanceof Node &&
             !event.currentTarget.contains(event.relatedTarget)
           )
@@ -161,7 +162,12 @@ const ActionMenu = ({
               tabIndex={selected === index ? 0 : -1}
               aria-disabled={action.disabled || busy || undefined}
               aria-keyshortcuts={`Alt+${index + 1}`}
-              onFocus={() => setSelected(index)}
+              onFocus={event => {
+                // Selection follows real focus only. A page can dispatch focusin at another
+                // item, and the next real Enter would then run an action it never showed.
+                if (isTrustedInput(event) && Utils.elementIsActive(event.currentTarget))
+                  setSelected(index);
+              }}
               onClick={trusted(() => void execute(action.id))}
             >
               <ShortcutBadge position={index + 1} tooltipsMode={tooltipsMode} />

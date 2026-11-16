@@ -1,6 +1,7 @@
 import React from 'react';
 import Portal from './portal.js';
 import type { ImageInfo } from '../../lib/image_schema.js';
+import { isTrustedInput, trusted } from '../../lib/trusted_input.js';
 
 export default function ImageViewer({
   image,
@@ -34,6 +35,7 @@ export default function ImageViewer({
         aria-label="Image viewer"
         onKeyDown={event => {
           event.stopPropagation();
+          if (!isTrustedInput(event)) return;
           if (event.key === 'Escape') {
             event.preventDefault();
             onClose();
@@ -57,11 +59,11 @@ export default function ImageViewer({
             event.preventDefault();
         }}
         onKeyUp={event => event.stopPropagation()}
-        onClick={event => {
+        onClick={trusted(event => {
           if (event.target === event.currentTarget) onClose();
-        }}
+        })}
       >
-        <button type="button" ref={close} onClick={onClose}>
+        <button type="button" ref={close} onClick={trusted(() => onClose())}>
           Close image (Esc)
         </button>
         {failed ? (
