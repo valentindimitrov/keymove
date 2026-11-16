@@ -233,8 +233,9 @@ jobs:
       pull-requests: read # confirm the commit is still the pull request's head before uploading
     # No concurrency group on purpose: runs enter a group in arrival order, not commit order,
     # so a late run for an older commit would cancel or displace the newer commit's upload.
-    # The head check just before the upload is what stops an older commit; a newer commit
-    # needs a whole Quality run before it gets here, long after that check and upload.
+    # The head check just before the upload stops a commit that is already stale when checked.
+    # It is not atomic with the upload: this assumes an upload finishes before a commit pushed
+    # after the check gets through its own Quality run, which normally takes minutes.
     environment:
       name: preview
       url: ${{ steps.upload.outputs.url }}
@@ -339,7 +340,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "$SUPERSEDED" == true || "$RESULT" == cancelled ]]; then
-            echo "A newer commit replaced this one; no status published."
+            echo "Run superseded or cancelled; no status published."
             exit 0
           fi
           if [[ "$RESULT" == success ]]; then
