@@ -593,6 +593,34 @@ describe('text owned by a node', () => {
     ]);
   });
 
+  test('keeps a block holding an occurrence that none of its inline results holds', async () => {
+    document.body.innerHTML =
+      '<div>Intro<div id="own"><span>Total </span><b>revenue</b>' +
+      '<div>unrelated text</div><i id="child">Total revenue</i></div></div>';
+    index = new PageSearchIndex();
+    const result = await index.search(scorerFor('total revenue'));
+    expect(result.matchingText.map(match => match.node)).toEqual([
+      document.getElementById('own'),
+      document.getElementById('child'),
+    ]);
+  });
+
+  test('gives the same results as a new index after the page changes', async () => {
+    document.body.innerHTML =
+      '<div id="outer">Intro<div id="own"><span>Total </span><b>revenue</b></div></div>';
+    index = new PageSearchIndex();
+    expect((await index.search(scorerFor('total revenue'))).matchingText).toHaveLength(1);
+    document.getElementById('outer')!.firstChild!.remove();
+    await Promise.resolve();
+    const later = await index.search(scorerFor('total revenue'));
+    index.disconnect();
+    index = new PageSearchIndex();
+    const fresh = await index.search(scorerFor('total revenue'));
+    expect(later.matchingText.map(match => match.node)).toEqual(
+      fresh.matchingText.map(match => match.node),
+    );
+  });
+
   test('reads slotted text through a slot styled as a block', async () => {
     document.body.innerHTML = '<x-report>revenue</x-report>';
     const host = document.querySelector('x-report')!;

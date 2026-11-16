@@ -75,7 +75,25 @@ type ScannedNode = {
   actionText: string;
   attributeValues: string[];
 };
-type ScoredText = { score: number; term: string | null; distance: number | null };
+// `occurrences` is how many times the query appears in the text the node owns. An
+// approximate match stands for one, its closest spelling.
+type ScoredText = {
+  score: number;
+  term: string | null;
+  distance: number | null;
+  occurrences?: number;
+};
+
+function countOccurrences(runs: string[], query: string) {
+  let count = 0;
+  if (!query) return count;
+  for (const run of runs) {
+    for (let at = run.indexOf(query); at !== -1; at = run.indexOf(query, at + query.length)) {
+      count += 1;
+    }
+  }
+  return count;
+}
 // `distance` is how many edits separate the query from what matched, for approximate
 // results only. It is what lets a row say how much of a stretch it is.
 type RankedMatch = {
@@ -94,6 +112,8 @@ type MatchCollector = {
   // Matches of left-out blocks with no text node of their own, kept only for a phrase no
   // descendant matches by itself.
   blockMatches: Set<TextMatch>;
+  // Occurrences each text result stands for, to tell a repeated block from one holding more.
+  occurrences: Map<Element, number>;
 };
 type SearchOptions = { signal?: AbortSignal };
 type SearchResult = {
@@ -222,9 +242,9 @@ class PageSearchIndex {
   private readonly handledControlEvents = new WeakSet<Event>();
   // Blocks some candidate's owned text left out. They own their inline text even without
   // a text node of their own, so they can be text results.
-  private readonly ownedBlocks = new WeakSet<Element>();
+  private ownedBlocks = new WeakSet<Element>();
   // Left-out blocks indexed only for that reason, not as candidates in their own right.
-  private readonly lazyBlocks = new WeakSet<Element>();
+  private readonly lazyBlocks = new Set<Element>();
   private subtreeRevision = 0;
   private needsPruning = false;
   private nameRevision = 0;
@@ -540,6 +560,11 @@ class PageSearchIndex {
     const budget = new SearchWorkBudget();
     await this.discoverRoots(searchSignal, budget);
     await this.flushPendingSubtrees(searchSignal, budget);
+    // Left-out blocks are found again by the candidates that leave them out, so results
+    // depend only on the page as it is now, never on what an earlier search came across.
+    for (const block of this.lazyBlocks) this.records.delete(block);
+    this.lazyBlocks.clear();
+    this.ownedBlocks = new WeakSet();
     const collector: MatchCollector = {
       styles: new WeakMap(),
       modal: activeModal(),
@@ -547,6 +572,7 @@ class PageSearchIndex {
       matchingText: [],
       textMatchesByContainer: new Map(),
       blockMatches: new Set(),
+      occurrences: new Map(),
     };
     const styles = collector.styles;
     // Only retained when a fuzzy pass could follow, since it holds the visible text of the
@@ -624,6 +650,7 @@ class PageSearchIndex {
           score: textScore,
           term: matchingRun === undefined ? null : nodeScorer.queryText,
           distance: null,
+          occurrences: countOccurrences(innerText, nodeScorer.queryText),
         },
         collector,
       );
@@ -769,6 +796,7 @@ class PageSearchIndex {
         score: nodeScorer.score(node, matchingRun, []),
         term: nodeScorer.queryText,
         distance: null,
+        occurrences: countOccurrences(innerText, nodeScorer.queryText),
       },
       collector,
     );
@@ -844,38 +872,54 @@ class PageSearchIndex {
     const match = { node: textContainer, action, term: textTerm, score, distance };
     matchingText.push(match);
     textMatchesByContainer.set(textContainer, match);
+    if (textContainer === node) collector.occurrences.set(node, textMatch.occurrences ?? 1);
     if (!ownsText && textContainer === node) collector.blockMatches.add(match);
   }
 
+  /**
+   * A left-out block with no text node of its own matches through its inline children,
+   * which may be results themselves. The block is dropped only when those results account
+   * for every occurrence in its text; a phrase spread over several children, or a further
+   * occurrence none of them holds, is reachable through the block alone.
+   */
   private async dropRedundantBlockMatches(
     collector: MatchCollector,
     budget: SearchWorkBudget,
     signal: AbortSignal,
   ) {
-    const { blockMatches } = collector;
+    const { blockMatches, occurrences, textMatchesByContainer } = collector;
     if (blockMatches.size === 0) return;
     const blocks = new Map([...blockMatches].map(match => [match.node, match]));
-    const redundant = new Set<TextMatch>();
-    // A block repeats a match only when that match lies in text the block owns. A match
-    // inside a block of its own is a separate occurrence, and nothing above it owns it.
+    const covered = new Map<TextMatch, number>();
     const startsOwnBlock = (element: Element) =>
       isSeparateBlock(element, window.getComputedStyle(element).display);
     for (const match of collector.matchingText) {
+      // Text inside a block of its own belongs to no block above it.
       for (
         let node: Element | null = match.node;
         node && node !== document.body && !startsOwnBlock(node);
         node = renderedParent(node)
       ) {
-        const parent = renderedParent(node);
-        const block = parent && blocks.get(parent);
-        if (block) redundant.add(block);
         const pause = budget.checkpoint(signal);
         if (pause) await pause;
+        const parent = renderedParent(node);
+        if (!parent) break;
+        const block = blocks.get(parent);
+        if (block) {
+          covered.set(block, (covered.get(block) ?? 0) + (occurrences.get(match.node) ?? 1));
+          break;
+        }
+        // An inline result in between already counts this text as part of its own.
+        if (textMatchesByContainer.has(parent)) break;
       }
+    }
+    const redundant = new Set<TextMatch>();
+    for (const [block, count] of covered) {
+      if (count >= (occurrences.get(block.node) ?? 1)) redundant.add(block);
     }
     if (redundant.size === 0) return;
     collector.matchingText = collector.matchingText.filter(match => !redundant.has(match));
-    for (const match of redundant) collector.textMatchesByContainer.delete(match.node);
+    for (const match of redundant) textMatchesByContainer.delete(match.node);
   }
 
   disconnect() {
@@ -893,6 +937,7 @@ class PageSearchIndex {
     document.dispatchEvent(new Event(PAGE_ROOTS_CHANGED));
     this.records.clear();
     this.pendingSubtrees.clear();
+    this.lazyBlocks.clear();
   }
 }
 
