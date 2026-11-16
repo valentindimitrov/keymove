@@ -254,7 +254,7 @@ test('Tooltips mode persists and hides only usage reminders', async () => {
   expect(toggle).not.toBeChecked();
   expect(storage.set).toHaveBeenCalledWith({ tooltipsMode: false });
   expect(screen.queryByText(/focus the searchbar/)).not.toBeInTheDocument();
-  expect(screen.queryByText(/Drag the right edge/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/Drag either side edge/)).not.toBeInTheDocument();
   expect(screen.getByText(/Show shortcut hints and usage reminders/)).toBeInTheDocument();
 });
 
@@ -264,10 +264,10 @@ test('places the resize hint immediately after the layout heading and keeps lock
   fireEvent.click(screen.getByRole('tab', { name: 'Appearance' }));
   const heading = screen.getByRole('heading', { name: 'Searchbar position and size' });
   expect(heading.nextElementSibling).toHaveTextContent(
-    'Choose where the search bar appears using the nine squares. Drag the right edge of the searchbar to resize it.',
+    'Choose where the search bar appears using the nine squares. Drag either side edge of the searchbar to resize it.',
   );
   fireEvent.click(screen.getByRole('checkbox', { name: 'Lock position and size' }));
-  expect(screen.queryByText(/Drag the right edge/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/Drag either side edge/)).not.toBeInTheDocument();
   expect(screen.getByText(/Choose where the search bar appears/)).toBeInTheDocument();
   expect(screen.getByText(/Position and size are locked/)).toBeInTheDocument();
 });

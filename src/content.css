@@ -584,23 +584,6 @@
   cursor: pointer;
 }
 
-.keymove-info-panel-reset-position-button {
-  margin: 10px 0 0 15px;
-  padding: 7px var(--keymove-space-3, 12px);
-  border: none;
-  border-radius: var(--keymove-radius-control, 6px);
-  background-color: var(--keymove-control-bg, rgba(255, 255, 255, 0.15));
-  color: var(--keymove-text-primary, white);
-  cursor: pointer;
-  font: inherit;
-}
-
-.keymove-info-panel-reset-position-button:hover,
-.keymove-info-panel-reset-position-button:focus-visible {
-  background-color: var(--keymove-control-hover, rgba(255, 255, 255, 0.22));
-  outline: 2px solid var(--keymove-focus, rgba(255, 255, 255, 0.85));
-}
-
 .keymove-info-panel-button-row {
   display: flex;
   align-items: center;
