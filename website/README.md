@@ -110,7 +110,12 @@ To record them again, build the Chromium extension, build and serve the website,
 node scripts/record-patterns.ts http://127.0.0.1:5182/
 ```
 
-The recorder requires installed Vivaldi and FFmpeg on PATH. An optional third argument is a
+The recorder requires FFmpeg with the `drawtext` filter on PATH and, by default, installed
+Vivaldi (run through its Chromium shell, as the browser tests do); set
+`KEYMOVE_TEST_BROWSER=chromium` to use Playwright's Chromium instead. Set
+`KEYMOVE_RECORDING_OUTPUT` to a directory outside `media/patterns/` to check a recording without
+replacing the published clips. The `hand-off-to-widget` clip expects Windows/Linux select
+behavior: on macOS, Down opens the native picker instead of changing the value. An optional third argument is a
 comma-separated list of pattern IDs. It runs a temporary copy of the actual production
 extension in an isolated browser profile against `demo.html?extension=installed`; this query
 omits the website-mounted extension so only the installed one handles keys. It records real

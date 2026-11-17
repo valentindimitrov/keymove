@@ -1,9 +1,10 @@
 # Browser testing and debugging
 
-Keep Node for scripts and Vitest for application and tooling tests. Playwright Test
-adds repeatable installed-extension checks; playwright-cli lets a person or agent
-inspect a paused test. Neither replaces the exhaustive algorithm tests or the
-existing Vivaldi smoke suite.
+Keep Node for scripts and Vitest for application and tooling tests. Every automated
+installed-extension check runs in Playwright Test under `tests/browser/`; playwright-cli
+lets a person or agent inspect a paused test. Neither replaces the exhaustive algorithm
+tests. The interactive `pnpm preview` launcher (web-ext, native browser UI) is separate
+and unchanged.
 
 ## Setup
 
@@ -21,37 +22,116 @@ policies skip lifecycle scripts. Browser installation downloads Playwright's
 Chromium and its support binaries. On Linux CI, use
 `pnpm exec playwright install --with-deps chromium` for its OS dependencies too.
 
-## Repeatable checks
+## Commands
 
-```text
-pnpm test:e2e
-pnpm test:e2e:built
-pnpm test:e2e:built --grep "frames"
-pnpm test:e2e:built --headed
-pnpm test:e2e:report
-```
+| Command | Browser | Builds first |
+| --- | --- | --- |
+| `pnpm test:e2e` | Playwright's bundled Chromium | yes |
+| `pnpm test:e2e:built` | Playwright's bundled Chromium | no |
+| `pnpm test:browser` (`pnpm preview --smoke`) | first installed of Vivaldi, Chrome | yes |
+| `pnpm test:browser:built` | first installed of Vivaldi, Chrome | no |
+| `pnpm test:browser:vivaldi` / `pnpm test:browser:chrome` | that installed browser | no |
 
-`test:e2e` rebuilds Chromium first. `test:e2e:built` tests the existing production
-artifact, so use it after `pnpm quality`. Each test loads a separate snapshot into
-a fresh temporary persistent profile. The fixture server gets a free loopback
-port per worker; tests never touch a regular browser profile. Missing builds or
-browsers fail the run.
+All of them run the same suite. `test:browser*` accept `--browser=chromium|vivaldi|chrome`
+and pass any other argument to Playwright, for example
+`pnpm test:browser:built --grep "frames"` or `--headed`. Run the browser suite for
+changes affecting input, navigation, search, popup settings or extension mounting; use
+the `:built` forms after `pnpm quality` to test those exact artifacts.
 
-The initial suite covers per-keystroke search on small and large pages, semantic
-selection and native copy/paste, DOM updates, nested open roots, native modals,
-same-origin and cross-origin iframe actions, and settings propagation/persistence.
-Vitest excludes `tests/browser/`, and Playwright runs only that directory.
+Each test loads a separate snapshot of `.output/chrome-mv3` into a fresh temporary
+profile, and each worker serves `preview/` on a free loopback port, so concurrent
+worktrees do not collide and no regular browser profile is touched. A missing build or
+browser fails the run; it is never a mocked pass. The fixtures fail a test that logs a
+browser console error or an uncaught page exception.
 
-Failure screenshots and traces, plus the HTML report, live under the ignored
-`.artifacts/playwright/` directory. Open a trace with
-`pnpm exec playwright show-trace <path-to-trace.zip>`. CI runs these checks after
-the full quality gate and retains Playwright artifacts on failure.
+Tests drive the extension with real input only: Playwright keyboard and mouse events,
+which the browser marks trusted. KeyMove ignores script-created events (AGENTS.md,
+"Untrusted page input"), so a test never clicks, types or focuses KeyMove controls through
+page script; page script only builds fixtures or plays the hostile page. Characters outside
+the US layout are typed as key presses carrying that text (`typeText` in
+`tests/browser/keymove.ts`), as a Cyrillic or Greek layout would produce them. Values reach
+`page.evaluate` as arguments, never as generated source. Conditions are awaited with
+Playwright assertions and `expect.poll`; fixed waits remain only where a test proves that
+something does *not* happen, such as a tab that a forged event must not open.
 
-Retain `pnpm test:browser:built` for the broader existing Vivaldi/Chrome interaction
-and timing suite. `pnpm preview --smoke` still rebuilds and runs that suite.
-Playwright's baseline uses its bundled Chromium: it does not establish Vivaldi,
-Firefox, or Safari extension compatibility. Use the documented installed-browser
-previews and manual platform checks for those browsers.
+### Vivaldi, Chrome, Firefox and Safari
+
+Automated Vivaldi runs exercise the installed Vivaldi build through its Chromium shell
+(`--disable-vivaldi`): tab creation through Playwright hung or crashed with Vivaldi's
+native UI. The normal Vivaldi UI stays covered by `pnpm preview:vivaldi`. Branded Chrome
+no longer accepts `--load-extension`, so Chrome runs load the snapshot through its
+`Extensions.loadUnpacked` DevTools command. Browsers are found as for `pnpm preview`
+(standard Windows/macOS locations and PATH), or through `KEYMOVE_VIVALDI_BINARY` and
+`KEYMOVE_CHROME_BINARY`. Firefox and Safari have no automated extension run: use
+`pnpm preview:firefox` and `docs/safari.md` for manual checks.
+
+## Reports, timings and failures
+
+Output is kept apart per browser under the ignored `.artifacts/playwright/<browser>/`:
+
+- `report/` (HTML; `pnpm test:e2e:report` opens the bundled Chromium one) and
+  `results.json`, including screenshots attached as named scenario images;
+- `results/`, with a screenshot, trace and the rendered KeyMove state of each page open
+  when a test failed. Open a trace with `pnpm exec playwright show-trace <trace.zip>`;
+- `timings.json`, the timing samples described in `docs/development.md`, with the browser
+  version, platform, Node version, commit and dirty status. A filtered run rewrites it
+  with only the tests it ran.
+
+CI runs the whole suite in bundled Chromium after the full quality gate and keeps
+`.artifacts/playwright/` for seven days when a step fails.
+
+## Suite layout
+
+- `tests/browser/fixtures.ts`: fixture server, fresh profile and build snapshot per test,
+  console-error check and the `extensionId` fixture.
+- `tests/browser/keymove.ts`: role/name locators for the host, input, status, suggestions
+  and menu (they follow the host into modals and open roots), query helpers and `typeText`.
+- `tests/browser/pages.ts`: real-focus pages, selection and highlight readers, screenshots
+  and failure diagnostics.
+- `tests/browser/extension.spec.ts`: focused checks, including hostile-page input.
+- `tests/browser/smoke.spec.ts` with `tests/browser/scenarios/`: the long interaction
+  scenarios, one per area.
+- `scripts/browser-context.ts`: the one launcher shared by tests, the media recorder and
+  the store-image generator.
+
+## Coverage map
+
+The former CDP smoke suite (`scripts/browser-smoke.ts`, `scripts/*-smoke.ts`,
+`scripts/browser-driver.ts`) is replaced as follows. Every former assertion is kept,
+in the same order, unless the third column says otherwise.
+
+| Former check | Test (`smoke.spec.ts` unless noted) | Change |
+| --- | --- | --- |
+| `browser-smoke.ts`: typing timings, distinct prefix counts, hidden text, first selection, Tab/Shift+Tab (small and large) | core smoke (small/large), `scenarios/core-smoke.ts` | timings in `timings.json` |
+| `browser-smoke.ts`: suggestion frame keeps pending height, closes on empty, reopens | core smoke (small/large) | |
+| `browser-smoke.ts`: whole-block selection, native copy/paste, editing resumes | core smoke (small/large) | |
+| `browser-smoke.ts`: DOM insertion/removal refresh; 61 navigable results and Alt+1; third-row stability and Alt+3; attribute-only action fallback; Text/Actions mode clicks; Enter on nested action; always-on first character | core smoke (small) | mode switch is a real click |
+| `browser-smoke.ts`: logo opens the real settings | core smoke (small) | the page losing focus is no longer asserted: headless popups do not take focus; the popup target is still required |
+| `browser-smoke.ts`: suggestion count 1–5, Alt+4/5, selected row background | core smoke (small) | colour expected for the resolved theme |
+| `browser-smoke.ts`: layout lock persists and disables resizing | core smoke (small) | |
+| `browser-smoke.ts`: popup settings propagate; hidden bar reopens with Alt+F | core smoke (small) | also reloads settings to prove persistence |
+| `theme-smoke.ts` `checkTheme` | core smoke (small), `scenarios/theme-smoke.ts` | |
+| `theme-smoke.ts` `checkThemePreviews` | appearance: light/dark, narrow/desktop… | |
+| `return-position-smoke.ts` | core smoke (small), `scenarios/return-position-smoke.ts` | |
+| `tooltips-mode-smoke.ts` | core smoke (small), `scenarios/tooltips-mode-smoke.ts` | |
+| `settings-smoke.ts` `checkSiteSettings` | core smoke (small), `scenarios/settings-smoke.ts` | the replaced Alt+F is a real key press whose page event must stay unhandled, instead of a dispatched event |
+| `settings-smoke.ts` `checkShowSearch` | core smoke (small) | |
+| `image-navigation-smoke.ts` | related images: discovery, spatial navigation… | |
+| `iframe-smoke.ts` `checkIframes` | frames: search, input focus, shortcuts… | |
+| `iframe-smoke.ts` `measureIframes` | frames: local-first timing… | samples in `timings.json`, not `iframe-performance.json` |
+| `highlight-density-smoke.ts` | highlight density and short-query mixed suggestions | |
+| `selection-hover-smoke.ts` | selection hover: automatic selection, menus… | |
+| `action-fallback-smoke.ts` | temporary action fallback… | |
+| `shadow-search-smoke.ts` | open shadow roots: slots, copy, editing… | |
+| `dynamic-page-smoke.ts` | dynamic page: search timing, animation… | interface click is a real click |
+| `action-menu-smoke.ts` | action menu: keyboard, copy/paste, activation… | |
+| `control-navigation-smoke.ts` | controls: labels, native widgets, disabled actions… | |
+| `rendered-text-smoke.ts` | rendered whitespace: search, highlights and native clipboard agree | expected copied text stated per case, not derived by stripping tags |
+| `context-navigation-smoke.ts` | context navigation: scroll placement and independent tabs | |
+| `browser-driver.test.ts` (macOS editing commands for the CDP driver) | removed with the driver | Playwright sends macOS editing commands itself |
+
+Screenshots the former suite wrote to `.artifacts/*.png` are report attachments with the
+same names. `tests/browser/extension.spec.ts` keeps its focused checks unchanged.
 
 ## playwright-cli debugging
 

@@ -34,7 +34,9 @@ jobs:
       - run: pnpm run postinstall
       - run: pnpm quality
       - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm test:e2e:built
+      # Every installed-extension check, including the former CDP smoke scenarios.
+      - name: Run the browser suite in bundled Chromium
+        run: pnpm test:e2e:built
       - name: Upload browser failure artifacts
         if: failure()
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5

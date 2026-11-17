@@ -50,7 +50,7 @@ the browser's 600px popup height. Other scenarios accept `&theme=light`, `&theme
 Inspect `slate-above`, `slate-below`, `action-menu-narrow`, and keyboard help at desktop and
 narrow widths. `&browser=firefox` previews that surface's opacity; it is not a Firefox runtime test.
 
-Browser smoke checks settings alignment and viewport fit at 1280px and 360px, captures both
+The browser suite checks settings alignment and viewport fit at 1280px and 360px, captures both
 themes, and checks actual extension storage propagation, reload persistence and live system
-changes. Images are saved in `.artifacts/`. Keep visual inspection as well as geometry assertions:
+changes. Its screenshots are attached to the report under `.artifacts/playwright/<browser>/`. Keep visual inspection as well as geometry assertions:
 an aligned component can still have the wrong color, type or transparency.

@@ -1,4 +1,8 @@
 import { defineConfig } from '@playwright/test';
+import { testBrowser } from './scripts/browser-context.ts';
+
+// Reports, traces and timings are kept apart per browser so runs do not overwrite each other.
+const browser = testBrowser();
 
 export default defineConfig({
   testDir: './tests/browser',
@@ -7,11 +11,15 @@ export default defineConfig({
   workers: 1,
   forbidOnly: Boolean(process.env['CI']),
   retries: 0,
-  timeout: 30000,
-  globalTimeout: 5 * 60 * 1000,
+  timeout: 120000,
+  globalTimeout: 10 * 60 * 1000,
   expect: { timeout: 10000 },
-  outputDir: '.artifacts/playwright/results',
-  reporter: [['list'], ['html', { outputFolder: '.artifacts/playwright/report', open: 'never' }]],
+  outputDir: `.artifacts/playwright/${browser}/results`,
+  reporter: [
+    ['list'],
+    ['html', { outputFolder: `.artifacts/playwright/${browser}/report`, open: 'never' }],
+    ['json', { outputFile: `.artifacts/playwright/${browser}/results.json` }],
+  ],
   use: {
     headless: true,
     viewport: { width: 1280, height: 900 },
@@ -20,5 +28,5 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
-  projects: [{ name: 'chromium-extension' }],
+  projects: [{ name: `${browser}-extension` }],
 });

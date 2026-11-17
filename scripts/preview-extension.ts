@@ -40,8 +40,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-// Smoke runs use only local fixtures, so they close Vivaldi's welcome tab without first
-// opening the repository page; a GitHub or network outage must not fail them.
+// Closes Vivaldi's first-run welcome tab, keeping the page the preview opened.
 export async function closeWelcomeTabs(client: ChromiumClient, keepTargetId?: string) {
   const result = await client.sendCommand('Target.getTargets', {});
   const targets = isObject(result) ? result['targetInfos'] : undefined;
@@ -236,19 +235,19 @@ function run(script: string, args: string[]): Promise<void> {
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
+  if (args.includes('--smoke')) {
+    // Automated checks run through Playwright Test; this alias keeps the old command.
+    const { runBrowserTests } = await import('./test-browser.ts');
+    await runBrowserTests(args.filter(arg => arg !== '--smoke'));
+    return;
+  }
   const requested =
     args.find(arg => arg.startsWith('--browser='))?.slice('--browser='.length) ?? 'auto';
   for (const arg of args) {
-    if (arg !== '--no-build' && arg !== '--smoke' && !arg.startsWith('--browser='))
+    if (arg !== '--no-build' && !arg.startsWith('--browser='))
       throw new Error(`Unknown argument: ${arg}`);
   }
   const browser = findBrowser(requested);
-  const smoke = args.includes('--smoke');
-  if (smoke && browser.name === 'firefox') {
-    throw new Error(
-      'Automated browser smoke currently requires Vivaldi or Chrome. Use pnpm preview:firefox for manual Firefox checks.',
-    );
-  }
   const target = browser.name === 'firefox' ? 'firefox' : 'chrome';
   const sourceDir = path.join(projectRoot, '.output', `${target}-mv3`);
   console.log(`Using ${browser.name}: ${browser.binary}`);
@@ -267,9 +266,7 @@ async function main(): Promise<void> {
   removeOnExit(preview.cleanup);
   console.log(`Dedicated preview build: ${preview.directory}`);
   console.log(
-    smoke
-      ? 'Running browser smoke against local fixtures in a fresh test profile.'
-      : `Opening ${repositoryUrl} in a fresh test profile. Close the test browser or press Ctrl+C to end this session.`,
+    `Opening ${repositoryUrl} in a fresh test profile. Close the test browser or press Ctrl+C to end this session.`,
   );
   const runner = await webExt.cmd.run(
     {
@@ -281,22 +278,12 @@ async function main(): Promise<void> {
       noInput: true,
       ...(browser.name === 'vivaldi' ? { chromiumPref: vivaldiPreviewPreferences } : {}),
     },
-    { shouldExitProgram: !smoke },
+    { shouldExitProgram: true },
   );
-  try {
-    if (target === 'chrome') {
-      const client = runner.extensionRunners[0]?.cdp;
-      if (!client) throw new Error('The browser launcher did not provide a Chromium connection.');
-      if (smoke) {
-        await closeWelcomeTabs(client);
-        const { runBrowserSmoke } = await import('./browser-smoke.ts');
-        await runBrowserSmoke(client, browser.name);
-      } else {
-        console.log(`Opened and focused: ${await openRepositoryPage(client)}`);
-      }
-    }
-  } finally {
-    if (smoke) await runner.exit();
+  if (target === 'chrome') {
+    const client = runner.extensionRunners[0]?.cdp;
+    if (!client) throw new Error('The browser launcher did not provide a Chromium connection.');
+    console.log(`Opened and focused: ${await openRepositoryPage(client)}`);
   }
 }
 

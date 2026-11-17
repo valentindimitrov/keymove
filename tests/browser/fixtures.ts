@@ -1,7 +1,8 @@
 import { access } from 'node:fs/promises';
 import path from 'node:path';
-import { chromium, test as base, expect } from '@playwright/test';
+import { test as base, expect } from '@playwright/test';
 import { createServer } from 'vite';
+import { launchExtensionContext, testBrowser } from '../../scripts/browser-context.js';
 import { createPreviewCopy } from '../../scripts/preview-extension.js';
 
 const root = path.resolve(import.meta.dirname, '../..');
@@ -50,15 +51,10 @@ export const test = base.extend<{ extensionId: string }, { fixtureOrigin: string
     try {
       // Empty userDataDir creates a fresh temporary profile for each test. Never
       // use a regular browser profile or the mutable production build directly.
-      const context = await chromium.launchPersistentContext('', {
-        channel: 'chromium',
+      const context = await launchExtensionContext(preview.directory, testBrowser(), {
         headless,
         viewport,
         ...(baseURL ? { baseURL } : {}),
-        args: [
-          `--disable-extensions-except=${preview.directory}`,
-          `--load-extension=${preview.directory}`,
-        ],
       });
       const errors: string[] = [];
       context.on('weberror', event => errors.push(event.error().message));
