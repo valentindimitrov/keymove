@@ -17,15 +17,47 @@ The standalone static output is `.output/public/`. Deploy the entire directory, 
 `demo.html`, assets, and `LICENSE.txt`, to a static host. Relative asset URLs support subpaths.
 The website build is independent from extension builds and adds no runtime dependencies.
 
-The `website` job in `.github/workflows/quality.yml` publishes it to Cloudflare as the Worker
-`keymove-website` (`website/wrangler.jsonc`, static assets only) after the quality checks pass.
-Pushes to `main` deploy to https://keymove.minddevops.eu. Pull requests from this repository upload
-a preview version at `pr-<number>-keymove-website.<subdomain>.workers.dev`, linked from the job
-summary, without changing production. Fork pull requests are not deployed. The job needs the
-repository variable `CLOUDFLARE_ACCOUNT_ID` and the secret `CLOUDFLARE_API_TOKEN` (a token from the
-"Edit Cloudflare Workers" template, limited to that account and the `minddevops.eu` zone); it is
-skipped while the variable is unset. Cloudflare creates the DNS record and certificate for the
-custom domain on the first deployment.
+## Deployment
+
+The site is published to Cloudflare as the Worker `keymove-website` (`website/wrangler.jsonc`,
+static assets only). The Quality workflow's `quality` job builds it and uploads `.output/public`
+as the `website` artifact, without secrets; two token-bearing jobs then publish that artifact
+as static files, installing only the Wrangler locked in `website/deploy/pnpm-lock.yaml` (a
+standalone pnpm project with its own `pnpm-workspace.yaml`) from main's checkout:
+
+- **Production:** the `website` job in `.github/workflows/quality.yml` deploys pushes to `main`
+  to https://keymove.minddevops.eu (environment `production`). On a push to `main` the workflow
+  file, the build and the deployment configuration are all `main`'s.
+- **Pull request previews:** `.github/workflows/website-preview.yml` runs on `workflow_run` when
+  Quality completes for a pull request. Its definition always comes from `main`, so a branch
+  cannot rewrite the job that holds the token (it could in a `pull_request` run, where the
+  workflow file comes from the branch). It finds the open pull request through the API, fetches
+  the triggering run's artifact, checks and extracts it (regular files only, no path traversal,
+  no `_worker.js` or `.assetsignore`, size limits), and uploads it as a preview version at
+  `pr-<number>-keymove-website.<subdomain>.workers.dev` (environment `preview`), without changing
+  production. The commit status **Website preview** on the pull request links the preview, or
+  the failed run. Pull requests from forks and from Dependabot are skipped.
+
+The artifact itself is built by the pull request's code and is published as that pull
+request's content; nothing in it is executed or used as configuration. Changes to the
+deployment files (`wrangler.jsonc`, `website/deploy/`, either workflow) take effect once merged
+to `main`: `workflow_run` workflows only run from the default branch, and a pull request cannot
+preview its own deployment changes.
+
+Both jobs need the repository variable `CLOUDFLARE_ACCOUNT_ID` and the secret
+`CLOUDFLARE_API_TOKEN` (a token from the "Edit Cloudflare Workers" template, limited to that
+account and the `minddevops.eu` zone); both are skipped while the variable is unset. Cloudflare
+creates the DNS record and certificate for the custom domain on the first deployment.
+
+The workflows alone do not keep the token from branches. A repository-level secret is passed to
+every `pull_request` run from a branch of this repository, and that branch controls its own
+workflow files, so it could add a job that reads the secret. The boundary is the environments:
+keep `CLOUDFLARE_API_TOKEN` only as an environment secret of `production` and `preview`, each
+limited to the `main` branch under **Deployment branches and tags**. Pull request runs (ref
+`refs/pull/<n>/merge`) are then refused those environments, while pushes to `main` and
+`workflow_run` runs (ref `main`) are allowed. A separate, narrower token for previews makes a
+leak easier to contain and revoke. Anyone who can push to `main` can still change the trusted
+workflows and use the token.
 
 Link previews (LinkedIn, Slack, X) use the Open Graph tags in `index.html` and
 `media/social-card.png`, which the build copies unhashed to `/social-card.png` because crawlers
@@ -136,8 +168,10 @@ clipboard writes, and fullscreen are retained for the demo and video controls. C
 microphone, location, payment, USB, and clipboard reads are disabled. HSTS deliberately has
 no `includeSubDomains` or preload directive, so it does not opt other hosts into this policy.
 
-Test response headers using `npx --yes wrangler@4.147.0 dev --local --config website/wrangler.jsonc` after a
-website build; Vite preview does not apply Cloudflare's `_headers` or `_redirects` files.
+Test response headers after a website build with the same locked Wrangler the deploy uses:
+`pnpm --dir website/deploy install --frozen-lockfile`, then
+`website/deploy/node_modules/.bin/wrangler dev --local --config website/wrangler.jsonc`.
+Vite preview does not apply Cloudflare's `_headers` or `_redirects` files.
 Keep production policies out of the Vite development server, whose hot reload has different
 script and connection requirements. Verify the actual Cloudflare response after deployment.
 

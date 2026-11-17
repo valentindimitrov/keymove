@@ -4,6 +4,7 @@ import type { Suggestion } from '../../hooks/use_suggestions.js';
 import SuggestionContent from './suggestion_content.js';
 import Utils from '../../lib/utils.js';
 import ShortcutBadge from './shortcut_badge.js';
+import { isTrustedInput, trusted } from '../../lib/trusted_input.js';
 
 type ActionMenuProps = {
   actions: ResultAction[];
@@ -86,6 +87,7 @@ const ActionMenu = ({
         onMouseDown={event => event.stopPropagation()}
         onBlur={event => {
           if (
+            isTrustedInput(event) &&
             event.relatedTarget instanceof Node &&
             !event.currentTarget.contains(event.relatedTarget)
           )
@@ -93,7 +95,7 @@ const ActionMenu = ({
         }}
         onKeyDown={event => {
           event.stopPropagation();
-          if (event.nativeEvent.isComposing) return;
+          if (!isTrustedInput(event) || event.nativeEvent.isComposing) return;
           if (
             event.altKey &&
             !event.ctrlKey &&
@@ -160,8 +162,13 @@ const ActionMenu = ({
               tabIndex={selected === index ? 0 : -1}
               aria-disabled={action.disabled || busy || undefined}
               aria-keyshortcuts={`Alt+${index + 1}`}
-              onFocus={() => setSelected(index)}
-              onClick={() => void execute(action.id)}
+              onFocus={event => {
+                // Selection follows real focus only. A page can dispatch focusin at another
+                // item, and the next real Enter would then run an action it never showed.
+                if (isTrustedInput(event) && Utils.elementIsActive(event.currentTarget))
+                  setSelected(index);
+              }}
+              onClick={trusted(() => void execute(action.id))}
             >
               <ShortcutBadge position={index + 1} tooltipsMode={tooltipsMode} />
               <span className="keymove-action-label">{action.label}</span>

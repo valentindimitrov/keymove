@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { boundedClient, openPage } from './browser-driver.js';
+import { boundedClient, editingCommands, openPage } from './browser-driver.js';
 
 test('sends digit key codes for numbered shortcuts', async () => {
   const sendCommand = vi
@@ -36,4 +36,17 @@ test('bounds a stalled browser command and releases its timer', async () => {
   } finally {
     vi.useRealTimers();
   }
+});
+
+test('names native editing commands for Command shortcuts on macOS only', () => {
+  expect(editingCommands('v', 4, 'darwin')).toEqual(['paste']);
+  expect(editingCommands('c', 4, 'darwin')).toEqual(['copy']);
+  expect(editingCommands('a', 4, 'darwin')).toEqual(['selectAll']);
+  expect(editingCommands('z', 12, 'darwin')).toEqual(['redo']);
+  // Control+V on Windows and Linux already reaches the renderer's editing shortcuts.
+  expect(editingCommands('v', 2, 'win32')).toEqual([]);
+  expect(editingCommands('v', 4, 'linux')).toEqual([]);
+  // Other modifier combinations are page shortcuts, not editing commands.
+  expect(editingCommands('v', 5, 'darwin')).toEqual([]);
+  expect(editingCommands('k', 4, 'darwin')).toEqual([]);
 });

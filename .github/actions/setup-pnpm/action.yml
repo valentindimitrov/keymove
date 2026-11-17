@@ -1,0 +1,68 @@
+name: Set up verified pnpm
+description: >-
+  Installs the pnpm version named by package.json's packageManager field from the native
+  Linux x64 binary, after checking it against the integrity recorded in the lockfile. No npm
+  install runs, so no package lifecycle script executes while pnpm is set up.
+
+inputs:
+  lockfile:
+    description: Lockfile whose packageManagerDependencies entry pins the pnpm binary
+    default: pnpm-lock.yaml
+
+runs:
+  using: composite
+  steps:
+    - name: Download and verify pnpm
+      shell: bash
+      env:
+        LOCKFILE: ${{ inputs.lockfile }}
+      run: |
+        set -euo pipefail
+
+        if [[ "$(uname -s)-$(uname -m)" != "Linux-x86_64" ]]; then
+          echo "This action installs only the Linux x64 pnpm binary." >&2
+          exit 1
+        fi
+
+        spec="$(node -p "require('./package.json').packageManager")"
+        if [[ ! "$spec" =~ ^pnpm@([0-9]+\.[0-9]+\.[0-9]+)\+sha512\.[0-9a-f]{128}$ ]]; then
+          echo "packageManager must be pnpm@<version>+sha512.<hex>, found: $spec" >&2
+          exit 1
+        fi
+        version="${BASH_REMATCH[1]}"
+        package="@pnpm/exe.linux-x64"
+
+        # The lockfile records each platform binary's registry integrity for this version.
+        integrity="$(node -e '
+          const [file, key] = process.argv.slice(1);
+          const lines = require("node:fs").readFileSync(file, "utf8").split("\n");
+          const start = lines.indexOf(`  \x27${key}\x27:`);
+          const match = start < 0 ? null : /integrity: (sha512-[A-Za-z0-9+\/=]+)/.exec(lines[start + 1]);
+          process.stdout.write(match ? match[1] : "");
+        ' "$LOCKFILE" "${package}@${version}")"
+        if [[ ! "$integrity" =~ ^sha512-[A-Za-z0-9+/]{86}==$ ]]; then
+          echo "$LOCKFILE has no sha512 integrity for ${package}@${version}." >&2
+          exit 1
+        fi
+
+        directory="$RUNNER_TEMP/pnpm-$version"
+        mkdir -p "$directory/bin"
+        archive="$directory/exe.tgz"
+        curl --fail --silent --show-error --location --retry 3 --retry-all-errors \
+          --max-time 120 --output "$archive" \
+          "https://registry.npmjs.org/${package}/-/exe.linux-x64-${version}.tgz"
+
+        actual="sha512-$(openssl dgst -sha512 -binary "$archive" | base64 -w0)"
+        if [[ "$actual" != "$integrity" ]]; then
+          echo "Downloaded ${package}@${version} does not match the lockfile integrity." >&2
+          exit 1
+        fi
+
+        tar -xzf "$archive" -C "$directory" package/pnpm
+        install -m 0755 "$directory/package/pnpm" "$directory/bin/pnpm"
+        if [[ "$("$directory/bin/pnpm" --version)" != "$version" ]]; then
+          echo "The verified binary does not report pnpm $version." >&2
+          exit 1
+        fi
+        echo "$directory/bin" >> "$GITHUB_PATH"
+        echo "Using verified pnpm $version ($integrity)"

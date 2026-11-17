@@ -24,6 +24,14 @@ const useWindowSize = (timeoutDuration = 0) => {
     };
 
     window.addEventListener('resize', resize);
+    // A resize between the first render's read and this subscription had no listener.
+    // Re-read once, keeping the same object when nothing changed to avoid a re-render.
+    setWindowSize(previous => {
+      const current = getWindowDimensions();
+      return current.width === previous.width && current.height === previous.height
+        ? previous
+        : current;
+    });
     return () => {
       window.removeEventListener('resize', resize);
       window.clearTimeout(resizeTimeout);

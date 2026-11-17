@@ -7,6 +7,7 @@ import { MODAL_CHANGED_EVENT } from '../../lib/modal_context.js';
 import { stopFrameSearch } from '../../lib/find_in_page.js';
 import { RelatedImageSelection } from '../../lib/related_images.js';
 import { setFrameTarget } from '../../lib/frame_target.js';
+import { acceptSyntheticInputForTesting } from '../../lib/trusted_input.js';
 
 const searchMocks = vi.hoisted(() => ({
   findMatches: vi.fn(),
@@ -2499,4 +2500,203 @@ test('late first frame result receives automatic hover', async () => {
   expect(stopFrameSearch).not.toHaveBeenCalled();
   fireEvent.keyDown(input, { key: 'Escape', code: 'Escape' });
   expect(stopFrameSearch).toHaveBeenCalled();
+});
+
+describe('page-dispatched input', () => {
+  const userActivation = { isActive: true };
+
+  beforeEach(() => {
+    userActivation.isActive = true;
+    Object.defineProperty(navigator, 'userActivation', {
+      configurable: true,
+      value: userActivation,
+    });
+  });
+
+  afterEach(() => {
+    acceptSyntheticInputForTesting(true);
+    Reflect.deleteProperty(navigator, 'userActivation');
+  });
+
+  async function searchForLink() {
+    const link = document.createElement('a');
+    link.href = 'https://example.com/result';
+    link.textContent = 'Open result';
+    const clicked = vi.fn((event: Event) => event.preventDefault());
+    link.addEventListener('click', clicked);
+    document.body.append(link);
+    searchMocks.findMatches.mockResolvedValue(
+      makeSearchResult({
+        matchingText: [makeTextMatch({ node: link, action: link, term: 'result' })],
+        matchingLinksAndButtons: [link],
+      }),
+    );
+    render(<Searchbar />);
+    const input = screen.getByRole<HTMLInputElement>('combobox', { name: 'Search page' });
+    input.focus();
+    fireEvent.input(input, { target: { value: 'result' } });
+    await flushSearch();
+    expect(screen.getByRole('status')).toHaveTextContent('Text 1 / 1');
+    return { input, link, clicked };
+  }
+
+  test('cannot type, open or search through synthetic keyboard and input events', async () => {
+    acceptSyntheticInputForTesting(false);
+    searchMocks.findMatches.mockResolvedValue(makeSearchResult());
+    render(<Searchbar />);
+    const input = screen.getByRole<HTMLInputElement>('combobox', { name: 'Search page' });
+
+    fireEvent.keyDown(document.body, { key: 'q', code: 'KeyQ' });
+    fireEvent.keyDown(document.body, { key: 'f', code: 'KeyF', altKey: true });
+    expect(input).not.toHaveFocus();
+    expect(input).toHaveValue('');
+
+    // Page script can reach the input through the open shadow root.
+    input.focus();
+    fireEvent.input(input, { target: { value: 'secret' } });
+    await act(async () => {});
+    expect(input).toHaveValue('');
+    expect(searchMocks.findMatches).not.toHaveBeenCalled();
+  });
+
+  test('cannot activate, open, copy or open actions for a result through synthetic events', async () => {
+    const { input, link, clicked } = await searchForLink();
+    acceptSyntheticInputForTesting(false);
+
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter', shiftKey: true });
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter', ctrlKey: true });
+    fireEvent.keyDown(input, { key: 'ArrowDown', code: 'ArrowDown' });
+    const setData = vi.fn();
+    const copyEvent = new Event('copy', { bubbles: true, cancelable: true });
+    Object.defineProperty(copyEvent, 'clipboardData', { value: { setData } });
+    document.dispatchEvent(copyEvent);
+    fireEvent.click(screen.getByRole('button', { name: 'Open KeyMove settings' }));
+    await act(async () => {});
+
+    expect(clicked).not.toHaveBeenCalled();
+    expect(searchMocks.sendMessage).not.toHaveBeenCalled();
+    expect(setData).not.toHaveBeenCalled();
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(input).toHaveValue('result');
+
+    acceptSyntheticInputForTesting(true);
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
+    await act(async () => {});
+    expect(clicked).toHaveBeenCalledOnce();
+    expect(link).toBeInTheDocument();
+  });
+
+  test('cannot run result actions or select rows through synthetic clicks', async () => {
+    const { input, clicked } = await searchForLink();
+    fireEvent.keyDown(input, { key: 'ArrowDown', code: 'ArrowDown' });
+    acceptSyntheticInputForTesting(false);
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Open in new tab' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Open link' }));
+    fireEvent.keyDown(screen.getByRole('menuitem', { name: 'Open link' }), {
+      key: 'Enter',
+      code: 'Enter',
+    });
+    await act(async () => {});
+    expect(clicked).not.toHaveBeenCalled();
+    expect(searchMocks.sendMessage).not.toHaveBeenCalled();
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+  });
+
+  test('requires user activation before activating a result or opening a tab', async () => {
+    const { input, clicked } = await searchForLink();
+    userActivation.isActive = false;
+
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter', shiftKey: true });
+    await act(async () => {});
+    expect(clicked).not.toHaveBeenCalled();
+    expect(searchMocks.sendMessage).not.toHaveBeenCalled();
+
+    userActivation.isActive = true;
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter', shiftKey: true });
+    await act(async () => {});
+    expect(searchMocks.sendMessage).toHaveBeenCalledWith({
+      type: 'KEYMOVE_OPEN_LINK_IN_NEW_TAB',
+      url: 'https://example.com/result',
+      active: true,
+    });
+  });
+
+  test('cannot substitute the action a real Enter runs by dispatching focus at another item', async () => {
+    const { input, clicked } = await searchForLink();
+    fireEvent.keyDown(input, { key: 'ArrowDown', code: 'ArrowDown' });
+    const openLink = screen.getByRole('menuitem', { name: 'Open link' });
+    const newTab = screen.getByRole('menuitem', { name: 'Open in new tab' });
+    expect(openLink).toHaveFocus();
+
+    acceptSyntheticInputForTesting(false);
+    fireEvent.focusIn(newTab);
+    acceptSyntheticInputForTesting(true);
+    // Even a trusted notification cannot move the selection away from real focus.
+    fireEvent.focusIn(newTab);
+    expect(openLink).toHaveFocus();
+
+    fireEvent.keyDown(openLink, { key: 'Enter', code: 'Enter' });
+    await act(async () => {});
+    expect(searchMocks.sendMessage).not.toHaveBeenCalled();
+    expect(clicked).toHaveBeenCalledOnce();
+  });
+
+  test('cannot clear the search with a synthetic blur while focus stays in the input', async () => {
+    const { input } = await searchForLink();
+    acceptSyntheticInputForTesting(false);
+
+    fireEvent.focusOut(input, { relatedTarget: document.body });
+    await act(async () => {});
+    expect(input).toHaveValue('result');
+    expect(screen.getByRole('status')).toHaveTextContent('Text 1 / 1');
+    expect(window.getSelection()?.toString()).toBe('Open result');
+  });
+
+  test('cannot remove the result selection through synthetic editing events', async () => {
+    const { input } = await searchForLink();
+    expect(window.getSelection()?.toString()).toBe('Open result');
+    acceptSyntheticInputForTesting(false);
+
+    fireEvent.paste(input);
+    fireEvent.cut(input);
+    fireEvent.compositionStart(input);
+    fireEvent.keyDown(input, { key: 'a', code: 'KeyA' });
+    fireEvent.keyDown(input, { key: 'Backspace', code: 'Backspace' });
+    expect(window.getSelection()?.toString()).toBe('Open result');
+  });
+
+  test('cannot close the action menu through synthetic pointer or blur events', async () => {
+    const { input } = await searchForLink();
+    fireEvent.keyDown(input, { key: 'ArrowDown', code: 'ArrowDown' });
+    const openLink = screen.getByRole('menuitem', { name: 'Open link' });
+    acceptSyntheticInputForTesting(false);
+
+    fireEvent.pointerDown(document.body);
+    fireEvent.focusOut(openLink, { relatedTarget: document.body });
+    await act(async () => {});
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    expect(openLink).toHaveFocus();
+
+    acceptSyntheticInputForTesting(true);
+    fireEvent.pointerDown(document.body);
+    await act(async () => {});
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  test('cannot reset the results or menu by dispatching a modal change', async () => {
+    const { input } = await searchForLink();
+    fireEvent.keyDown(input, { key: 'ArrowDown', code: 'ArrowDown' });
+    const searches = searchMocks.findMatches.mock.calls.length;
+    const selection = window.getSelection()?.toString();
+    acceptSyntheticInputForTesting(false);
+
+    document.dispatchEvent(new Event(MODAL_CHANGED_EVENT));
+    await act(async () => {});
+    expect(searchMocks.findMatches).toHaveBeenCalledTimes(searches);
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    expect(window.getSelection()?.toString()).toBe(selection);
+  });
 });

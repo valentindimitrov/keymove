@@ -110,6 +110,26 @@ artifacts are `.output/chrome-mv3`, `.output/firefox-mv3` and `.output/safari-mv
 - Browsers may reserve `Ctrl + Tab` before content scripts receive it. Do not claim that page code
   can override a browser-level shortcut reservation.
 
+## Untrusted page input
+
+Page script shares the DOM and can dispatch any event at KeyMove's listeners, and reach
+the open shadow root. Every KeyMove listener whose effect is a state change, focus move,
+storage write or cleanup ignores untrusted events through `src/lib/trusted_input.ts`; never
+test `event.isTrusted` inline. That covers keyboard, input, copy, paste/cut/composition,
+click and pointer input, focus and blur, mouse moves and releases during drag and resize,
+lifecycle events such as `pagehide`, and window messages. Script `.focus()` produces
+trusted focus events, so focus notifications must also match real focus (the deep active
+element) before they move a cursor. KeyMove's own DOM notifications, such as
+`MODAL_CHANGED_EVENT`, are untrusted too: send them with `dispatchOwnEvent` and accept
+them with `isOwnEvent`. Handlers that only re-read current DOM or layout (scroll, resize,
+theme, root reconciliation) may stay unguarded. `use_selection_hover.ts` reads `isTrusted`
+directly because it must ignore KeyMove's own synthetic pointer events even in tests.
+Activating a result, opening a tab from it and opening an image in a
+tab also require `hasUserActivation()` in the top frame. Activation belongs to the frame that
+received the input and propagates only to ancestors, so child frames cannot check it for
+relayed commands; the top frame checks before sending them. jsdom cannot create trusted
+events: `src/setupTests.ts` sets the test seam, and rejection tests switch it off.
+
 ## Control discovery and modal navigation
 
 Control names resolve associated labels, `aria-labelledby`, `aria-label`, and image alternative
@@ -354,10 +374,19 @@ blindly replacing it can break selectors, stored preferences, and content/backgr
 - Local `.env` and `.env.*` files are ignored by git (`.env.example` is allowed but does not
   exist yet). Signing and deployment credentials also live in external secret stores. Never
   commit, print or paste secret values; follow `SECURITY.md` for vulnerability reports.
-- Releases are manual uploads to the Chrome Web Store and Firefox Add-ons, not a pipeline. A
-  store submission is effectively irreversible: confirm with the user before any store action.
+- Releases: the manually dispatched `.github/workflows/prepare-release.yml` builds, validates and
+  signs the packages and stops at a draft GitHub release. Its signing job runs in the protected
+  `release` environment (`main` only, required reviewer; see `docs/crx-signing.md`). Publishing
+  the draft and the Chrome Web Store and Firefox Add-ons uploads stay manual. Do not dispatch
+  the workflow or publish a release unless the user asks. A store submission is effectively
+  irreversible: confirm with the user before any store action.
 - The website is the exception: every push to `main` that passes the quality checks publishes it
   to https://keymove.minddevops.eu, so website changes on `main` go live (`website/README.md`).
+  Pull request previews run in `.github/workflows/website-preview.yml`, a `workflow_run`
+  workflow whose definition comes from `main`; it publishes the pull request's build artifact
+  as validated static files with `main`'s locked Wrangler. The Cloudflare token is out of reach
+  of branches only while it is an environment secret limited to `main`; anyone who can push to
+  `main` controls both workflows. See `website/README.md`, "Deployment".
 
 ## Development rules
 

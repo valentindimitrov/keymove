@@ -1,12 +1,27 @@
 // @vitest-environment node
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, unlinkSync } from 'node:fs';
+import {
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  writeFileSync,
+  rmSync,
+  unlinkSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { SANDBOX_SUPPORT_URL, validateBuilds } from './validate-builds.js';
+import { crc32, deflateRawSync } from 'node:zlib';
+import {
+  SANDBOX_SUPPORT_URL,
+  readZip,
+  validateBuilds,
+  validatePackages,
+} from './validate-builds.js';
 import identity from '../src/extension_identity.js';
 
 let root: string;
 beforeEach(() => {
+  vi.stubEnv('WXT_FIREFOX_EXTENSION_ID', 'keymove-test@example.invalid');
   root = mkdtempSync(path.join(tmpdir(), 'keymove-build-validation-'));
   writeFileSync(path.join(root, 'package.json'), JSON.stringify({ version: '1.0.0' }));
   writeFileSync(path.join(root, 'LICENSE'), 'Fixture license');
@@ -51,9 +66,7 @@ beforeEach(() => {
           ? {
               browser_specific_settings: {
                 gecko: {
-                  ...(process.env['WXT_FIREFOX_EXTENSION_ID']
-                    ? { id: process.env['WXT_FIREFOX_EXTENSION_ID'] }
-                    : {}),
+                  id: 'keymove-test@example.invalid',
                   data_collection_permissions: { required: ['none'] },
                 },
               },
@@ -64,6 +77,7 @@ beforeEach(() => {
   }
 });
 afterEach(() => {
+  vi.unstubAllEnvs();
   if (
     path.dirname(root) !== path.resolve(tmpdir()) ||
     !path.basename(root).startsWith('keymove-build-validation-')
@@ -120,3 +134,215 @@ test.each(['chrome', 'firefox', 'safari'])(
     expect(() => validateBuilds(root)).toThrow(/store-listings should not be packaged/);
   },
 );
+
+test('rejects a Firefox ID that differs from the configured one', () => {
+  vi.stubEnv('WXT_FIREFOX_EXTENSION_ID', 'other@example.invalid');
+  expect(() => validateBuilds(root)).toThrow(/does not match WXT_FIREFOX_EXTENSION_ID/);
+});
+
+test('rejects a packaged Firefox ID when none is configured', () => {
+  vi.stubEnv('WXT_FIREFOX_EXTENSION_ID', '');
+  expect(() => validateBuilds(root)).toThrow(/packaged although WXT_FIREFOX_EXTENSION_ID/);
+});
+
+type ZipEntry = { name: string; data: Buffer; method?: 0 | 8; crc?: number };
+
+// Writes the subset of the ZIP format WXT produces, so tests can corrupt individual fields.
+function zip(entries: ZipEntry[]): Buffer {
+  const locals: Buffer[] = [];
+  const centrals: Buffer[] = [];
+  let offset = 0;
+  for (const { name, data, method = 8, crc = crc32(data) } of entries) {
+    const stored = method === 8 ? deflateRawSync(data) : data;
+    const nameBytes = Buffer.from(name);
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(method, 8);
+    local.writeUInt32LE(crc, 14);
+    local.writeUInt32LE(stored.length, 18);
+    local.writeUInt32LE(data.length, 22);
+    local.writeUInt16LE(nameBytes.length, 26);
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt16LE(20, 4);
+    central.writeUInt16LE(20, 6);
+    central.writeUInt16LE(method, 10);
+    central.writeUInt32LE(crc, 16);
+    central.writeUInt32LE(stored.length, 20);
+    central.writeUInt32LE(data.length, 24);
+    central.writeUInt16LE(nameBytes.length, 28);
+    central.writeUInt32LE(offset, 42);
+    locals.push(local, nameBytes, stored);
+    centrals.push(central, nameBytes);
+    offset += local.length + nameBytes.length + stored.length;
+  }
+  const directory = Buffer.concat(centrals);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(entries.length, 8);
+  end.writeUInt16LE(entries.length, 10);
+  end.writeUInt32LE(directory.length, 12);
+  end.writeUInt32LE(offset, 16);
+  return Buffer.concat([...locals, directory, end]);
+}
+
+function filesIn(directory: string, prefix = ''): ZipEntry[] {
+  return readdirSync(path.join(directory, prefix), { withFileTypes: true }).flatMap(entry => {
+    const name = prefix ? `${prefix}/${entry.name}` : entry.name;
+    return entry.isDirectory()
+      ? filesIn(directory, name)
+      : [{ name, data: readFileSync(path.join(directory, name)) }];
+  });
+}
+
+const packageFile = (suffix: string) =>
+  path.join(root, '.output', `${identity.artifactName}-v1.0.0-${suffix}.zip`);
+
+function writePackages(change: (suffix: string, entries: ZipEntry[]) => ZipEntry[] = (_, e) => e) {
+  for (const target of ['chrome', 'firefox', 'safari']) {
+    const suffix = `${target}-mv3`;
+    writeFileSync(
+      packageFile(suffix),
+      zip(change(suffix, filesIn(path.join(root, '.output', suffix)))),
+    );
+  }
+  const sources: ZipEntry[] = [
+    { name: 'package.json', data: Buffer.from(JSON.stringify({ version: '1.0.0' })) },
+    { name: 'pnpm-lock.yaml', data: Buffer.from('lockfileVersion: 9.0') },
+    { name: 'wxt.config.ts', data: Buffer.from('export default {}') },
+    { name: 'LICENSE', data: Buffer.from('Fixture license') },
+    { name: 'src/', data: Buffer.alloc(0), method: 0 },
+    { name: 'src/index.ts', data: Buffer.from('export {}'), method: 0 },
+  ];
+  writeFileSync(packageFile('sources'), zip(change('sources', sources)));
+}
+
+const replace = (entries: ZipEntry[], name: string, data: string) =>
+  entries.map(entry => (entry.name === name ? { ...entry, data: Buffer.from(data) } : entry));
+
+describe('release packages', () => {
+  test('accepts packages that match their validated builds', () => {
+    writePackages();
+    expect(() => validatePackages(root)).not.toThrow();
+  });
+
+  test('validates packages on their own when the unpacked builds are absent', () => {
+    writePackages();
+    rmSync(path.join(root, '.output/chrome-mv3'), { recursive: true });
+    expect(() => validatePackages(root)).not.toThrow();
+  });
+
+  test('rejects a missing package', () => {
+    writePackages();
+    unlinkSync(packageFile('sources'));
+    expect(() => validatePackages(root)).toThrow(/sources.zip is missing/);
+  });
+
+  test('rejects a package whose manifest version differs', () => {
+    writePackages((suffix, entries) => {
+      if (suffix !== 'firefox-mv3') return entries;
+      const manifest = JSON.parse(
+        entries.find(entry => entry.name === 'manifest.json')!.data.toString(),
+      ) as Record<string, unknown>;
+      return replace(entries, 'manifest.json', JSON.stringify({ ...manifest, version: '0.9.0' }));
+    });
+    rmSync(path.join(root, '.output/firefox-mv3'), { recursive: true });
+    expect(() => validatePackages(root)).toThrow(/firefox-mv3.zip: extension version/);
+  });
+
+  test('rejects a package without the repository LICENSE', () => {
+    writePackages((suffix, entries) =>
+      suffix === 'safari-mv3' ? entries.filter(entry => entry.name !== 'LICENSE') : entries,
+    );
+    expect(() => validatePackages(root)).toThrow(/safari-mv3.zip: bundled LICENSE/);
+  });
+
+  test('rejects a package missing a file its manifest references', () => {
+    writePackages((suffix, entries) =>
+      suffix === 'chrome-mv3' ? entries.filter(entry => entry.name !== 'background.js') : entries,
+    );
+    rmSync(path.join(root, '.output/chrome-mv3'), { recursive: true });
+    expect(() => validatePackages(root)).toThrow(/chrome-mv3.zip: background.js is missing/);
+  });
+
+  test('rejects a package that differs from its validated build', () => {
+    writePackages((suffix, entries) =>
+      suffix === 'chrome-mv3' ? replace(entries, 'background.js', 'tampered()') : entries,
+    );
+    expect(() => validatePackages(root)).toThrow(/background.js differs from .output\/chrome-mv3/);
+  });
+
+  test('rejects a Firefox package with a different extension ID', () => {
+    writePackages();
+    rmSync(path.join(root, '.output/firefox-mv3'), { recursive: true });
+    vi.stubEnv('WXT_FIREFOX_EXTENSION_ID', 'other@example.invalid');
+    expect(() => validatePackages(root)).toThrow(/firefox-mv3.zip: extension ID does not match/);
+  });
+
+  test.each([
+    ['node_modules/react/index.js', /dependency file/],
+    ['.env', /environment file/],
+    ['website/.env.production', /environment file/],
+  ])('rejects %s in the sources package', (name, error) => {
+    writePackages((suffix, entries) =>
+      suffix === 'sources' ? [...entries, { name, data: Buffer.from('x') }] : entries,
+    );
+    expect(() => validatePackages(root)).toThrow(error);
+  });
+
+  test('allows .env.example in the sources package', () => {
+    writePackages((suffix, entries) =>
+      suffix === 'sources'
+        ? [...entries, { name: '.env.example', data: Buffer.from('KEY=') }]
+        : entries,
+    );
+    expect(() => validatePackages(root)).not.toThrow();
+  });
+
+  test('rejects a sources package for another version', () => {
+    writePackages((suffix, entries) =>
+      suffix === 'sources'
+        ? replace(entries, 'package.json', JSON.stringify({ version: '2.0.0' }))
+        : entries,
+    );
+    expect(() => validatePackages(root)).toThrow(/sources.zip: package.json version/);
+  });
+});
+
+describe('ZIP reader', () => {
+  const file = { name: 'a.txt', data: Buffer.from('hello hello hello') };
+
+  test('reads stored and deflated entries and skips directories', () => {
+    const files = readZip(
+      zip([
+        file,
+        { name: 'dir/', data: Buffer.alloc(0), method: 0 },
+        { ...file, name: 'b', method: 0 },
+      ]),
+    );
+    expect([...files.keys()]).toEqual(['a.txt', 'b']);
+    expect(files.get('a.txt')!.toString()).toBe('hello hello hello');
+  });
+
+  test('rejects a corrupted entry', () => {
+    expect(() => readZip(zip([{ ...file, crc: 1 }]))).toThrow(/CRC-32/);
+  });
+
+  test.each(['../escape.txt', '/absolute.txt', 'dir\\file.txt', 'C:/file.txt'])(
+    'rejects the unsafe entry name %s',
+    name => {
+      expect(() => readZip(zip([{ ...file, name }]))).toThrow(/unsafe entry name/);
+    },
+  );
+
+  test('rejects duplicate entries', () => {
+    expect(() => readZip(zip([file, file]))).toThrow(/more than once/);
+  });
+
+  test('rejects data that is not a ZIP archive', () => {
+    expect(() => readZip(Buffer.from('not a zip archive at all, just text'))).toThrow(
+      /not a ZIP archive/,
+    );
+  });
+});

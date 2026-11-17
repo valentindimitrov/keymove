@@ -28,6 +28,32 @@ function record(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+// macOS Chromium runs Command shortcuts as application-menu key equivalents, which a
+// synthetic CDP key event never reaches. Name the editing command, as a real menu would,
+// so copy/paste/select-all still run natively after page handlers see the keydown.
+const MAC_EDITING_COMMANDS: Record<string, string> = {
+  a: 'selectAll',
+  c: 'copy',
+  v: 'paste',
+  x: 'cut',
+  z: 'undo',
+};
+const META = 4;
+const SHIFT = 8;
+
+export function editingCommands(
+  key: string,
+  modifiers: number,
+  platform: NodeJS.Platform = process.platform,
+): string[] {
+  if (platform !== 'darwin' || (modifiers & ~SHIFT) !== META) return [];
+  const lower = key.toLowerCase();
+  if (lower === 'z' && modifiers & SHIFT) return ['redo'];
+  if (modifiers & SHIFT) return [];
+  const command = MAC_EDITING_COMMANDS[lower];
+  return command ? [command] : [];
+}
+
 export async function openPage(client: ChromiumClient, url: string) {
   const targetId = record(await client.sendCommand('Target.createTarget', { url }))['targetId'];
   assert.equal(typeof targetId, 'string');
@@ -50,6 +76,7 @@ export async function openPage(client: ChromiumClient, url: string) {
   return {
     activate: () => client.sendCommand('Target.activateTarget', { targetId }),
     close: () => client.sendCommand('Target.closeTarget', { targetId }),
+    reload: () => client.sendCommand('Page.reload', {}, session),
     movePointer: (x: number, y: number) =>
       client.sendCommand('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y }, session),
     setColorScheme: (value: 'light' | 'dark' | '') =>
@@ -117,12 +144,14 @@ export async function openPage(client: ChromiumClient, url: string) {
             : key;
       const windowsVirtualKeyCode = codes[key] ?? (ascii ? key.toUpperCase().charCodeAt(0) : 0);
       const params = { key, code, modifiers, windowsVirtualKeyCode };
+      const commands = editingCommands(key, modifiers);
       await client.sendCommand(
         'Input.dispatchKeyEvent',
         {
           ...params,
           type: 'keyDown',
           ...(character && modifiers === 0 ? { text: key } : {}),
+          ...(commands.length ? { commands } : {}),
         },
         session,
       );

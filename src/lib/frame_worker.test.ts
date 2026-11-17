@@ -1,10 +1,11 @@
 import { installFrameWorker } from './frame_worker.js';
-import { FRAME_MESSAGE } from './frame_protocol.js';
+import { FRAME_MESSAGE, FRAME_PROBE } from './frame_protocol.js';
 import type { FrameReply, FrameRequest } from './frame_protocol.js';
 import { PageSearchIndex } from './page_search_index.js';
 import { setFrameTarget } from './frame_target.js';
 import { makeSearchResult } from '../test_support/factories.js';
 import { isImageInfo } from './image_schema.js';
+import { acceptSyntheticInputForTesting } from './trusted_input.js';
 
 const transport = vi.hoisted(() => ({
   add: vi.fn(),
@@ -226,5 +227,69 @@ test('releases nested hover after its handle leaves the current results', async 
     teardown();
     document.body.innerHTML = '';
     vi.restoreAllMocks();
+  }
+});
+
+test('a page-dispatched pagehide does not stop the frame helper', async () => {
+  document.body.innerHTML = '<button>Launch</button>';
+  vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(100);
+  vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(30);
+  transport.add.mockClear();
+  const teardown = installFrameWorker();
+  const listener = transport.add.mock.calls[0]![0];
+  const request = (body: FrameRequest): Promise<unknown> =>
+    new Promise(resolve => {
+      listener(
+        { type: FRAME_MESSAGE, kind: 'deliver', requester: 0, request: body },
+        { id: 'test' },
+        resolve,
+      );
+    });
+  try {
+    const reply = (await request({
+      op: 'search',
+      query: 'Launch',
+      generation: 'live',
+      depth: 1,
+    })) as FrameReply;
+    const command = {
+      op: 'command' as const,
+      generation: 'live',
+      id: reply.rows[0]!.id,
+      command: 'validate' as const,
+    };
+    acceptSyntheticInputForTesting(false);
+    window.dispatchEvent(new PageTransitionEvent('pagehide'));
+    expect(await request(command)).toBe(true);
+  } finally {
+    acceptSyntheticInputForTesting(true);
+    teardown();
+    document.body.innerHTML = '';
+    vi.restoreAllMocks();
+  }
+});
+
+test('answers only real frame probes from the parent', () => {
+  const teardown = installFrameWorker();
+  transport.send.mockClear();
+  const probe = () =>
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        source: window.parent,
+        data: { type: FRAME_PROBE, token: 'probe-token' },
+      }),
+    );
+  const hellos = () =>
+    transport.send.mock.calls.filter(([message]) => message.kind === 'hello').length;
+  try {
+    acceptSyntheticInputForTesting(false);
+    probe();
+    expect(hellos()).toBe(0);
+    acceptSyntheticInputForTesting(true);
+    probe();
+    expect(hellos()).toBe(1);
+  } finally {
+    acceptSyntheticInputForTesting(true);
+    teardown();
   }
 });
