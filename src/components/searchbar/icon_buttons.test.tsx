@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { EXTENSION_NAME } from '../../extension_identity.js';
 import InfoDropdown from './info_dropdown.js';
 import VisibilityButton from './visibility_button.js';
+import { acceptSyntheticInputForTesting } from '../../lib/trusted_input.js';
 
 vi.mock('./tooltip.js', () => ({
   default: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -65,4 +66,41 @@ test('Tooltips mode off suppresses hover help but leaves explicit help and acces
   fireEvent.mouseEnter(eye);
   fireEvent.focus(eye);
   expect(document.querySelector('#keymove-visibility-tooltip')).toBeNull();
+});
+
+describe('page-dispatched events', () => {
+  afterEach(() => acceptSyntheticInputForTesting(true));
+
+  test('cannot open the help panel or move focus with Escape', () => {
+    render(
+      <>
+        <input aria-label="Search page" />
+        <InfoDropdown />
+      </>,
+    );
+    const search = screen.getByRole('textbox', { name: 'Search page' });
+    const button = screen.getByRole('button', { name: `${EXTENSION_NAME} keyboard shortcuts` });
+    acceptSyntheticInputForTesting(false);
+    fireEvent.click(button);
+    fireEvent.mouseEnter(button);
+    expect(button).toHaveAttribute('aria-expanded', 'false');
+
+    acceptSyntheticInputForTesting(true);
+    fireEvent.click(button);
+    search.focus();
+    acceptSyntheticInputForTesting(false);
+    fireEvent.keyDown(button, { key: 'Escape' });
+    fireEvent.keyDown(screen.getByText('Keyboard Shortcuts'), { key: 'Escape' });
+    expect(button).toHaveAttribute('aria-expanded', 'true');
+    expect(search).toHaveFocus();
+  });
+
+  test('cannot show the autohide tooltip', () => {
+    render(<VisibilityButton autoHide={false} toggleAutoHide={toggleAutoHide} />);
+    const eye = screen.getByRole('button', { name: 'Turn Autohide on' });
+    acceptSyntheticInputForTesting(false);
+    fireEvent.mouseEnter(eye);
+    fireEvent.focus(eye);
+    expect(document.querySelector('#keymove-visibility-tooltip')).toBeNull();
+  });
 });

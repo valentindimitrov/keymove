@@ -1,13 +1,18 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { crc32, inflateRawSync } from 'node:zlib';
 import EXTENSION_IDENTITY from '../src/extension_identity.ts';
+
+// This module imports only Node built-ins and the identity constants, so the release
+// signing job can run it from a fresh checkout without installing dependencies.
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const SANDBOX_SUPPORT_URL = 'https://buy.stripe.com/test_cNieVe2GhbdMaeq6sd5os00';
 
 type BuildTarget = {
   name: string;
+  browser: 'chrome' | 'firefox' | 'safari';
   directory: string;
   manifestVersion: 3;
   backgroundType: 'service-worker' | 'script';
@@ -45,12 +50,14 @@ type BuildManifest = {
 const targets: BuildTarget[] = [
   {
     name: 'Chromium/Vivaldi',
+    browser: 'chrome',
     directory: '.output/chrome-mv3',
     manifestVersion: 3,
     backgroundType: 'service-worker',
   },
   {
     name: 'Firefox',
+    browser: 'firefox',
     directory: '.output/firefox-mv3',
     manifestVersion: 3,
     backgroundType: 'script',
@@ -58,6 +65,7 @@ const targets: BuildTarget[] = [
   },
   {
     name: 'Safari (macOS; runtime unverified)',
+    browser: 'safari',
     directory: '.output/safari-mv3',
     manifestVersion: 3,
     backgroundType: 'service-worker',
@@ -162,6 +170,22 @@ function validateManifestShape(value: unknown, targetName: string): asserts valu
       }
     }
   }
+}
+
+/**
+ * The packaged Firefox ID must be exactly the one the build was configured with: equal to
+ * WXT_FIREFOX_EXTENSION_ID when it is set, and absent when it is not. CI sets a placeholder
+ * ID so pull requests exercise the configured path without a repository variable.
+ */
+function validateFirefoxId(manifest: BuildManifest, targetName: string) {
+  const expected = process.env['WXT_FIREFOX_EXTENSION_ID'] || undefined;
+  const actual = manifest.browser_specific_settings?.gecko?.id;
+  requireCondition(
+    actual === expected,
+    expected
+      ? `${targetName}: extension ID does not match WXT_FIREFOX_EXTENSION_ID`
+      : `${targetName}: extension ID is packaged although WXT_FIREFOX_EXTENSION_ID is not set`,
+  );
 }
 
 function resolveOutputPath(buildDirectory: string, relativePath: string) {
@@ -347,12 +371,7 @@ function validateTarget(target: BuildTarget, packageVersion: string, root: strin
       `${target.name}: no-data-collection declaration is missing`,
     );
 
-    if (process.env['WXT_FIREFOX_EXTENSION_ID']) {
-      requireCondition(
-        manifest.browser_specific_settings?.gecko?.id === process.env['WXT_FIREFOX_EXTENSION_ID'],
-        `${target.name}: extension ID does not match WXT_FIREFOX_EXTENSION_ID`,
-      );
-    }
+    validateFirefoxId(manifest, target.name);
   } else {
     requireCondition(
       !manifest.browser_specific_settings?.gecko,
@@ -389,6 +408,247 @@ function validateTarget(target: BuildTarget, packageVersion: string, root: strin
   );
 }
 
+const ZIP_LOCAL_HEADER = 0x04034b50;
+const ZIP_CENTRAL_HEADER = 0x02014b50;
+const ZIP_END_OF_CENTRAL_DIRECTORY = 0x06054b50;
+
+/**
+ * Reads every file in a ZIP archive into memory. Release archives are small, so this
+ * deliberately supports only what WXT writes: stored or deflated entries without ZIP64,
+ * encryption or multiple disks. Names, sizes and CRC-32 values are all checked.
+ */
+export function readZip(archive: Buffer, label = 'ZIP archive'): Map<string, Buffer> {
+  const searchStart = Math.max(0, archive.length - 0xffff - 22);
+  let end = -1;
+  for (let offset = archive.length - 22; offset >= searchStart; offset--) {
+    if (archive.readUInt32LE(offset) === ZIP_END_OF_CENTRAL_DIRECTORY) {
+      end = offset;
+      break;
+    }
+  }
+  requireCondition(end >= 0, `${label}: not a ZIP archive`);
+  const entryCount = archive.readUInt16LE(end + 10);
+  const directorySize = archive.readUInt32LE(end + 12);
+  const directoryOffset = archive.readUInt32LE(end + 16);
+  requireCondition(
+    archive.readUInt16LE(end + 4) === 0 &&
+      archive.readUInt16LE(end + 6) === 0 &&
+      archive.readUInt16LE(end + 8) === entryCount,
+    `${label}: multi-disk archives are not supported`,
+  );
+  requireCondition(
+    entryCount !== 0xffff && directoryOffset !== 0xffffffff,
+    `${label}: ZIP64 archives are not supported`,
+  );
+  requireCondition(
+    directoryOffset + directorySize <= end,
+    `${label}: central directory is out of bounds`,
+  );
+
+  const files = new Map<string, Buffer>();
+  let cursor = directoryOffset;
+  for (let index = 0; index < entryCount; index++) {
+    requireCondition(
+      cursor + 46 <= end && archive.readUInt32LE(cursor) === ZIP_CENTRAL_HEADER,
+      `${label}: central directory entry ${index} is malformed`,
+    );
+    const flags = archive.readUInt16LE(cursor + 8);
+    const method = archive.readUInt16LE(cursor + 10);
+    const checksum = archive.readUInt32LE(cursor + 16);
+    const compressedSize = archive.readUInt32LE(cursor + 20);
+    const size = archive.readUInt32LE(cursor + 24);
+    const nameLength = archive.readUInt16LE(cursor + 28);
+    const extraLength = archive.readUInt16LE(cursor + 30);
+    const commentLength = archive.readUInt16LE(cursor + 32);
+    const localOffset = archive.readUInt32LE(cursor + 42);
+    const name = archive.toString('utf8', cursor + 46, cursor + 46 + nameLength);
+    cursor += 46 + nameLength + extraLength + commentLength;
+
+    requireCondition(
+      name.length > 0 &&
+        !name.includes('\\') &&
+        !name.startsWith('/') &&
+        !/^[a-z]:/i.test(name) &&
+        !name.split('/').some(part => part === '..' || part === '.'),
+      `${label}: unsafe entry name ${JSON.stringify(name)}`,
+    );
+    requireCondition((flags & 1) === 0, `${label}: ${name} is encrypted`);
+    requireCondition(!files.has(name), `${label}: ${name} appears more than once`);
+    if (name.endsWith('/')) continue;
+
+    requireCondition(
+      localOffset + 30 <= directoryOffset && archive.readUInt32LE(localOffset) === ZIP_LOCAL_HEADER,
+      `${label}: local header for ${name} is malformed`,
+    );
+    const dataStart =
+      localOffset +
+      30 +
+      archive.readUInt16LE(localOffset + 26) +
+      archive.readUInt16LE(localOffset + 28);
+    requireCondition(
+      dataStart + compressedSize <= directoryOffset,
+      `${label}: ${name} is out of bounds`,
+    );
+    const stored = archive.subarray(dataStart, dataStart + compressedSize);
+    let data: Buffer;
+    if (method === 0) data = Buffer.from(stored);
+    else if (method === 8) {
+      try {
+        data = inflateRawSync(stored, { maxOutputLength: Math.max(size, 1) });
+      } catch {
+        throw new Error(`${label}: ${name} cannot be decompressed`);
+      }
+    } else throw new Error(`${label}: ${name} uses unsupported compression method ${method}`);
+    requireCondition(
+      data.length === size && crc32(data) === checksum,
+      `${label}: ${name} fails its size or CRC-32 check`,
+    );
+    files.set(name, data);
+  }
+  return files;
+}
+
+function listFiles(directory: string, prefix = ''): string[] {
+  return fs.readdirSync(path.join(directory, prefix), { withFileTypes: true }).flatMap(entry => {
+    const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) return listFiles(directory, relative);
+    return entry.isFile() ? [relative] : [];
+  });
+}
+
+function packagePath(root: string, version: string, suffix: string) {
+  return path.join(root, '.output', `${EXTENSION_IDENTITY.artifactName}-v${version}-${suffix}.zip`);
+}
+
+function readPackage(root: string, version: string, suffix: string) {
+  const file = packagePath(root, version, suffix);
+  const label = path.basename(file);
+  requireCondition(fs.existsSync(file), `${label} is missing`);
+  return { label, files: readZip(fs.readFileSync(file), label) };
+}
+
+function validateBrowserPackage(
+  target: BuildTarget,
+  packageVersion: string,
+  root: string,
+  license: Buffer,
+) {
+  const { label, files } = readPackage(root, packageVersion, `${target.browser}-mv3`);
+  const manifestBytes = files.get('manifest.json');
+  requireCondition(manifestBytes, `${label}: manifest.json is missing`);
+  let manifest: unknown;
+  try {
+    manifest = JSON.parse(manifestBytes.toString('utf8')) as unknown;
+  } catch {
+    throw new Error(`${label}: manifest.json is not valid JSON`);
+  }
+  validateManifestShape(manifest, label);
+  requireCondition(
+    manifest.manifest_version === target.manifestVersion,
+    `${label}: expected Manifest V${target.manifestVersion}`,
+  );
+  requireCondition(
+    manifest.name === EXTENSION_IDENTITY.name,
+    `${label}: extension name is incorrect`,
+  );
+  requireCondition(
+    manifest.version === packageVersion,
+    `${label}: extension version does not match package.json`,
+  );
+  requireCondition(
+    files.get('LICENSE')?.equals(license),
+    `${label}: bundled LICENSE must match the repository license`,
+  );
+  if (target.isFirefox) validateFirefoxId(manifest, label);
+  else
+    requireCondition(
+      !manifest.browser_specific_settings?.gecko,
+      `${label}: Firefox-only settings must not be packaged`,
+    );
+
+  const action = manifest.action;
+  const referenced = [
+    ...manifest.content_scripts.flatMap(script => [...script.js, ...(script.css ?? [])]),
+    manifest.background.service_worker,
+    ...(manifest.background.scripts ?? []),
+    isObject(action) && typeof action['default_popup'] === 'string'
+      ? action['default_popup']
+      : undefined,
+  ];
+  for (const file of referenced) {
+    if (file !== undefined)
+      requireCondition(files.has(file.replace(/^\/+/, '')), `${label}: ${file} is missing`);
+  }
+  requireCondition(
+    ![...files.keys()].some(name => name.startsWith('store-listings/')),
+    `${label}: store listing files should not be packaged`,
+  );
+
+  // When the unpacked build is present (the release build job), the archive must be that
+  // validated build exactly, not merely a plausible one.
+  const buildDirectory = path.join(root, target.directory);
+  if (fs.existsSync(buildDirectory)) {
+    const expected = listFiles(buildDirectory).sort();
+    const actual = [...files.keys()].sort();
+    requireCondition(
+      JSON.stringify(actual) === JSON.stringify(expected),
+      `${label}: files differ from ${target.directory}`,
+    );
+    for (const name of expected) {
+      requireCondition(
+        files.get(name)!.equals(fs.readFileSync(path.join(buildDirectory, name))),
+        `${label}: ${name} differs from ${target.directory}`,
+      );
+    }
+  }
+  console.log(`Validated ${label} (${files.size} files, version ${manifest.version}).`);
+}
+
+function validateSourcesPackage(packageVersion: string, root: string, license: Buffer) {
+  const { label, files } = readPackage(root, packageVersion, 'sources');
+  for (const required of ['package.json', 'pnpm-lock.yaml', 'wxt.config.ts', 'LICENSE']) {
+    requireCondition(files.has(required), `${label}: ${required} is missing`);
+  }
+  let metadata: unknown;
+  try {
+    metadata = JSON.parse(files.get('package.json')!.toString('utf8')) as unknown;
+  } catch {
+    throw new Error(`${label}: package.json is not valid JSON`);
+  }
+  requireCondition(
+    isObject(metadata) && metadata['version'] === packageVersion,
+    `${label}: package.json version does not match`,
+  );
+  requireCondition(
+    files.get('LICENSE')!.equals(license),
+    `${label}: LICENSE must match the repository license`,
+  );
+  for (const name of files.keys()) {
+    const parts = name.split('/');
+    requireCondition(
+      !parts.some(part => ['node_modules', '.output', '.wxt', '.git'].includes(part)),
+      `${label}: generated or dependency file ${name} should not be packaged`,
+    );
+    requireCondition(
+      !/^\.env(?:\..*)?$/.test(parts.at(-1)!) || parts.at(-1) === '.env.example',
+      `${label}: environment file ${name} must never be packaged`,
+    );
+  }
+  console.log(`Validated ${label} (${files.size} files).`);
+}
+
+/**
+ * Validates the release ZIPs themselves rather than the directories they were made from:
+ * each browser package's manifest, version, LICENSE and referenced files, and the sources
+ * package's metadata and exclusions.
+ */
+export function validatePackages(root = projectRoot) {
+  const packageVersion = readPackageVersion(root);
+  const license = fs.readFileSync(path.join(root, 'LICENSE'));
+  targets.forEach(target => validateBrowserPackage(target, packageVersion, root, license));
+  validateSourcesPackage(packageVersion, root, license);
+}
+
 export function validateBuilds(root = projectRoot) {
   const packageVersion = readPackageVersion(root);
   targets.forEach(target => validateTarget(target, packageVersion, root));
@@ -396,7 +656,11 @@ export function validateBuilds(root = projectRoot) {
 
 if (import.meta.main) {
   try {
-    validateBuilds();
+    const args = process.argv.slice(2);
+    if (args.some(argument => argument !== '--packages'))
+      throw new Error('Usage: node scripts/validate-builds.ts [--packages]');
+    if (args.includes('--packages')) validatePackages();
+    else validateBuilds();
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;

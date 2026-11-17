@@ -12,9 +12,9 @@ import {
   labelledToggle,
   searchableAttributeValuesForNode,
 } from './searchable_attributes.js';
-import { isTextVisible, iterateRenderedText } from './visible_text.js';
+import { isInlineLevel, isTextVisible, iterateRenderedText } from './visible_text.js';
 import { normalizeSearchText } from './search_text.js';
-import type { StyleCache } from './visible_text.js';
+import type { OwnedText, StyleCache } from './visible_text.js';
 import { iterateControlName } from './control_name.js';
 import { hasSearchableInputValue, inputDisplayValue } from './input_value.js';
 import { activeModal, actionIsInScope, MODAL_CHANGED_EVENT } from './modal_context.js';
@@ -37,6 +37,14 @@ const SEARCH_WORK_BUDGET_MS = 8;
 const TEXT_BLOCK_SELECTOR =
   'p, li, blockquote, pre, td, th, dt, dd, figcaption, h1, h2, h3, h4, h5, h6';
 
+// A semantic text block covers everything inside it, including descendants laid out as
+// blocks, except a nested semantic block, which is a result of its own.
+const isNestedTextBlock = (element: Element) => element.matches(TEXT_BLOCK_SELECTOR);
+// Any other element owns its text and inline content, not the boxes laid out inside it.
+// Slots only forward assigned content, which their host owns whatever their display.
+const isSeparateBlock = (element: Element, display: string) =>
+  !(element instanceof HTMLSlotElement) && (!isInlineLevel(display) || isNestedTextBlock(element));
+
 type SearchRecord = {
   attributeValues: string[];
   nameRevision?: number;
@@ -58,7 +66,35 @@ type TextMatch = {
   score: number;
   distance: number | null;
 };
-type ScannedNode = { node: Element; innerText: string; attributeValues: string[] };
+// `innerText` is the text the node owns, one entry for each run uninterrupted by a block of
+// its own, so no phrase can be matched across a block left out. `actionText` is all of its
+// text, which differs only for a node containing such blocks.
+type ScannedNode = {
+  node: Element;
+  innerText: string[];
+  actionText: string;
+  attributeValues: string[];
+};
+// `occurrences` is how many times the query appears in the text the node owns. An
+// approximate match stands for one, its closest spelling.
+type ScoredText = {
+  score: number;
+  term: string | null;
+  distance: number | null;
+  occurrences?: number;
+};
+
+// Overlapping occurrences each count: "ana" is in "banana" twice.
+function countOccurrences(runs: string[], query: string) {
+  let count = 0;
+  if (!query) return count;
+  for (const run of runs) {
+    for (let at = run.indexOf(query); at !== -1; at = run.indexOf(query, at + 1)) {
+      count += 1;
+    }
+  }
+  return count;
+}
 // `distance` is how many edits separate the query from what matched, for approximate
 // results only. It is what lets a row say how much of a stretch it is.
 type RankedMatch = {
@@ -74,6 +110,14 @@ type MatchCollector = {
   actions: ActionMatch[];
   matchingText: TextMatch[];
   textMatchesByContainer: Map<Element, TextMatch>;
+  // Matches of left-out blocks with no text node of their own, kept only for a phrase no
+  // descendant matches by itself.
+  blockMatches: Set<TextMatch>;
+  // Occurrences each text result stands for, to tell a repeated block from one holding more.
+  occurrences: Map<Element, number>;
+  // Text matches of nodes with no text node of their own, held until the scan has found
+  // every left-out block, since a block can be scanned before the node that leaves it out.
+  deferredText: { node: Element; textMatch: ScoredText }[] | null;
 };
 type SearchOptions = { signal?: AbortSignal };
 type SearchResult = {
@@ -200,6 +244,11 @@ class PageSearchIndex {
   private readonly pendingSubtrees = new Map<Element | ShadowRoot, number>();
   private readonly shadowObservers = new Map<ShadowRoot, MutationObserver>();
   private readonly handledControlEvents = new WeakSet<Event>();
+  // Blocks some candidate's owned text left out. They own their inline text even without
+  // a text node of their own, so they can be text results.
+  private ownedBlocks = new WeakSet<Element>();
+  // Left-out blocks indexed only for that reason, not as candidates in their own right.
+  private readonly lazyBlocks = new Set<Element>();
   private subtreeRevision = 0;
   private needsPruning = false;
   private nameRevision = 0;
@@ -349,8 +398,11 @@ class PageSearchIndex {
   refreshCandidate(node: Node | null) {
     if (this.isCandidate(node)) {
       this.records.set(node, null);
+      this.lazyBlocks.delete(node);
     } else if (node instanceof Element) {
       this.records.delete(node);
+      this.ownedBlocks.delete(node);
+      this.lazyBlocks.delete(node);
     }
   }
 
@@ -512,12 +564,20 @@ class PageSearchIndex {
     const budget = new SearchWorkBudget();
     await this.discoverRoots(searchSignal, budget);
     await this.flushPendingSubtrees(searchSignal, budget);
+    // Left-out blocks are found again by the candidates that leave them out, so results
+    // depend only on the page as it is now, never on what an earlier search came across.
+    for (const block of this.lazyBlocks) this.records.delete(block);
+    this.lazyBlocks.clear();
+    this.ownedBlocks = new WeakSet();
     const collector: MatchCollector = {
       styles: new WeakMap(),
       modal: activeModal(),
       actions: [],
       matchingText: [],
       textMatchesByContainer: new Map(),
+      blockMatches: new Set(),
+      occurrences: new Map(),
+      deferredText: [],
     };
     const styles = collector.styles;
     // Only retained when a fuzzy pass could follow, since it holds the visible text of the
@@ -531,6 +591,11 @@ class PageSearchIndex {
       if (searchSignal.aborted) throw abortError();
       if (!containsAcrossRoots(this.root, node) || isKeyMoveNode(node)) {
         this.records.delete(node);
+        continue;
+      }
+
+      if (this.lazyBlocks.has(node)) {
+        await this.scanLazyBlock(node, nodeScorer, collector, scanned, budget, searchSignal);
         continue;
       }
 
@@ -556,27 +621,61 @@ class PageSearchIndex {
       const value = inputDisplayValue(node);
       if (value) attributeValues.push(normalizeSearchText(value));
       // Visibility can change through ancestor styles without changing this node's text.
-      const textParts: string[] = [];
-      for (const part of iterateRenderedText(node, styles)) {
-        if (part) textParts.push(part.searchText);
-        const pause = budget.checkpoint(searchSignal);
-        if (pause) await pause;
+      // A text result is decided by the text the node owns, so a wrapper is not a result
+      // merely because blocks nested inside it match. Those blocks are candidates themselves.
+      const owned: OwnedText = {
+        skipped: [],
+        boundary: node.matches(TEXT_BLOCK_SELECTOR) ? isNestedTextBlock : isSeparateBlock,
+      };
+      const innerText = await this.readOwnedText(node, styles, budget, searchSignal, owned);
+      // A left-out block is searched by itself, including one with no text node of its
+      // own whose inline children cannot match a phrase separately. The record map's
+      // iteration reaches entries added during it.
+      this.queueSkippedBlocks(owned);
+      // An action is still named by everything it contains, such as a card link's blocks.
+      const actionText =
+        isLinkOrButtonOrInput(node) && owned.skipped.length > 0
+          ? await this.readText(node, styles, budget, searchSignal)
+          : (innerText[0] ?? '');
+      if (rescorable && (innerText.length > 0 || actionText || attributeValues.length > 0)) {
+        scanned.push({ node, innerText, actionText, attributeValues });
       }
-      const innerText = normalizeSearchText(textParts.join('')).trim();
-      if (rescorable && (innerText.length > 0 || attributeValues.length > 0)) {
-        scanned.push({ node, innerText, attributeValues });
-      }
-      const score = nodeScorer.score(node, innerText, attributeValues);
-      const textTerm =
-        score > 0 && nodeScorer.textMatchesWithValue(innerText) ? nodeScorer.queryText : null;
-      this.collectScoredNode(node, score, textTerm, null, collector);
+      const matchingRun = innerText.find(run => nodeScorer.textMatchesWithValue(run));
+      const textScore =
+        matchingRun === undefined ? 0 : nodeScorer.score(node, matchingRun, attributeValues);
+      const actionMatches = nodeScorer.textMatchesWithValue(actionText);
+      const actionScore =
+        actionMatches && actionText === matchingRun
+          ? textScore
+          : nodeScorer.score(node, actionText, attributeValues);
+      this.collectScoredNode(
+        node,
+        { score: actionScore, term: actionMatches ? nodeScorer.queryText : null, distance: null },
+        {
+          score: textScore,
+          term: matchingRun === undefined ? null : nodeScorer.queryText,
+          distance: null,
+          occurrences: countOccurrences(innerText, nodeScorer.queryText),
+        },
+        collector,
+      );
     }
 
+    const deferredText = collector.deferredText ?? [];
+    collector.deferredText = null;
+    for (const { node, textMatch } of deferredText) {
+      if (searchSignal.aborted) throw abortError();
+      const pause = budget.checkpoint(searchSignal);
+      if (pause) await pause;
+      if (searchSignal.aborted) throw abortError();
+      this.collectTextMatch(node, textMatch, collector);
+    }
     const isFuzzy =
       rescorable && collector.matchingText.length === 0 && collector.actions.length === 0;
     if (isFuzzy) {
       await this.rescoreFuzzily(scanned, nodeScorer, collector, searchSignal, budget);
     }
+    await this.dropRedundantBlockMatches(collector, budget, searchSignal);
     collector.actions = await budget.sort(
       collector.actions,
       (left, right) => right.score - left.score,
@@ -638,36 +737,152 @@ class PageSearchIndex {
       const pause = budget.checkpoint(searchSignal);
       if (pause) await pause;
       if (!containsAcrossRoots(this.root, entry.node)) continue;
-      const { score, textTerm, distance } = nodeScorer.fuzzyScore(
+      let text = nodeScorer.fuzzyScore(entry.node, '', entry.attributeValues);
+      for (const run of entry.innerText) {
+        const candidate = nodeScorer.fuzzyScore(entry.node, run, entry.attributeValues);
+        if (candidate.textTerm !== null && (text.textTerm === null || candidate.score > text.score))
+          text = candidate;
+      }
+      const action =
+        entry.innerText.length === 1 && entry.actionText === entry.innerText[0]
+          ? text
+          : nodeScorer.fuzzyScore(entry.node, entry.actionText, entry.attributeValues);
+      this.collectScoredNode(
         entry.node,
-        entry.innerText,
-        entry.attributeValues,
+        { score: action.score, term: action.textTerm, distance: action.distance },
+        { score: text.score, term: text.textTerm, distance: text.distance },
+        collector,
       );
-      this.collectScoredNode(entry.node, score, textTerm, distance, collector);
     }
+  }
+
+  private async readText(
+    node: Element,
+    styles: StyleCache,
+    budget: SearchWorkBudget,
+    signal: AbortSignal,
+  ) {
+    const parts: string[] = [];
+    for (const part of iterateRenderedText(node, styles)) {
+      if (part) parts.push(part.searchText);
+      const pause = budget.checkpoint(signal);
+      if (pause) await pause;
+    }
+    return normalizeSearchText(parts.join('')).trim();
+  }
+
+  private queueSkippedBlocks(owned: OwnedText) {
+    for (const block of owned.skipped) {
+      this.ownedBlocks.add(block);
+      if (this.records.has(block)) continue;
+      this.records.set(block, null);
+      this.lazyBlocks.add(block);
+    }
+  }
+
+  /**
+   * A block queued only because a candidate left it out is neither an action nor a
+   * semantic block, so only its owned text matters. Most such blocks own none, being
+   * containers of other blocks, and are passed over before any per-node lookups.
+   */
+  private async scanLazyBlock(
+    node: Element,
+    nodeScorer: NodeScorer,
+    collector: MatchCollector,
+    scanned: ScannedNode[],
+    budget: SearchWorkBudget,
+    signal: AbortSignal,
+  ) {
+    const { styles } = collector;
+    if (!actionIsInScope(node, collector.modal)) return;
+    const owned: OwnedText = { skipped: [], boundary: isSeparateBlock };
+    const innerText = await this.readOwnedText(node, styles, budget, signal, owned);
+    this.queueSkippedBlocks(owned);
+    if (innerText.length === 0 || !this.isVisible(node, styles)) return;
+    if (nodeScorer.supportsFuzzy())
+      scanned.push({ node, innerText, actionText: '', attributeValues: [] });
+    const matchingRun = innerText.find(run => nodeScorer.textMatchesWithValue(run));
+    if (matchingRun === undefined) return;
+    this.collectScoredNode(
+      node,
+      { score: 0, term: null, distance: null },
+      {
+        score: nodeScorer.score(node, matchingRun, []),
+        term: nodeScorer.queryText,
+        distance: null,
+        occurrences: countOccurrences(innerText, nodeScorer.queryText),
+      },
+      collector,
+    );
+  }
+
+  private async readOwnedText(
+    node: Element,
+    styles: StyleCache,
+    budget: SearchWorkBudget,
+    signal: AbortSignal,
+    owned: OwnedText,
+  ) {
+    const runs: string[] = [];
+    let parts: string[] = [];
+    let interruptions = 0;
+    const finishRun = () => {
+      const run = normalizeSearchText(parts.join('')).trim();
+      if (run) runs.push(run);
+      parts = [];
+    };
+    for (const part of iterateRenderedText(node, styles, { ownedOnly: owned })) {
+      if (owned.skipped.length !== interruptions) {
+        interruptions = owned.skipped.length;
+        finishRun();
+      }
+      if (part) parts.push(part.searchText);
+      const pause = budget.checkpoint(signal);
+      if (pause) await pause;
+    }
+    finishRun();
+    return runs;
   }
 
   private collectScoredNode(
     node: Element,
-    score: number,
-    textTerm: string | null,
-    distance: number | null,
+    actionMatch: ScoredText,
+    textMatch: ScoredText,
     collector: MatchCollector,
   ) {
-    if (score <= 0) return;
-    const { actions, matchingText, textMatchesByContainer } = collector;
+    const { actions } = collector;
     const labelledControl = labelledToggle(node);
     if (
+      actionMatch.score > 0 &&
       node instanceof HTMLElement &&
       isLinkOrButtonOrInput(node) &&
       actionIsInScope(node, collector.modal) &&
       // A visible native input is already an action; its label must not duplicate it.
       (!labelledControl || !this.isVisible(labelledControl, collector.styles))
     ) {
-      actions.push({ node, score, term: textTerm, distance });
+      actions.push({
+        node,
+        score: actionMatch.score,
+        term: actionMatch.term,
+        distance: actionMatch.distance,
+      });
     }
-    if (textTerm === null) return;
-    if (!this.hasDirectSearchableText(node) && !node.matches(TEXT_BLOCK_SELECTOR)) return;
+    this.collectTextMatch(node, textMatch, collector);
+  }
+
+  private collectTextMatch(node: Element, textMatch: ScoredText, collector: MatchCollector) {
+    const { matchingText, textMatchesByContainer } = collector;
+    const { score, term: textTerm, distance } = textMatch;
+    if (score <= 0 || textTerm === null) return;
+    const ownsText = this.hasDirectSearchableText(node) || node.matches(TEXT_BLOCK_SELECTOR);
+    if (!ownsText) {
+      if (collector.deferredText) {
+        collector.deferredText.push({ node, textMatch });
+        return;
+      }
+      if (!this.ownedBlocks.has(node) || isInlineLevel(window.getComputedStyle(node).display))
+        return;
+    }
     const container = this.textContainerForNode(node);
     const textContainer = actionIsInScope(container, collector.modal) ? container : node;
     const action = this.actionableAncestorForNode(node, collector.modal);
@@ -679,6 +894,54 @@ class PageSearchIndex {
     const match = { node: textContainer, action, term: textTerm, score, distance };
     matchingText.push(match);
     textMatchesByContainer.set(textContainer, match);
+    if (textContainer === node) collector.occurrences.set(node, textMatch.occurrences ?? 1);
+    if (!ownsText && textContainer === node) collector.blockMatches.add(match);
+  }
+
+  /**
+   * A left-out block with no text node of its own matches through its inline children,
+   * which may be results themselves. The block is dropped only when those results account
+   * for every occurrence in its text; a phrase spread over several children, or a further
+   * occurrence none of them holds, is reachable through the block alone.
+   */
+  private async dropRedundantBlockMatches(
+    collector: MatchCollector,
+    budget: SearchWorkBudget,
+    signal: AbortSignal,
+  ) {
+    const { blockMatches, occurrences, textMatchesByContainer } = collector;
+    if (blockMatches.size === 0) return;
+    const blocks = new Map([...blockMatches].map(match => [match.node, match]));
+    const covered = new Map<TextMatch, number>();
+    const startsOwnBlock = (element: Element) =>
+      isSeparateBlock(element, window.getComputedStyle(element).display);
+    for (const match of collector.matchingText) {
+      // Text inside a block of its own belongs to no block above it.
+      for (
+        let node: Element | null = match.node;
+        node && node !== document.body && !startsOwnBlock(node);
+        node = renderedParent(node)
+      ) {
+        const pause = budget.checkpoint(signal);
+        if (pause) await pause;
+        const parent = renderedParent(node);
+        if (!parent) break;
+        const block = blocks.get(parent);
+        if (block) {
+          covered.set(block, (covered.get(block) ?? 0) + (occurrences.get(match.node) ?? 1));
+          break;
+        }
+        // An inline result in between already counts this text as part of its own.
+        if (textMatchesByContainer.has(parent)) break;
+      }
+    }
+    const redundant = new Set<TextMatch>();
+    for (const [block, count] of covered) {
+      if (count >= (occurrences.get(block.node) ?? 1)) redundant.add(block);
+    }
+    if (redundant.size === 0) return;
+    collector.matchingText = collector.matchingText.filter(match => !redundant.has(match));
+    for (const match of redundant) textMatchesByContainer.delete(match.node);
   }
 
   disconnect() {
@@ -696,6 +959,7 @@ class PageSearchIndex {
     document.dispatchEvent(new Event(PAGE_ROOTS_CHANGED));
     this.records.clear();
     this.pendingSubtrees.clear();
+    this.lazyBlocks.clear();
   }
 }
 

@@ -1,0 +1,7 @@
+# Standalone project: the nearest pnpm-workspace.yaml makes this directory its own root, so
+# installing here never reads the extension's dependencies or lockfile.
+# A static-assets deploy neither bundles nor runs a Worker locally, so neither binary's
+# install script is needed.
+allowBuilds:
+  esbuild: false
+  workerd: false

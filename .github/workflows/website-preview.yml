@@ -1,0 +1,358 @@
+name: Website preview
+
+# Uploads a Cloudflare preview of the website for pull requests from this repository.
+#
+# Why a separate workflow: in a `pull_request` run the workflow file itself comes from the pull
+# request branch, so any job there that holds the Cloudflare token can be rewritten by the
+# branch. A `workflow_run` workflow always runs the definition on the default branch (main),
+# with main as its ref, so the token-bearing steps below are main's code only.
+#
+# Trust model:
+# - The Quality run, its conclusion and its `website` artifact are controlled by the pull
+#   request branch (it can edit quality.yml, or add another workflow named Quality). The
+#   artifact is therefore treated strictly as static files to publish: it is fetched through
+#   the API, checked and extracted by the inline script in the `resolve` job (no secrets, no
+#   checkout), and nothing from it is executed, sourced, installed or used as configuration.
+# - The pull request number, head SHA and head repository come from the event payload and the
+#   pull request API, never from the artifact. Event fields reach shell only through `env`.
+# - Wrangler, its lockfile, wrangler.jsonc and the pnpm setup action come from main's checkout.
+# - Fork pull requests and Dependabot are skipped and never reach the token.
+#
+# Limits: this file only takes effect once it is on main, and anyone who can push to main can
+# change it. The token is protected from pull request branches only when it is an environment
+# secret of `preview` and `production` restricted to main (website/README.md, "Deployment").
+on:
+  workflow_run:
+    workflows: [Quality]
+    types: [completed]
+
+permissions: {}
+
+jobs:
+  # Finds the open pull request, then downloads and validates the static build. No secrets.
+  resolve:
+    if: >-
+      vars.CLOUDFLARE_ACCOUNT_ID != '' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.actor.login != 'dependabot[bot]' &&
+      github.event.workflow_run.triggering_actor.login != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read # list and download the triggering run's artifacts
+      pull-requests: read # confirm the pull request and its head commit
+    outputs:
+      number: ${{ steps.pr.outputs.number }}
+      sha: ${{ steps.pr.outputs.sha }}
+    steps:
+      - name: Find the open pull request for the tested commit
+        id: pr
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Unexpected head SHA in the event payload." >&2
+            exit 1
+          fi
+          # Open pull requests whose head is this branch of this repository, at exactly the
+          # tested commit. A newer push leaves no match; its own run publishes instead.
+          matches="$(gh api --method GET "repos/$REPO/pulls" \
+            -f state=open -f head="${REPO%%/*}:$HEAD_BRANCH" -f per_page=100 \
+            --jq '[.[] | select(.head.sha == env.HEAD_SHA
+              and .head.repo.full_name == env.REPO
+              and .base.repo.full_name == env.REPO
+              and .user.login != "dependabot[bot]") | .number]')"
+          count="$(jq 'length' <<<"$matches")"
+          if [[ "$count" != 1 ]]; then
+            echo "::notice::No single open pull request from this repository at $HEAD_SHA ($count found); no preview."
+            exit 0
+          fi
+          number="$(jq -r '.[0]' <<<"$matches")"
+          if [[ ! "$number" =~ ^[1-9][0-9]{0,6}$ ]]; then
+            echo "Unexpected pull request number." >&2
+            exit 1
+          fi
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+          echo "sha=$HEAD_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Download the website artifact from the Quality run
+        if: steps.pr.outputs.number != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          HEAD_SHA: ${{ steps.pr.outputs.sha }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$RUN_ID" =~ ^[0-9]+$ ]]; then
+            echo "Unexpected run ID in the event payload." >&2
+            exit 1
+          fi
+          artifacts="$(gh api --method GET "repos/$REPO/actions/runs/$RUN_ID/artifacts" \
+            -f name=website -f per_page=100 --jq '.artifacts')"
+          if [[ "$(jq 'length' <<<"$artifacts")" != 1 ]]; then
+            echo "Expected exactly one artifact named website in run $RUN_ID." >&2
+            exit 1
+          fi
+          id="$(jq -r '.[0].id' <<<"$artifacts")"
+          size="$(jq -r '.[0].size_in_bytes' <<<"$artifacts")"
+          expired="$(jq -r '.[0].expired' <<<"$artifacts")"
+          run="$(jq -r '.[0].workflow_run.id' <<<"$artifacts")"
+          sha="$(jq -r '.[0].workflow_run.head_sha' <<<"$artifacts")"
+          digest="$(jq -r '.[0].digest // ""' <<<"$artifacts")"
+          if [[ ! "$id" =~ ^[0-9]+$ || "$expired" != false || "$run" != "$RUN_ID" || "$sha" != "$HEAD_SHA" ]]; then
+            echo "The website artifact does not belong to the tested commit or has expired." >&2
+            exit 1
+          fi
+          if [[ ! "$size" =~ ^[0-9]+$ ]] || (( size > 104857600 )); then
+            echo "The website artifact is larger than 100 MiB." >&2
+            exit 1
+          fi
+          mkdir "$RUNNER_TEMP/download"
+          gh api "repos/$REPO/actions/artifacts/$id/zip" > "$RUNNER_TEMP/download/website.zip"
+          if [[ "$digest" =~ ^sha256:([0-9a-f]{64})$ ]]; then
+            echo "${BASH_REMATCH[1]}  $RUNNER_TEMP/download/website.zip" | sha256sum --check --quiet
+          fi
+
+      # Extracts regular files only, into a fresh directory, refusing anything else.
+      - name: Validate and extract the static files
+        if: steps.pr.outputs.number != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir "$RUNNER_TEMP/site"
+          python3 -I - "$RUNNER_TEMP/download/website.zip" "$RUNNER_TEMP/site" <<'PY'
+          import os, re, stat, sys, zipfile
+
+          MAX_FILES = 2000
+          MAX_FILE_BYTES = 25 * 1024 * 1024  # Cloudflare's per-asset limit
+          MAX_TOTAL_BYTES = 100 * 1024 * 1024
+          MAX_DEPTH = 12
+          PART = re.compile(r"[A-Za-z0-9_@+~-][A-Za-z0-9._@+~-]{0,199}|\.well-known")
+          # Names Wrangler or Cloudflare could treat as code or upload configuration.
+          REFUSED = {"_worker.js", ".assetsignore", ".wrangler", "node_modules"}
+
+          archive, destination = sys.argv[1], sys.argv[2]
+          if os.listdir(destination):
+              sys.exit("The destination is not empty.")
+
+          def fail(message, name=""):
+              sys.exit(f"Refusing the artifact: {message} {name!r}")
+
+          seen, total, files = set(), 0, 0
+          with zipfile.ZipFile(archive) as bundle:
+              entries = bundle.infolist()
+              if len(entries) > MAX_FILES:
+                  fail("too many entries")
+              plan = []
+              for entry in entries:
+                  name = entry.filename
+                  is_dir = name.endswith("/")
+                  parts = name.rstrip("/").split("/")
+                  if (not name or "\\" in name or "\x00" in name or name.startswith("/")
+                          or len(parts) > MAX_DEPTH
+                          or any(not PART.fullmatch(p) for p in parts)):
+                      fail("unsafe path", name)
+                  if any(p in REFUSED for p in parts):
+                      fail("refused name", name)
+                  if entry.flag_bits & 0x1:
+                      fail("encrypted entry", name)
+                  mode = entry.external_attr >> 16
+                  kind = stat.S_IFMT(mode)
+                  if entry.create_system == 3 and kind not in (0, stat.S_IFREG, stat.S_IFDIR):
+                      fail("not a regular file or directory", name)
+                  if (kind == stat.S_IFDIR) != is_dir and kind != 0:
+                      fail("inconsistent entry type", name)
+                  key = "/".join(parts)
+                  if key in seen:
+                      fail("duplicate entry", name)
+                  seen.add(key)
+                  if is_dir:
+                      continue
+                  if entry.file_size > MAX_FILE_BYTES:
+                      fail("file too large", name)
+                  total += entry.file_size
+                  files += 1
+                  plan.append((entry, parts))
+              if total > MAX_TOTAL_BYTES:
+                  fail("total size too large")
+              if "index.html" not in seen:
+                  fail("no index.html at the top level")
+
+              root = os.path.realpath(destination)
+              written = 0
+              for entry, parts in plan:
+                  target = os.path.join(root, *parts)
+                  parent = os.path.dirname(target)
+                  os.makedirs(parent, mode=0o755, exist_ok=True)
+                  if (os.path.realpath(parent) != parent
+                          or os.path.commonpath([root, parent]) != root):
+                      fail("path escapes the destination", entry.filename)
+                  flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+                  with bundle.open(entry) as source, os.fdopen(os.open(target, flags, 0o644), "wb") as sink:
+                      while chunk := source.read(1 << 20):
+                          written += len(chunk)
+                          if written > MAX_TOTAL_BYTES:
+                              fail("decompressed size too large")
+                          sink.write(chunk)
+          print(f"Extracted {files} files, {written} bytes.")
+          PY
+          unexpected="$(find "$RUNNER_TEMP/site" ! -type f ! -type d -print -quit)"
+          if [[ -n "$unexpected" ]]; then
+            echo "Refusing the artifact: unexpected file type after extraction." >&2
+            exit 1
+          fi
+
+      # Hands the checked files to the deploy job, which runs on a separate machine.
+      - name: Keep the validated files
+        if: steps.pr.outputs.number != ''
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: website-preview
+          path: ${{ runner.temp }}/site/
+          include-hidden-files: true # keeps .well-known/security.txt
+          retention-days: 1
+          if-no-files-found: error
+
+  # The only job with the token: main's Wrangler uploads the validated files as a preview.
+  deploy:
+    needs: resolve
+    if: needs.resolve.outputs.number != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read # confirm the commit is still the pull request's head before uploading
+    # No concurrency group on purpose: runs enter a group in arrival order, not commit order,
+    # so a late run for an older commit would cancel or displace the newer commit's upload.
+    # The head check just before the upload stops a commit that is already stale when checked.
+    # It is not atomic with the upload: this assumes an upload finishes before a commit pushed
+    # after the check gets through its own Quality run, which normally takes minutes.
+    environment:
+      name: preview
+      url: ${{ steps.upload.outputs.url }}
+    env:
+      WRANGLER: website/deploy/node_modules/.bin/wrangler
+      WRANGLER_SEND_METRICS: 'false'
+    outputs:
+      url: ${{ steps.upload.outputs.url }}
+      superseded: ${{ steps.head.outputs.superseded }}
+    steps:
+      - name: Check out main's deployment configuration
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }} # main's latest commit, the one whose workflow is running
+          persist-credentials: false
+          sparse-checkout: |
+            .github/actions/setup-pnpm
+            package.json
+            pnpm-lock.yaml
+            website/wrangler.jsonc
+            website/deploy
+          sparse-checkout-cone-mode: false
+      # No package-manager cache: caches saved from a default-branch run are readable by
+      # every branch, and nothing here should depend on one.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: package.json
+          package-manager-cache: false
+      - name: Set up verified pnpm
+        uses: ./.github/actions/setup-pnpm
+      - name: Install the locked Wrangler only
+        working-directory: website/deploy
+        run: pnpm install --frozen-lockfile
+      - name: Download the validated files
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: website-preview
+          path: .output/public
+      # Every pull request commit uploads to the same alias, so a run for an older commit
+      # that reaches this point late must not replace the newer commit's preview.
+      - name: Confirm the commit is still the pull request's head
+        id: head
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          NUMBER: ${{ needs.resolve.outputs.number }}
+          SHA: ${{ needs.resolve.outputs.sha }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$NUMBER" =~ ^[1-9][0-9]{0,6}$ || ! "$SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Unexpected pull request number or commit." >&2
+            exit 1
+          fi
+          current="$(gh api "repos/$REPO/pulls/$NUMBER" --jq 'select(.state == "open") | .head.sha')"
+          if [[ "$current" == "$SHA" ]]; then
+            echo "superseded=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "superseded=true" >> "$GITHUB_OUTPUT"
+            echo "Skipped: pull request #$NUMBER no longer points at $SHA." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload a preview
+        id: upload
+        if: steps.head.outputs.superseded == 'false'
+        shell: bash
+        env:
+          ALIAS: pr-${{ needs.resolve.outputs.number }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$ALIAS" =~ ^pr-[1-9][0-9]{0,6}$ ]]; then
+            echo "Unexpected preview alias." >&2
+            exit 1
+          fi
+          $WRANGLER versions upload --config website/wrangler.jsonc --preview-alias "$ALIAS" | tee "$RUNNER_TEMP/upload.log"
+          url="$(grep -oE "https://$ALIAS-[a-z0-9.-]+\.workers\.dev" "$RUNNER_TEMP/upload.log" | head -n 1 || true)"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Preview for pull request #${ALIAS#pr-}: ${url:-see the upload log}" >> "$GITHUB_STEP_SUMMARY"
+
+  # Shows the outcome on the pull request as the commit status "Website preview", linking the
+  # preview (or this run when it failed). Not a required check: it is absent for forks and
+  # Dependabot.
+  report:
+    needs: [resolve, deploy]
+    if: always() && needs.resolve.outputs.sha != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      statuses: write
+    steps:
+      - name: Publish the commit status
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ needs.resolve.outputs.sha }}
+          RESULT: ${{ needs.deploy.result }}
+          SUPERSEDED: ${{ needs.deploy.outputs.superseded }}
+          URL: ${{ needs.deploy.outputs.url }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if [[ "$SUPERSEDED" == true || "$RESULT" == cancelled ]]; then
+            echo "Run superseded or cancelled; no status published."
+            exit 0
+          fi
+          if [[ "$RESULT" == success ]]; then
+            state=success
+            if [[ "$URL" =~ ^https://pr-[0-9]+-[a-z0-9.-]+\.workers\.dev$ ]]; then
+              target="$URL" description="Preview uploaded"
+            else
+              target="$RUN_URL" description="Preview uploaded; URL in the run summary"
+            fi
+          else
+            state=failure target="$RUN_URL" description="Preview not uploaded ($RESULT)"
+          fi
+          gh api --method POST "repos/$REPO/statuses/$SHA" --silent \
+            -f state="$state" -f context="Website preview" \
+            -f description="$description" -f target_url="$target"

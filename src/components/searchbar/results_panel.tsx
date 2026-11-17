@@ -3,6 +3,7 @@ import { KEYMOVE_SUGGESTIONS_ID } from '../../constants.js';
 import type { Suggestion } from '../../hooks/use_suggestions.js';
 import SuggestionContent from './suggestion_content.js';
 import ShortcutBadge from './shortcut_badge.js';
+import { isTrustedInput } from '../../lib/trusted_input.js';
 
 type ResultsPanelProps = {
   suggestions: Suggestion[];
@@ -108,7 +109,7 @@ const ResultsPanel = (props: ResultsPanelProps) => {
             }}
             onClick={event => {
               event.stopPropagation();
-              if (!pending) onSelect(index);
+              if (!pending && isTrustedInput(event)) onSelect(index);
             }}
             className={`keymove-suggestion${selected ? ' keymove-suggestion-selected' : ''}`}
           >
