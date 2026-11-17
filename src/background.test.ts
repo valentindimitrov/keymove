@@ -117,26 +117,8 @@ test('rejects malformed or unsafe new-tab messages', async () => {
   debugSpy.mockRestore();
 });
 
-test('rejects a new-tab request without a content-script sender tab', async () => {
-  const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => undefined);
-
-  await handleExtensionMessage(
-    {
-      type: ExtensionMessageTypes.OPEN_LINK_IN_NEW_TAB,
-      url: 'https://example.com/path',
-      active: false,
-    },
-    {},
-  );
-
-  expect(browserMocks.create).not.toHaveBeenCalled();
-  expect(debugSpy).toHaveBeenCalledWith(
-    `${EXTENSION_NAME} could not open a link requested by an invalid sender: expected this extension in a top-level content-script tab`,
-  );
-  debugSpy.mockRestore();
-});
-
 test.each([
+  {},
   { ...tabSender, id: 'another-extension' },
   { ...tabSender, frameId: 1 },
   { ...tabSender, tab: { id: -1 } as Browser.tabs.Tab },
@@ -147,6 +129,9 @@ test.each([
     sender,
   );
   expect(browserMocks.create).not.toHaveBeenCalled();
+  expect(debug).toHaveBeenCalledWith(
+    `${EXTENSION_NAME} could not open a link requested by an invalid sender: expected this extension in a top-level content-script tab`,
+  );
   debug.mockRestore();
 });
 

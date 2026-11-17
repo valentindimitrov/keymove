@@ -180,31 +180,17 @@ test.each(['drag', 'resize'])(
   },
 );
 
-// The pointer moves one edge, both edges move, so the width gains twice the distance dragged.
-test('widens the bar by twice the distance the handle was dragged', () => {
-  const { container, handle, updateWidth } = renderContainer(420);
-
-  drag(handle, 500, 660);
-
-  expect(container.style.width).toBe('740px');
-  expect(updateWidth).toHaveBeenCalledWith(740);
-});
-
-test('widens the bar the same way from the left handle', () => {
+// The pointer moves one edge, both edges move, so the width changes by twice the distance.
+test.each([
+  ['widens', 340, 740],
+  ['narrows', 560, 300],
+])('%s the bar from the left handle', (_change, to, width) => {
   const { container, leftHandle, updateWidth } = renderContainer(420);
 
-  drag(leftHandle, 500, 340);
+  drag(leftHandle, 500, to);
 
-  expect(container.style.width).toBe('740px');
-  expect(updateWidth).toHaveBeenCalledWith(740);
-});
-
-test('narrows the bar from the left handle', () => {
-  const { container, leftHandle } = renderContainer(420);
-
-  drag(leftHandle, 500, 560);
-
-  expect(container.style.width).toBe('300px');
+  expect(container.style.width).toBe(`${width}px`);
+  expect(updateWidth).toHaveBeenCalledWith(width);
 });
 
 test('narrows the bar, and refuses to go below a usable width', () => {

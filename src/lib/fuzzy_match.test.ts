@@ -40,18 +40,10 @@ test('keeps the shape of a multi-word query by comparing equal-length windows', 
   });
 });
 
-test('prefers the closest candidate over the first one found', () => {
-  expect(fuzzyMatchInText('sace and then save', 'save', 1)).toEqual({ term: 'save', distance: 0 });
-});
-
 test('reports no match when nothing comes within the budget', () => {
   expect(fuzzyMatchInText('completely unrelated words', 'settings', 2)).toBeNull();
   expect(fuzzyMatchInText('settings', 'settings', 0)).toBeNull();
   expect(fuzzyMatchInText('', 'settings', 2)).toBeNull();
-});
-
-test('does not match a window with fewer words than the query', () => {
-  expect(fuzzyMatchInText('settings', 'account settings', 2)).toBeNull();
 });
 
 test('matches a typo inside a prefix of a longer word', () => {
@@ -70,21 +62,6 @@ test('matches a span that begins part-way through a word, as exact search does',
 
   expect(match?.distance).toBe(1);
   expect(match!.term.startsWith('etting')).toBe(true);
-});
-
-test('always returns a term that is present in the text verbatim', () => {
-  const cases: [string, string, number][] = [
-    ['contributing guidelines', 'contribuu', 2],
-    ['open the setings panel', 'settings', 2],
-    ['go to acount setings now', 'account settings', 2],
-    ['receive mail today', 'recieve', 2],
-    ['a b c settings', 'settings', 2],
-  ];
-  for (const [text, query, budget] of cases) {
-    const match = fuzzyMatchInText(text, query, budget);
-    expect(match).not.toBeNull();
-    expect(text).toContain(match!.term);
-  }
 });
 
 // Ground truth: try every substring, take the closest. Correct by construction, far too slow

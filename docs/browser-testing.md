@@ -88,7 +88,9 @@ CI runs the whole suite in bundled Chromium after the full quality gate and keep
   and menu (they follow the host into modals and open roots), query helpers and `typeText`.
 - `tests/browser/pages.ts`: real-focus pages, selection and highlight readers, screenshots
   and failure diagnostics.
-- `tests/browser/extension.spec.ts`: focused checks, including hostile-page input.
+- `tests/browser/extension.spec.ts`: focused checks the scenarios do not make: hostile-page
+  input, content-script lifecycle (forged signals, extension reload, duplicate injection,
+  blocked hints, stale hosts) and lookalike ids.
 - `tests/browser/smoke.spec.ts` with `tests/browser/scenarios/`: the long interaction
   scenarios, one per area.
 - `scripts/browser-context.ts`: the one launcher shared by tests, the media recorder and
@@ -131,7 +133,18 @@ in the same order, unless the third column says otherwise.
 | `browser-driver.test.ts` (macOS editing commands for the CDP driver) | removed with the driver | Playwright sends macOS editing commands itself |
 
 Screenshots the former suite wrote to `.artifacts/*.png` are report attachments with the
-same names. `tests/browser/extension.spec.ts` keeps its focused checks unchanged.
+same names.
+
+`tests/browser/extension.spec.ts` no longer repeats checks the scenarios make:
+
+| Former `extension.spec.ts` test | Now checked by |
+| --- | --- |
+| searches on each keystroke and copies the whole block (small, large page) | core smoke (small/large) |
+| refreshes an active query when page text is inserted and removed | core smoke (small) |
+| activates a control inside a nested open shadow root | open shadow roots |
+| settings changes persist and reach an already open page | core smoke (small), including `checkTheme` |
+| keeps search and native selection inside a modal dialog | controls: the transformed-modal part checks the host inside the drawer, the native selection after Tab and that page text behind the modal does not match |
+| searches and activates actions in same-origin and cross-origin frames | frames: adds a click on the cross-origin frame's button |
 
 ## playwright-cli debugging
 

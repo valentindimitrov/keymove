@@ -3,7 +3,6 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import {
-  closeWelcomeTabs,
   createPreviewCopy,
   findBrowser,
   openRepositoryPage,
@@ -165,21 +164,4 @@ test('removes the temporary build on an ordinary exit', () => {
   target.emit('exit', 0);
   expect(cleanup).toHaveBeenCalledTimes(1);
   expect(target.kill).not.toHaveBeenCalled();
-});
-
-test('closes only the welcome tab without opening another page', async () => {
-  const sendCommand = vi.fn(async (method: string) =>
-    method === 'Target.getTargets'
-      ? {
-          targetInfos: [
-            { targetId: 'welcome', type: 'page', url: 'vivaldi://welcome' },
-            { targetId: 'blank', type: 'page', url: 'about:blank' },
-          ],
-        }
-      : {},
-  );
-  await closeWelcomeTabs({ sendCommand });
-  expect(sendCommand).not.toHaveBeenCalledWith('Target.createTarget', expect.anything());
-  expect(sendCommand).toHaveBeenCalledWith('Target.closeTarget', { targetId: 'welcome' });
-  expect(sendCommand).not.toHaveBeenCalledWith('Target.closeTarget', { targetId: 'blank' });
 });

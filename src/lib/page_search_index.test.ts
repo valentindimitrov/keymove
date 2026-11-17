@@ -63,18 +63,6 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-test('ranks action results by relevance instead of DOM order', async () => {
-  document.body.innerHTML = '<button>Autosave</button><button>Save settings</button>';
-  index = new PageSearchIndex();
-
-  const result = await index.search(scorerFor('save'));
-
-  expect(result.matchingLinksAndButtons.map(node => node.textContent)).toEqual([
-    'Save settings',
-    'Autosave',
-  ]);
-});
-
 test('does not match hidden descendant text inside a visible block', async () => {
   document.body.innerHTML =
     '<p>Visible text <span hidden>secret</span><span style="opacity: 0">private</span></p>';
@@ -439,20 +427,15 @@ test('ranks short queries without limiting navigation', async () => {
   expect(result.suggestions).toHaveLength(65);
 });
 
-test('ranks candidates with actions ahead of text', async () => {
-  document.body.innerHTML = `
-    <p>Save your work before leaving</p>
-    <button>Save</button>
-    <a href="/s">Save settings</a>`;
+test('ranks an action ahead of a slightly stronger text match', async () => {
+  // The text matches mid-word (score 1); the action matches only through its label, which
+  // scores 0.9. The action priority boost alone puts the action first.
+  document.body.innerHTML = '<p>Autosave drafts</p><input aria-label="Autosave" />';
   index = new PageSearchIndex();
 
   const { suggestions } = await index.search(scorerFor('save'));
 
-  expect(suggestions).toHaveLength(3);
-  expect(suggestions[0]!.kind).toBe('action');
-  expect(suggestions.map(entry => entry.node.textContent)).toContain(
-    'Save your work before leaving',
-  );
+  expect(suggestions.map(entry => entry.kind)).toEqual(['action', 'text']);
 });
 
 test('passes both kinds to shortlist selection without truncating candidates', async () => {

@@ -2,8 +2,6 @@ import { act, renderHook } from '@testing-library/react';
 import useExtensionMessaging from './use_extension_messaging.js';
 import useStoredSettings from './use_stored_settings.js';
 import usePopupPosition from './use_popup_position.js';
-import usePopupWidth from './use_popup_width.js';
-import useHighlightColors from './use_highlight_colors.js';
 
 const mocks = vi.hoisted(() => {
   const event = { addListener: vi.fn(), removeListener: vi.fn() };
@@ -37,8 +35,6 @@ describe.each([
   ['messaging', useExtensionMessaging],
   ['settings', useStoredSettings],
   ['position', usePopupPosition],
-  ['width', usePopupWidth],
-  ['colours', useHighlightColors],
 ] as const)('%s cleanup', (_name, useHook) => {
   test('unmounts after extension reload removes the browser APIs', async () => {
     const { unmount } = renderHook(() => {

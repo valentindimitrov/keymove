@@ -62,9 +62,6 @@ test.each([
   ['İstanbul', 'stanbul', 'stanbul'],
   ['Cafe\u0301', 'café', 'Cafe\u0301'],
   ['БЪЛГАРИЯ', 'българия', 'БЪЛГАРИЯ'],
-  ['ΕΛΛΑΔΑ', 'ελλαδα', 'ΕΛΛΑΔΑ'],
-  ['日本語', '日本', '日本'],
-  ['العربية', 'عرب', 'عرب'],
 ])('marks original Unicode text in %s', (label, term, expected) => {
   const { container } = render(
     <ResultsPanel

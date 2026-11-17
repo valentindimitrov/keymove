@@ -68,23 +68,24 @@ test('uses defaults when the storage API returns an invalid container', () => {
   });
 });
 
-test('treats a removed setting as a reset to its default', () => {
-  expect(validateStoredSettingChange(SETTINGS_KEYS.ALWAYS_ON, { oldValue: false })).toEqual({
-    value: true,
+test.each([
+  [SETTINGS_KEYS.TOOLTIPS_MODE, true],
+  [SETTINGS_KEYS.LOCK_POSITION_AND_SIZE, false],
+  [SETTINGS_KEYS.AUTO_HIDE, true],
+  [SETTINGS_KEYS.ALWAYS_ON, true],
+  [SETTINGS_KEYS.START_IN_ACTION_MODE, false],
+  [SETTINGS_KEYS.HIGHLIGHT_MATCHES, true],
+  [SETTINGS_KEYS.SHOW_AUTOHIDE_BUTTON, false],
+] as const)('%s defaults to %s, keeps a saved choice and resets when removed', (key, fallback) => {
+  expect(validateStoredSettings({}).settings[key]).toBe(fallback);
+  expect(validateStoredSettings({ [key]: !fallback }).settings[key]).toBe(!fallback);
+  expect(validateStoredSettings({ [key]: String(!fallback) }).settings[key]).toBe(fallback);
+  expect(validateStoredSettingChange(key, { newValue: !fallback })).toEqual({
+    value: !fallback,
     issues: [],
   });
-});
-
-test('Tooltips mode defaults on, preserves false and validates changes', () => {
-  expect(validateStoredSettings({}).settings.tooltipsMode).toBe(true);
-  expect(validateStoredSettings({ tooltipsMode: false }).settings.tooltipsMode).toBe(false);
-  expect(validateStoredSettings({ tooltipsMode: 'false' }).settings.tooltipsMode).toBe(true);
-  expect(validateStoredSettingChange('tooltipsMode', { newValue: false })).toEqual({
-    value: false,
-    issues: [],
-  });
-  expect(validateStoredSettingChange('tooltipsMode', { oldValue: false })).toEqual({
-    value: true,
+  expect(validateStoredSettingChange(key, { oldValue: !fallback })).toEqual({
+    value: fallback,
     issues: [],
   });
 });
@@ -94,14 +95,6 @@ test('rejects malformed storage change envelopes', () => {
 
   expect(result.value).toBe(true);
   expect(result.issues).toEqual(['Storage change for "autoHide" must be an object.']);
-});
-
-test('validates layout locks and unlocks when the stored key is removed', () => {
-  expect(validateStoredSettings({ lockPositionAndSize: 'true' }).settings.lockPositionAndSize).toBe(
-    false,
-  );
-  expect(validateStoredSettingChange('lockPositionAndSize', { newValue: true }).value).toBe(true);
-  expect(validateStoredSettingChange('lockPositionAndSize', { oldValue: true }).value).toBe(false);
 });
 
 test('validates suggestion counts and defaults Autohide to on without overriding saved choices', () => {

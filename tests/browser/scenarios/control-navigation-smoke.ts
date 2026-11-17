@@ -1,7 +1,7 @@
 import { expect } from '@playwright/test';
 import type { BrowserContext, Page } from '@playwright/test';
-import { attachFailure, openPage, snapshot } from '../pages.js';
-import { keymove, PREVIEW_HOST, searchFor } from '../keymove.js';
+import { attachFailure, openPage, selectionText, snapshot } from '../pages.js';
+import { keymove, PREVIEW_HOST, replaceQuery, searchFor } from '../keymove.js';
 
 async function expectState(page: Page, state: string) {
   await expect(keymove(page).suggestions).toContainText(state);
@@ -166,10 +166,13 @@ async function checkTransformedModal(context: BrowserContext, origin: string, na
   try {
     await expect(bar).toHaveAttribute('data-always-on', 'true');
     await searchAction(page, 'prix');
+    await expect.poll(() => hostParent(page)).toBe('transformed-drawer');
     await page.keyboard.press('Alt+s');
-    await expect(status).toHaveText(/^Text 1 \//);
+    await expect(status).toHaveText('Text 1 / 3');
     await page.keyboard.press('Tab');
     await expect(host.locator('.keymove-selected-selection')).toBeAttached();
+    // The native selection covers the whole block inside the modal, ready for copying.
+    await expect.poll(() => selectionText(page)).toBe('Prix (Bas - Haut)');
     await snapshot(page, `transformed-${kind}-modal`);
     const geometry = await page.evaluate(() => {
       const drawer = document.getElementById('transformed-drawer')!;
@@ -201,6 +204,9 @@ async function checkTransformedModal(context: BrowserContext, origin: string, na
       }),
       'The overlay must not intercept pointer events on the site',
     ).toBe(true);
+    // Search stays inside the modal: page text behind it does not match.
+    await replaceQuery(page, 'qxyzdelta');
+    await expect(status).toHaveText('Text ~ 0 / 0');
     await checkStyledToggles(page, native);
     await checkInputValues(page, native);
     // Activation clears the query; restore an active search before testing its Escape.

@@ -41,7 +41,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
 }
 
 // Closes Vivaldi's first-run welcome tab, keeping the page the preview opened.
-export async function closeWelcomeTabs(client: ChromiumClient, keepTargetId?: string) {
+async function closeWelcomeTabs(client: ChromiumClient, keepTargetId: string) {
   const result = await client.sendCommand('Target.getTargets', {});
   const targets = isObject(result) ? result['targetInfos'] : undefined;
   if (Array.isArray(targets)) {
