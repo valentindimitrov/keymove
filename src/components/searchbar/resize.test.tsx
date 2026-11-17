@@ -2,6 +2,7 @@ import { fireEvent, render } from '@testing-library/react';
 import React from 'react';
 import DraggableContainer from './draggable_container.js';
 import { MAX_CONTAINER_WIDTH, MIN_CONTAINER_WIDTH } from '../../constants.js';
+import { acceptSyntheticInputForTesting } from '../../lib/trusted_input.js';
 
 test.each(['', 'coffee'])(
   'clicking the search input containing %j preserves native focus and selection',
@@ -283,4 +284,41 @@ test('follows a width changed elsewhere, such as a reset from the popup', () => 
   );
 
   expect(container.style.width).toBe('300px');
+});
+
+describe('page-dispatched mouse events during a real gesture', () => {
+  afterEach(() => acceptSyntheticInputForTesting(true));
+
+  test('cannot move the bar or commit a position while it is being dragged', () => {
+    const { container, updatePosition } = renderContainer();
+    const left = container.style.left;
+    const top = container.style.top;
+    fireEvent.mouseDown(container, { clientX: 500, clientY: 300 });
+    acceptSyntheticInputForTesting(false);
+
+    fireEvent.mouseMove(document, { clientX: 10, clientY: 10 });
+    fireEvent.mouseUp(document);
+    expect(container.style.left).toBe(left);
+    expect(container.style.top).toBe(top);
+    expect(updatePosition).not.toHaveBeenCalled();
+
+    acceptSyntheticInputForTesting(true);
+    fireEvent.mouseUp(document);
+    expect(updatePosition).toHaveBeenCalledWith({ x: 0.5, y: 0.5 });
+  });
+
+  test('cannot resize the bar or commit a width while it is being resized', () => {
+    const { container, handle, updateWidth } = renderContainer();
+    fireEvent.mouseDown(handle, { clientX: 500 });
+    acceptSyntheticInputForTesting(false);
+
+    fireEvent.mouseMove(document, { clientX: 900 });
+    fireEvent.mouseUp(document);
+    expect(container.style.width).toBe('420px');
+    expect(updateWidth).not.toHaveBeenCalled();
+
+    acceptSyntheticInputForTesting(true);
+    fireEvent.mouseUp(document);
+    expect(updateWidth).toHaveBeenCalledWith(420);
+  });
 });

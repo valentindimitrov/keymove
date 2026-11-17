@@ -14,6 +14,7 @@ import { isTextVisible } from './visible_text.js';
 import type { SearchResult, RankedMatch } from './page_search_index.js';
 import { ACTION_PRIORITY_BOOST } from '../constants.js';
 import { isImageDirection } from './image_schema.js';
+import { isTrustedInput } from './trusted_input.js';
 
 const empty = (): SearchResult => ({
   matchingText: [],
@@ -30,7 +31,7 @@ type Entry = {
   nodes: Map<string, HTMLElement>;
   ready: Promise<void>;
   resolve: () => void;
-  load: () => void;
+  load: (event: Event) => void;
   update?: (reply: FrameReply) => void;
   cancel?: () => void;
 };
@@ -85,7 +86,12 @@ export class FrameSearch {
   };
 
   private readonly available = (event: MessageEvent) => {
-    if (event.data?.type !== FRAME_PROBE || event.data?.available !== true) return;
+    if (
+      !isTrustedInput(event) ||
+      event.data?.type !== FRAME_PROBE ||
+      event.data?.available !== true
+    )
+      return;
     for (const entry of this.entries.values())
       if (entry.frameId === undefined && event.source === entry.frame.contentWindow)
         entry.frame.contentWindow?.postMessage({ type: FRAME_PROBE, token: entry.token }, '*');
@@ -129,7 +135,9 @@ export class FrameSearch {
         nodes: new Map(),
         ready: readiness.promise,
         resolve: readiness.resolve,
-        load: () => {
+        load: event => {
+          // A page can dispatch `load` at its own iframe; only a real navigation resets it.
+          if (!isTrustedInput(event)) return;
           entry.cancel?.();
           delete entry.update;
           delete entry.frameId;

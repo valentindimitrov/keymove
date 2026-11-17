@@ -7,6 +7,7 @@ import {
   retainPageRoot,
   releasePageRoot,
 } from './dom_tree.js';
+import { dispatchOwnEvent } from './trusted_input.js';
 
 let movingExtensionRoot = false;
 export function isMovingExtensionRoot() {
@@ -102,7 +103,7 @@ function keepExtensionRootConnected(host: HTMLElement) {
     }
     if (modal !== previousModal) {
       previousModal = modal;
-      document.dispatchEvent(new Event(MODAL_CHANGED_EVENT));
+      dispatchOwnEvent(document, new Event(MODAL_CHANGED_EVENT));
     }
   };
   const observer = new MutationObserver(records => {

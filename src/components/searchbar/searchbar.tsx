@@ -26,6 +26,7 @@ import { isImageDirection, isImageInfo } from '../../lib/image_schema.js';
 import ImageViewer from './image_viewer.js';
 
 import Utils from '../../lib/utils.js';
+import { hasUserActivation, isOwnEvent, isTrustedInput } from '../../lib/trusted_input.js';
 import { isActionDisabled } from '../../lib/searchable_attributes.js';
 import { activeModal, actionIsInScope, MODAL_CHANGED_EVENT } from '../../lib/modal_context.js';
 import { isMovingExtensionRoot } from '../../lib/create_extension_root.js';
@@ -252,7 +253,8 @@ const Searchbar = () => {
 
   const handleBlur = React.useCallback(
     (event: React.FocusEvent<HTMLInputElement>) => {
-      if (isMovingExtensionRoot()) return;
+      // A page-dispatched focusout would reset the search while focus never left.
+      if (isMovingExtensionRoot() || !isTrustedInput(event)) return;
       if (Utils.isExtensionElement(event.relatedTarget)) {
         return;
       }
@@ -275,6 +277,9 @@ const Searchbar = () => {
 
   const activateSelectedMatchingNodeAndReset = React.useCallback(
     async (event: KeyboardEvent | null, activation: ActionActivation = 'current') => {
+      // Child frames run relayed commands without activation of their own, so the gesture
+      // is checked here, in the frame that received the input, before any command is sent.
+      if (!hasUserActivation()) return;
       if (selectedImage) {
         event?.preventDefault();
         event?.stopPropagation();
@@ -747,6 +752,7 @@ const Searchbar = () => {
             }),
           );
         } else {
+          if (id === 'image-open' && !hasUserActivation()) return;
           const info = await imageCommand('info');
           if (!isImageInfo(info)) {
             clearImage();
@@ -951,6 +957,7 @@ const Searchbar = () => {
     if (!isInteractive || !selectedImage) return;
     const navigateImage = (event: KeyboardEvent) => {
       if (
+        !isTrustedInput(event) ||
         !Utils.elementIsActive(searchInputRef.current) ||
         event.defaultPrevented ||
         event.isComposing ||
@@ -975,6 +982,7 @@ const Searchbar = () => {
     (event: KeyboardEvent) => {
       const differentInputIsActive = Utils.differentInputIsActive(searchInputRef.current);
       if (
+        isTrustedInput(event) &&
         !event.isComposing &&
         !event.defaultPrevented &&
         !Utils.isExtensionElement(event.composedPath()[0] ?? event.target) &&
@@ -996,7 +1004,7 @@ const Searchbar = () => {
 
   const handleCopy = React.useCallback(
     (event: ClipboardEvent) => {
-      if (selectedImage) return;
+      if (selectedImage || !isTrustedInput(event)) return;
       if (
         !isInteractive ||
         !Utils.elementIsActive(searchInputRef.current) ||
@@ -1054,7 +1062,10 @@ const Searchbar = () => {
     const unsubscribe = subscribeToPageChanges(() => refreshSearchOnPageChange());
     // Scope changes invalidate the old result set immediately, unlike animation or
     // content mutations. Never publish an in-flight search from the previous modal.
-    const onModalChanged = () => refreshSearchOnPageChange(false);
+    // The page can dispatch this event too; only KeyMove's own announcement resets results.
+    const onModalChanged = (event: Event) => {
+      if (isOwnEvent(event)) refreshSearchOnPageChange(false);
+    };
     document.addEventListener(MODAL_CHANGED_EVENT, onModalChanged);
     return () => {
       unsubscribe();
@@ -1236,7 +1247,11 @@ const Searchbar = () => {
 
   React.useEffect(() => {
     if (!actionMenuOpen) return undefined;
+    // Only real pointer input closes the menu. KeyMove's own synthetic pointerdown, sent
+    // when it clicks a result, is ignored too; that activation resets the search, which
+    // closes the menu anyway.
     const dismissOutside = (event: PointerEvent) => {
+      if (!isTrustedInput(event)) return;
       if (!Utils.isExtensionElement(event.composedPath()[0] ?? event.target)) setMenuTarget(null);
     };
     document.addEventListener('pointerdown', dismissOutside, true);
