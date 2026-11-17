@@ -46,6 +46,8 @@ when extension code is unchanged.
 - The public site is `https://keymove.minddevops.eu`; its policy is `/privacy-policy`.
 - `website/wrangler.jsonc` configures Cloudflare Workers Static Assets. The GitHub Quality workflow
   builds with `pnpm website:build` and deploys pushes to `origin/main` after its checks pass.
+  Pull request previews come from the separate Website preview workflow, which runs only from
+  `main`'s definition (`website/README.md`, "Deployment").
 - Base production edits on the current `origin/main` in the task's isolated worktree. Another
   checkout's local `main` or an older Sites branch can differ from the deployed source.
 - The `.openai/hosting.json` manifest identifies a separate Sites-hosted copy. Do not publish there

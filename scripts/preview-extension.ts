@@ -40,6 +40,29 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
+// Smoke runs use only local fixtures, so they close Vivaldi's welcome tab without first
+// opening the repository page; a GitHub or network outage must not fail them.
+export async function closeWelcomeTabs(client: ChromiumClient, keepTargetId?: string) {
+  const result = await client.sendCommand('Target.getTargets', {});
+  const targets = isObject(result) ? result['targetInfos'] : undefined;
+  if (Array.isArray(targets)) {
+    for (const target of targets) {
+      if (
+        isObject(target) &&
+        target['type'] === 'page' &&
+        typeof target['targetId'] === 'string' &&
+        target['targetId'] !== keepTargetId &&
+        typeof target['url'] === 'string' &&
+        /^(?:vivaldi:welcome\/?|vivaldi:\/\/welcome\/?|chrome-extension:\/\/mpognobbkildjkofajifpdfhcoklimli\/components\/welcome\/welcome\.html)$/.test(
+          target['url'],
+        )
+      ) {
+        await client.sendCommand('Target.closeTarget', { targetId: target['targetId'] });
+      }
+    }
+  }
+}
+
 export async function openRepositoryPage(client: ChromiumClient): Promise<string> {
   // Vivaldi can replace its command-line start URL during first-run initialization.
   // Use the runner's existing connection only after it has installed the extension.
@@ -69,24 +92,7 @@ export async function openRepositoryPage(client: ChromiumClient): Promise<string
   if (!title)
     throw new Error(`GitHub did not finish opening within 30 seconds. Last page: ${lastPage}`);
 
-  const result = await client.sendCommand('Target.getTargets', {});
-  const targets = isObject(result) ? result['targetInfos'] : undefined;
-  if (Array.isArray(targets)) {
-    for (const target of targets) {
-      if (
-        isObject(target) &&
-        target['type'] === 'page' &&
-        typeof target['targetId'] === 'string' &&
-        target['targetId'] !== targetId &&
-        typeof target['url'] === 'string' &&
-        /^(?:vivaldi:welcome\/?|vivaldi:\/\/welcome\/?|chrome-extension:\/\/mpognobbkildjkofajifpdfhcoklimli\/components\/welcome\/welcome\.html)$/.test(
-          target['url'],
-        )
-      ) {
-        await client.sendCommand('Target.closeTarget', { targetId: target['targetId'] });
-      }
-    }
-  }
+  await closeWelcomeTabs(client, targetId);
   await client.sendCommand('Target.activateTarget', { targetId });
   return title;
 }
@@ -184,6 +190,34 @@ export function findBrowser(
   );
 }
 
+/**
+ * Removes the temporary build when the process exits, including after Ctrl+C or a
+ * termination request, which skip the 'exit' event unless they are handled.
+ */
+export function removeOnExit(cleanup: () => void, target: NodeJS.Process = process): () => void {
+  let done = false;
+  const remove = () => {
+    if (done) return;
+    done = true;
+    try {
+      cleanup();
+    } catch (error) {
+      console.error('Could not remove the temporary preview build:', error);
+    }
+  };
+  const signals = ['SIGINT', 'SIGTERM', 'SIGHUP'] as const;
+  const onSignal = (signal: NodeJS.Signals) => {
+    remove();
+    for (const name of signals) target.off(name, onSignal);
+    // chrome-launcher has its own SIGINT handler that closes the browser and exits. Without
+    // one, re-raise so the process still terminates with the signal's status.
+    if (target.listenerCount(signal) === 0) target.kill(target.pid, signal);
+  };
+  target.once('exit', remove);
+  for (const name of signals) target.on(name, onSignal);
+  return remove;
+}
+
 function run(script: string, args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
     // Argument arrays avoid shell interpretation of executable paths and URLs.
@@ -230,16 +264,12 @@ async function main(): Promise<void> {
     throw new Error(`Build missing at ${sourceDir}. Run pnpm preview to build it first.`);
   }
   const preview = createPreviewCopy(sourceDir);
-  process.once('exit', () => {
-    try {
-      preview.cleanup();
-    } catch (error) {
-      console.error('Could not remove the temporary preview build:', error);
-    }
-  });
+  removeOnExit(preview.cleanup);
   console.log(`Dedicated preview build: ${preview.directory}`);
   console.log(
-    `Opening ${repositoryUrl} in a fresh test profile. Close the test browser or press Ctrl+C to end this session.`,
+    smoke
+      ? 'Running browser smoke against local fixtures in a fresh test profile.'
+      : `Opening ${repositoryUrl} in a fresh test profile. Close the test browser or press Ctrl+C to end this session.`,
   );
   const runner = await webExt.cmd.run(
     {
@@ -257,10 +287,12 @@ async function main(): Promise<void> {
     if (target === 'chrome') {
       const client = runner.extensionRunners[0]?.cdp;
       if (!client) throw new Error('The browser launcher did not provide a Chromium connection.');
-      console.log(`Opened and focused: ${await openRepositoryPage(client)}`);
       if (smoke) {
+        await closeWelcomeTabs(client);
         const { runBrowserSmoke } = await import('./browser-smoke.ts');
         await runBrowserSmoke(client, browser.name);
+      } else {
+        console.log(`Opened and focused: ${await openRepositoryPage(client)}`);
       }
     }
   } finally {

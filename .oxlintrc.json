@@ -71,7 +71,7 @@
     "require-yield": "error",
     "use-isnan": "error",
     "valid-typeof": "error",
-    "react/exhaustive-deps": "warn",
+    "react/exhaustive-deps": "error",
     "react/rules-of-hooks": "error",
     "typescript/await-thenable": "error",
     "typescript/no-floating-promises": "error",

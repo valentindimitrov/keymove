@@ -86,6 +86,7 @@ button:disabled {
 .site-header nav a:hover {
   color: var(--site-accent, #8333b5);
 }
+.nav-how,
 .nav-github,
 .store-link {
   display: inline-flex;
@@ -115,6 +116,7 @@ button:disabled {
   flex: none;
 }
 .store-link:hover,
+.nav-how:hover,
 .nav-github:hover {
   border-color: var(--site-accent, #8333b5);
 }

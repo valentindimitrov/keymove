@@ -24,6 +24,20 @@ updates:
           - minor
           - patch
 
+  # Wrangler for the website deploy job, locked separately from the extension.
+  - package-ecosystem: npm
+    directory: /website/deploy
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:05'
+      timezone: Europe/Paris
+    open-pull-requests-limit: 2
+    groups:
+      website-deploy:
+        patterns:
+          - '*'
+
   - package-ecosystem: github-actions
     directory: /
     schedule:

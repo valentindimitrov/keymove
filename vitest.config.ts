@@ -11,10 +11,11 @@ export default defineConfig({
     maxWorkers: 4,
     globals: true,
     setupFiles: ['./src/setupTests.ts'],
-    // The CSS regression reads its input through fs, outside Vite's import graph.
+    // The CSS regressions read their inputs through fs, outside Vite's import graph.
     forceRerunTriggers: [
       ...configDefaults.forceRerunTriggers,
       '**/src/content.css',
+      '**/src/popup.css',
       '**/pnpm-lock.yaml',
     ],
   },

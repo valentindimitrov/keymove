@@ -150,7 +150,7 @@ export function PopupSettingsView({
                   Choose where the search bar appears using the nine squares.
                   {s.tooltipsMode &&
                     !s.lockPositionAndSize &&
-                    ' Drag the right edge of the searchbar to resize it.'}
+                    ' Drag either side edge of the searchbar to resize it.'}
                 </p>
                 <PopupPositionGrid
                   position={position.position}

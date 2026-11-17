@@ -37,11 +37,12 @@ so every assertion still passes. Add a scenario when a state is worth looking at
 | `pnpm verify:crx` | Verify the CRX signature and its exact ZIP payload without the private key. |
 | `pnpm format` | Format supported source and configuration files with Oxfmt. |
 | `pnpm format:check` | Check formatting without writing files. |
-| `pnpm lint` | Run Oxlint correctness, React Hooks, and type-aware promise checks. |
+| `pnpm lint` | Run Oxlint's explicit ruleset, React Hooks, and type-aware promise checks. |
 | `pnpm lint:fix` | Apply Oxlint's safe automatic fixes. |
 | `pnpm typecheck` | Run strict TypeScript checks without emitting files. |
 | `pnpm test` | Run the Vitest/jsdom test suite. |
 | `pnpm verify` | Validate completed manifests and bundles after a build. |
+| `pnpm verify:packages` | Open the release ZIPs after `pnpm zip` and check each manifest, version, LICENSE and referenced file, the sources package's contents, and that each browser ZIP matches its build directory when present. |
 | `pnpm quality` | Run formatting, linting, types, tests, all three builds, and artifact validation. |
 
 Preview commands use `web-ext` to load the extension in a fresh temporary browser profile, leaving
@@ -54,13 +55,21 @@ After meaningful implementation changes, use `pnpm preview`; after `pnpm quality
 `pnpm browser:open` to reuse the verified build. For custom browser locations, set
 `KEYMOVE_VIVALDI_BINARY`, `KEYMOVE_CHROME_BINARY`, or `KEYMOVE_FIREFOX_BINARY` to the absolute
 executable path. The browser opens `https://github.com/valentindimitrov/keymove` for testing.
+Smoke runs (`pnpm test:browser`) skip that page and use only local fixtures, so a GitHub or
+network outage does not fail them. Ctrl+C or a termination signal still removes the temporary
+build copy.
+
+On macOS, Chromium handles Command shortcuts such as Command+C/V/A as application-menu
+commands that synthetic DevTools key events never reach. `scripts/browser-driver.ts` therefore
+names the matching editing command (`copy`, `paste`, `selectAll`, ...) with those key events,
+which runs the browser's native clipboard and selection code just as the menu would.
 
 Formatting preferences live in `.oxfmtrc.json`; lint rules and WXT/Vitest globals live in
 `.oxlintrc.json`. Generated output, coverage, and dependencies are excluded. Markdown and the
 pnpm lockfile remain outside formatting. Formatter-managed source files use LF endings, enforced
 on checkout by `.gitattributes`.
 
-Oxlint uses an explicit ruleset with React Hooks dependency checks at warning severity. Assignment
+Oxlint uses an explicit ruleset with React Hooks dependency checks at error severity. Assignment
 checks cover conditions and return values; they do not cover every expression context previously
 checked by Biome. Duplicate parameters and `with` statements are rejected by the module parser.
 Type-aware linting uses `oxlint-tsgolint` to check floating promises, misused promises, and awaiting
@@ -79,17 +88,29 @@ wait for the weekly version-update schedule. Each resulting pull request runs th
 passing tests alone do not establish that a vulnerability is unreachable. Do not give the build
 workflow permission to dismiss alerts or dismiss every development dependency automatically.
 
-As of October 4, 2026, `node-forge` 1.4.0 has no published fix for
-[GHSA-86w9-cpqp-85rv](https://github.com/advisories/GHSA-86w9-cpqp-85rv). Its dependency path is
-`web-ext -> @devicefarmer/adbkit -> node-forge`; adbkit's TCP/USB bridge does call RSA verification.
-KeyMove's desktop preview does not request that bridge, and CRX signing and verification use
-`node:crypto` in `scripts/crx3.ts`. Keep the alert open for an upstream fix and reassess this exposure
-if Android/ADB tooling is introduced. This is a scoped usage assessment, not a package-wide safety
-exception.
+As of November 16, 2026, `pnpm audit` reports published fixes for
+[GHSA-86w9-cpqp-85rv](https://github.com/advisories/GHSA-86w9-cpqp-85rv) and the other `node-forge`
+advisories (patched in 1.4.1, with later ones in 1.4.3), but the lockfile still resolves `node-forge`
+1.4.0. Its dependency path is `web-ext -> @devicefarmer/adbkit -> node-forge`; adbkit's TCP/USB bridge
+does call RSA verification. KeyMove's desktop preview does not request that bridge, and CRX signing
+and verification use `node:crypto` in `scripts/crx3.ts`. Keep the alerts open until the lockfile
+resolves a patched version, and reassess this exposure if Android/ADB tooling is introduced. This is
+a scoped usage assessment, not a package-wide safety exception.
 
-Pull requests and pushes to `main` run `pnpm quality`. Release preparation runs the same full gate
-before packaging and revalidates the resulting artifacts, including the settings popup and its assets.
-Installed-browser smoke remains a separate local check.
+Pull requests and pushes to `main` run `pnpm quality`. CI sets the placeholder Firefox ID
+`keymove-ci@keymove.invalid` so every build exercises the configured-ID path; `pnpm verify`
+requires the packaged ID to equal `WXT_FIREFOX_EXTENSION_ID` when set and to be absent otherwise.
+Release preparation runs the same full gate, zips the builds, then validates both the build
+directories (`pnpm verify`, including the settings popup and its assets) and the ZIPs themselves
+(`pnpm verify:packages`). The signing job validates the downloaded ZIPs again before signing; see
+[CRX signing](crx-signing.md). Installed-browser smoke remains a separate local check.
+
+CI installs pnpm through `.github/actions/setup-pnpm`, which downloads the native Linux binary for
+the `packageManager` version and checks it against the integrity pnpm records in `pnpm-lock.yaml`
+(`packageManagerDependencies`) before use. The `packageManager` field also carries the wrapper's
+corepack-style `+sha512` hash. When upgrading pnpm, update both: run the new pnpm's install so the
+lockfile records it, and replace the hash with the new tarball's SHA-512 (hex, from
+`npm view pnpm@<version> dist.integrity`). Keep `website/deploy/package.json` on the same value.
 
 ### Architecture
 

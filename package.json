@@ -6,13 +6,13 @@
   "license": "(Apache-2.0 AND BSD-4-Clause)",
   "private": false,
   "type": "module",
-  "packageManager": "pnpm@12.11.2",
+  "packageManager": "pnpm@12.11.2+sha512.25a51652a196785af5f28bda6dfe8dc582ebefa4ac1d180221ce1390231c5fb76637822ea4b6e4633ce74acdcb0a77f725af11bad38177fdeddaee818a955cb9",
   "engines": {
     "node": ">=24.15.0"
   },
   "dependencies": {
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
   },
   "devDependencies": {
     "@playwright/cli": "0.1.22",
@@ -49,6 +49,7 @@
     "website:dev": "vite --config website/vite.config.ts",
     "website:build": "vite build --config website/vite.config.ts",
     "website:preview": "vite preview --config website/vite.config.ts",
+    "website:record-patterns": "node scripts/record-patterns.ts",
     "test:browser": "node scripts/preview-extension.ts --smoke",
     "test:browser:built": "node scripts/preview-extension.ts --smoke --no-build",
     "worktree:check": "node scripts/worktree-check.ts",
@@ -66,6 +67,7 @@
     "sign:chrome": "node scripts/sign-chrome.ts",
     "verify:crx": "node scripts/sign-chrome.ts --verify",
     "verify": "node scripts/validate-builds.ts",
+    "verify:packages": "node scripts/validate-builds.ts --packages",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:unit": "vitest run src",

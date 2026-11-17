@@ -499,3 +499,211 @@ test('never gives one node two places in the slate', async () => {
   const button = document.querySelector('button');
   expect(suggestions.filter(entry => entry.node === button)).toHaveLength(1);
 });
+
+describe('text owned by a node', () => {
+  // EDGAR filings open with unclosed SGML header tags, so the parser nests the whole
+  // filing inside elements that also hold a few characters of their own.
+  const edgarHeader =
+    '<DOCUMENT><TYPE>S-1/A<SEQUENCE>1<FILENAME>filing.htm<DESCRIPTION>S-1/A' +
+    '<div><p>Total revenue grew</p><div><font>Our revenue in 2025</font></div>' +
+    '<div><a href="#notes">See revenue notes</a></div></div>';
+
+  test.each(['revenue', 'revenoe'])('never selects an EDGAR header wrapper for %s', async query => {
+    document.body.innerHTML = edgarHeader;
+    index = new PageSearchIndex();
+    const result = await index.search(scorerFor(query));
+    expect(result.isFuzzy).toBe(query === 'revenoe');
+    expect(result.matchingText.map(match => match.node)).toEqual([
+      document.querySelector('p'),
+      document.querySelector('font'),
+      document.querySelector('a'),
+    ]);
+    expect(result.matchingLinksAndButtons).toEqual([document.querySelector('a')]);
+  });
+
+  test('still finds the text a header wrapper holds itself', async () => {
+    document.body.innerHTML = edgarHeader;
+    index = new PageSearchIndex();
+    const result = await index.search(scorerFor('filing.htm'));
+    expect(result.matchingText.map(match => match.node)).toContain(
+      document.querySelector('filename'),
+    );
+  });
+
+  test('ignores stray wrapper text when the match is in a nested block', async () => {
+    document.body.innerHTML = '<div id="outer">stray text <div id="inner">the revenue</div></div>';
+    index = new PageSearchIndex();
+    const result = await index.search(scorerFor('revenue'));
+    expect(result.matchingText.map(match => match.node)).toEqual([
+      document.getElementById('inner'),
+    ]);
+  });
+
+  test('treats a descendant styled as a block as its own block', async () => {
+    document.body.innerHTML =
+      '<div id="outer">Intro <span id="inner" style="display:block">revenue</span></div>';
+    index = new PageSearchIndex();
+    const result = await index.search(scorerFor('revenue'));
+    expect(result.matchingText.map(match => match.node)).toEqual([
+      document.getElementById('inner'),
+    ]);
+  });
+
+  test('keeps inline descendants as part of the block that holds them', async () => {
+    document.body.innerHTML = '<div id="outer">Total <b>revenue</b> grew</div>';
+    index = new PageSearchIndex();
+    const result = await index.search(scorerFor('total revenue grew'));
+    expect(result.matchingText).toMatchObject([
+      { node: document.getElementById('outer'), term: 'total revenue grew' },
+    ]);
+  });
+
+  test('keeps nested list items from repeating their parent item', async () => {
+    document.body.innerHTML =
+      '<ul><li id="outer">Outer<ul><li id="inner">revenue</li></ul></li></ul>';
+    index = new PageSearchIndex();
+    const result = await index.search(scorerFor('revenue'));
+    expect(result.matchingText.map(match => match.node)).toEqual([
+      document.getElementById('inner'),
+    ]);
+  });
+
+  test('finds a phrase in a nested block that has no text node of its own', async () => {
+    document.body.innerHTML =
+      '<div>Intro <div id="inner"><span>Total </span><b>revenue</b></div></div>';
+    index = new PageSearchIndex();
+    for (const query of ['total revenue', 'total revenoe']) {
+      const result = await index.search(scorerFor(query));
+      expect(result.matchingText.map(match => match.node)).toEqual([
+        document.getElementById('inner'),
+      ]);
+    }
+    // A word one inline child holds is that child's result, not the block's as well.
+    expect(
+      (await index.search(scorerFor('revenue'))).matchingText.map(match => match.node),
+    ).toEqual([document.querySelector('b')]);
+  });
+
+  test('keeps a block whose own phrase is separate from a matching nested block', async () => {
+    document.body.innerHTML =
+      '<div>Intro <div id="own"><span>Total </span><b>revenue</b>' +
+      '<p id="nested">Total revenue</p></div></div>';
+    index = new PageSearchIndex();
+    const result = await index.search(scorerFor('total revenue'));
+    expect(result.matchingText.map(match => match.node)).toEqual([
+      document.getElementById('own'),
+      document.getElementById('nested'),
+    ]);
+  });
+
+  test('keeps a block holding an occurrence that none of its inline results holds', async () => {
+    document.body.innerHTML =
+      '<div>Intro<div id="own"><span>Total </span><b>revenue</b>' +
+      '<div>unrelated text</div><i id="child">Total revenue</i></div></div>';
+    index = new PageSearchIndex();
+    const result = await index.search(scorerFor('total revenue'));
+    expect(result.matchingText.map(match => match.node)).toEqual([
+      document.getElementById('own'),
+      document.getElementById('child'),
+    ]);
+  });
+
+  test('counts overlapping occurrences before dropping a block', async () => {
+    document.body.innerHTML =
+      '<div>Intro<div id="own"><span>ban</span><b id="child">ana</b></div></div>';
+    index = new PageSearchIndex();
+    const result = await index.search(scorerFor('ana'));
+    expect(result.matchingText.map(match => match.node)).toEqual([
+      document.getElementById('own'),
+      document.getElementById('child'),
+    ]);
+  });
+
+  test('finds a block indexed before the wrapper that leaves it out', async () => {
+    document.body.innerHTML =
+      '<div id="outer"><a href="#" style="display:block"><span>Total </span><b>revenue</b></a></div>';
+    index = new PageSearchIndex();
+    await index.search(scorerFor('total revenue'));
+    document.getElementById('outer')!.prepend('Intro');
+    await Promise.resolve();
+    const link = document.querySelector('a');
+    for (const query of ['total revenue', 'total revenoe']) {
+      const result = await index.search(scorerFor(query));
+      expect(result.matchingText.map(match => match.node)).toEqual([link]);
+      expect(result.matchingLinksAndButtons).toEqual([link]);
+    }
+  });
+
+  test('stops deciding held-back block results once the search is cancelled', async () => {
+    document.body.innerHTML = `<div>Intro${'<div><span>Total </span><b>revenue</b></div>'.repeat(50)}</div>`;
+    index = new PageSearchIndex();
+    const controller = new AbortController();
+    const internals = index as unknown as {
+      collectTextMatch: (
+        node: Element,
+        match: unknown,
+        collector: { deferredText: unknown },
+      ) => void;
+    };
+    const collect = internals.collectTextMatch.bind(index);
+    let decided = 0;
+    internals.collectTextMatch = (node, match, collector) => {
+      if (collector.deferredText === null) {
+        decided += 1;
+        controller.abort();
+      }
+      collect(node, match, collector);
+    };
+    await expect(
+      index.search(scorerFor('total revenue'), { signal: controller.signal }),
+    ).rejects.toMatchObject({ name: 'AbortError' });
+    expect(decided).toBe(1);
+  });
+
+  test('gives the same results as a new index after the page changes', async () => {
+    document.body.innerHTML =
+      '<div id="outer">Intro<div id="own"><span>Total </span><b>revenue</b></div></div>';
+    index = new PageSearchIndex();
+    expect((await index.search(scorerFor('total revenue'))).matchingText).toHaveLength(1);
+    document.getElementById('outer')!.firstChild!.remove();
+    await Promise.resolve();
+    const later = await index.search(scorerFor('total revenue'));
+    index.disconnect();
+    index = new PageSearchIndex();
+    const fresh = await index.search(scorerFor('total revenue'));
+    expect(later.matchingText.map(match => match.node)).toEqual(
+      fresh.matchingText.map(match => match.node),
+    );
+  });
+
+  test('reads slotted text through a slot styled as a block', async () => {
+    document.body.innerHTML = '<x-report>revenue</x-report>';
+    const host = document.querySelector('x-report')!;
+    host.attachShadow({ mode: 'open' }).innerHTML = '<slot style="display:block"></slot>';
+    index = new PageSearchIndex();
+    const result = await index.search(scorerFor('revenue'));
+    expect(result.matchingText.map(match => match.node)).toEqual([host]);
+  });
+
+  test('never joins the text on either side of a nested block into one phrase', async () => {
+    document.body.innerHTML = '<div id="outer">Total<div>unrelated text</div>revenue</div>';
+    index = new PageSearchIndex();
+    expect((await index.search(scorerFor('total revenue'))).matchingText).toEqual([]);
+    const fuzzy = await index.search(scorerFor('total revenoe'));
+    expect(fuzzy.matchingText).toEqual([]);
+  });
+
+  test('matches an action by all of its text while text results stay in their blocks', async () => {
+    document.body.innerHTML = '<a href="#report">Read <div id="title">revenue report</div></a>';
+    index = new PageSearchIndex();
+    const link = document.querySelector('a')!;
+    const result = await index.search(scorerFor('read revenue'));
+    expect(result.matchingLinksAndButtons).toEqual([link]);
+    expect(result.matchingText).toEqual([]);
+    const byTitle = await index.search(scorerFor('revenue'));
+    expect(byTitle.matchingLinksAndButtons).toEqual([link]);
+    expect(byTitle.matchingText).toMatchObject([
+      { node: document.getElementById('title'), action: link },
+    ]);
+  });
+});

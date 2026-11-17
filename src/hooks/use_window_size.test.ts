@@ -56,3 +56,18 @@ test('cancels pending resize work and stops listening on unmount', () => {
   window.dispatchEvent(new Event('resize'));
   expect(vi.getTimerCount()).toBe(0);
 });
+
+test('keeps a viewport change made between the first render and subscription', () => {
+  // A resize that fires after the initial read but before the effect subscribes has no
+  // listener to receive it, as when a test harness sets the viewport while the page mounts.
+  let rendered = false;
+  const { result } = renderHook(() => {
+    const size = useWindowSize();
+    if (!rendered) {
+      rendered = true;
+      vi.stubGlobal('innerWidth', 360);
+    }
+    return size;
+  });
+  expect(result.current.width).toBe(360);
+});
