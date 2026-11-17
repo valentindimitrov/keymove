@@ -1,7 +1,7 @@
 import { expect } from '@playwright/test';
 import type { BrowserContext, Page } from '@playwright/test';
 import { attachFailure, openPage, snapshot } from '../pages.js';
-import { keymove, searchFor } from '../keymove.js';
+import { keymove, PREVIEW_HOST, searchFor } from '../keymove.js';
 
 async function expectState(page: Page, state: string) {
   await expect(keymove(page).suggestions).toContainText(state);
@@ -143,7 +143,7 @@ export async function checkControlNavigation(context: BrowserContext, origin: st
   ]) {
     const preview = await openPage(context, `${origin}?scenario=${scenario}`);
     try {
-      const panel = keymove(preview).suggestions;
+      const panel = keymove(preview, PREVIEW_HOST).suggestions;
       await expect(panel).toBeAttached();
       expect(
         await panel.evaluate(node => node.scrollWidth <= node.clientWidth),

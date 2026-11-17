@@ -27,15 +27,18 @@ runtime compatibility from a Windows build or Chromium smoke pass.
 ```text
 .
 |-- assets/                  Static extension logo files copied by WXT
+|-- docs/                    User guide, development, testing and publication notes
 |-- entrypoints/
 |   |-- background.ts        WXT background entrypoint
 |   |-- frames.content.ts    Child-frame search and navigation helper
+|   |-- popup/               Toolbar settings popup page and React mount
 |   `-- content.tsx          WXT content-script and React mount
 |-- preview/                 Shadow-root harness for visual checks, served by `pnpm preview:ui`
 |-- scripts/
 |   `-- validate-builds.ts   Manifest and generated-bundle checks
 |-- src/
 |   |-- background.ts        Settings requests, new tabs, and safe injection
+|   |-- components/popup     Toolbar settings popup UI
 |   |-- components/searchbar React search UI, overlays, help, and settings
 |   |-- data/                 Validated JSON search configuration and shortcuts
 |   |-- hooks/                Browser events, storage, highlights, and navigation state
@@ -43,7 +46,11 @@ runtime compatibility from a Windows build or Chromium smoke pass.
 |   |-- lib/                  Search index, scoring, schemas, and utilities
 |   |-- test_support/        Builders for test fixtures, never imported by shipped code
 |   |-- content.css           Shadow-root component styling
+|   |-- popup.css             Toolbar settings popup document styling
 |   `-- highlights.css        Page-level CSS Custom Highlight styling
+|-- tests/browser/           Playwright installed-extension tests
+|-- website/                 Public website, published from `main` (see `website/AGENTS.md`)
+|-- playwright.config.ts     Playwright configuration for `pnpm test:e2e`
 |-- wxt.config.ts            MV3 manifest and build configuration
 |-- tsconfig.json            Strict TypeScript configuration
 |-- .oxfmtrc.json            Formatting preferences and exclusions
@@ -129,6 +136,34 @@ tab also require `hasUserActivation()` in the top frame. Activation belongs to t
 received the input and propagates only to ancestors, so child frames cannot check it for
 relayed commands; the top frame checks before sending them. jsdom cannot create trusted
 events: `src/setupTests.ts` sets the test seam, and rejection tests switch it off.
+
+Page script must not be able to switch KeyMove off. Content scripts start through
+`runSingleContentScript` (`src/lib/content_script_lifecycle.ts`): WXT's script-started
+signal and KeyMove's own `keymove:content-script-started:<name>` event are forgeable
+hints, accepted untrusted, that only make a copy check `browser.runtime.id`. A copy
+tears down only once its extension context is really gone (reload, update, disable,
+uninstall); never tear down from `ctx.onInvalidated` alone. Live copies are recorded on
+the isolated world's global object, so a second working copy (installation-time
+injection racing the manifest script) does not mount; a new copy retires any orphan
+recorded there itself, since a page can block the hint. Entrypoints set
+`noScriptStartedPostMessage`. Orphan teardown runs without `browser.storage` or
+`browser.runtime`, so cleanup uses optional access to them.
+An orphan must notice by itself, since a page can swallow every hint. The lifecycle checks
+`browser.runtime.id` on window capture before KeyMove's own input listeners (keys, input,
+clipboard, pointer, focus), so an orphan never swallows input, and on visibility changes
+and `pageshow`. Code that already runs (the host's DOM observer, frame-helper messaging)
+calls the `alive` callback the lifecycle passes to `mount` before acting. A fallback check
+runs every minute only while the document is visible. Keep checks to that property read.
+A copy that cannot run at all (Firefox destroys the old sandbox on reload and leaves its
+DOM) cannot clean up, so a newer copy removes hosts signed by an earlier copy
+(`src/lib/host_marker.ts`): a marker in each host's shadow root holds a per-installation
+secret from `storage.local` in a closed shadow root, readable only through extension APIs.
+Never remove a host by id, shape or any page-readable value, and never the current copy's
+own (`isKeyMoveRoot`); hosts with light-DOM children are kept. Safari behaviour is unknown.
+KeyMove's own DOM is recognised by reference (`markKeyMoveRoot`/`isKeyMoveRoot`/
+`isKeyMoveNode` in `dom_tree.ts`), never by id: a page element with `id="keymove-root"`
+or another KeyMove id is ordinary, searchable page content. The ids stay as styling and
+test hooks. Mark any new root KeyMove appends to a page document.
 
 ## Control discovery and modal navigation
 
@@ -310,20 +345,27 @@ popup stays on-screen.
 Stored keys:
 
 - `theme`: `system` (default), `light`, or `dark`. System follows live OS appearance changes.
-- `autoHide`: boolean
+- `autoHide`: boolean, defaults to true
 - `suggestionCount`: integer from 1 to 5, defaults to 3; larger saved counts clamp to 5. Limits displayed suggestions, never navigation results
-- `alwaysOn`: boolean
+- `alwaysOn`: boolean, defaults to true (Type to search)
 - `tooltipsMode`: boolean, defaults to true; shows full Alt/Option + number badges and usage hints.
   When false, keep compact numbers and all shortcuts; hide passive hints, never status/errors or
   accessible names. Explicitly opening the shortcut reference remains available.
-- `startInActionMode`: boolean
-- `highlightMatches`: boolean
-- `showAutohideButton`: boolean
-- `lockPositionAndSize`: boolean; blocks dragging, resizing, position presets and reset until unlocked
+- `startInActionMode`: boolean, defaults to false
+- `highlightMatches`: boolean, defaults to true
+- `showAutohideButton`: boolean, defaults to false
+- `lockPositionAndSize`: boolean, defaults to false; blocks dragging, resizing, position presets and reset until unlocked
 - `popupPosition`: `{ x: number; y: number }`, with both values finite and in `[0, 1]`
 - `popupWidth`: number of pixels, clamped into the usable range rather than rejected, so a
   window that shrank between sessions does not discard a deliberate choice
 - `highlightColors`: `{ text: string; actions: string }`, each a `#rrggbb` string
+- `openingShortcut`: `{ code: string; altKey: boolean; ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }`,
+  defaults to Alt+F. `code` is a letter, digit or F1-F12 key, at least one of Alt, Ctrl or Meta is set,
+  and it must not shadow another KeyMove shortcut; invalid values fall back to the default
+- `siteBehavior:<exact hostname>`: `type`, `shortcut` or `paused` for one HTTP(S) hostname; absent
+  means the General default applies
+- `hostMarkerSecret`: 32 hex characters, not a setting; created at installation (or first use)
+  and used only to recognise hosts left by earlier copies. Never place it in page-readable DOM.
 
 Treat JSON imports, extension storage, storage change events, extension messages, and browser API
 responses as runtime-untrusted. Validate them through the matching `src/lib/*_schema.ts` module or a
@@ -340,7 +382,7 @@ through its content-addressable store. Keep each checkout's own dependency layou
 development packages do not mean the extension imports or ships all of them.
 
 `node_modules/` is local, ignored development state. WXT tree-shakes and bundles reachable runtime
-code only. Measure the current unpacked artifacts in `.output/`; both include the main content
+code only. Measure the current unpacked artifacts in `.output/`; all three include the main content
 script, a child-frame helper, and a separate settings popup with shared chunks. Do not
 judge the published extension footprint from the development installation size, and do not remove a
 transitive package manually from `node_modules/` or `pnpm-lock.yaml`.

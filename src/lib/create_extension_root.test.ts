@@ -24,12 +24,6 @@ test('mounts styles and UI targets inside an isolated shadow root', () => {
   expect(document.getElementById(KEYMOVE_APP_ID)).toBeNull();
 });
 
-test('does not mount the extension twice', () => {
-  createExtensionRoot('', 'chrome');
-  expect(createExtensionRoot('', 'chrome')).toBeNull();
-  expect(document.querySelectorAll(`#${KEYMOVE_ROOT_ID}`)).toHaveLength(1);
-});
-
 test('keeps interface clicks inside the shadow host while page activation still bubbles', () => {
   const root = createExtensionRoot('')!;
   const pageButton = document.createElement('button');

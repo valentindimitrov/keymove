@@ -6,7 +6,7 @@ import { kindLabelForNode } from './suggestion_context.js';
 import { activeModal, actionIsInScope } from './modal_context.js';
 import Utils from './utils.js';
 import createExtensionRoot, { keepExtensionRootConnected } from './create_extension_root.js';
-import { pageShadowRoots } from './dom_tree.js';
+import { markKeyMoveRoot, pageShadowRoots } from './dom_tree.js';
 
 let index: PageSearchIndex | undefined;
 const tick = () => new Promise(resolve => setTimeout(resolve, 0));
@@ -89,7 +89,7 @@ test('excludes hidden hosts, unslotted light DOM, replaced fallback, closed root
   document.body.append(closed);
   closed.attachShadow({ mode: 'closed' }).innerHTML = '<p>Closed nebula</p>';
   const extension = component('<p>KeyMove nebula</p>');
-  extension.host.id = 'keymove-root';
+  markKeyMoveRoot(extension.host);
   index = new PageSearchIndex();
   const result = await index.search(new NodeScorer('nebula'));
   expect(result.matchingText.map(match => visibleText(match.node))).toEqual([
@@ -249,7 +249,8 @@ test('keeps a shadow modal mounted after the search index is released, then remo
     index.disconnect();
     index = undefined;
     expect(extension.host.parentElement).toBe(root.querySelector('section'));
-    expect(createExtensionRoot('')).toBeNull();
+    // Re-parented into the page's shadow modal, the host is still recognised as KeyMove.
+    expect(Utils.isExtensionElement(extension.host)).toBe(true);
     host.remove();
     await tick();
     expect(extension.host.parentElement).toBe(document.body);

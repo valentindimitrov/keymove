@@ -3,11 +3,13 @@ import { activeModal, MODAL_CHANGED_EVENT } from './modal_context.js';
 import {
   pageShadowRoots,
   isKeyMoveNode,
+  markKeyMoveRoot,
   PAGE_ROOTS_CHANGED,
   retainPageRoot,
   releasePageRoot,
 } from './dom_tree.js';
 import { dispatchOwnEvent } from './trusted_input.js';
+import { signKeyMoveHost } from './host_marker.js';
 
 let movingExtensionRoot = false;
 export function isMovingExtensionRoot() {
@@ -21,16 +23,13 @@ type ExtensionRoot = {
   shadowRoot: ShadowRoot;
 };
 
-function createExtensionRoot(stylesText: string, browserName?: string): ExtensionRoot | null {
-  if (
-    document.getElementById(KEYMOVE_ROOT_ID) ||
-    pageShadowRoots().some(root => root.getElementById(KEYMOVE_ROOT_ID))
-  ) {
-    return null;
-  }
-
+// The id is a styling and testing hook, not identity: a page may already use it.
+// Whether another KeyMove copy already serves this document is decided by
+// runSingleContentScript, which page script cannot influence.
+function createExtensionRoot(stylesText: string, browserName?: string): ExtensionRoot {
   const host = document.createElement('div');
   host.id = KEYMOVE_ROOT_ID;
+  markKeyMoveRoot(host);
   if (browserName === 'firefox') {
     host.classList.add('keymove-firefox');
   }
@@ -50,16 +49,22 @@ function createExtensionRoot(stylesText: string, browserName?: string): Extensio
   portal.id = KEYMOVE_PORTAL_ID;
 
   shadowRoot.append(styles, app, portal);
+  // Lets a later copy remove this host if this copy cannot (see host_marker).
+  signKeyMoveHost(shadowRoot);
   document.body.appendChild(host);
 
   return { app, host, portal, shadowRoot };
 }
 
-function keepExtensionRootConnected(host: HTMLElement) {
+/**
+ * `alive` lets an orphaned copy notice that its extension is gone before it touches the
+ * DOM: page mutations, including a newer copy removing this host, run it first.
+ */
+function keepExtensionRootConnected(host: HTMLElement, alive: () => boolean = () => true) {
   let previousModal: Element | null = null;
   const shadowObservers = new Map<ShadowRoot, MutationObserver>();
   const reconnect = () => {
-    if (movingExtensionRoot) return;
+    if (movingExtensionRoot || !alive()) return;
     for (const [root, watched] of shadowObservers) {
       if (!root.host.isConnected || isKeyMoveNode(root)) {
         watched.disconnect();

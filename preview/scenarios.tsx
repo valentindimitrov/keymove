@@ -2,7 +2,6 @@ import ThemeSettingsPreview from './settings_fixture.js';
 import React from 'react';
 import InfoDropdown from '../src/components/searchbar/info_dropdown.js';
 import DraggableContainer from '../src/components/searchbar/draggable_container.js';
-import PopupLayoutActions from '../src/components/popup/popup_layout_actions.js';
 import popupStyles from '../src/popup.css?inline';
 import MatchesSummary from '../src/components/searchbar/matches_summary.js';
 import ResultsPanel from '../src/components/searchbar/results_panel.js';
@@ -35,7 +34,6 @@ type BarProps = {
   above?: boolean;
   width?: number;
   y?: number;
-  locked?: boolean;
   pending?: boolean;
   onSearchTextChange?: (query: string) => void;
   suggestionsOpen?: boolean;
@@ -134,7 +132,6 @@ const Bar = (props: BarProps) => {
     above = false,
     width = KEYMOVE_CONTAINER_WIDTH,
     y = 0.5,
-    locked = false,
     pending = false,
     onSearchTextChange = () => undefined,
     suggestionsOpen,
@@ -149,7 +146,7 @@ const Bar = (props: BarProps) => {
   return (
     <DraggableContainer
       bottomContentHeight={props.showActionMenu ? ACTION_MENU_RESULT_HEIGHT : 0}
-      locked={locked}
+      locked={false}
       className={above ? 'keymove-container-suggestions-above' : undefined}
       width={currentWidth}
       updateWidth={setCurrentWidth}
@@ -264,24 +261,6 @@ const TransformedModalPreview = () => {
         />
       </>
     )
-  );
-};
-
-const LayoutLockPreview = () => {
-  const [locked, setLocked] = React.useState(false);
-  const [reset, setReset] = React.useState(0);
-  return (
-    <>
-      <style>{popupStyles}</style>
-      <div id="keymove-popup" style={{ position: 'fixed', top: 20, left: 20, width: 420 }}>
-        <PopupLayoutActions
-          locked={locked}
-          onToggleLock={() => setLocked(!locked)}
-          onReset={() => setReset(reset + 1)}
-        />
-      </div>
-      <Bar key={reset} searchText="test" suggestions={ALIGNED_SLATE} locked={locked} y={0.4} />
-    </>
   );
 };
 
@@ -599,12 +578,6 @@ const SCENARIOS: Scenario[] = [
     description:
       'Type to hold a pending query; complete it to check stable panel geometry and row updates',
     render: () => <SuggestionsRefreshPreview />,
-  },
-  {
-    name: 'layout-lock',
-    description:
-      'Real popup buttons: lock/unlock dragging and resizing, with boxed Action/Text badges',
-    render: () => <LayoutLockPreview />,
   },
   {
     name: 'bar-only',

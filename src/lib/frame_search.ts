@@ -349,7 +349,7 @@ export class FrameSearch {
       entry.frame.removeEventListener('load', entry.load);
     }
     this.entries.clear();
-    if (this.listening) browser.runtime.onMessage.removeListener(this.listener);
+    if (this.listening) browser.runtime?.onMessage.removeListener(this.listener);
     window.removeEventListener('message', this.available);
     this.listening = false;
   }

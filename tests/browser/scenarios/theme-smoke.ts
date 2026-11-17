@@ -1,7 +1,7 @@
 import { expect } from '@playwright/test';
 import type { BrowserContext, Page } from '@playwright/test';
 import { attachFailure, openPage, snapshot } from '../pages.js';
-import { keymove } from '../keymove.js';
+import { keymove, PREVIEW_HOST } from '../keymove.js';
 import { settingsTab } from './settings-smoke.js';
 
 type ColorScheme = 'light' | 'dark' | null;
@@ -114,7 +114,7 @@ export async function checkThemePreviews(context: BrowserContext, origin: string
         'action-menu-narrow',
       ]) {
         const page = await openPage(context, `${origin}?scenario=${scenario}&theme=${theme}`);
-        const { host } = keymove(page);
+        const { host } = keymove(page, PREVIEW_HOST);
         try {
           await page.setViewportSize({ width, height: 900 });
           await expect(host).toHaveAttribute('data-keymove-theme', theme);
@@ -126,13 +126,13 @@ export async function checkThemePreviews(context: BrowserContext, origin: string
             () =>
               new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))),
           );
-          const state: PaneState = await page.evaluate(() => {
-            const root = document.getElementById('keymove-root')!.shadowRoot!;
+          const state: PaneState = await page.evaluate(hostSelector => {
+            const root = document.querySelector(hostSelector)!.shadowRoot!;
             const pane = root.querySelector('#keymove-popup, #keymove-container')!;
             const rect = pane.getBoundingClientRect();
-            const labels = Array.from(root.querySelectorAll('.keymove-info-panel-setting-header'))
-              .filter(node => !node.closest('.keymove-popup-layout-actions'))
-              .map(node => node.getBoundingClientRect().left);
+            const labels = Array.from(
+              root.querySelectorAll('.keymove-info-panel-setting-header'),
+            ).map(node => node.getBoundingClientRect().left);
             const bar = root.querySelector('#keymove-bar')?.getBoundingClientRect();
             const slate = root.querySelector('.keymove-suggestions')?.getBoundingClientRect();
             return {
@@ -146,7 +146,7 @@ export async function checkThemePreviews(context: BrowserContext, origin: string
               bar: bar && { top: bar.top, bottom: bar.bottom },
               slate: slate && { top: slate.top, bottom: slate.bottom },
             };
-          });
+          }, PREVIEW_HOST);
           expect(
             state.left >= 0 && state.right <= width + 1 && state.top >= 0 && state.bottom <= 901,
             JSON.stringify(state),
@@ -187,8 +187,8 @@ export async function checkThemePreviews(context: BrowserContext, origin: string
               const tabButton = host.getByRole('tab', { name: tab, exact: true });
               await tabButton.click();
               await expect(tabButton).toHaveAttribute('aria-selected', 'true');
-              const aligned = await page.evaluate(() => {
-                const root = document.getElementById('keymove-root')!.shadowRoot!;
+              const aligned = await page.evaluate(hostSelector => {
+                const root = document.querySelector(hostSelector)!.shadowRoot!;
                 const popup = root.querySelector('#keymove-popup')!;
                 const inputs = Array.from(
                   popup.querySelectorAll(
@@ -205,23 +205,26 @@ export async function checkThemePreviews(context: BrowserContext, origin: string
                     return Math.abs((rect.left + rect.right) / 2 - (row.right - 65)) < 1;
                   })
                 );
-              });
+              }, PREVIEW_HOST);
               expect(aligned, `${tab} controls align at ${width}px`).toBe(true);
               if (tab === 'Appearance' || tab === 'Shortcuts') {
                 const selector =
                   tab === 'Appearance'
                     ? '.keymove-theme-setting select'
                     : '.keymove-settings-field input';
-                const scrollbarGap = await page.evaluate(controlSelector => {
-                  const root = document.getElementById('keymove-root')!.shadowRoot!;
-                  const panel = root.querySelector('.keymove-settings-panel')!;
-                  const control = panel.querySelector(controlSelector)!;
-                  return (
-                    panel.getBoundingClientRect().left +
-                    panel.clientWidth -
-                    control.getBoundingClientRect().right
-                  );
-                }, selector);
+                const scrollbarGap = await page.evaluate(
+                  ([hostSelector, controlSelector]) => {
+                    const root = document.querySelector(hostSelector!)!.shadowRoot!;
+                    const panel = root.querySelector('.keymove-settings-panel')!;
+                    const control = panel.querySelector(controlSelector!)!;
+                    return (
+                      panel.getBoundingClientRect().left +
+                      panel.clientWidth -
+                      control.getBoundingClientRect().right
+                    );
+                  },
+                  [PREVIEW_HOST, selector],
+                );
                 expect(
                   scrollbarGap >= 10,
                   `${tab} controls need space before the scrollbar at ${width}px; got ${scrollbarGap}`,

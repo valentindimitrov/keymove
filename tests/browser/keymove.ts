@@ -1,9 +1,15 @@
 import { expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
+/**
+ * The preview harness's own host. An installed extension also mounts a host on harness
+ * pages, beside the harness's one with the same id.
+ */
+export const PREVIEW_HOST = '#keymove-root[data-keymove-preview]';
+
 /** Locators follow the existing host when it moves into a modal or an open root. */
-export function keymove(page: Page) {
-  const host = page.locator('#keymove-root');
+export function keymove(page: Page, hostSelector = '#keymove-root') {
+  const host = page.locator(hostSelector);
   // Membership and stored-value assertions also inspect the hidden searchbar.
   // Callers use toBeVisible() explicitly when visibility is the behavior tested.
   const suggestions = host.getByRole('listbox', { includeHidden: true });

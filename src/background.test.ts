@@ -15,6 +15,7 @@ const browserMocks = vi.hoisted(() => ({
   insertCSS: vi.fn(),
   onMessage: vi.fn(),
   openPopup: vi.fn(),
+  stored: {} as Record<string, unknown>,
 }));
 
 vi.mock('wxt/browser', () => ({
@@ -26,6 +27,14 @@ vi.mock('wxt/browser', () => ({
     },
     scripting: { executeScript: browserMocks.executeScript, insertCSS: browserMocks.insertCSS },
     action: { openPopup: browserMocks.openPopup, onClicked: { addListener: vi.fn() } },
+    storage: {
+      local: {
+        get: vi.fn(async (key: string) => ({ [key]: browserMocks.stored[key] })),
+        set: vi.fn(async (values: Record<string, unknown>) => {
+          Object.assign(browserMocks.stored, values);
+        }),
+      },
+    },
     runtime: {
       id: 'keymove-test',
       getURL: (path: string) => `chrome-extension://keymove-test${path}`,
@@ -181,6 +190,23 @@ test('limits concurrent installation probes and eventually visits every eligible
   firstBatch.resolve({ status: 'installed' });
   await waitFor(() => expect(browserMocks.sendMessage).toHaveBeenCalledTimes(12));
   expect(browserMocks.executeScript).not.toHaveBeenCalled();
+});
+
+test('creates the host-marker secret before injecting into open tabs', async () => {
+  delete browserMocks.stored['hostMarkerSecret'];
+  let secretWhenQueried: unknown;
+  browserMocks.query.mockImplementation(async () => {
+    secretWhenQueried = browserMocks.stored['hostMarkerSecret'];
+    return [];
+  });
+  handleInstallationEvent({ reason: 'install' });
+  await waitFor(() => expect(browserMocks.query).toHaveBeenCalledOnce());
+  expect(secretWhenQueried).toMatch(/^[0-9a-f]{32}$/);
+  // Kept across later installation events, so earlier copies' hosts stay verifiable.
+  const secret = browserMocks.stored['hostMarkerSecret'];
+  handleInstallationEvent({ reason: 'install' });
+  await waitFor(() => expect(browserMocks.query).toHaveBeenCalledTimes(2));
+  expect(browserMocks.stored['hostMarkerSecret']).toBe(secret);
 });
 
 test('ignores malformed tab records returned during installation', async () => {

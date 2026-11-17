@@ -1,7 +1,7 @@
 import { expect } from '@playwright/test';
 import type { BrowserContext, Page } from '@playwright/test';
 import { attachFailure, openPage, snapshot } from '../pages.js';
-import { keymove, replaceQuery } from '../keymove.js';
+import { keymove, PREVIEW_HOST, replaceQuery } from '../keymove.js';
 
 /** The label of the focused menu item: the menu uses native focus, not a second cursor. */
 function focusedLabel(page: Page) {
@@ -20,9 +20,9 @@ async function expectMenuClosedWithInputFocused(page: Page) {
 }
 
 /** The selected result stays one line, below the bar, outside the scrolling action list. */
-async function checkSelectedRow(page: Page) {
-  const layout = await page.evaluate(() => {
-    const root = document.getElementById('keymove-root')!.shadowRoot!;
+async function checkSelectedRow(page: Page, hostSelector = '#keymove-root') {
+  const layout = await page.evaluate(selector => {
+    const root = document.querySelector(selector)!.shadowRoot!;
     const row = root.querySelector('.keymove-action-menu-result')!;
     const body = row.querySelector('.keymove-suggestion-body')!;
     const rect = row.getBoundingClientRect();
@@ -33,7 +33,7 @@ async function checkSelectedRow(page: Page) {
       singleLine: rect.height <= 35 && body.scrollHeight <= body.clientHeight + 1,
       outsideMenu: !row.closest('#keymove-action-menu-container'),
     };
-  });
+  }, hostSelector);
   expect(layout).toEqual({ belowBar: true, visible: true, singleLine: true, outsideMenu: true });
 }
 
@@ -177,7 +177,7 @@ export async function checkActionMenu(context: BrowserContext, origin: string) {
       const selector = scenario.startsWith('suggestions')
         ? '#keymove-suggestions'
         : '#keymove-action-menu-container';
-      const panel = keymove(preview).host.locator(selector);
+      const panel = keymove(preview, PREVIEW_HOST).host.locator(selector);
       await expect(panel).toBeAttached();
       const bounds = await panel.evaluate(node => {
         const rect = node.getBoundingClientRect();
@@ -199,7 +199,7 @@ export async function checkActionMenu(context: BrowserContext, origin: string) {
         JSON.stringify(bounds),
       ).toBe(true);
       expect(bounds.font).toMatch(/Helvetica/);
-      if (scenario.startsWith('action-menu')) await checkSelectedRow(preview);
+      if (scenario.startsWith('action-menu')) await checkSelectedRow(preview, PREVIEW_HOST);
       await snapshot(preview, `${scenario}-preview`);
     } catch (error) {
       await attachFailure(preview);

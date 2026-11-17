@@ -31,11 +31,13 @@ import { rgbaForHexColor } from './highlight_colors_schema.js';
 import { scheduleHighlightRanges, shadowHighlightStyles } from '../hooks/use_highlights.js';
 import highlightStyles from '../highlights.css?inline';
 import { KEYMOVE_HIGHLIGHT_NAME, ACTION_PRIORITY_BOOST } from '../constants.js';
-import { renderedParent } from './dom_tree.js';
+import { markKeyMoveRoot, renderedParent } from './dom_tree.js';
+import { signKeyMoveHost } from './host_marker.js';
 import { RelatedImageSelection } from './related_images.js';
 import { isImageDirection } from './image_schema.js';
 
-export function installFrameWorker() {
+/** `alive` retires an orphaned helper and returns false once its extension is gone. */
+export function installFrameWorker(alive: () => boolean = () => true) {
   let index: PageSearchIndex | null = null;
   let controller: AbortController | null = null;
   let owner = 0;
@@ -72,8 +74,16 @@ export function installFrameWorker() {
         scrollOrigins.set(current, { left: current.scrollLeft, top: current.scrollTop });
     }
   }
-  const send = (message: Record<string, unknown>) =>
-    browser.runtime.sendMessage({ type: FRAME_MESSAGE, ...message }).catch(() => null);
+  // An orphan has no runtime to message: retire instead of throwing.
+  const send = async (message: Record<string, unknown>): Promise<unknown> => {
+    if (!alive()) return null;
+    try {
+      return await browser.runtime.sendMessage({ type: FRAME_MESSAGE, ...message });
+    } catch {
+      alive();
+      return null;
+    }
+  };
   function changed() {
     hover.reconcile();
     if (imageToken && !imageSelection.info(imageToken)) {
@@ -151,9 +161,11 @@ export function installFrameWorker() {
     if (!local.length) return;
     marks = document.createElement('div');
     marks.id = 'keymove-root';
+    markKeyMoveRoot(marks);
     marks.style.cssText =
       'all:initial;position:fixed;inset:0;pointer-events:none;z-index:2147483647;';
     const shadow = marks.attachShadow({ mode: 'open' });
+    signKeyMoveHost(shadow);
     for (const node of local) {
       const rect = node.getBoundingClientRect();
       if (!rect.width || !rect.height) continue;
@@ -502,8 +514,9 @@ export function installFrameWorker() {
     disposed = true;
     stop();
     window.removeEventListener('message', probe);
-    browser.runtime.onMessage.removeListener(listener);
-    browser.storage.onChanged.removeListener(loadShortcut);
+    // An orphaned content script loses these APIs before it tears down.
+    browser.runtime?.onMessage.removeListener(listener);
+    browser.storage?.onChanged.removeListener(loadShortcut);
     document.removeEventListener('keydown', key, true);
     window.removeEventListener('scroll', refreshPaint, true);
     window.removeEventListener('resize', refreshPaint);

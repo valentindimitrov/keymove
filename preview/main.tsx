@@ -54,6 +54,8 @@ function renderScenario(name: string, node: React.ReactNode) {
 
   const extensionRoot = createExtensionRoot(contentStyles, browserName);
   if (!extensionRoot) throw new Error('The preview could not create an extension root.');
+  // An installed extension mounts its own host beside this one; tests address this one.
+  extensionRoot.host.dataset['keymovePreview'] = 'true';
   createRoot(extensionRoot.app).render(
     <PortalTargetProvider target={extensionRoot.portal}>
       {name === 'theme-settings' ? (
