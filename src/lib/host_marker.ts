@@ -12,7 +12,7 @@ import { ensureHostMarkerSecret } from './host_marker_secret.js';
  * and page script can forge ids, attributes, classes and open shadow roots. So every host
  * carries a marker element in its shadow root whose own shadow root is closed: page
  * script cannot read it, and only extension APIs can (`dom.openOrClosedShadowRoot` in
- * Chromium, `Element.openOrClosedShadowRoot` in Firefox content scripts). It holds a
+ * Chromium, the `Element.openOrClosedShadowRoot` property in Firefox content scripts). It holds a
  * per-installation secret kept in `storage.local`, which page script cannot read either.
  * A newer copy removes hosts that carry this secret and are not its own.
  *
@@ -54,9 +54,12 @@ export function openOrClosedShadowRoot(element: Element): ShadowRoot | null {
     const dom = (browser as unknown as { dom?: { openOrClosedShadowRoot?: ReadShadowRoot } }).dom;
     if (typeof dom?.openOrClosedShadowRoot === 'function')
       return dom.openOrClosedShadowRoot(element) ?? null;
-    const own = (element as Element & { openOrClosedShadowRoot?: () => ShadowRoot | null })
-      .openOrClosedShadowRoot;
-    return typeof own === 'function' ? (own.call(element) ?? null) : null;
+    // Firefox content scripts get it as a read-only property holding the root itself.
+    const own = (element as Element & { openOrClosedShadowRoot?: unknown }).openOrClosedShadowRoot;
+    // Checked by node type: `instanceof` can fail for an object from another compartment.
+    return typeof own === 'object' && own !== null && (own as Node).nodeType === 11
+      ? (own as ShadowRoot)
+      : null;
   } catch {
     return null;
   }

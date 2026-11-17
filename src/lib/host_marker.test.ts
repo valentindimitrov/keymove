@@ -101,3 +101,23 @@ test('a frame overlay signed by an earlier copy is removed too', async () => {
   expect(removeStaleKeyMoveHosts(SECRET, read)).toBe(1);
   expect(overlay.isConnected).toBe(false);
 });
+
+test('reads the closed root through the property Firefox gives content scripts', async () => {
+  // Firefox exposes `element.openOrClosedShadowRoot` as a read-only property, not a method.
+  Object.defineProperty(Element.prototype, 'openOrClosedShadowRoot', {
+    configurable: true,
+    get(this: Element) {
+      return closedRoots.get(this) ?? this.shadowRoot;
+    },
+  });
+  try {
+    const stale = await leftByPreviousCopy();
+    const current = createExtensionRoot('', 'chrome').host;
+    await settle();
+    expect(hosts()).toEqual([stale, current]);
+    expect(removeStaleKeyMoveHosts(SECRET)).toBe(1);
+    expect(hosts()).toEqual([current]);
+  } finally {
+    Reflect.deleteProperty(Element.prototype, 'openOrClosedShadowRoot');
+  }
+});
