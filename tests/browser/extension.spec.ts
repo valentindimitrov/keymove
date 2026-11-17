@@ -1,4 +1,4 @@
-import type { Locator, Page } from '@playwright/test';
+import type { BrowserContext, Locator, Page } from '@playwright/test';
 import { test, expect } from './fixtures.js';
 
 async function openSearch(page: Page, fixture = 'fixtures.html') {
@@ -336,6 +336,25 @@ async function injectContentScripts(manager: Page, extensionId: string, url: str
   }, url);
 }
 
+/** Reloads the unpacked extension the way chrome://extensions' reload button does. */
+async function reloadExtension(context: BrowserContext, extensionId: string) {
+  const manager = await context.newPage();
+  await manager.goto('chrome://extensions');
+  await manager.evaluate(async id => {
+    type DeveloperPrivate = {
+      updateProfileConfiguration(update: object, done: () => void): void;
+      reload(id: string, options: object, done: () => void): void;
+    };
+    const api = (globalThis as unknown as { chrome: { developerPrivate: DeveloperPrivate } }).chrome
+      .developerPrivate;
+    await new Promise<void>(done =>
+      api.updateProfileConfiguration({ inDeveloperMode: true }, done),
+    );
+    await new Promise<void>(done => api.reload(id, { failQuietly: true }, done));
+  }, extensionId);
+  return manager;
+}
+
 test('a page cannot retire KeyMove by forging the content-script replacement signal', async ({
   page,
   extensionId,
@@ -409,22 +428,7 @@ test('an orphaned copy retires for the copy injected after an extension reload',
     );
   }, extensionId);
   const pageUrl = page.url();
-
-  // Reload the unpacked extension the way chrome://extensions' reload button does.
-  const manager = await context.newPage();
-  await manager.goto('chrome://extensions');
-  await manager.evaluate(async id => {
-    type DeveloperPrivate = {
-      updateProfileConfiguration(update: object, done: () => void): void;
-      reload(id: string, options: object, done: () => void): void;
-    };
-    const api = (globalThis as unknown as { chrome: { developerPrivate: DeveloperPrivate } }).chrome
-      .developerPrivate;
-    await new Promise<void>(done =>
-      api.updateProfileConfiguration({ inDeveloperMode: true }, done),
-    );
-    await new Promise<void>(done => api.reload(id, { failQuietly: true }, done));
-  }, extensionId);
+  const manager = await reloadExtension(context, extensionId);
   // Chromium does not inject manifest scripts into open tabs after a reload: the orphan
   // is still there, with an invalid runtime.
   await page.waitForTimeout(500);
@@ -464,4 +468,140 @@ test('a copy injected beside a working one neither mounts twice nor duplicates f
   await expect(page.frameLocator('iframe[title="Same-origin form"]').locator('#result')).toHaveText(
     'Activated',
   );
+});
+
+test('an orphan retires after a reload even when the page blocked every replacement hint', async ({
+  page,
+  context,
+  extensionId,
+}) => {
+  // In every frame: swallow KeyMove's own started hint before it reaches the document.
+  await page.addInitScript(() => {
+    for (const name of ['content', 'frames'])
+      window.addEventListener(
+        `keymove:content-script-started:${name}`,
+        event => event.stopImmediatePropagation(),
+        true,
+      );
+  });
+  const input = await openSearch(page, 'frames.html');
+  await input.press('Escape');
+  // Forge WXT's signal while the runtime is valid, so WXT stops listening in every frame.
+  for (const frame of page.frames())
+    await frame.evaluate(id => {
+      for (const name of ['content', 'frames'])
+        document.dispatchEvent(
+          new CustomEvent(`${id}:${name}:wxt:content-script-started`, {
+            detail: { contentScriptName: name, messageId: 'page-forged-different-id' },
+          }),
+        );
+    }, extensionId);
+  expect(await page.evaluate(KEYMOVE_HOSTS)).toBe(1);
+  const pageUrl = page.url();
+  const manager = await reloadExtension(context, extensionId);
+  await injectContentScripts(manager, extensionId, pageUrl);
+  await manager.close();
+
+  await expect.poll(() => page.evaluate(KEYMOVE_HOSTS)).toBe(1);
+  await page.bringToFront();
+  await page.keyboard.press('Alt+f');
+  const fresh = page.getByRole('combobox', { name: 'Search page', exact: true });
+  await expect(fresh).toHaveCount(1);
+  await expect(fresh).toBeFocused();
+  await fresh.pressSequentially('Launch');
+  // One reply per frame: the orphaned helpers retired instead of answering too.
+  await firstFrameAction(page, fresh);
+  await fresh.press('Enter');
+  await expect(page.frameLocator('iframe[title="Same-origin form"]').locator('#result')).toHaveText(
+    'Activated',
+  );
+});
+
+// Simulation, not Firefox: Firefox destroys an old copy's sandbox on reload and leaves its
+// DOM. Here a genuine host is built by a copy in a same-origin child frame, moved into the
+// top document, and the frame removed, so no script remains behind that host.
+test('a copy injected after a reload removes a host whose own script is gone, not page impostors', async ({
+  page,
+  context,
+  extensionId,
+}) => {
+  const input = await openSearch(page, 'frames.html');
+  await input.press('Escape');
+  const manager = await context.newPage();
+  await expect(async () => {
+    await manager.goto(`chrome-extension://${extensionId}/popup.html`);
+  }).toPass();
+  const pageUrl = page.url();
+  await manager.evaluate(async url => {
+    type Injection = { frameId: number; result?: unknown };
+    const api = (
+      globalThis as unknown as {
+        chrome: {
+          tabs: { query(query: object): Promise<{ id?: number; url?: string }[]> };
+          scripting: { executeScript(injection: object): Promise<Injection[]> };
+        };
+      }
+    ).chrome;
+    const tab = (await api.tabs.query({})).find(candidate => candidate.url === url);
+    if (tab?.id === undefined) throw new Error('fixture tab not found');
+    const frames = await api.scripting.executeScript({
+      target: { tabId: tab.id, allFrames: true },
+      func: () => location.href,
+    });
+    const child = frames.find(frame =>
+      String(frame.result).includes('frame-child.html?name=local'),
+    );
+    if (!child) throw new Error('same-origin child frame not found');
+    await api.scripting.executeScript({
+      target: { tabId: tab.id, frameIds: [child.frameId] },
+      files: ['/content-scripts/content.js'],
+    });
+  }, pageUrl);
+  const frame = page.locator('iframe[title="Same-origin form"]');
+  await expect
+    .poll(() =>
+      frame.evaluate(
+        (element: HTMLIFrameElement) =>
+          element.contentDocument?.querySelectorAll('#keymove-root').length,
+      ),
+    )
+    .toBe(1);
+  // The copy signs its host once its storage read completes; page script cannot see that.
+  await page.waitForTimeout(300);
+  await page.evaluate(() => {
+    const iframe = document.querySelector<HTMLIFrameElement>('iframe[title="Same-origin form"]')!;
+    document.body.append(iframe.contentDocument!.querySelector('#keymove-root')!);
+    iframe.remove();
+    // A page impostor with KeyMove's shape and a closed-root marker of its own.
+    const impostor = document.createElement('div');
+    impostor.id = 'keymove-root';
+    impostor.dataset.impostor = '';
+    const shadow = impostor.attachShadow({ mode: 'open' });
+    shadow.innerHTML = '<style></style><div id="keymove-app"></div><div id="keymove-portal"></div>';
+    const marker = document.createElement('span');
+    marker.attachShadow({
+      mode: 'closed',
+    }).innerHTML = `<span data-keymove-secret="${'0'.repeat(32)}"></span>`;
+    shadow.append(marker);
+    document.body.append(impostor);
+  });
+  expect(await page.evaluate(KEYMOVE_HOSTS)).toBe(3);
+
+  await manager.close();
+  const reloader = await reloadExtension(context, extensionId);
+  await injectContentScripts(reloader, extensionId, pageUrl);
+  await reloader.close();
+
+  // The new copy's host and the impostor remain; the orphan and the dead host are gone.
+  await expect.poll(() => page.evaluate(KEYMOVE_HOSTS)).toBe(2);
+  expect(await page.evaluate(() => document.querySelector('[data-impostor]')?.isConnected)).toBe(
+    true,
+  );
+  await page.bringToFront();
+  await page.keyboard.press('Alt+f');
+  const fresh = page.getByRole('combobox', { name: 'Search page', exact: true });
+  await expect(fresh).toHaveCount(1);
+  await expect(fresh).toBeFocused();
+  await fresh.pressSequentially('lighthouse');
+  await expect(page.getByRole('status')).toHaveText('Text 1 / 1');
 });

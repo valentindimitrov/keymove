@@ -293,3 +293,28 @@ test('answers only real frame probes from the parent', () => {
     teardown();
   }
 });
+
+test('an orphaned helper retires instead of messaging a runtime that is gone', () => {
+  let valid = true;
+  let retired = 0;
+  const alive = () => {
+    if (!valid) retired++;
+    return valid;
+  };
+  transport.send.mockClear();
+  const teardown = installFrameWorker(alive);
+  try {
+    expect(transport.send).toHaveBeenCalledTimes(1);
+    valid = false;
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        source: window.parent,
+        data: { type: FRAME_PROBE, token: 'a'.repeat(32) },
+      }),
+    );
+    expect(retired).toBe(1);
+    expect(transport.send).toHaveBeenCalledTimes(1);
+  } finally {
+    teardown();
+  }
+});

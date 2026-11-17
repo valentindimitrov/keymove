@@ -84,11 +84,15 @@ test('an orphaned instance retires for a newer one even after a forged signal', 
   const orphan = wxtContext();
   act(() => definition.main(orphan.context));
   act(() => orphan.invalidate());
-  // The extension reloads: this instance's runtime is gone and a new copy starts.
+  // The extension reloads: this instance's runtime is gone, and a new copy in a fresh
+  // isolated world (one mocked runtime here, so it is valid again) announces itself.
   runtime.id = undefined;
+  act(() => {
+    document.dispatchEvent(new Event('keymove:content-script-started:content'));
+  });
+  runtime.id = 'keymove-test';
   const newer = wxtContext();
   act(() => definition.main(newer.context));
-  runtime.id = 'keymove-test';
   expect(unmount).toHaveBeenCalledOnce();
   await Promise.resolve();
   expect(hosts()).toHaveLength(1);
@@ -119,4 +123,22 @@ test('unmounts React and stops host reattachment once the extension context is g
   document.body.append(document.createElement('p'));
   await Promise.resolve();
   expect(hosts()).toHaveLength(0);
+});
+
+test('an orphan whose hints were all blocked retires instead of reattaching its host', async () => {
+  const swallow = (event: Event) => event.stopImmediatePropagation();
+  window.addEventListener('keymove:content-script-started:content', swallow, true);
+  try {
+    const orphan = wxtContext();
+    act(() => definition.main(orphan.context));
+    act(() => orphan.invalidate());
+    // The extension reloads. No hint reaches this copy; a newer copy removes its host.
+    runtime.id = undefined;
+    act(() => hosts()[0]!.remove());
+    await act(() => Promise.resolve());
+    expect(unmount).toHaveBeenCalledOnce();
+    expect(hosts()).toHaveLength(0);
+  } finally {
+    window.removeEventListener('keymove:content-script-started:content', swallow, true);
+  }
 });

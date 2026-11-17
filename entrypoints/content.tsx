@@ -6,6 +6,7 @@ import createExtensionRoot, {
   keepExtensionRootConnected,
 } from '../src/lib/create_extension_root.js';
 import { runSingleContentScript } from '../src/lib/content_script_lifecycle.js';
+import { reconcileStaleKeyMoveHosts } from '../src/lib/host_marker.js';
 import contentStyles from '../src/content.css?inline';
 import '../src/highlights.css';
 
@@ -17,9 +18,11 @@ export default defineContentScript({
   // be told its type. KeyMove does not trust it either way: see content_script_lifecycle.
   noScriptStartedPostMessage: true,
   main(ctx) {
-    runSingleContentScript(ctx, 'content', () => {
+    runSingleContentScript(ctx, 'content', alive => {
       const extensionRoot = createExtensionRoot(contentStyles, import.meta.env.BROWSER);
-      const observer = keepExtensionRootConnected(extensionRoot.host);
+      const observer = keepExtensionRootConnected(extensionRoot.host, alive);
+      // Remove hosts an earlier copy of the extension left and can no longer remove.
+      reconcileStaleKeyMoveHosts(alive);
       const root = createRoot(extensionRoot.app);
       root.render(
         <PortalTargetProvider target={extensionRoot.portal}>

@@ -32,10 +32,12 @@ import { scheduleHighlightRanges, shadowHighlightStyles } from '../hooks/use_hig
 import highlightStyles from '../highlights.css?inline';
 import { KEYMOVE_HIGHLIGHT_NAME, ACTION_PRIORITY_BOOST } from '../constants.js';
 import { markKeyMoveRoot, renderedParent } from './dom_tree.js';
+import { signKeyMoveHost } from './host_marker.js';
 import { RelatedImageSelection } from './related_images.js';
 import { isImageDirection } from './image_schema.js';
 
-export function installFrameWorker() {
+/** `alive` retires an orphaned helper and returns false once its extension is gone. */
+export function installFrameWorker(alive: () => boolean = () => true) {
   let index: PageSearchIndex | null = null;
   let controller: AbortController | null = null;
   let owner = 0;
@@ -72,8 +74,16 @@ export function installFrameWorker() {
         scrollOrigins.set(current, { left: current.scrollLeft, top: current.scrollTop });
     }
   }
-  const send = (message: Record<string, unknown>) =>
-    browser.runtime.sendMessage({ type: FRAME_MESSAGE, ...message }).catch(() => null);
+  // An orphan has no runtime to message: retire instead of throwing.
+  const send = async (message: Record<string, unknown>): Promise<unknown> => {
+    if (!alive()) return null;
+    try {
+      return await browser.runtime.sendMessage({ type: FRAME_MESSAGE, ...message });
+    } catch {
+      alive();
+      return null;
+    }
+  };
   function changed() {
     hover.reconcile();
     if (imageToken && !imageSelection.info(imageToken)) {
@@ -155,6 +165,7 @@ export function installFrameWorker() {
     marks.style.cssText =
       'all:initial;position:fixed;inset:0;pointer-events:none;z-index:2147483647;';
     const shadow = marks.attachShadow({ mode: 'open' });
+    signKeyMoveHost(shadow);
     for (const node of local) {
       const rect = node.getBoundingClientRect();
       if (!rect.width || !rect.height) continue;
