@@ -39,7 +39,7 @@ jobs:
         run: pnpm test:e2e:built
       - name: Upload browser failure artifacts
         if: failure()
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-failure
           path: .artifacts/playwright/
@@ -50,7 +50,7 @@ jobs:
       # (website-preview.yml) publish them without installing or running anything from them.
       - run: pnpm website:build
       - name: Upload the website build
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: website
           path: .output/public/
