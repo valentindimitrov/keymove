@@ -119,7 +119,7 @@ export async function checkThemePreviews(client: ChromiumClient, origin: string)
             const pane = root.querySelector('#keymove-popup, #keymove-container');
             const rect = pane.getBoundingClientRect();
             const labels = Array.from(root.querySelectorAll('.keymove-info-panel-setting-header'))
-              .filter(node => !node.closest('.keymove-popup-layout-actions')).map(node => node.getBoundingClientRect().left);
+              .map(node => node.getBoundingClientRect().left);
             const bar = root.querySelector('#keymove-bar')?.getBoundingClientRect();
             const slate = root.querySelector('.keymove-suggestions')?.getBoundingClientRect();
             return {left:rect.left, right:rect.right, top:rect.top, bottom:rect.bottom,

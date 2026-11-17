@@ -69,13 +69,16 @@ permissions or sandbox restrictions are skipped. See [the iframe testing checkli
 | `Alt + S` | Switch between text mode and action mode. Use `Option + S` on macOS. |
 | `Enter` | Activate the selected action in the current tab. |
 | `↓` | Open KeyMove's action menu for the selected result. |
+| `Alt + I` | Select or cycle images related to the selected result, or an on-screen image when nothing is selected. Use `Option + I` on macOS. |
+| `←` `→` `↑` `↓` | With an image selected, move to the nearest image in that direction. |
+| `Space` | With an image selected, open its image actions. |
 | `Shift + Enter` | Open the selected `http` or `https` link in a new foreground tab. |
 | `Ctrl + Enter` | Open the selected `http` or `https` link in a new background tab. |
 | `Ctrl + C` | Copy the selected text block or selected link URL. Use `Command + C` on macOS. |
 | `Ctrl + Backspace` | Clear the search. Use `Command + Backspace` on macOS. |
 | `Alt + F` | Focus KeyMove. Use `Option + F` on macOS. |
 | `Alt + 1` … `Alt + 5` | Select the numbered result in the panel and scroll to it. Use `Option` on macOS. |
-| `Escape` | Close KeyMove in one press, staying at the current position. |
+| `Escape` | Close KeyMove, staying at the current position. With an image selected, Escape first closes the image viewer or image menu if one is open, then returns to the original result; the next press closes KeyMove. |
 | `Alt + Backspace` | Return to the position where the current search began and close KeyMove. Use `Option + Backspace` on macOS. |
 
 With the action menu closed, Escape and Alt+Backspace are handled only while the search field has focus. Searching and jumping
@@ -84,6 +87,8 @@ scrolling containers that KeyMove moves. Alt+Backspace returns there immediately
 control was focused when the search began. Escape stays at the current position; neither shortcut
 restores an old field or caret. Moving focus elsewhere or activating a result ends the return session.
 Use Ctrl+Backspace (Command+Backspace on macOS) to clear the query while keeping KeyMove open.
+
+See [Related images](related-images.md) for image actions, the image viewer and their limits.
 
 The numbered rows are a shortlist of the best matches across both modes, so a number can
 land on an action while the bar is in text mode; the mode follows the row it lands on.
@@ -220,8 +225,8 @@ Settings include:
   Off by default; Autohide itself stays available in this panel.
 - **Autohide:** hide the interface when it is not being used. On by default; existing saved choices are preserved.
 - **Number of suggestions:** 1–5, defaulting to three. `Alt + 1` through `Alt + 5` select the corresponding displayed suggestion.
-- **Reset popup position:** return the interface to its default location—horizontally centered with
-  its center 75% down the viewport.
+- **Reset position and size:** return the interface to its default location—horizontally centered with
+  its center 75% down the viewport—and its default width.
 - **Open KeyMove** in Shortcuts: focus the field and press a modified letter, number, or function
   key. Plain typing and conflicts with existing KeyMove commands are rejected. Browser or system
   shortcuts may never reach the extension; use the toolbar to restore the default if needed.
@@ -236,8 +241,8 @@ the page whenever the KeyMove input is unfocused, even if its panel is visible. 
 or Linear, choose **Shortcut only** to keep the site's shortcuts available between searches.
 
 Dragging the interface saves normalized screen coordinates in extension-local storage. This keeps
-the chosen position useful across different window sizes. Dragging its right edge resizes it, which
-is worth doing on a page with long link labels: a wider bar keeps a result and its context on one
+the chosen position useful across different window sizes. Dragging either side edge resizes it around
+its centre, which is worth doing on a page with long link labels: a wider bar keeps a result and its context on one
 line. The toolbar popup can put both the position and the size back to their defaults.
 The **Lock position and size** checkbox beside **Reset position and size** freezes manual movement and resizing across
 tabs and browser restarts. It also disables the position presets and reset button until unlocked.

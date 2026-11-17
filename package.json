@@ -49,6 +49,7 @@
     "website:dev": "vite --config website/vite.config.ts",
     "website:build": "vite build --config website/vite.config.ts",
     "website:preview": "vite preview --config website/vite.config.ts",
+    "website:record-patterns": "node scripts/record-patterns.ts",
     "test:browser": "node scripts/preview-extension.ts --smoke",
     "test:browser:built": "node scripts/preview-extension.ts --smoke --no-build",
     "worktree:check": "node scripts/worktree-check.ts",
