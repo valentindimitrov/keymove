@@ -107,11 +107,11 @@ dropdown, disclosure, JavaScript hover menu, native modal, notes area, and walki
 To record them again, build the Chromium extension, build and serve the website, then run:
 
 ```sh
-node scripts/record-patterns.ts http://127.0.0.1:5182/
+pnpm website:record-patterns http://127.0.0.1:5182/
 ```
 
-The recorder requires installed Vivaldi and FFmpeg on PATH. An optional third argument is a
-comma-separated list of pattern IDs. It runs a temporary copy of the actual production
+The recorder requires installed Vivaldi and FFmpeg on PATH. An optional argument after the URL
+is a comma-separated list of pattern IDs. It runs a temporary copy of the actual production
 extension in an isolated browser profile against `demo.html?extension=installed`; this query
 omits the website-mounted extension so only the installed one handles keys. It records real
 browser screenshots with short reading holds, adds the key/caption band, and checks each

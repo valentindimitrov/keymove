@@ -27,15 +27,18 @@ runtime compatibility from a Windows build or Chromium smoke pass.
 ```text
 .
 |-- assets/                  Static extension logo files copied by WXT
+|-- docs/                    User guide, development, testing and publication notes
 |-- entrypoints/
 |   |-- background.ts        WXT background entrypoint
 |   |-- frames.content.ts    Child-frame search and navigation helper
+|   |-- popup/               Toolbar settings popup page and React mount
 |   `-- content.tsx          WXT content-script and React mount
 |-- preview/                 Shadow-root harness for visual checks, served by `pnpm preview:ui`
 |-- scripts/
 |   `-- validate-builds.ts   Manifest and generated-bundle checks
 |-- src/
 |   |-- background.ts        Settings requests, new tabs, and safe injection
+|   |-- components/popup     Toolbar settings popup UI
 |   |-- components/searchbar React search UI, overlays, help, and settings
 |   |-- data/                 Validated JSON search configuration and shortcuts
 |   |-- hooks/                Browser events, storage, highlights, and navigation state
@@ -43,7 +46,11 @@ runtime compatibility from a Windows build or Chromium smoke pass.
 |   |-- lib/                  Search index, scoring, schemas, and utilities
 |   |-- test_support/        Builders for test fixtures, never imported by shipped code
 |   |-- content.css           Shadow-root component styling
+|   |-- popup.css             Toolbar settings popup document styling
 |   `-- highlights.css        Page-level CSS Custom Highlight styling
+|-- tests/browser/           Playwright installed-extension tests
+|-- website/                 Public website, published from `main` (see `website/AGENTS.md`)
+|-- playwright.config.ts     Playwright configuration for `pnpm test:e2e`
 |-- wxt.config.ts            MV3 manifest and build configuration
 |-- tsconfig.json            Strict TypeScript configuration
 |-- .oxfmtrc.json            Formatting preferences and exclusions
@@ -310,20 +317,25 @@ popup stays on-screen.
 Stored keys:
 
 - `theme`: `system` (default), `light`, or `dark`. System follows live OS appearance changes.
-- `autoHide`: boolean
+- `autoHide`: boolean, defaults to true
 - `suggestionCount`: integer from 1 to 5, defaults to 3; larger saved counts clamp to 5. Limits displayed suggestions, never navigation results
-- `alwaysOn`: boolean
+- `alwaysOn`: boolean, defaults to true (Type to search)
 - `tooltipsMode`: boolean, defaults to true; shows full Alt/Option + number badges and usage hints.
   When false, keep compact numbers and all shortcuts; hide passive hints, never status/errors or
   accessible names. Explicitly opening the shortcut reference remains available.
-- `startInActionMode`: boolean
-- `highlightMatches`: boolean
-- `showAutohideButton`: boolean
-- `lockPositionAndSize`: boolean; blocks dragging, resizing, position presets and reset until unlocked
+- `startInActionMode`: boolean, defaults to false
+- `highlightMatches`: boolean, defaults to true
+- `showAutohideButton`: boolean, defaults to false
+- `lockPositionAndSize`: boolean, defaults to false; blocks dragging, resizing, position presets and reset until unlocked
 - `popupPosition`: `{ x: number; y: number }`, with both values finite and in `[0, 1]`
 - `popupWidth`: number of pixels, clamped into the usable range rather than rejected, so a
   window that shrank between sessions does not discard a deliberate choice
 - `highlightColors`: `{ text: string; actions: string }`, each a `#rrggbb` string
+- `openingShortcut`: `{ code: string; altKey: boolean; ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }`,
+  defaults to Alt+F. `code` is a letter, digit or F1-F12 key, at least one of Alt, Ctrl or Meta is set,
+  and it must not shadow another KeyMove shortcut; invalid values fall back to the default
+- `siteBehavior:<exact hostname>`: `type`, `shortcut` or `paused` for one HTTP(S) hostname; absent
+  means the General default applies
 
 Treat JSON imports, extension storage, storage change events, extension messages, and browser API
 responses as runtime-untrusted. Validate them through the matching `src/lib/*_schema.ts` module or a
@@ -340,7 +352,7 @@ through its content-addressable store. Keep each checkout's own dependency layou
 development packages do not mean the extension imports or ships all of them.
 
 `node_modules/` is local, ignored development state. WXT tree-shakes and bundles reachable runtime
-code only. Measure the current unpacked artifacts in `.output/`; both include the main content
+code only. Measure the current unpacked artifacts in `.output/`; all three include the main content
 script, a child-frame helper, and a separate settings popup with shared chunks. Do not
 judge the published extension footprint from the development installation size, and do not remove a
 transitive package manually from `node_modules/` or `pnpm-lock.yaml`.

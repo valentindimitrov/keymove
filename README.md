@@ -38,13 +38,15 @@ Type something visible on the page, then use:
 | Alt + S | Switch between text and action results. |
 | Enter | Activate the selected link or control. |
 | Down arrow | Open the selected result's action menu. |
+| Alt + I | Select or cycle images near the selected result; arrows then move between images. |
 | Ctrl + C | Copy the selected passage or link URL. |
-| Escape | Close KeyMove and stay at the current position. |
+| Escape | Close KeyMove and stay at the current position (with an image selected, return to the result first). |
 | Alt + Backspace | Return to where the search began and close KeyMove. |
 
 On macOS, use Option for Alt and Command for copy. Browser and operating-system shortcuts
 can take precedence; the opening shortcut is configurable in settings.
-See the [full shortcut and settings reference](docs/user-guide.md).
+See the [full shortcut and settings reference](docs/user-guide.md) and
+[related image navigation](docs/related-images.md).
 
 ## Install from source
 
