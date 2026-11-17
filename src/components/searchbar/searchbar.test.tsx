@@ -1,6 +1,15 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import type { ReactElement } from 'react';
+import {
+  act,
+  fireEvent,
+  render as renderOnPage,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import Searchbar from './searchbar.js';
 import createExtensionRoot from '../../lib/create_extension_root.js';
+import { markKeyMoveRoot } from '../../lib/dom_tree.js';
 import { makeRankedMatch, makeSearchResult, makeTextMatch } from '../../test_support/factories.js';
 import type { SearchResult } from '../../lib/page_search_index.js';
 import { MODAL_CHANGED_EVENT } from '../../lib/modal_context.js';
@@ -51,6 +60,19 @@ vi.mock('../../hooks/use_interaction_settings.js', () => ({
     },
   }),
 }));
+
+// The extension always mounts the searchbar inside its own root, and KeyMove recognises
+// its interface by that root rather than by element ids.
+function render(ui: ReactElement, options: { container?: HTMLElement } = {}) {
+  let container = options.container;
+  if (!container) {
+    container = document.createElement('div');
+    markKeyMoveRoot(container);
+    document.body.append(container);
+  }
+  return renderOnPage(ui, { container });
+}
+
 const settingsMocks = vi.hoisted(() => ({
   tooltipsMode: true,
   suggestionCount: 3,

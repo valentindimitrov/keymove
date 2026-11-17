@@ -1,5 +1,11 @@
-import { DO_NOT_SEARCH_NODE_TYPES, KEYMOVE_ROOT_ID } from '../constants.js';
-import { ownerParent, renderedParent, renderedChildren, textRangeScope } from './dom_tree.js';
+import { DO_NOT_SEARCH_NODE_TYPES } from '../constants.js';
+import {
+  isKeyMoveRoot,
+  ownerParent,
+  renderedParent,
+  renderedChildren,
+  textRangeScope,
+} from './dom_tree.js';
 import { frameTarget } from './frame_target.js';
 
 type StyleCache = WeakMap<
@@ -35,7 +41,7 @@ function isSubtreeVisible(element: Element, cache: StyleCache): boolean {
       visible = false;
       break;
     }
-    if (ancestor.id === KEYMOVE_ROOT_ID || DO_NOT_SEARCH_NODE_TYPES.includes(ancestor.nodeName)) {
+    if (isKeyMoveRoot(ancestor) || DO_NOT_SEARCH_NODE_TYPES.includes(ancestor.nodeName)) {
       visible = false;
       break;
     }

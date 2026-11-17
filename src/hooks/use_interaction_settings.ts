@@ -68,7 +68,8 @@ export default function useInteractionSettings() {
     return () => {
       active = false;
       alive.current = false;
-      browser.storage.onChanged.removeListener(onChanged);
+      // An orphaned content script has no storage API left when it tears down.
+      browser.storage?.onChanged.removeListener(onChanged);
     };
   }, [apply]);
 

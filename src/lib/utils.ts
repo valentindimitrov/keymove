@@ -3,6 +3,7 @@ import { normalizedOpenableLinkUrl } from './extension_tabs.js';
 import { isActionDisabled, labelledToggle } from './searchable_attributes.js';
 import { iterateRenderedText } from './visible_text.js';
 import { frameTarget } from './frame_target.js';
+import { isKeyMoveNode } from './dom_tree.js';
 
 const FOCUS_WIDGET_ROLES = [
   'combobox',
@@ -69,12 +70,7 @@ function elementIsActive(element: Element | null) {
 }
 
 function isExtensionElement(element: EventTarget | null) {
-  return (
-    element instanceof Element &&
-    Boolean(
-      element.closest('#keymove-container, #keymove-info-panel, #keymove-root, #keymove-portal'),
-    )
-  );
+  return element instanceof Node && isKeyMoveNode(element);
 }
 
 function clickOrFocusNode(node: HTMLElement) {

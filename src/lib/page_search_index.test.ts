@@ -1,5 +1,6 @@
 import NodeScorer from './node_scorer.js';
 import { PageSearchIndex } from './page_search_index.js';
+import { markKeyMoveRoot } from './dom_tree.js';
 import { highlightRangesForMatches } from '../hooks/use_highlights.js';
 
 let index: PageSearchIndex | null = null;
@@ -113,7 +114,9 @@ test('keeps text navigation in document order after inserting an earlier result'
 test('notifies page changes while ignoring extension host reattachment', async () => {
   const onChange = vi.fn();
   index = new PageSearchIndex(onChange);
-  document.body.insertAdjacentHTML('beforeend', '<div id="keymove-root"></div>');
+  const host = document.createElement('div');
+  markKeyMoveRoot(host);
+  document.body.append(host);
   await waitForMutations();
   expect(onChange).not.toHaveBeenCalled();
   document.body.insertAdjacentHTML('beforeend', '<p>Save</p>');

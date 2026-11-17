@@ -137,6 +137,34 @@ received the input and propagates only to ancestors, so child frames cannot chec
 relayed commands; the top frame checks before sending them. jsdom cannot create trusted
 events: `src/setupTests.ts` sets the test seam, and rejection tests switch it off.
 
+Page script must not be able to switch KeyMove off. Content scripts start through
+`runSingleContentScript` (`src/lib/content_script_lifecycle.ts`): WXT's script-started
+signal and KeyMove's own `keymove:content-script-started:<name>` event are forgeable
+hints, accepted untrusted, that only make a copy check `browser.runtime.id`. A copy
+tears down only once its extension context is really gone (reload, update, disable,
+uninstall); never tear down from `ctx.onInvalidated` alone. Live copies are recorded on
+the isolated world's global object, so a second working copy (installation-time
+injection racing the manifest script) does not mount; a new copy retires any orphan
+recorded there itself, since a page can block the hint. Entrypoints set
+`noScriptStartedPostMessage`. Orphan teardown runs without `browser.storage` or
+`browser.runtime`, so cleanup uses optional access to them.
+An orphan must notice by itself, since a page can swallow every hint. The lifecycle checks
+`browser.runtime.id` on window capture before KeyMove's own input listeners (keys, input,
+clipboard, pointer, focus), so an orphan never swallows input, and on visibility changes
+and `pageshow`. Code that already runs (the host's DOM observer, frame-helper messaging)
+calls the `alive` callback the lifecycle passes to `mount` before acting. A fallback check
+runs every minute only while the document is visible. Keep checks to that property read.
+A copy that cannot run at all (Firefox destroys the old sandbox on reload and leaves its
+DOM) cannot clean up, so a newer copy removes hosts signed by an earlier copy
+(`src/lib/host_marker.ts`): a marker in each host's shadow root holds a per-installation
+secret from `storage.local` in a closed shadow root, readable only through extension APIs.
+Never remove a host by id, shape or any page-readable value, and never the current copy's
+own (`isKeyMoveRoot`); hosts with light-DOM children are kept. Safari behaviour is unknown.
+KeyMove's own DOM is recognised by reference (`markKeyMoveRoot`/`isKeyMoveRoot`/
+`isKeyMoveNode` in `dom_tree.ts`), never by id: a page element with `id="keymove-root"`
+or another KeyMove id is ordinary, searchable page content. The ids stay as styling and
+test hooks. Mark any new root KeyMove appends to a page document.
+
 ## Control discovery and modal navigation
 
 Control names resolve associated labels, `aria-labelledby`, `aria-label`, and image alternative
@@ -336,6 +364,8 @@ Stored keys:
   and it must not shadow another KeyMove shortcut; invalid values fall back to the default
 - `siteBehavior:<exact hostname>`: `type`, `shortcut` or `paused` for one HTTP(S) hostname; absent
   means the General default applies
+- `hostMarkerSecret`: 32 hex characters, not a setting; created at installation (or first use)
+  and used only to recognise hosts left by earlier copies. Never place it in page-readable DOM.
 
 Treat JSON imports, extension storage, storage change events, extension messages, and browser API
 responses as runtime-untrusted. Validate them through the matching `src/lib/*_schema.ts` module or a

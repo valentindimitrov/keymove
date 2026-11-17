@@ -4,6 +4,7 @@ import { isInjectableUrl, normalizedOpenableLinkUrl } from './lib/extension_tabs
 import { isRecord } from './lib/runtime_schema.js';
 import { browser, type Browser } from 'wxt/browser';
 import { registerFrameRelay } from './frame_background.js';
+import { ensureHostMarkerSecret } from './lib/host_marker_secret.js';
 
 const CONTENT_SCRIPT_FILE = '/content-scripts/content.js';
 const CONTENT_STYLESHEET_FILE = 'content-scripts/content.css';
@@ -87,6 +88,8 @@ function handleInstallationEvent(details: Browser.runtime.InstalledDetails) {
 }
 
 async function injectContentScriptToAllTabs() {
+  // Create the host-marker secret once, before the injected copies race to create it.
+  await ensureHostMarkerSecret();
   const response: unknown = await browser.tabs.query({});
   if (!Array.isArray(response)) throw new TypeError('tabs query must return an array');
   const tabs = response.filter(

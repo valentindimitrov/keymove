@@ -1,4 +1,5 @@
 import { PageSearchIndex } from './page_search_index.js';
+import { markKeyMoveRoot } from './dom_tree.js';
 import NodeScorer from './node_scorer.js';
 import { labelForNode } from './suggestion_context.js';
 
@@ -59,6 +60,7 @@ test('does not read values from concealed text inputs', async () => {
 
 test('refreshes after input/change events but ignores KeyMove input and disconnects listeners', async () => {
   document.body.innerHTML = '<input id="minimum"><div id="keymove-root"><input id="own"></div>';
+  markKeyMoveRoot(document.getElementById('keymove-root')!);
   const changed = vi.fn();
   index = new PageSearchIndex(changed);
   await index.search(new NodeScorer('40'));
