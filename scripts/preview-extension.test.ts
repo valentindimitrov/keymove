@@ -1,7 +1,14 @@
 // @vitest-environment node
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { createPreviewCopy, findBrowser, openRepositoryPage } from './preview-extension.js';
+import { EventEmitter } from 'node:events';
+import {
+  closeWelcomeTabs,
+  createPreviewCopy,
+  findBrowser,
+  openRepositoryPage,
+  removeOnExit,
+} from './preview-extension.js';
 
 test('each preview loads an independent snapshot of the current build', () => {
   const first = createPreviewCopy(path.resolve(import.meta.dirname, '../assets'));
@@ -113,4 +120,66 @@ test('finds portable Windows and Linux browsers on PATH', () => {
       file => file === '/opt/bin/vivaldi-stable',
     ),
   ).toEqual({ name: 'vivaldi', binary: '/opt/bin/vivaldi-stable' });
+});
+
+function fakeProcess() {
+  const emitter = new EventEmitter() as EventEmitter & {
+    pid: number;
+    kill: ReturnType<typeof vi.fn>;
+  };
+  emitter.pid = 4242;
+  emitter.kill = vi.fn();
+  return emitter;
+}
+
+test.each(['SIGINT', 'SIGTERM', 'SIGHUP'] as const)(
+  'removes the temporary build once on %s and re-raises the signal',
+  signal => {
+    const target = fakeProcess();
+    const cleanup = vi.fn();
+    removeOnExit(cleanup, target as unknown as NodeJS.Process);
+    target.emit(signal, signal);
+    target.emit('exit', 1);
+    expect(cleanup).toHaveBeenCalledTimes(1);
+    expect(target.kill).toHaveBeenCalledWith(4242, signal);
+    expect(target.listenerCount(signal)).toBe(0);
+  },
+);
+
+test('leaves termination to another signal handler, such as the browser launcher', () => {
+  const target = fakeProcess();
+  const cleanup = vi.fn();
+  removeOnExit(cleanup, target as unknown as NodeJS.Process);
+  const launcher = vi.fn();
+  target.on('SIGINT', launcher);
+  target.emit('SIGINT', 'SIGINT');
+  expect(cleanup).toHaveBeenCalledTimes(1);
+  expect(launcher).toHaveBeenCalled();
+  expect(target.kill).not.toHaveBeenCalled();
+});
+
+test('removes the temporary build on an ordinary exit', () => {
+  const target = fakeProcess();
+  const cleanup = vi.fn();
+  removeOnExit(cleanup, target as unknown as NodeJS.Process);
+  target.emit('exit', 0);
+  expect(cleanup).toHaveBeenCalledTimes(1);
+  expect(target.kill).not.toHaveBeenCalled();
+});
+
+test('closes the welcome tab without opening the repository page for smoke runs', async () => {
+  const sendCommand = vi.fn(async (method: string) =>
+    method === 'Target.getTargets'
+      ? {
+          targetInfos: [
+            { targetId: 'welcome', type: 'page', url: 'vivaldi://welcome' },
+            { targetId: 'blank', type: 'page', url: 'about:blank' },
+          ],
+        }
+      : {},
+  );
+  await closeWelcomeTabs({ sendCommand });
+  expect(sendCommand).not.toHaveBeenCalledWith('Target.createTarget', expect.anything());
+  expect(sendCommand).toHaveBeenCalledWith('Target.closeTarget', { targetId: 'welcome' });
+  expect(sendCommand).not.toHaveBeenCalledWith('Target.closeTarget', { targetId: 'blank' });
 });

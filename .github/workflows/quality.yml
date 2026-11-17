@@ -16,6 +16,10 @@ jobs:
   quality:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      # A placeholder, never a real listing: it makes every build exercise the configured
+      # Firefox ID path, which validate-builds.ts compares with the packaged manifest.
+      WXT_FIREFOX_EXTENSION_ID: keymove-ci@keymove.invalid
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -24,8 +28,8 @@ jobs:
         with:
           node-version-file: package.json
           package-manager-cache: false
-      - name: Set up pinned pnpm
-        run: npm install --global "$(node -p "require('./package.json').packageManager")"
+      - name: Set up verified pnpm
+        uses: ./.github/actions/setup-pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm run postinstall
       - run: pnpm quality
@@ -40,55 +44,66 @@ jobs:
           include-hidden-files: true
           retention-days: 7
           if-no-files-found: ignore
+      # Static files only: the production deploy below and the Website preview workflow
+      # (website-preview.yml) publish them without installing or running anything from them.
+      - run: pnpm website:build
+      - name: Upload the website build
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: website
+          path: .output/public/
+          include-hidden-files: true # keeps .well-known/security.txt
+          retention-days: 3
+          if-no-files-found: error
 
-  # Publishes the website to Cloudflare once the checks pass: main goes to production, pull
-  # requests from this repository get a preview URL. Skipped until the CLOUDFLARE_ACCOUNT_ID
-  # variable is set, and for pull requests from forks, which have no access to the token.
+  # Deploys pushes to main to production once the checks pass. Skipped until the
+  # CLOUDFLARE_ACCOUNT_ID variable is set. On a push to main this workflow file, the build and
+  # this job's checkout are all main's, so the token meets only code already merged to main.
+  #
+  # Pull request previews are not uploaded here: in a pull_request run this file comes from the
+  # pull request branch, which could rewrite any job holding the token. They run in
+  # website-preview.yml, a workflow_run workflow whose definition always comes from main.
   website:
     needs: quality
     if: >-
       vars.CLOUDFLARE_ACCOUNT_ID != '' &&
-      ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-      (github.event_name == 'pull_request' &&
-      github.event.pull_request.head.repo.full_name == github.repository))
+      github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:
-      name: ${{ github.event_name == 'push' && 'production' || 'preview' }}
-      url: ${{ github.event_name == 'push' && 'https://keymove.minddevops.eu' || steps.upload.outputs.url }}
-    # The token is passed only to the Wrangler steps, never to dependency install scripts or the build.
+      name: production
+      url: https://keymove.minddevops.eu
     env:
-      WRANGLER: npx --yes wrangler@4.147.0
+      WRANGLER: website/deploy/node_modules/.bin/wrangler
+      WRANGLER_SEND_METRICS: 'false'
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Check out the deployment configuration
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+          sparse-checkout: |
+            .github/actions/setup-pnpm
+            package.json
+            pnpm-lock.yaml
+            website/wrangler.jsonc
+            website/deploy
+          sparse-checkout-cone-mode: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version-file: package.json
           package-manager-cache: false
-      - name: Set up pinned pnpm
-        run: npm install --global "$(node -p "require('./package.json').packageManager")"
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm run postinstall
-      - run: pnpm website:build
+      - name: Set up verified pnpm
+        uses: ./.github/actions/setup-pnpm
+      - name: Install the locked Wrangler only
+        working-directory: website/deploy
+        run: pnpm install --frozen-lockfile
+      - name: Download the website build
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: website
+          path: .output/public
       - name: Deploy to production
-        if: github.event_name == 'push'
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: $WRANGLER deploy --config website/wrangler.jsonc
-      - name: Upload a preview
-        id: upload
-        if: github.event_name == 'pull_request'
-        shell: bash
-        env:
-          ALIAS: pr-${{ github.event.pull_request.number }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: |
-          set -euo pipefail
-          $WRANGLER versions upload --config website/wrangler.jsonc --preview-alias "$ALIAS" | tee upload.log
-          url="$(grep -oE "https://$ALIAS-[a-z0-9.-]+\.workers\.dev" upload.log | head -n 1 || true)"
-          echo "url=$url" >> "$GITHUB_OUTPUT"
-          echo "Preview: ${url:-see the upload log}" >> "$GITHUB_STEP_SUMMARY"
