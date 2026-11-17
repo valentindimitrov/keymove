@@ -84,8 +84,8 @@ them. Avoid duplicate helper checks and tests that only echo their input props.
 
 - `pnpm test:e2e` rebuilds and tests the installed extension with Playwright's
   bundled Chromium. After `pnpm quality`, use `pnpm test:e2e:built`. See
-  [browser testing and CLI debugging](browser-testing.md) for setup, coverage,
-  failure traces, and attaching playwright-cli to a paused test.
+  [browser testing and CLI debugging](browser-testing.md) for setup, the coverage
+  map, failure traces, and attaching playwright-cli to a paused test.
 
 - `pnpm test` checks indexing, scoring, cancellation, navigation and storage in
   isolation. The searchbar regression test requires every keystroke, including
@@ -96,18 +96,19 @@ them. Avoid duplicate helper checks and tests that only echo their input props.
   For suggestion placement, check `?scenario=slate-above` and `?scenario=slate-below`
   at desktop and narrow viewport sizes: the list must sit on the correct side of
   the bar and stay inside the viewport. A CSS-class assertion cannot establish this.
-- `pnpm test:browser` rebuilds and loads the production extension in a fresh
-  temporary Vivaldi/Chrome profile, runs real keyboard interaction checks against
-  local fixtures, and closes only its own browser. It exits unsuccessfully on a
-  failed assertion. `pnpm preview --smoke` is equivalent.
+- `pnpm test:browser` rebuilds and runs the same Playwright suite in installed
+  Vivaldi (through its Chromium shell) or Chrome, in fresh temporary profiles
+  against local fixtures, and closes only its own browser. It exits unsuccessfully
+  on a failed assertion. `pnpm preview --smoke` is equivalent.
 
-After `pnpm quality`, use `pnpm test:browser:built` to test those exact artifacts
-without rebuilding. Run browser smoke for changes affecting input, navigation,
-search, popup settings, or extension mounting. Run `pnpm quality` before handoff.
-Automated smoke currently covers Chromium; Firefox still needs `pnpm preview:firefox`
-and a manual interaction check. No installed browser is an error, not a mocked pass.
+After `pnpm quality`, use `pnpm test:browser:built` (or `pnpm test:e2e:built` for
+bundled Chromium) to test those exact artifacts without rebuilding. Run the browser
+suite for changes affecting input, navigation, search, popup settings, or extension
+mounting. Run `pnpm quality` before handoff. Automated runs cover Chromium browsers;
+Firefox still needs `pnpm preview:firefox` and a manual interaction check. No
+installed browser is an error, not a mocked pass.
 
-Browser smoke uses `preview/fixtures.html` with `preview/fixtures.ts`: hidden text,
+The browser suite uses `preview/fixtures.html` with `preview/fixtures.ts`: hidden text,
 retargeted host keyboard handlers, nested controls, dynamic DOM and documents of
 100 or 5,000 filler blocks. It serves them on an automatically assigned loopback
 port, so concurrent worktrees do not collide. To view a fixture manually, run
@@ -120,15 +121,17 @@ Search starts on each nonempty input change, with no debounce or idle wait befor
 starting. Long indexing/scoring work must remain chunked and cancellable; the
 newest query wins. Returning a stale result quickly does not meet the contract.
 
-Browser smoke records input-event to result-DOM-update latency for a cold first
+The browser suite records input-event to result-DOM-update latency for a cold first
 query and nine subsequent warm keystrokes on each fixture. Every successive
 prefix has a different count, so old results cannot satisfy the timing check.
 These are UI update timings, not paint timings or pure index benchmarks. Browser
 startup and protocol round trips are excluded. The cold sample includes lazy
 index initialization; warm samples retain the same live index.
 
-The ignored `.artifacts/browser-smoke.json` contains individual samples, browser
-version, Node version, commit and dirty status. Preserve this file outside the
+The ignored `.artifacts/playwright/<browser>/timings.json` contains individual samples
+(including the dynamic-page and iframe local-first timings), browser version, platform,
+Node version, commit and dirty status. Run the whole suite for a complete file; a
+filtered run rewrites it with only its own tests. Preserve this file outside the
 checkout before changing performance code and compare equivalent runs on the
 same machine. Measure at least three runs before drawing conclusions. The
 immediate-start contract is enforced deterministically in unit tests; wall-clock

@@ -228,7 +228,7 @@ overlays through the owning frame and recheck actual control availability there.
 navigable and exact matches ahead of fuzzy results across documents. Hidden/removed frames and
 search dismissal release indexes, observers and marks. Protected or inaccessible frames are
 skipped after a bounded wait. Do not add new host permissions or bypass frame sandboxing.
-Verify with `preview/frames.html`, `scripts/iframe-smoke.ts` and the manual checklist in
+Verify with `preview/frames.html`, `tests/browser/scenarios/iframe-smoke.ts` and the manual checklist in
 `docs/iframe-testing.md`. Firefox behavior requires a separate manual test.
 
 ## Language support
@@ -531,17 +531,21 @@ then removes its temporary build copy.
 
 - `pnpm preview`: rebuild and open the preferred installed browser.
 - `pnpm browser:install`: install Playwright's bundled Chromium once.
-- `pnpm test:e2e`: rebuild Chromium and run Playwright installed-extension tests.
-- `pnpm test:e2e:built`: test the existing build after `pnpm quality`. Playwright
-  is separate from Vitest and the broader installed Vivaldi smoke below. Its fresh
-  profiles and snapshots preserve the same isolation rule. See `docs/browser-testing.md`
-  for coverage, failure artifacts, and playwright-cli debugging.
-- `pnpm preview --smoke` / `pnpm test:browser`: rebuild, run the actual extension's
-  automated Chromium interaction checks, record cold/warm timings under `.artifacts/`,
-  and close the dedicated browser. This also fulfills the preview launch requirement.
-- `pnpm test:browser:built`: run smoke on existing production output after `pnpm quality`.
-  Run it for input, navigation, search, settings, and extension-mounting changes.
-  Firefox behavior still requires a manual installed-browser check.
+- `pnpm test:e2e`: rebuild Chromium and run the Playwright browser suite in bundled Chromium.
+- `pnpm test:e2e:built`: the same suite on the existing build after `pnpm quality`. All
+  automated installed-extension checks live in this one Playwright suite under `tests/browser/`,
+  separate from Vitest. Its fresh profiles and snapshots preserve the same isolation rule.
+  See `docs/browser-testing.md` for the coverage map, failure artifacts and playwright-cli
+  debugging.
+- `pnpm preview --smoke` / `pnpm test:browser`: rebuild and run that suite in the first
+  installed of Vivaldi (through its Chromium shell, `--disable-vivaldi`) and Chrome, record
+  cold/warm timings in `.artifacts/playwright/<browser>/timings.json`, and close the dedicated
+  browser. This also fulfills the preview launch requirement.
+- `pnpm test:browser:built`: the same on existing production output after `pnpm quality`;
+  `pnpm test:browser:vivaldi` and `pnpm test:browser:chrome` name the browser. Run it for input,
+  navigation, search, settings, and extension-mounting changes. Tests use real Playwright
+  input only, never script-dispatched events at KeyMove's controls, and pass values to
+  `page.evaluate` as arguments. Firefox behavior still requires a manual installed-browser check.
 - `pnpm preview:vivaldi`, `pnpm preview:chrome`, `pnpm preview:firefox`: rebuild and open that browser.
 - `pnpm browser:open`: open the existing production build after `pnpm quality` or `pnpm build`,
   avoiding a redundant rebuild. It uses the same browser preference order.

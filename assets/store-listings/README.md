@@ -10,8 +10,10 @@ and copy when their requirements match; check their requirements before submitti
 
 To refresh the Chromium captures, build the extension with `pnpm build:chromium`, start
 `pnpm website:dev`, then run `node assets/store-listings/generate.ts` from the repository root.
-It opens a dedicated temporary browser profile, uses the installed extension, and converts
-captures to RGB PNGs with ImageMagick. It refreshes the images and verification metadata,
+It opens a dedicated temporary profile in installed Vivaldi's Chromium shell (or the browser
+named by `KEYMOVE_TEST_BROWSER`, e.g. `chromium`), uses the installed extension, and converts
+captures to RGB PNGs with ImageMagick, captioned in bold Arial (or `KEYMOVE_CAPTION_FONT`).
+Set `KEYMOVE_STORE_OUTPUT` to another directory to check captures without replacing these. It refreshes the images and verification metadata,
 preserving the description and upload instructions. Intermediate files stay in `.artifacts/`.
 
 To refresh only selected images, pass their names without `.png`, for example:

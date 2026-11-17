@@ -49,8 +49,8 @@ Run `pnpm quality`, then `pnpm test:browser:built`. The browser suite installs t
 production extension in a temporary profile, tests frame discovery/navigation/input focus,
 copy/paste, hiding, reload and cleanup, and closes that test browser.
 
-`.artifacts/iframe-search.png` records the rendered result. `.artifacts/iframe-performance.json`
-records keydown-to-result-update samples with 0, 3 and 20 searchable frames. It separates the
+The report's `iframe-search` screenshot records the rendered result. The `iframes` entry in
+`.artifacts/playwright/<browser>/timings.json` records keydown-to-result-update samples with 0, 3 and 20 searchable frames. It separates the
 first main-page result from the final combined count. These are local-fixture samples, not
 a guarantee for every embedded application. Use `frames.html?frames=20` for a manual stress test.
 

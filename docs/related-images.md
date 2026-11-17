@@ -62,6 +62,7 @@ Run `pnpm preview:ui --host 127.0.0.1 --port 5175 --strictPort`, then
 7. In a real page, test Copy image on a cross-origin photo. A blocked copy must
    show a message, retain the menu, and still allow copying its address.
 
-Automated installed-browser coverage is part of `pnpm test:browser`; screenshots
-are written to `.artifacts/image-viewer.png` and `image-viewer-narrow.png`.
+Automated installed-browser coverage is part of the Playwright browser suite
+(`tests/browser/scenarios/image-navigation-smoke.ts`); its `image-viewer` and
+`image-viewer-narrow` screenshots are attached to the report under `.artifacts/playwright/`.
 Firefox needs a separate manual installed-browser check.

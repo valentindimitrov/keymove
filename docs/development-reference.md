@@ -55,14 +55,14 @@ After meaningful implementation changes, use `pnpm preview`; after `pnpm quality
 `pnpm browser:open` to reuse the verified build. For custom browser locations, set
 `KEYMOVE_VIVALDI_BINARY`, `KEYMOVE_CHROME_BINARY`, or `KEYMOVE_FIREFOX_BINARY` to the absolute
 executable path. The browser opens `https://github.com/valentindimitrov/keymove` for testing.
-Smoke runs (`pnpm test:browser`) skip that page and use only local fixtures, so a GitHub or
-network outage does not fail them. Ctrl+C or a termination signal still removes the temporary
-build copy.
+Automated browser runs (`pnpm test:browser`, `pnpm preview --smoke`) use Playwright and only
+local fixtures, so a GitHub or network outage does not fail them; see `docs/browser-testing.md`.
+Ctrl+C or a termination signal still removes the temporary build copy.
 
 On macOS, Chromium handles Command shortcuts such as Command+C/V/A as application-menu
-commands that synthetic DevTools key events never reach. `scripts/browser-driver.ts` therefore
-names the matching editing command (`copy`, `paste`, `selectAll`, ...) with those key events,
-which runs the browser's native clipboard and selection code just as the menu would.
+commands that DevTools key events never reach. Playwright sends the matching editing command
+(`copy:`, `paste:`, `selectAll:`, ...) with those key events, so `ControlOrMeta+C` in a test
+runs the browser's native clipboard and selection code just as the menu would.
 
 Formatting preferences live in `.oxfmtrc.json`; lint rules and WXT/Vitest globals live in
 `.oxlintrc.json`. Generated output, coverage, and dependencies are excluded. Markdown and the

@@ -167,7 +167,7 @@ test('removes the temporary build on an ordinary exit', () => {
   expect(target.kill).not.toHaveBeenCalled();
 });
 
-test('closes the welcome tab without opening the repository page for smoke runs', async () => {
+test('closes only the welcome tab without opening another page', async () => {
   const sendCommand = vi.fn(async (method: string) =>
     method === 'Target.getTargets'
       ? {
