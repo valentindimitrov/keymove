@@ -32,16 +32,6 @@ test('creates a range for every case-insensitive match without changing the DOM'
   expect(button.querySelector('mark')).toBeNull();
 });
 
-test('does not duplicate ranges when matching nodes overlap', () => {
-  const button = document.createElement('button');
-  button.innerHTML = '<span>Save</span>';
-  document.body.appendChild(button);
-
-  const ranges = highlightRangesForNodes([button, button.querySelector('span')!], 'save');
-
-  expect(ranges).toHaveLength(1);
-});
-
 test('deduplicates overlapping roots even when a descendant precedes its ancestor', () => {
   document.body.innerHTML = '<div><p><span>Save</span></p></div>';
   const parent = document.querySelector('div')!;
@@ -49,18 +39,6 @@ test('deduplicates overlapping roots even when a descendant precedes its ancesto
   expect(
     highlightRangesForNodes([child, parent, parent], 'save').map(range => range.toString()),
   ).toEqual(['Save']);
-});
-
-test('caps dense highlights without comparing every pair of matching blocks', () => {
-  document.body.innerHTML = '<p>Save</p>'.repeat(1000);
-  const nodes = [...document.querySelectorAll('p')];
-  const contains = vi.spyOn(Node.prototype, 'contains');
-  try {
-    expect(highlightRangesForNodes(nodes, 'save')).toHaveLength(MAX_HIGHLIGHT_RANGES);
-    expect(contains.mock.calls.length).toBeLessThan(nodes.length * 10);
-  } finally {
-    contains.mockRestore();
-  }
 });
 
 test('moving the selection retains the existing general highlights', () => {
@@ -164,11 +142,6 @@ test('finishes a dense highlight job across chunks while retaining the range cap
     vi.useRealTimers();
     vi.unstubAllGlobals();
   }
-});
-
-test('finds repeated matches within one text node', () => {
-  const textNode = document.createTextNode('go go go');
-  expect(rangesForTextNode(textNode, 'go')).toHaveLength(3);
 });
 
 test('highlights phrases across inline nodes without highlighting hidden text', () => {

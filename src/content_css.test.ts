@@ -5,7 +5,15 @@ import path from 'node:path';
 const contentStyles = readFileSync(path.resolve(process.cwd(), 'src/content.css'), 'utf8');
 
 test('resets inherited host-page styling at the shadow boundary', () => {
-  expect(contentStyles).toContain('all: initial');
+  // Strip comments first: one that mentions the reset must not stand in for the rule.
+  const rules = contentStyles.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^}]*)\}/g);
+  const hostResets = [...rules].filter(
+    ([, selectors, body]) =>
+      selectors!.split(',').some(selector => selector.trim() === ':host') &&
+      /(?:^|;)\s*all\s*:\s*initial\s*(?:;|$)/.test(body!),
+  );
+
+  expect(hostResets).toHaveLength(1);
 });
 
 test('never reads a custom property without a fallback', () => {

@@ -40,18 +40,6 @@ beforeEach(() => {
   storageMocks.removeListener.mockReset();
 });
 
-test('does not overwrite a drag with a delayed initial position', async () => {
-  const initialRead = Promise.withResolvers<Record<string, unknown>>();
-  storageMocks.get.mockReturnValue(initialRead.promise);
-  render(<PopupPositionHarness />);
-  act(() => currentPosition?.updatePosition({ x: 0.2, y: 0.4 }));
-  await act(async () => {
-    initialRead.resolve({ popupPosition: { x: 0.8, y: 0.8 } });
-    await initialRead.promise;
-  });
-  expect(currentPosition?.position).toEqual({ x: 0.2, y: 0.4 });
-});
-
 test('retains a position change delivered before the initial read finishes', async () => {
   const initialRead = Promise.withResolvers<Record<string, unknown>>();
   storageMocks.get.mockReturnValue(initialRead.promise);

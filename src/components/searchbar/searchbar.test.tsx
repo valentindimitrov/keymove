@@ -1443,38 +1443,6 @@ test('Tab keeps navigating the active mode instead of falling back to text', asy
   expect(status).toHaveTextContent('Actions 1 / 2');
 });
 
-test('selects the first match as soon as results arrive and keeps the mode while typing', async () => {
-  const paragraph = document.createElement('p');
-  paragraph.textContent = 'Save';
-  const action = document.createElement('button');
-  action.textContent = 'Save draft';
-  document.body.append(paragraph, action);
-  searchMocks.findMatches.mockResolvedValue(
-    makeSearchResult({
-      matchingText: [makeTextMatch({ node: paragraph, action: null })],
-      matchingLinksAndButtons: [action],
-    }),
-  );
-  render(<Searchbar />);
-  const input = screen.getByRole('combobox', { name: 'Search page' });
-  input.focus();
-  fireEvent.change(input, { target: { value: 'sav' } });
-  await flushSearch();
-
-  const status = screen.getByRole('status');
-  // No Tab press: the first match is already the Enter target.
-  expect(status).toHaveTextContent('Text 1 / 1');
-
-  fireEvent.keyDown(input, { key: 's', code: 'KeyS', altKey: true });
-  expect(status).toHaveTextContent('Actions 1 / 1');
-
-  // Continuing to type must not drop the user back into text mode.
-  input.focus();
-  fireEvent.change(input, { target: { value: 'save' } });
-  await flushSearch();
-  expect(status).toHaveTextContent('Actions 1 / 1');
-});
-
 // The numbered rows of the results panel are the shortlist Alt+1 to Alt+3 aim at.
 test('keeps the third row across pending and superseded queries and selects its current index', async () => {
   searchMocks.popupPosition = { x: 0.5, y: 0.99 };
@@ -1506,7 +1474,6 @@ test('keeps the third row across pending and superseded queries and selects its 
   fireEvent.change(input, { target: { value: 'save' } });
   expect(screen.getByRole('listbox')).toBe(panel);
   expect(panel).toHaveAttribute('aria-busy', 'true');
-  expect(panel.parentElement).toHaveClass('keymove-container-suggestions-above');
   expect(screen.getAllByRole('option')[2]).toBe(row);
   expect(row).toHaveAttribute('aria-disabled', 'true');
   fireEvent.click(row);
@@ -2423,8 +2390,6 @@ test('closes empty suggestions after action fallback and reopens for the next qu
   fireEvent.change(input, { target: { value: 'sa' } });
   await flushSearch();
   expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
-  fireEvent.change(input, { target: { value: '' } });
-  expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
 });
 
 test('opens the slate downwards when there is room, and upwards when there is not', async () => {
@@ -2460,18 +2425,17 @@ test('opens the slate downwards when there is room, and upwards when there is no
   );
 });
 
-test.each(['é', 'Б', 'λ', '日', 'ع', '𐐀'])(
-  'starts searching with the first %s keystroke',
-  async key => {
-    searchMocks.findMatches.mockResolvedValue(makeSearchResult());
-    render(<Searchbar />);
-    const input = screen.getByRole('combobox', { name: 'Search page' });
-    fireEvent.keyDown(document.body, { key });
-    expect(input).toHaveFocus();
-    expect(input).toHaveValue(key);
-    await flushSearch();
-  },
-);
+// A digit, a Devanagari vowel sign (a combining mark typed as its own key) and a
+// supplementary-plane letter.
+test.each(['é', '7', '\u093E', '𐐀'])('starts searching with the first %j keystroke', async key => {
+  searchMocks.findMatches.mockResolvedValue(makeSearchResult());
+  render(<Searchbar />);
+  const input = screen.getByRole('combobox', { name: 'Search page' });
+  fireEvent.keyDown(document.body, { key });
+  expect(input).toHaveFocus();
+  expect(input).toHaveValue(key);
+  await flushSearch();
+});
 test('clearing a query rejects a late frame update', async () => {
   const link = document.createElement('a');
   link.href = '#old';

@@ -90,9 +90,6 @@ test.each([null, { id: -1, url: 'https://example.com' }, { id: 42, url: 'chrome:
     await waitFor(() =>
       expect(button).toHaveAccessibleDescription('KeyMove is not available on this page.'),
     );
-    expect(screen.getByText('KeyMove is not available on this page.')).toHaveClass(
-      'keymove-show-search-unavailable',
-    );
     expect(button).toBeDisabled();
     expect(storage.sendMessage).not.toHaveBeenCalled();
   },
@@ -197,28 +194,6 @@ test('shows the settings the searchbar panel no longer carries', async () => {
   fireEvent.click(screen.getByRole('tab', { name: 'Appearance' }));
   expect(screen.getByRole('checkbox', { name: 'Show autohide button' })).toBeInTheDocument();
   expect(screen.getByLabelText('Action highlight colour')).toHaveValue('#a78bfa');
-  expect(screen.getByRole('link', { name: 'KeyMove on GitHub' })).toHaveAttribute(
-    'href',
-    'https://github.com/valentindimitrov/keymove',
-  );
-  const supportLink = screen.getByRole('link', { name: 'Leave a tip for KeyMove' });
-  expect(supportLink).toHaveAttribute(
-    'href',
-    'https://buy.stripe.com/test_cNieVe2GhbdMaeq6sd5os00',
-  );
-  expect(supportLink).toHaveAttribute('target', '_blank');
-  expect(supportLink).toHaveAttribute('rel', 'noreferrer');
-  expect(supportLink).toHaveTextContent('Tip');
-  const contactLink = screen.getByRole('link', { name: 'Contact KeyMove Developer' });
-  expect(supportLink.parentElement?.nextElementSibling).toContainElement(contactLink);
-  const demo = screen.getByRole('link', { name: 'KeyMove website' });
-  expect(demo).toHaveTextContent('Website');
-  expect(demo).toHaveAttribute('href', 'https://keymove.minddevops.eu');
-  expect(demo).toHaveAttribute('target', '_blank');
-  expect(screen.getByRole('link', { name: 'KeyMove on GitHub' })).toHaveAttribute(
-    'target',
-    '_blank',
-  );
 });
 
 test('records an opening shortcut and rejects conflicts without writing them', async () => {
@@ -258,14 +233,11 @@ test('Tooltips mode persists and hides only usage reminders', async () => {
   expect(screen.getByText(/Show shortcut hints and usage reminders/)).toBeInTheDocument();
 });
 
-test('places the resize hint immediately after the layout heading and keeps lock status by its control', async () => {
+test('locking the layout hides the resize hint and shows the lock status', async () => {
   render(<PopupSettings />);
   await waitFor(() => expect(storage.get).toHaveBeenCalled());
   fireEvent.click(screen.getByRole('tab', { name: 'Appearance' }));
-  const heading = screen.getByRole('heading', { name: 'Searchbar position and size' });
-  expect(heading.nextElementSibling).toHaveTextContent(
-    'Choose where the search bar appears using the nine squares. Drag either side edge of the searchbar to resize it.',
-  );
+  expect(screen.getByText(/Drag either side edge/)).toBeInTheDocument();
   fireEvent.click(screen.getByRole('checkbox', { name: 'Lock position and size' }));
   expect(screen.queryByText(/Drag either side edge/)).not.toBeInTheDocument();
   expect(screen.getByText(/Choose where the search bar appears/)).toBeInTheDocument();

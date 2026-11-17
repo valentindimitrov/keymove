@@ -44,7 +44,11 @@ test('installs current shortcuts before a committed UI can receive input', () =>
   expect(updated).toHaveBeenCalledWith('focus_searchbar', expect.any(KeyboardEvent));
 });
 
-test('handles Tab before a page element can swallow the bubbling event', () => {
+// Handled in the capture phase, before a page element can swallow the bubbling event.
+test.each([
+  { shiftKey: false, shortcut: 'next_match' },
+  { shiftKey: true, shortcut: 'previous_match' },
+])('maps Tab with shift=$shiftKey before the page can stop it', ({ shiftKey, shortcut }) => {
   const handleShortcut = vi.fn((_shortcutName: string, event: KeyboardEvent) =>
     event.preventDefault(),
   );
@@ -59,33 +63,11 @@ test('handles Tab before a page element can swallow the bubbling event', () => {
     cancelable: true,
     code: 'Tab',
     key: 'Tab',
+    shiftKey,
   });
   pageInput.dispatchEvent(tabEvent);
 
-  expect(handleShortcut).toHaveBeenCalledWith('next_match', tabEvent);
-  expect(tabEvent.defaultPrevented).toBe(true);
-});
-
-test('maps Shift+Tab to the previous match in capture phase', () => {
-  const handleShortcut = vi.fn((_shortcutName: string, event: KeyboardEvent) =>
-    event.preventDefault(),
-  );
-  render(<KeyboardShortcutHarness handleShortcut={handleShortcut} />);
-
-  const pageButton = document.createElement('button');
-  pageButton.addEventListener('keydown', event => event.stopPropagation());
-  document.body.appendChild(pageButton);
-
-  const tabEvent = new KeyboardEvent('keydown', {
-    bubbles: true,
-    cancelable: true,
-    code: 'Tab',
-    key: 'Tab',
-    shiftKey: true,
-  });
-  pageButton.dispatchEvent(tabEvent);
-
-  expect(handleShortcut).toHaveBeenCalledWith('previous_match', tabEvent);
+  expect(handleShortcut).toHaveBeenCalledWith(shortcut, tabEvent);
   expect(tabEvent.defaultPrevented).toBe(true);
 });
 

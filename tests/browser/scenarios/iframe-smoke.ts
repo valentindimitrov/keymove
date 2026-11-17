@@ -41,6 +41,16 @@ export async function checkIframes(context: BrowserContext, origin: string) {
     await page.keyboard.press('Tab');
     await page.keyboard.press('Enter');
     await expect(page.locator('#cross')).toBeFocused();
+    // A button inside the cross-origin frame is clicked, not only focused.
+    await openSearch(page);
+    for (const key of 'Launch') await page.keyboard.type(key);
+    await expect(status).toHaveText(/^(Text|Actions) [1-9] \/ [1-9]$/);
+    if ((await status.textContent())?.startsWith('Text')) await page.keyboard.press('Alt+s');
+    await firstAction(page);
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#cross').contentFrame().locator('#result')).toHaveText('Activated');
+    await expect(page.locator('#keymove-root')).toHaveCount(1);
     await openSearch(page);
     for (const key of 'otter') await page.keyboard.type(key);
     await expect(status).toHaveText(/\/ 4$/);
