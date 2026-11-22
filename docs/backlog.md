@@ -2,11 +2,11 @@
 
 ## Publication
 
-- Create store listings and permanent extension IDs; finish repository/store metadata.
 - Obtain upstream relicensing permission and document the upstream contribution process.
-- Publish a first release using the existing draft-release workflow; consider store-upload automation.
+- Make the Chrome Web Store listing public, and publish KeyMove publicly on Microsoft Edge Add-ons,
+  then add Edge to the Publish to stores workflow.
 - Expand contributor guidance with product goals and the intended interaction model.
-- Plan Product Hunt and YouTube launch material after the installable release is ready.
+- Plan Product Hunt and YouTube launch material.
 
 ## Product ideas to scope
 
