@@ -211,6 +211,9 @@ export async function checkCore(context: BrowserContext, origin: string, size: s
   await setDynamic(page, '<p>unsaved drafts</p>'.repeat(60) + '<p>Save</p>');
   await type(page, 'save');
   await expectSummary(page, 'Text 1 / 61');
+  // "sav" also has 61 matches, so the summary can come from the previous query. Navigating
+  // before the "save" results commit would be reset when they arrive and select the first.
+  await expect(suggestions).toHaveAttribute('aria-busy', 'false');
   await page.keyboard.press('Shift+Tab');
   await expectSummary(page, 'Text 61 / 61');
   await page.keyboard.press('Tab');
