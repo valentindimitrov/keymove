@@ -419,9 +419,11 @@ blindly replacing it can break selectors, stored preferences, and content/backgr
 - Releases: the manually dispatched `.github/workflows/prepare-release.yml` builds, validates and
   signs the packages and stops at a draft GitHub release. Its signing job runs in the protected
   `release` environment (`main` only, required reviewer; see `docs/crx-signing.md`). Publishing
-  the draft and the Chrome Web Store and Firefox Add-ons uploads stay manual. Do not dispatch
-  the workflow or publish a release unless the user asks. A store submission is effectively
-  irreversible: confirm with the user before any store action.
+  the draft stays manual. `.github/workflows/publish-stores.yml`, also manually dispatched,
+  submits a published release's packages to the Chrome Web Store and Firefox Add-ons from the
+  protected `store-chrome` and `store-firefox` environments (`docs/store-publishing.md`). Do not
+  dispatch either workflow or publish a release unless the user asks. A store submission is
+  effectively irreversible: confirm with the user before any store action.
 - The website is the exception: every push to `main` that passes the quality checks publishes it
   to https://keymove.minddevops.eu, so website changes on `main` go live (`website/README.md`).
   Pull request previews run in `.github/workflows/website-preview.yml`, a `workflow_run`

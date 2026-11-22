@@ -49,7 +49,8 @@ any branch other than `main` are refused the environment.
 Register `assets/store-listings/chrome-web-store/crx-signing-public-key.pem` in
 Chrome Web Store's **Verified CRX uploads** dialog. After opting in, upload the CRX instead
 of the ZIP. Google verifies the upload and re-signs the distributed extension, preserving
-the store's extension ID. Opt-in and store submission remain manual actions.
+the store's extension ID. Opt-in stays manual; the **Publish to stores** workflow uploads the CRX
+(see [Store publishing](store-publishing.md)).
 
 The encoder follows the [Chromium CRX3 wire format](https://chromium.googlesource.com/chromium/src/+/main/components/crx_file/crx3.proto)
 and [RSA signing algorithm](https://chromium.googlesource.com/chromium/src/+/main/components/crx_file/crx_creator.cc).
