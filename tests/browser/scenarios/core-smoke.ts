@@ -149,11 +149,31 @@ export async function checkCore(context: BrowserContext, origin: string, size: s
   await type(page, 'zzzz');
   await expectSummary(page, 'Text ~ 0 / 0');
   await expect(suggestions).toHaveCount(0);
-  for (let index = 0; index < 4; index++) await page.keyboard.press('Backspace');
+  // After an empty result, further keystrokes must not flash an empty frame while their
+  // searches run. Fuzzy rows may legitimately appear on the way back; a frame without rows
+  // never may. Deleting back to the matching query ends with a search that completes last.
+  await page.evaluate(() => {
+    const root = document.getElementById('keymove-root')!.shadowRoot!;
+    const check = { flashed: false };
+    const observer = new MutationObserver(() => {
+      const panel = root.getElementById('keymove-suggestions');
+      if (panel && !panel.querySelector('[role="option"]')) check.flashed = true;
+    });
+    observer.observe(root, { subtree: true, childList: true, attributes: true });
+    (globalThis as TimingWindow).__keymoveStopPanelCheck = () => {
+      observer.disconnect();
+      return check;
+    };
+  });
+  await type(page, 'zz');
+  for (let index = 0; index < 6; index++) await page.keyboard.press('Backspace');
   await expectSummary(page, 'Text 1 / 1');
   await expect(suggestions).toHaveCount(1);
+  expect(await page.evaluate(() => (globalThis as TimingWindow).__keymoveStopPanelCheck())).toEqual(
+    { flashed: false },
+  );
   passed.push(
-    `${size}: suggestion frame preserves pending height, closes on empty results and reopens on matches`,
+    `${size}: suggestion frame preserves pending height, closes on empty results, stays closed while typing on, and reopens on matches`,
   );
   // Tab selects the whole semantic block natively, so Ctrl/Command+C copies it.
   await page.keyboard.press('Tab');

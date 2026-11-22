@@ -157,8 +157,8 @@ applies to the row reserved for the other kind of result.
 
 While a query or page refresh is pending, the panel keeps its previous rows visible without
 collapsing and reopening. Those rows cannot be selected until the new results arrive.
-The frame retains its height while the query is nonempty, including an empty
-result, which displays "No matches". Clearing the query closes the frame.
+A search with no matches closes the frame, and it stays closed while you keep typing until a
+query matches again. Clearing the query also closes the frame.
 Completed results use fresh scores, labels, and match spans; results that stopped matching leave
 immediately. Clearing the query or completing a search with
 no matches resets that history. Search still starts on every keystroke without a debounce.
