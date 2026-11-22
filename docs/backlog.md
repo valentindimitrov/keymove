@@ -3,8 +3,8 @@
 ## Publication
 
 - Obtain upstream relicensing permission and document the upstream contribution process.
-- Make the Chrome Web Store listing public, and publish KeyMove publicly on Microsoft Edge Add-ons,
-  then add Edge to the Publish to stores workflow.
+- Publish KeyMove publicly on Microsoft Edge Add-ons, then add Edge to the Publish to stores
+  workflow.
 - Expand contributor guidance with product goals and the intended interaction model.
 - Plan Product Hunt and YouTube launch material.
 
