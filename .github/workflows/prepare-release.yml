@@ -4,7 +4,8 @@ name: Prepare release
 # draft release in a second job that runs only in the protected `release` environment.
 # The signing key is an environment secret: a workflow edited on another branch cannot
 # reach it, because the environment accepts deployments from `main` only and waits for a
-# reviewer. Publishing the draft and every store upload remain manual (docs/crx-signing.md).
+# reviewer. Publishing the draft remains manual (docs/crx-signing.md); store submission is the
+# separate Publish to stores workflow (docs/store-publishing.md).
 
 on:
   workflow_dispatch:

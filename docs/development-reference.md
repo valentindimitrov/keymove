@@ -103,7 +103,8 @@ requires the packaged ID to equal `WXT_FIREFOX_EXTENSION_ID` when set and to be 
 Release preparation runs the same full gate, zips the builds, then validates both the build
 directories (`pnpm verify`, including the settings popup and its assets) and the ZIPs themselves
 (`pnpm verify:packages`). The signing job validates the downloaded ZIPs again before signing; see
-[CRX signing](crx-signing.md). Installed-browser smoke remains a separate local check.
+[CRX signing](crx-signing.md). Store submission of a published release is a separate workflow;
+see [Store publishing](store-publishing.md). Installed-browser smoke remains a separate local check.
 
 CI installs pnpm through `.github/actions/setup-pnpm`, which downloads the native Linux binary for
 the `packageManager` version and checks it against the integrity pnpm records in `pnpm-lock.yaml`
