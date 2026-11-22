@@ -2350,7 +2350,7 @@ test('drops the slate when the query is cleared', async () => {
   expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
 });
 
-test('closes empty suggestions after action fallback and reopens for the next query', async () => {
+test('closes empty suggestions after action fallback and reopens when the next query matches', async () => {
   const node = document.createElement('button');
   node.textContent = 'Save';
   document.body.append(node);
@@ -2380,15 +2380,35 @@ test('closes empty suggestions after action fallback and reopens for the next qu
   searchMocks.findMatches.mockReturnValueOnce(pending.promise);
   input.focus();
   fireEvent.change(input, { target: { value: 'save' } });
-  const reopenedPanel = screen.getByRole('listbox');
-  expect(reopenedPanel).toHaveAttribute('aria-busy', 'true');
+  // Nothing is retained after the empty result, so the frame waits for rows to show.
+  expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
   await act(async () => pending.resolve(matches));
-  expect(screen.getByRole('listbox')).toBe(reopenedPanel);
+  expect(screen.getByRole('listbox')).toHaveAttribute('aria-busy', 'false');
   expect(screen.getAllByRole('option')).toHaveLength(1);
   searchMocks.findMatches.mockResolvedValueOnce(makeSearchResult());
   input.focus();
   fireEvent.change(input, { target: { value: 'sa' } });
   await flushSearch();
+  expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+});
+
+test('keeps the suggestion frame closed while extending a query that matched nothing', async () => {
+  searchMocks.findMatches.mockResolvedValueOnce(makeSearchResult());
+  render(<Searchbar />);
+  const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
+  fireEvent.change(input, { target: { value: 'zzz' } });
+  await flushSearch();
+  expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+
+  // Each extra character starts a search; an empty frame must not flash open meanwhile.
+  const pending = Promise.withResolvers<SearchResult>();
+  searchMocks.findMatches.mockReturnValueOnce(pending.promise);
+  input.focus();
+  fireEvent.change(input, { target: { value: 'zzzz' } });
+  expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  expect(input).toHaveAttribute('aria-expanded', 'false');
+  await act(async () => pending.resolve(makeSearchResult()));
   expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
 });
 
