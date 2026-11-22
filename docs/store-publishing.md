@@ -62,8 +62,8 @@ AMO API keys come from the AMO developer hub's API key page.
   and a license, name, summary and categories, because a new version cannot set them.
 - Listing text, screenshots and privacy answers stay in each store's dashboard.
 
-## Not yet confirmed
+## Status
 
-- Whether the Chrome Web Store accepts a CRX upload before opting into verified uploads; the
-  documentation does not say.
-- The workflow has not run against either store yet. Watch the first run's logs.
+KeyMove is opted into Verified CRX uploads, so the workflow's CRX upload is the expected path.
+Its first run submitted 1.1.0 to both stores on November 22, 2026. Whether the Chrome Web Store
+accepts a CRX upload before opting in is undocumented and does not apply to KeyMove.

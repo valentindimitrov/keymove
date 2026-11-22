@@ -2,10 +2,12 @@
 
 ## Project purpose and status
 
-This repository contains KeyMove, a keyboard-first in-page search browser extension. It is being
-prepared as a new extension rather than an update to an existing store listing. The KeyMove name
-and artwork are applied; store publication, permanent extension IDs, and upstream relicensing
-permission remain pending. Public contribution guidance is in `CONTRIBUTING.md`. Original KeyMove contributions
+This repository contains KeyMove, a keyboard-first in-page search browser extension, published as
+a new extension rather than an update to an existing store listing. Firefox Add-ons lists it, and
+the Chrome Web Store serves it as an unlisted item reachable by link. The permanent store IDs are
+the `CHROME_EXTENSION_ID` and `WXT_FIREFOX_EXTENSION_ID` repository variables; never change them.
+Releases reach the stores through `docs/store-publishing.md`. Upstream relicensing permission
+remains pending. Public contribution guidance is in `CONTRIBUTING.md`. Original KeyMove contributions
 by Valentin Dimitrov use Apache License 2.0; inherited and adapted Comake code retains BSD 4-Clause.
 The relicensing request to YipYip's creator has received no reply as of September 22, 2026.
 An Apache-2.0-only license for KeyMove's own and inherited YipYip code is possible if the creator

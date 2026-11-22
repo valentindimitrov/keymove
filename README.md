@@ -14,8 +14,9 @@ jump between results, copy a passage, or follow a link as you type.
 [![KeyMove searching a page](assets/store-listings/chrome-web-store/01-text-search.png)](https://keymove.minddevops.eu)
 
 > [!IMPORTANT]
-> KeyMove is not published in browser extension stores yet. Build and load it locally using
-> the instructions below. The Chromium build supports Chrome and Vivaldi; Firefox has its own Manifest V3 build.
+> Install KeyMove from [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/keymove/) or the
+> [Chrome Web Store](https://chromewebstore.google.com/detail/keymove/kllljoldaaendmbegkmkjccadcljpnhj)
+> (Chrome and Vivaldi), or build and load it locally using the instructions below.
 > An experimental [Safari build for macOS](docs/safari.md) is also available; Safari runtime testing is pending.
 
 ## What it does
