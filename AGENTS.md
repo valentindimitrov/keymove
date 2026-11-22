@@ -81,8 +81,10 @@ artifacts are `.output/chrome-mv3`, `.output/firefox-mv3` and `.output/safari-mv
 7. `page_search_index` also emits all distinct ranked candidates across both kinds. `useSuggestions`
    applies stability before selecting the configured number of mixed suggestions (three by default), retaining its history while a query
    or DOM refresh is pending. Pending rows stay visible but cannot be selected, keeping the pane
-   mounted until fresh results arrive. The frame opens for pending searches and nonempty results,
-   independently of the page-highlight threshold, and closes when neither text nor actions match.
+   mounted until fresh results arrive. The frame opens only when it has rows to show (nonempty
+   results, or pending rows retained from the last completed ones), independently of the
+   page-highlight threshold, and closes when neither text nor actions match. It never opens empty
+   for a pending search: after an empty result that flashed a blank frame on every keystroke.
    Pending results retain the last completed height; completed nonempty results fit their current
    rows so shorter descriptions leave no trailing gap.
    Cleared queries and completed empty results

@@ -494,10 +494,13 @@ const Searchbar = () => {
     isFuzzy,
     pending: suggestionsPending,
   });
+  // Open only with rows to show. A pending search keeps the previous rows (disabled) so the
+  // frame stays mounted between matching queries, but after an empty result each further
+  // keystroke would otherwise flash an empty "Searching…" frame until its search completes.
   const suggestionsOpen =
     isInteractive &&
     searchText.trim().length >= MIN_SUGGESTION_QUERY_LENGTH &&
-    (suggestionsPending || suggestions.length > 0);
+    suggestions.length > 0;
 
   // Shared by stepping through matches and by jumping straight to a numbered row, so both
   // routes leave the same mode, selection, scroll position and page selection behind.
