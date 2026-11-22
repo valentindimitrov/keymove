@@ -5,6 +5,7 @@ import { isRecord } from './lib/runtime_schema.js';
 import { browser, type Browser } from 'wxt/browser';
 import { registerFrameRelay } from './frame_background.js';
 import { ensureHostMarkerSecret } from './lib/host_marker_secret.js';
+import { SETTINGS_PAGE, SETTINGS_TAB_SEARCH } from './constants.js';
 
 const CONTENT_SCRIPT_FILE = '/content-scripts/content.js';
 const CONTENT_STYLESHEET_FILE = 'content-scripts/content.css';
@@ -55,7 +56,7 @@ async function handleExtensionMessage(message: unknown, sender: Browser.runtime.
       // Older browsers may disallow opening the toolbar popup from a content-script request.
       try {
         await browser.tabs.create({
-          url: browser.runtime.getURL('/popup.html'),
+          url: browser.runtime.getURL(`${SETTINGS_PAGE}${SETTINGS_TAB_SEARCH}`),
           active: true,
           openerTabId: sender.tab.id,
         });
