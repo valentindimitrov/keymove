@@ -22,8 +22,8 @@ authentication flow.
 
 Safari has an experimental MV3 web-resources target for macOS only. Build/ZIP generation
 runs on all development hosts; Apple packaging must select only macOS. `docs/safari.md`
-documents the cloud and local Xcode routes and pending Safari checks. Never infer Safari
-runtime compatibility from a Windows build or Chromium smoke pass.
+documents the cloud and local Xcode routes and which Safari checks have passed or remain.
+Never infer Safari runtime compatibility from a Windows build or Chromium smoke pass.
 
 ## Repository map
 
