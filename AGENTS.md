@@ -3,9 +3,9 @@
 ## Project purpose and status
 
 This repository contains KeyMove, a keyboard-first in-page search browser extension, published as
-a new extension rather than an update to an existing store listing. Firefox Add-ons lists it
-publicly. The Chrome Web Store item is still unlisted (reachable by link) and is to become public;
-Microsoft Edge Add-ons, also public, needs its first manual submission. The permanent store IDs are
+a new extension rather than an update to an existing store listing. Firefox Add-ons and the
+Chrome Web Store list it publicly; Microsoft Edge Add-ons, also to be public, needs its first
+manual submission. The permanent store IDs are
 the `CHROME_EXTENSION_ID` and `WXT_FIREFOX_EXTENSION_ID` repository variables; never change them.
 Releases reach the stores through `docs/store-publishing.md`. Upstream relicensing permission
 remains pending. Public contribution guidance is in `CONTRIBUTING.md`. Original KeyMove contributions
