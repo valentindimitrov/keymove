@@ -4,10 +4,11 @@ Safari is a macOS-only build target for KeyMove. iOS, iPadOS and visionOS are ou
 its supported scope. The web resources build on Windows and Linux as well as macOS;
 the Apple app that contains them must target **macOS only**.
 
-Status: build and automated checks are available, but the extension has not been
-tested in Safari. A successful build is not a Safari compatibility certification.
-Keep the Safari release experimental until the installed-browser checklist below
-has been completed by someone with a Mac.
+Status: experimental. A local, unsigned Xcode build passed a first installed-Safari
+check on November 22, 2026 (see [Results](#results)); several checklist items are still
+untested, and no signed or App Store build exists yet. A successful build is not a
+Safari compatibility certification. Keep the Safari release experimental until the
+remaining checklist items pass and a signed build has been tested.
 
 ## Build and package from Windows or Linux
 
@@ -60,14 +61,32 @@ pnpm safari:project <your-registered-bundle-identifier>
 
 This runs Apple's `xcrun safari-web-extension-packager` with `--macos-only`, Swift
 and copied resources. It creates `.output/safari-xcode` without opening Xcode,
-signing, uploading, or overwriting an existing project. Move an old generated
+signing, uploading, or overwriting an existing project. The packager derives the
+app's identifier from the identifier's prefix and the app name (`eu.example.keymove`
+becomes `eu.example.KeyMove`) while naming the extension `eu.example.keymove.Extension`,
+which Xcode refuses to build, and it sets version 1.0. The script then gives the app
+exactly the identifier passed and sets both targets' version to the manifest version. Move an old generated
 project aside before regenerating it after web-resource changes. The command
 fails with instructions on Windows/Linux. Older Xcode versions may call Apple's
 tool `safari-web-extension-converter`; use current Xcode for the scripted route.
 See Apple's [packager documentation](https://developer.apple.com/documentation/safariservices/packaging-a-web-extension-for-safari).
 
 Open the generated project manually, choose your signing team and review the
-deployment target before building. Follow Apple's
+deployment target before building.
+
+Without an Apple Developer membership, a local test build can be ad-hoc signed:
+
+```sh
+xcodebuild -project .output/safari-xcode/KeyMove/KeyMove.xcodeproj -scheme KeyMove \
+  -configuration Debug -derivedDataPath .output/safari-build \
+  CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER= build
+```
+
+Copy `.output/safari-build/Build/Products/Debug/KeyMove.app` to `~/Applications` and
+open it once so Safari registers the extension. In Safari, enable Settings → Advanced →
+Show features for web developers, then Settings → Developer → Allow unsigned extensions,
+and enable KeyMove in Settings → Extensions. Safari turns that permission off whenever it quits,
+which hides the extension until it is allowed again. Follow Apple's
 [running instructions](https://developer.apple.com/documentation/safariservices/running-your-safari-web-extension)
 to enable the extension. The existing `pnpm preview` launcher covers
 Vivaldi/Chrome/Firefox, not Safari.
@@ -82,6 +101,9 @@ Vivaldi/Chrome/Firefox, not Safari.
 - Safari requires user-granted website access. Enable KeyMove and grant access
   to the test sites; reload tabs after granting it if the content script is absent.
   Safari ignores file-URL permissions, so use HTTP(S) fixtures, not local file URLs.
+- Safari does not support the child-frame helper's `match_about_blank` manifest key; the
+  packager warns about it. Frames whose document is `about:blank` or `srcdoc` may
+  therefore not be searched in Safari; this has not been tested.
 - Deferred text and image-address copies initiate a clipboard write in the input
   event and supply validated data through a `ClipboardItem` promise. Local image
   pixel copying already does this. Insecure pages, cross-origin canvases and
@@ -98,7 +120,7 @@ Vivaldi/Chrome/Firefox, not Safari.
 These boundaries follow Apple's [compatibility notes](https://developer.apple.com/documentation/safariservices/assessing-your-safari-web-extension-s-browser-compatibility)
 and WebKit's [clipboard requirements](https://webkit.org/blog/10855/async-clipboard-api/).
 
-## Installed Safari checklist (pending)
+## Installed Safari checklist
 
 Record the macOS/Safari versions and how the app was packaged. Serve fixtures with
 `pnpm preview:ui`; test the installed extension, not just the React preview.
@@ -116,3 +138,30 @@ Record the macOS/Safari versions and how the app was packaged. Serve fixtures wi
   links, site pause, OS theme changes and background-worker restart.
 
 Windows unit tests and Chromium smoke cannot mark any Safari checklist item complete.
+
+### Results
+
+November 22, 2026: macOS 27.2.1, Safari 27.2, a local unsigned build from
+`pnpm safari:project` and the ad-hoc `xcodebuild` above, including the fixes from
+pull requests #38 and #39.
+
+Passed:
+
+- One searchbar per tab after reloading; Option+F; exact and typo searches; Tab and
+  Shift+Tab; Enter following a link; Escape.
+- Option+number menu shortcuts (Command+number is not a KeyMove shortcut).
+- Command+C copying a whole text block and a link URL, and copying from the action menu.
+- Toolbar popup: a theme change reaching another open tab, and Show KeyMove search bar
+  on the active page.
+- `preview/shadow.html`: search, selection and copy, continued typing, nested dialogs.
+- `preview/frames.html`: results in same-origin, cross-origin and nested frames, and
+  activating a result inside a frame.
+- `preview/images.html`: Option+I, arrow navigation, the Space menu and both copy actions.
+
+Found and fixed: suggestions flickered while extending a query that matched nothing
+(all browsers, #38); the toolbar popup reported every page as unavailable (#39).
+
+Not yet tested: changing website access, accented text, IME input, Option+S, denied-clipboard errors,
+frame removal and late frame results, stale and cross-origin images (including inside
+frames), Shift+Enter and Control+Enter tabs, site pause, OS theme changes,
+background-worker restart, `about:blank`/`srcdoc` frames and Control+Tab.

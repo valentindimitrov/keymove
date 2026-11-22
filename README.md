@@ -17,7 +17,7 @@ jump between results, copy a passage, or follow a link as you type.
 > Install KeyMove from [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/keymove/) or the
 > [Chrome Web Store](https://chromewebstore.google.com/detail/keymove/kllljoldaaendmbegkmkjccadcljpnhj)
 > (Chrome and Vivaldi), or build and load it locally using the instructions below.
-> An experimental [Safari build for macOS](docs/safari.md) is also available; Safari runtime testing is pending.
+> An experimental [Safari build for macOS](docs/safari.md) can be built and installed locally; it has passed a first check in Safari but is not yet signed or distributed.
 
 ## What it does
 
