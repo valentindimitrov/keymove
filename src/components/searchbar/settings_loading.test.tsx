@@ -21,7 +21,7 @@ vi.mock('wxt/browser', () => ({
   browser: {
     runtime: {
       id: 'keymove-test',
-      getURL: () => 'chrome-extension://keymove-test/popup.html',
+      getURL: (path: string) => `chrome-extension://keymove-test${path}`,
       onMessage: {
         addListener: (listener: Parameters<typeof mocks.messages.add>[0]) =>
           mocks.messages.add(listener),
@@ -75,12 +75,17 @@ test('settings requests reveal and focus only after hydration, respect pause and
     expect(respond).not.toHaveBeenCalled();
     send({ ...sender, url: 'https://example.com' });
     expect(respond).not.toHaveBeenCalled();
+    send({ ...sender, url: `${sender.url}?other` });
+    expect(respond).not.toHaveBeenCalled();
     send(sender, Object.create({ type: ExtensionMessageTypes.SHOW_SEARCHBAR }));
     expect(respond).not.toHaveBeenCalled();
     expect(root.shadowRoot.activeElement).not.toBe(input);
     send();
     expect(respond).toHaveBeenCalledWith({ status: 'shown' });
     expect(root.shadowRoot.activeElement).toBe(input);
+    // The fallback settings tab carries a marker and may request focus too.
+    send({ ...sender, url: `${sender.url}?settings-tab` });
+    expect(respond).toHaveBeenCalledWith({ status: 'shown' });
     await act(async () => {
       for (const [listener] of mocks.addListener.mock.calls)
         listener({ [`siteBehavior:${location.hostname}`]: { newValue: 'paused' } }, 'local');

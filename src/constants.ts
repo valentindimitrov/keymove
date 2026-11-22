@@ -3,6 +3,10 @@ export const MAC_OS_PLATFORMS = ['Macintosh', 'MacIntel', 'MacPPC', 'Mac68K'];
 export const KEYS_VALID_FOR_FOCUS_REGEX = /^[\p{L}\p{N}\p{M}\-_/]$/u;
 
 export const KEYMOVE_ROOT_ID = 'keymove-root';
+// The settings document opened in a tab when the toolbar popup cannot open. The marker is
+// how that document knows to target its opener: tab metadata cannot tell it apart.
+export const SETTINGS_PAGE = '/popup.html';
+export const SETTINGS_TAB_SEARCH = '?settings-tab';
 export const KEYMOVE_APP_ID = 'keymove-app';
 export const KEYMOVE_PORTAL_ID = 'keymove-portal';
 export const KEYMOVE_INPUT_ID = 'keymove-input';

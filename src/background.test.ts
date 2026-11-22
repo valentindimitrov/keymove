@@ -64,7 +64,7 @@ test('opens settings from a validated content-script request and falls back when
   browserMocks.openPopup.mockRejectedValueOnce(new Error('User gesture required'));
   await handleExtensionMessage(message, tabSender);
   expect(browserMocks.create).toHaveBeenCalledWith({
-    url: 'chrome-extension://keymove-test/popup.html',
+    url: 'chrome-extension://keymove-test/popup.html?settings-tab',
     active: true,
     openerTabId: 42,
   });

@@ -39,6 +39,7 @@ beforeEach(() => {
   storage.query.mockReset().mockResolvedValue([{ id: 42, url: 'https://github.com/example' }]);
   storage.getTab.mockReset().mockResolvedValue({ id: 42, url: 'https://linear.app/workspace' });
   storage.getCurrentTab.mockReset().mockResolvedValue(undefined);
+  window.history.replaceState(null, '', '/popup.html');
   storage.sendMessage.mockReset().mockResolvedValue({ status: 'shown' });
   storage.updateTab.mockReset().mockResolvedValue({});
   vi.spyOn(window, 'close')
@@ -46,10 +47,26 @@ beforeEach(() => {
     .mockImplementation(() => {});
 });
 
-test.each([false, true])(
-  'show search focuses the source page and closes settings (fallback=%s)',
-  async fallback => {
-    if (fallback) storage.getCurrentTab.mockResolvedValue({ id: 1, openerTabId: 42 });
+test.each(['toolbar popup', 'fallback tab', 'Safari toolbar popup', 'Safari popup, opened page'])(
+  'show search focuses the source page and closes settings (%s)',
+  async context => {
+    if (context === 'fallback tab') {
+      window.history.replaceState(null, '', '/popup.html?settings-tab');
+      storage.getCurrentTab.mockResolvedValue({ id: 1, openerTabId: 42 });
+      storage.query.mockResolvedValue([{ id: 1, url: 'chrome-extension://example/popup.html' }]);
+      storage.getTab.mockResolvedValue({ id: 42, url: 'https://github.com/example' });
+    }
+    // Safari's tabs.getCurrent() returns the active page's tab inside a toolbar popup, and
+    // a page opened from another tab carries that tab as its opener.
+    if (context.startsWith('Safari')) {
+      const page = {
+        id: 42,
+        url: 'https://github.com/example',
+        ...(context === 'Safari popup, opened page' ? { openerTabId: 7 } : {}),
+      };
+      storage.getCurrentTab.mockResolvedValue(page);
+      storage.query.mockResolvedValue([page]);
+    }
     render(<PopupSettings />);
     const button = screen.getByRole('button', { name: 'Show KeyMove search bar' });
     await waitFor(() => expect(button).toBeEnabled());
@@ -61,6 +78,7 @@ test.each([false, true])(
       { frameId: 0 },
     );
     expect(storage.updateTab).toHaveBeenCalledWith(42, { active: true });
+    expect(storage.getTab).not.toHaveBeenCalledWith(7);
     expect(storage.set).not.toHaveBeenCalled();
   },
 );
@@ -95,6 +113,18 @@ test.each([null, { id: -1, url: 'https://example.com' }, { id: 42, url: 'chrome:
   },
 );
 
+test('a settings tab without an opener is not mistaken for a page', async () => {
+  window.history.replaceState(null, '', '/popup.html?settings-tab');
+  storage.getCurrentTab.mockResolvedValue({ id: 1 });
+  storage.query.mockResolvedValue([{ id: 1, url: 'chrome-extension://example/popup.html' }]);
+  render(<PopupSettings />);
+  const button = screen.getByRole('button', { name: 'Show KeyMove search bar' });
+  await waitFor(() =>
+    expect(button).toHaveAccessibleDescription('KeyMove is not available on this page.'),
+  );
+  expect(button).toBeDisabled();
+});
+
 test('opening respects a saved pause without changing it', async () => {
   storage.get.mockResolvedValue({ 'siteBehavior:github.com': 'paused' });
   render(<PopupSettings />);
@@ -107,6 +137,7 @@ test('opening respects a saved pause without changing it', async () => {
 });
 
 test('a settings fallback tab retains its source site and handles a closed source gracefully', async () => {
+  window.history.replaceState(null, '', '/popup.html?settings-tab');
   storage.getCurrentTab.mockResolvedValue({ id: 1, openerTabId: 42 });
   storage.query.mockResolvedValue([
     { url: 'chrome-extension://example/popup.html', openerTabId: 42 },

@@ -23,6 +23,7 @@ import { isInjectableUrl } from '../../lib/extension_tabs.js';
 import { openingShortcutKeys, siteHostname } from '../../lib/interaction_settings_schema.js';
 import Utils from '../../lib/utils.js';
 import { EXTENSION_NAME } from '../../extension_identity.js';
+import { SETTINGS_TAB_SEARCH } from '../../constants.js';
 import Logo from '../../icons/logo-color.svg?react';
 
 export type PopupSettingsModel = {
@@ -235,10 +236,13 @@ export default function PopupSettings() {
       browser.tabs.getCurrent(),
     ])
       .then(async ([tabs, settingsTab]) => {
-        // A toolbar popup has no owning tab. A fallback settings tab does, but its URL
-        // is withheld without the broad tabs permission; use its own opener instead.
-        let target: unknown = settingsTab ? null : Array.isArray(tabs) ? tabs[0] : null;
-        if (isRecord(settingsTab) && validTabId(settingsTab['openerTabId'])) {
+        // Only the fallback settings tab, which the background opens with a marker, targets
+        // the page that opened it; the toolbar popup targets the active tab. Tab metadata
+        // cannot tell them apart: Safari's getCurrent() returns the active page's tab inside
+        // a toolbar popup, and an ordinary page can carry an openerTabId.
+        const inSettingsTab = window.location.search === SETTINGS_TAB_SEARCH;
+        let target: unknown = inSettingsTab ? null : Array.isArray(tabs) ? tabs[0] : null;
+        if (inSettingsTab && isRecord(settingsTab) && validTabId(settingsTab['openerTabId'])) {
           target = await browser.tabs.get(settingsTab['openerTabId']);
         }
         if (active) {
