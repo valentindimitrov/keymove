@@ -3,6 +3,7 @@ import ExtensionMessageTypes from '../extension_message_types.js';
 import { isExtensionMessage } from '../extension_message_types.js';
 import { browser, type Browser } from 'wxt/browser';
 import { isFrameEnvelope } from '../lib/frame_protocol.js';
+import { SETTINGS_PAGE, SETTINGS_TAB_SEARCH } from '../constants.js';
 
 const useExtensionMessaging = (
   showSearchbar?: (text?: string) => 'shown' | 'paused' | 'loading',
@@ -32,7 +33,8 @@ const useExtensionMessaging = (
           // Only our settings document may request focus, never host-page content.
           if (
             sender.id === browser.runtime.id &&
-            sender.url === browser.runtime.getURL('/popup.html')
+            (sender.url === browser.runtime.getURL(SETTINGS_PAGE) ||
+              sender.url === browser.runtime.getURL(`${SETTINGS_PAGE}${SETTINGS_TAB_SEARCH}`))
           ) {
             sendResponse({ status: showSearchbar?.() ?? 'loading' });
           }
