@@ -286,7 +286,6 @@ h2 {
 .lesson-number {
   font-size: 12px;
   font-variant-numeric: tabular-nums;
-  opacity: 0.7;
   align-self: start;
   margin-top: 3px;
 }
