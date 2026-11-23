@@ -79,6 +79,7 @@ export default defineConfig({
         patterns: fromHere('./patterns.html'),
         gettingStarted: fromHere('./getting-started.html'),
         privacy: fromHere('./privacy-policy.html'),
+        notFound: fromHere('./404.html'),
       },
     },
   },
