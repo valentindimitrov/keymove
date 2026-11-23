@@ -12,6 +12,13 @@ const pages = [
   ['privacy-policy.html', '/privacy-policy'],
 ];
 
+// og:image:width and height must describe the shipped card (PNG IHDR: width, height at 16, 20).
+const socialCardPng = readFileSync(new URL('social-card.png', output));
+const socialCard = {
+  width: socialCardPng.readUInt32BE(16),
+  height: socialCardPng.readUInt32BE(20),
+};
+
 for (const [filename, route] of pages) {
   const html = readFileSync(new URL(filename, output), 'utf8');
   const dom = new JSDOM(html, { url: origin + route });
@@ -29,14 +36,19 @@ for (const [filename, route] of pages) {
   assert(document.querySelector('footer a[href="./privacy-policy"]'));
   assert(!html.includes('/@fs/'), `${filename}: no development asset paths`);
   assert(!document.querySelector('meta[name=robots][content*=noindex]'));
-  if (route !== '/privacy-policy') {
-    assert.equal(document.querySelector('meta[property="og:url"]')?.content, origin + route);
-    assert.equal(document.querySelector('meta[property="og:title"]')?.content, document.title);
-    assert.equal(
-      document.querySelector('meta[property="og:description"]')?.content,
-      document.querySelector('meta[name=description]')?.content,
-    );
-  }
+  // Link previews (LinkedIn, Slack, X) on every public page.
+  const meta = name =>
+    document.querySelector(`meta[property="${name}"], meta[name="${name}"]`)?.content;
+  assert.equal(meta('og:type'), 'website', `${filename}: og:type`);
+  assert.equal(meta('og:site_name'), 'KeyMove', `${filename}: og:site_name`);
+  assert.equal(meta('og:url'), origin + route, `${filename}: og:url matches the canonical`);
+  assert.equal(meta('og:title'), document.title, `${filename}: og:title`);
+  assert.equal(meta('og:description'), meta('description'), `${filename}: og:description`);
+  assert.equal(meta('og:image'), origin + '/social-card.png', `${filename}: og:image`);
+  assert.equal(meta('og:image:width'), String(socialCard.width), `${filename}: og:image:width`);
+  assert.equal(meta('og:image:height'), String(socialCard.height), `${filename}: og:image:height`);
+  assert(meta('og:image:alt'), `${filename}: og:image:alt`);
+  assert.equal(meta('twitter:card'), 'summary_large_image', `${filename}: twitter:card`);
   assert(document.querySelector('meta[name=description]')?.content);
   for (const link of document.querySelectorAll('a[href]')) {
     const url = new URL(link.getAttribute('href'), origin + route);
@@ -85,6 +97,34 @@ for (const [filename, route] of pages) {
   dom.window.close();
 }
 
+// Unknown addresses get 404.html with status 404; it must not be indexed. It is served at any
+// depth, so its links and assets must be absolute.
+assert.match(
+  readFileSync(new URL('../website/wrangler.jsonc', import.meta.url), 'utf8'),
+  /"not_found_handling":\s*"404-page"/,
+  'wrangler.jsonc must serve 404.html for unknown addresses',
+);
+{
+  const html = readFileSync(new URL('404.html', output), 'utf8');
+  const dom = new JSDOM(html, { url: origin + '/missing/page' });
+  const document = dom.window.document;
+  assert(document.querySelector('meta[name=robots][content*=noindex]'), '404.html: noindex');
+  assert(!document.querySelector('link[rel=canonical]'), '404.html: no canonical');
+  assert.equal(document.querySelectorAll('h1').length, 1, '404.html: one primary heading');
+  for (const element of document.querySelectorAll('a[href], [src], link[href]')) {
+    const reference = element.getAttribute('href') ?? element.getAttribute('src');
+    assert(reference?.startsWith('/'), `404.html: absolute reference ${reference}`);
+    const { pathname } = new URL(reference, origin);
+    assert(
+      element.tagName === 'A'
+        ? pages.some(([, route]) => route === pathname)
+        : existsSync(fileURLToPath(new URL('.' + pathname, output))),
+      `404.html: broken reference ${reference}`,
+    );
+  }
+  dom.window.close();
+}
+
 const sitemap = new JSDOM(readFileSync(new URL('sitemap.xml', output), 'utf8'), {
   contentType: 'text/xml',
 });
@@ -116,5 +156,5 @@ assert(
     license.includes('The Manrope Project Authors'),
 );
 console.log(
-  'Static content, metadata, structured data, internal anchors, assets, sitemap, robots, demo exclusion, and font licenses verified.',
+  'Static content, metadata, link previews, the 404 page, structured data, internal anchors, assets, sitemap, robots, demo exclusion, and font licenses verified.',
 );

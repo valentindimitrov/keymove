@@ -157,7 +157,12 @@ pattern examples. Its text remains readable without JavaScript, with a macOS sho
 a fallback. The homepage links to the guide beside the demo instructions.
 
 Run `node website/verify-build.mjs` after building to check static content, asset references,
-canonical URLs, sitemap coverage, demo exclusion, and bundled font licenses without a browser.
+canonical URLs, link-preview tags on every public page, the noindexed 404 page, sitemap coverage,
+demo exclusion, and bundled font licenses without a browser. The Quality workflow runs it after
+building, before the build can be deployed or previewed.
+
+Unknown addresses get `404.html` with status 404 (`not_found_handling` in `wrangler.jsonc`). It
+is marked noindex and uses absolute links, because it is served at whatever depth was requested.
 
 Fonts are self-hosted with their licenses in `fonts/`. `public/_headers` caches fingerprinted
 assets for one year; HTML remains revalidated so deployments can update its asset references.
