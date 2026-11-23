@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { JSDOM } from 'jsdom';
+import identity from '../src/extension_identity.ts';
 
 const output = new URL('../.output/public/', import.meta.url);
 const origin = 'https://keymove.minddevops.eu';
@@ -34,6 +35,11 @@ for (const [filename, route] of pages) {
     `${filename}: static navigation must be present`,
   );
   assert(document.querySelector('footer a[href="./privacy-policy"]'));
+  assert.equal(
+    document.querySelector('footer a[href^="mailto:"]')?.getAttribute('href'),
+    identity.contactUrl,
+    `${filename}: footer contact link`,
+  );
   assert(!html.includes('/@fs/'), `${filename}: no development asset paths`);
   assert(!document.querySelector('meta[name=robots][content*=noindex]'));
   // Link previews (LinkedIn, Slack, X) on every public page.
