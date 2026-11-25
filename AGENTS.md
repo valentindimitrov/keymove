@@ -35,7 +35,7 @@ Never infer Safari runtime compatibility from a Windows build or Chromium smoke 
 |   |-- background.ts        WXT background entrypoint
 |   |-- frames.content.ts    Child-frame search and navigation helper
 |   |-- popup/               Toolbar settings popup page and React mount
-|   `-- content.tsx          WXT content-script and React mount
+|   `-- content.tsx          WXT content script; loads the interface into HTML documents
 |-- preview/                 Shadow-root harness for visual checks, served by `pnpm preview:ui`
 |-- scripts/
 |   `-- validate-builds.ts   Manifest and generated-bundle checks
@@ -49,6 +49,7 @@ Never infer Safari runtime compatibility from a Windows build or Chromium smoke 
 |   |-- lib/                  Search index, scoring, schemas, and utilities
 |   |-- test_support/        Builders for test fixtures, never imported by shipped code
 |   |-- content.css           Shadow-root component styling
+|   |-- content_ui.tsx        Extension root and React mount, loaded by the content script
 |   |-- popup.css             Toolbar settings popup document styling
 |   `-- highlights.css        Page-level CSS Custom Highlight styling
 |-- tests/browser/           Playwright installed-extension tests
@@ -66,7 +67,11 @@ artifacts are `.output/chrome-mv3`, `.output/firefox-mv3` and `.output/safari-mv
 
 ## Runtime flow
 
-1. `entrypoints/content.tsx` creates one extension root and a Shadow DOM. A document-level observer
+1. `entrypoints/content.tsx` imports `src/content_ui.tsx` dynamically, and only into documents
+   whose `createElement('div')` returns an `HTMLElement`. React DOM reads that element's `style`
+   as soon as its code runs, so a static import threw in XML documents such as sitemaps and
+   feeds. Keep React and anything that touches the page out of the entrypoint's static imports.
+   `content_ui.tsx` creates one extension root and a Shadow DOM. A document-level observer
    reattaches that same host if the page replaces `document.body`; portals use the stable target
    supplied by context, and an error boundary offers an in-page retry for unexpected render errors.
 2. `Searchbar` accepts type-to-search input and schedules cancellable searches.

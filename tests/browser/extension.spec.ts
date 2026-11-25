@@ -354,6 +354,20 @@ test('page stylesheets cannot hide the result outlines drawn inside frames', asy
   expect((await Promise.all(page.frames().slice(1).map(layers))).flat()).not.toContain('none');
 });
 
+test('stays out of XML documents such as sitemaps without reporting errors', async ({ page }) => {
+  // React DOM threw as it loaded on these, since their elements have no `.style`. The
+  // context fixture fails the test on any console error or uncaught exception.
+  await page.goto('feed.xml');
+  expect(await page.evaluate(() => document.contentType)).toMatch(/xml/);
+  await page.waitForLoadState('load');
+  // The content script runs at document_idle; give it time to run and fail as it did.
+  await page.waitForTimeout(1000);
+  expect(await page.evaluate(KEYMOVE_HOSTS)).toBe(0);
+  const input = await openSearch(page);
+  await input.pressSequentially('qalpha');
+  await expect(page.getByRole('status')).toHaveText('Text 1 / 1');
+});
+
 test('an orphaned copy retires for the copy injected after an extension reload', async ({
   page,
   context,
