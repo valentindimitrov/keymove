@@ -20,7 +20,10 @@ vi.mock('./components/searchbar/searchbar.js', () => ({
 }));
 
 type Context = { onInvalidated: (callback: () => void) => () => void };
-type Definition = { main: (context: Context) => void; noScriptStartedPostMessage?: boolean };
+type Definition = {
+  main: (context: Context) => void | Promise<void>;
+  noScriptStartedPostMessage?: boolean;
+};
 
 // Mirrors WXT's ContentScriptContext: an abort signal whose listeners run once.
 function wxtContext() {
@@ -59,6 +62,13 @@ afterEach(() => {
   unmount.mockClear();
 });
 
+// main loads the interface module before mounting, so a start completes asynchronously.
+async function start(context: Context) {
+  await act(async () => {
+    await definition.main(context);
+  });
+}
+
 const hosts = () => document.querySelectorAll(`#${KEYMOVE_ROOT_ID}`);
 const searchInput = () => hosts()[0]?.shadowRoot?.querySelector('input') ?? null;
 
@@ -66,9 +76,9 @@ test('does not announce its startup event type to page script', () => {
   expect(definition.noScriptStartedPostMessage).toBe(true);
 });
 
-test('stays mounted when a page forges the content-script replacement signal', () => {
+test('stays mounted when a page forges the content-script replacement signal', async () => {
   const first = wxtContext();
-  act(() => definition.main(first.context));
+  await start(first.context);
   expect(searchInput()).not.toBeNull();
   // The page forged WXT's started event; the runtime is still valid.
   act(() => first.invalidate());
@@ -82,7 +92,7 @@ test('stays mounted when a page forges the content-script replacement signal', (
 
 test('an orphaned instance retires for a newer one even after a forged signal', async () => {
   const orphan = wxtContext();
-  act(() => definition.main(orphan.context));
+  await start(orphan.context);
   act(() => orphan.invalidate());
   // The extension reloads: this instance's runtime is gone, and a new copy in a fresh
   // isolated world (one mocked runtime here, so it is valid again) announces itself.
@@ -92,7 +102,7 @@ test('an orphaned instance retires for a newer one even after a forged signal', 
   });
   runtime.id = 'keymove-test';
   const newer = wxtContext();
-  act(() => definition.main(newer.context));
+  await start(newer.context);
   expect(unmount).toHaveBeenCalledOnce();
   await Promise.resolve();
   expect(hosts()).toHaveLength(1);
@@ -103,10 +113,10 @@ test('an orphaned instance retires for a newer one even after a forged signal', 
   expect(hosts()).toHaveLength(1);
 });
 
-test('a second working instance in the same document does not mount', () => {
-  act(() => definition.main(wxtContext().context));
+test('a second working instance in the same document does not mount', async () => {
+  await start(wxtContext().context);
   const original = hosts()[0];
-  act(() => definition.main(wxtContext().context));
+  await start(wxtContext().context);
   expect(hosts()).toHaveLength(1);
   expect(hosts()[0]).toBe(original);
   expect(unmount).not.toHaveBeenCalled();
@@ -114,7 +124,7 @@ test('a second working instance in the same document does not mount', () => {
 
 test('unmounts React and stops host reattachment once the extension context is gone', async () => {
   const instance = wxtContext();
-  act(() => definition.main(instance.context));
+  await start(instance.context);
   runtime.id = undefined;
   act(() => instance.invalidate());
   expect(unmount).toHaveBeenCalledOnce();
@@ -130,7 +140,7 @@ test('an orphan whose hints were all blocked retires instead of reattaching its 
   window.addEventListener('keymove:content-script-started:content', swallow, true);
   try {
     const orphan = wxtContext();
-    act(() => definition.main(orphan.context));
+    await start(orphan.context);
     act(() => orphan.invalidate());
     // The extension reloads. No hint reaches this copy; a newer copy removes its host.
     runtime.id = undefined;

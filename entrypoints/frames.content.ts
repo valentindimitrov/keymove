@@ -10,6 +10,9 @@ export default defineContentScript({
   noScriptStartedPostMessage: true,
   main(ctx) {
     if (window === window.top) return;
+    // Like the top frame's script: the outline layer is styled through `.style`, which an
+    // XML document's elements lack, so nothing runs in one.
+    if (!(document.createElement('div') instanceof HTMLElement)) return;
     runSingleContentScript(ctx, 'frames', alive => {
       const teardown = installFrameWorker(alive);
       // Remove overlays an earlier copy of the extension left and can no longer remove.

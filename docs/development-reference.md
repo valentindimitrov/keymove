@@ -115,8 +115,10 @@ lockfile records it, and replace the hash with the new tarball's SHA-512 (hex, f
 
 ### Architecture
 
-- [entrypoints/content.tsx](../entrypoints/content.tsx) mounts the interface inside an isolated Shadow
-  DOM and restores it if a page replaces `document.body`.
+- [entrypoints/content.tsx](../entrypoints/content.tsx) loads
+  [src/content_ui.tsx](../src/content_ui.tsx) into HTML documents (not XML ones such as
+  sitemaps), which mounts the interface inside an isolated Shadow DOM and restores it if a page
+  replaces `document.body`.
 - [src/components/searchbar/searchbar.tsx](../src/components/searchbar/searchbar.tsx) coordinates input,
   the two navigation modes, activation, selection, and copying.
 - [src/lib/page_search_index.ts](../src/lib/page_search_index.ts) maintains a mutation-aware page index
