@@ -304,6 +304,12 @@ to those owned roots; never apply it to the host page's document. Keep both pale
 same components and layout rules. Settings use a shared control/text grid. See
 `docs/appearance.md` for token conventions and preview scenarios.
 
+Page stylesheets select KeyMove's hosts like any other element, and a page rule beats a
+normal `:host` declaration. Every declaration on the host itself (`:host`, `:host(...)`)
+is therefore `!important`, which wins over the page's important rules too; the child-frame
+outline layer uses inline important declarations for the same reason. Shopify's Dawn theme
+once hid the whole searchbar with `div:empty { display: none }`.
+
 Never read a custom property without a fallback. An unresolved `var()` is invalid at
 computed-value time, which resets the whole declaration it appears in. Inside a shorthand
 that resets every longhand it controls, so `border: 2px solid rgb(var(--accent))` becomes
