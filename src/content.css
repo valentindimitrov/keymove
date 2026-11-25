@@ -1,22 +1,27 @@
+/* Page rules select the host like any other element, and in the cascade they beat a
+   normal :host declaration. Important ones here beat the page's, even its important
+   ones: Shopify's Dawn theme hid the whole searchbar with `div:empty { display: none }`.
+   So every host declaration is important, including the color-scheme in the theme
+   blocks below, which the reset would otherwise clear. */
 :host {
-  all: initial;
-  display: block;
-  text-transform: none;
+  all: initial !important;
+  display: block !important;
+  text-transform: none !important;
 }
 
 /* Modal ownership is for focus, not layout. A manual popover escapes transformed
    and clipped drawer ancestors without adding a surface that intercepts the page. */
 :host([popover]) {
-  position: fixed;
-  inset: 0 auto auto 0;
-  width: 0;
-  height: 0;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  overflow: visible;
-  background: transparent;
-  pointer-events: none;
+  position: fixed !important;
+  inset: 0 auto auto 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  overflow: visible !important;
+  background: transparent !important;
+  pointer-events: none !important;
 }
 
 :host([popover])::backdrop {
@@ -27,7 +32,7 @@
    Every use has a literal fallback, including borders and other shorthands. */
 :host,
 :root {
-  color-scheme: dark;
+  color-scheme: dark !important;
   --keymove-font-ui: 'Helvetica Neue', Helvetica, Arial, 'Lucida Grande', sans-serif;
   --keymove-font-size: 13px;
   --keymove-font-small: 12px;
@@ -77,7 +82,7 @@
 
 :host([data-keymove-theme='light']),
 :root[data-keymove-theme='light'] {
-  color-scheme: light;
+  color-scheme: light !important;
   --keymove-surface: rgba(250, 250, 252, 0.96);
   --keymove-surface-firefox: rgba(250, 250, 252, 0.98);
   --keymove-popup-surface: rgb(250, 250, 252);
@@ -111,7 +116,7 @@
   box-sizing: border-box;
 }
 
-/* `:host { all: initial }` gives anything that does not set a family the browser default:
+/* The host's `all: initial` gives anything that does not set a family the browser default:
    a serif at 16px. Declared on both roots inside the shadow root so that any subtree added
    later inherits the interface type rather than having to remember to ask for it. Tests
    cannot see this, since a wrong font changes no structure, role or class. */

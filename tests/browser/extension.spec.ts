@@ -1,4 +1,4 @@
-import type { BrowserContext, Locator, Page } from '@playwright/test';
+import type { BrowserContext, Frame, Locator, Page } from '@playwright/test';
 import { test, expect } from './fixtures.js';
 
 async function openSearch(page: Page, fixture = 'fixtures.html') {
@@ -296,6 +296,62 @@ test('mounts beside a page element that already uses the root id and searches it
   await expect
     .poll(() => page.evaluate(() => window.getSelection()?.toString()))
     .toBe('Impostor quokka paragraph');
+});
+
+test('page stylesheets cannot hide, move or cover the searchbar host', async ({ page }) => {
+  // Shopify's Dawn theme ships `div:empty { display: none }`, which matched the host:
+  // its only content is a shadow root. The rest are generic rules for the last child of
+  // body, where the host lives, marked important as a hostile page may.
+  await page.addInitScript(() => {
+    document.addEventListener('DOMContentLoaded', () => {
+      const style = document.createElement('style');
+      style.textContent = `
+        div:empty { display: none !important; }
+        body > div:last-child {
+          visibility: hidden !important;
+          opacity: 0 !important;
+          transform: translateX(-200vw) !important;
+          position: relative !important;
+          z-index: 0 !important;
+        }`;
+      document.head.append(style);
+    });
+  });
+  const input = await openSearch(page);
+  await input.pressSequentially('qalpha');
+  await expect(page.getByRole('status')).toHaveText('Text 1 / 1');
+  const bar = page.locator('#keymove-bar');
+  await expect(bar).toBeVisible();
+  await expect(bar).toBeInViewport();
+  expect(
+    await page
+      .locator('#keymove-root')
+      .evaluate(host => [getComputedStyle(host).opacity, getComputedStyle(host).zIndex]),
+  ).toEqual(['1', 'auto']);
+});
+
+test('page stylesheets cannot hide the result outlines drawn inside frames', async ({ page }) => {
+  // Init scripts also run in child frames; each frame's outline layer is an empty div.
+  await page.addInitScript(() => {
+    document.addEventListener('DOMContentLoaded', () => {
+      const style = document.createElement('style');
+      style.textContent = 'div:empty { display: none !important; }';
+      document.head.append(style);
+    });
+  });
+  const input = await openSearch(page, 'frames.html');
+  await input.pressSequentially('Launch');
+  await expect(page.getByRole('status')).toHaveText(/^(Text|Actions) 1 \/ [1-9]$/);
+  const layers = (frame: Frame) =>
+    frame.evaluate(() =>
+      [...document.querySelectorAll('div')]
+        .filter(element => element.shadowRoot?.querySelector('.keymove-selection'))
+        .map(element => getComputedStyle(element).display),
+    );
+  await expect
+    .poll(async () => (await Promise.all(page.frames().slice(1).map(layers))).flat())
+    .toEqual(expect.arrayContaining(['block']));
+  expect((await Promise.all(page.frames().slice(1).map(layers))).flat()).not.toContain('none');
 });
 
 test('an orphaned copy retires for the copy injected after an extension reload', async ({

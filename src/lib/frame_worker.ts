@@ -162,8 +162,18 @@ export function installFrameWorker(alive: () => boolean = () => true) {
     marks = document.createElement('div');
     marks.id = 'keymove-root';
     markKeyMoveRoot(marks);
-    marks.style.cssText =
-      'all:initial;position:fixed;inset:0;pointer-events:none;z-index:2147483647;';
+    // Important, like the top frame's :host rules: an empty div is what page rules such
+    // as `div:empty { display: none }` hide, and only inline important declarations beat
+    // the page's own important ones.
+    marks.style.cssText = [
+      'all:initial',
+      'position:fixed',
+      'inset:0',
+      'pointer-events:none',
+      'z-index:2147483647',
+    ]
+      .map(declaration => `${declaration} !important;`)
+      .join('');
     const shadow = marks.attachShadow({ mode: 'open' });
     signKeyMoveHost(shadow);
     for (const node of local) {
