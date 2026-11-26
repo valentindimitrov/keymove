@@ -241,5 +241,5 @@ function visibleText(node: Element, cache: StyleCache = new WeakMap()): string {
   return parts.join('');
 }
 
-export { isInlineLevel, isTextVisible, iterateRenderedText, visibleText };
+export { computedStyle, isInlineLevel, isTextVisible, iterateRenderedText, visibleText };
 export type { StyleCache, OwnedText, RenderedTextPart, TextBoundary };
