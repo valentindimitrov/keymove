@@ -28,8 +28,11 @@ import {
 } from './interaction_settings_schema.js';
 import { isRecord } from './runtime_schema.js';
 import { rgbaForHexColor } from './highlight_colors_schema.js';
-import { scheduleHighlightRanges, shadowHighlightStyles } from '../hooks/use_highlights.js';
-import highlightStyles from '../highlights.css?inline';
+import {
+  concreteHighlightStyles,
+  scheduleHighlightRanges,
+  shadowHighlightStyles,
+} from '../hooks/use_highlights.js';
 import { KEYMOVE_HIGHLIGHT_NAME, ACTION_PRIORITY_BOOST } from '../constants.js';
 import { markKeyMoveRoot, renderedParent } from './dom_tree.js';
 import { signKeyMoveHost } from './host_marker.js';
@@ -132,12 +135,7 @@ export function installFrameWorker(alive: () => boolean = () => true) {
       typeof window.Highlight !== 'undefined'
     ) {
       const sheet = new CSSStyleSheet();
-      sheet.replaceSync(
-        highlightStyles
-          .replace(/var\(--keymove-text-wash,[^;]+\)/g, rgbaForHexColor(request.color, 0.28))
-          .replace(/var\(--keymove-text-accent,[^)]+\)/g, request.color)
-          .replace(/var\(--keymove-text-ink,[^)]+\)/g, '#111111'),
-      );
+      sheet.replaceSync(concreteHighlightStyles(request.color));
       document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
       let removeShadowStyles = () => {};
       const cancel = scheduleHighlightRanges(
