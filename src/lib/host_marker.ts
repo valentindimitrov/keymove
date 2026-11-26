@@ -73,8 +73,12 @@ export function removeStaleKeyMoveHosts(
   let removed = 0;
   for (const host of document.querySelectorAll(`#${KEYMOVE_ROOT_ID}`)) {
     // KeyMove's hosts have no light-DOM children, so no page content goes with them.
-    if (isKeyMoveRoot(host) || host.hasChildNodes() || !host.shadowRoot) continue;
-    const signed = [...host.shadowRoot.children].some(
+    if (isKeyMoveRoot(host) || host.hasChildNodes()) continue;
+    // An earlier copy's root is closed in shipped builds, so it is read through the
+    // extension-only accessor; where the browser offers none, the host stays.
+    const root = host.shadowRoot ?? read(host);
+    if (!root) continue;
+    const signed = [...root.children].some(
       child => read(child)?.firstElementChild?.getAttribute(SECRET_ATTRIBUTE) === value,
     );
     if (signed) {

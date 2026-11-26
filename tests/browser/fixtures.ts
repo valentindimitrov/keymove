@@ -7,7 +7,19 @@ import { createPreviewCopy } from '../../scripts/preview-extension.js';
 
 const root = path.resolve(import.meta.dirname, '../..');
 
-export const test = base.extend<{ extensionId: string }, { fixtureOrigin: string }>({
+// The test build keeps KeyMove's shadow roots open so locators can reach inside; shipped
+// builds close them (SECURITY.md). Specs that check the shipped behaviour use `production`.
+type BuildVariant = 'test' | 'production';
+const BUILDS: Record<BuildVariant, { directory: string; command: string }> = {
+  test: { directory: '.output/chrome-mv3-test', command: 'pnpm build:chromium:test' },
+  production: { directory: '.output/chrome-mv3', command: 'pnpm build:chromium' },
+};
+
+export const test = base.extend<
+  { extensionId: string; build: BuildVariant },
+  { fixtureOrigin: string }
+>({
+  build: ['test', { option: true }],
   fixtureOrigin: [
     // Playwright parses fixture dependencies from this destructuring pattern.
     // oxlint-disable-next-line no-empty-pattern
@@ -42,10 +54,10 @@ export const test = base.extend<{ extensionId: string }, { fixtureOrigin: string
   baseURL: async ({ fixtureOrigin }, provide) => {
     await provide(fixtureOrigin);
   },
-  context: async ({ headless, viewport, baseURL }, provide) => {
-    const build = path.join(root, '.output/chrome-mv3');
+  context: async ({ headless, viewport, baseURL, build: variant }, provide) => {
+    const build = path.join(root, BUILDS[variant].directory);
     await access(path.join(build, 'manifest.json')).catch(() => {
-      throw new Error('Build missing. Run pnpm test:e2e or pnpm build:chromium first.');
+      throw new Error(`Build missing. Run pnpm test:e2e or ${BUILDS[variant].command} first.`);
     });
     const preview = createPreviewCopy(build);
     try {

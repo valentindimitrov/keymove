@@ -63,7 +63,9 @@ Never infer Safari runtime compatibility from a Windows build or Chromium smoke 
 ```
 
 Generated directories are `.output/` and `.wxt/`; do not edit or commit them. Production unpacked
-artifacts are `.output/chrome-mv3`, `.output/firefox-mv3` and `.output/safari-mv3`.
+artifacts are `.output/chrome-mv3`, `.output/firefox-mv3` and `.output/safari-mv3`. The
+browser suite's test build, with open shadow roots, is `.output/chrome-mv3-test`
+(`pnpm build:chromium:test`); never load it in a regular profile or publish it.
 
 ## Runtime flow
 
@@ -129,8 +131,14 @@ artifacts are `.output/chrome-mv3`, `.output/firefox-mv3` and `.output/safari-mv
 
 ## Untrusted page input
 
-Page script shares the DOM and can dispatch any event at KeyMove's listeners, and reach
-the open shadow root. Every KeyMove listener whose effect is a state change, focus move,
+Page script shares the DOM and can dispatch any event at KeyMove's listeners. Shipped
+builds close KeyMove's shadow roots (`attachKeyMoveShadow` in `dom_tree.ts`; reasons and
+limits in `SECURITY.md`), so page script cannot read results, which include text from
+cross-origin frames, or drive the interface. Test builds and development servers keep them
+open; never rely on a page being unable to reach them in those. KeyMove reaches its own
+roots through `keyMoveShadowRoot`, never `host.shadowRoot`, and document-level listeners
+see its host as the target of events from inside: resolve keyboard and clipboard targets
+with `Utils.focusedEventTarget`. Every KeyMove listener whose effect is a state change, focus move,
 storage write or cleanup ignores untrusted events through `src/lib/trusted_input.ts`; never
 test `event.isTrusted` inline. That covers keyboard, input, copy, paste/cut/composition,
 click and pointer input, focus and blur, mouse moves and releases during drag and resize,
@@ -549,8 +557,11 @@ then removes its temporary build copy.
 
 - `pnpm preview`: rebuild and open the preferred installed browser.
 - `pnpm browser:install`: install Playwright's bundled Chromium once.
-- `pnpm test:e2e`: rebuild Chromium and run the Playwright browser suite in bundled Chromium.
-- `pnpm test:e2e:built`: the same suite on the existing build after `pnpm quality`. All
+- `pnpm test:e2e`: rebuild Chromium, both the production build and the test build whose
+  shadow roots stay open for locators, and run the Playwright browser suite in bundled
+  Chromium. `tests/browser/closed-root.spec.ts` checks the production build's closed roots.
+- `pnpm test:e2e:built`: the same suite on the existing builds after `pnpm quality` and
+  `pnpm build:chromium:test`. All
   automated installed-extension checks live in this one Playwright suite under `tests/browser/`,
   separate from Vitest. Its fresh profiles and snapshots preserve the same isolation rule.
   See `docs/browser-testing.md` for the coverage map, failure artifacts and playwright-cli
@@ -559,7 +570,8 @@ then removes its temporary build copy.
   installed of Vivaldi (through its Chromium shell, `--disable-vivaldi`) and Chrome, record
   cold/warm timings in `.artifacts/playwright/<browser>/timings.json`, and close the dedicated
   browser. This also fulfills the preview launch requirement.
-- `pnpm test:browser:built`: the same on existing production output after `pnpm quality`;
+- `pnpm test:browser:built`: the same on existing production output after `pnpm quality`
+  (it builds the test variant if `.output/chrome-mv3-test` is missing);
   `pnpm test:browser:vivaldi` and `pnpm test:browser:chrome` name the browser. Run it for input,
   navigation, search, settings, and extension-mounting changes. Tests use real Playwright
   input only, never script-dispatched events at KeyMove's controls, and pass values to

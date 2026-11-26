@@ -34,7 +34,7 @@ import {
   shadowHighlightStyles,
 } from '../hooks/use_highlights.js';
 import { KEYMOVE_HIGHLIGHT_NAME, ACTION_PRIORITY_BOOST } from '../constants.js';
-import { markKeyMoveRoot, renderedParent } from './dom_tree.js';
+import { attachKeyMoveShadow, renderedParent } from './dom_tree.js';
 import { signKeyMoveHost } from './host_marker.js';
 import { RelatedImageSelection } from './related_images.js';
 import { isImageDirection } from './image_schema.js';
@@ -164,7 +164,6 @@ export function installFrameWorker(alive: () => boolean = () => true) {
     if (!local.length) return;
     marks = document.createElement('div');
     marks.id = 'keymove-root';
-    markKeyMoveRoot(marks);
     // Important, like the top frame's :host rules: an empty div is what page rules such
     // as `div:empty { display: none }` hide, and only inline important declarations beat
     // the page's own important ones.
@@ -177,7 +176,7 @@ export function installFrameWorker(alive: () => boolean = () => true) {
     ]
       .map(declaration => `${declaration} !important;`)
       .join('');
-    const shadow = marks.attachShadow({ mode: 'open' });
+    const shadow = attachKeyMoveShadow(marks);
     signKeyMoveHost(shadow);
     for (const node of local) {
       const rect = node.getBoundingClientRect();

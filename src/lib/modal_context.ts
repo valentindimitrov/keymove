@@ -3,9 +3,10 @@ import { frameTarget } from './frame_target.js';
 import { labelledToggle } from './searchable_attributes.js';
 import {
   closestAcrossRoots,
+  isKeyMoveNode,
+  keyMoveShadowRoot,
   pageShadowRoots,
   renderedContains,
-  isKeyMoveNode,
 } from './dom_tree.js';
 
 let modalOrder: Element[] = [];
@@ -22,7 +23,12 @@ function isNativeModal(node: Element) {
 // Keep activation order as dialogs appear, and use real page focus to disambiguate
 // stacked siblings. Focusing KeyMove itself must not reorder the stack.
 function activeModal(focused: Element | null = document.activeElement): Element | null {
-  while (focused?.shadowRoot?.activeElement) focused = focused.shadowRoot.activeElement;
+  // KeyMove's own root is closed in shipped builds and reachable only by reference.
+  while (focused) {
+    const root = focused.shadowRoot ?? keyMoveShadowRoot(focused);
+    if (!root?.activeElement) break;
+    focused = root.activeElement;
+  }
   const candidates = Array.from(
     [document, ...pageShadowRoots()].flatMap(root => [
       ...root.querySelectorAll(

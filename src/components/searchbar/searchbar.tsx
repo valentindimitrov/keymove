@@ -955,7 +955,7 @@ const Searchbar = () => {
 
   const handleShortcut = React.useCallback(
     (keyboardShortcutName: KeyboardShortcutName, event: KeyboardEvent) => {
-      const target = event.composedPath()[0] ?? event.target;
+      const target = Utils.focusedEventTarget(event);
       if (
         keyboardShortcutName !== 'focus_searchbar' &&
         keyboardShortcutName !== 'select_related_image' &&
@@ -1034,7 +1034,7 @@ const Searchbar = () => {
       ) {
         return;
       }
-      const target = event.composedPath()[0] ?? event.target;
+      const target = Utils.focusedEventTarget(event);
       if (target !== searchInputRef.current && Utils.isExtensionElement(target)) return;
       const copyText =
         selectedTextMatch && resultIsConnected(selectedTextMatch.node)

@@ -3,7 +3,7 @@ import { normalizedOpenableLinkUrl } from './extension_tabs.js';
 import { isActionDisabled, labelledToggle } from './searchable_attributes.js';
 import { iterateRenderedText } from './visible_text.js';
 import { frameTarget } from './frame_target.js';
-import { isKeyMoveNode } from './dom_tree.js';
+import { isKeyMoveNode, isKeyMoveRoot, keyMoveShadowRoot } from './dom_tree.js';
 import { openOrClosedShadowRoot } from './host_marker.js';
 
 const FOCUS_WIDGET_ROLES = [
@@ -75,7 +75,12 @@ function activeElementChain(): Element[] {
   let activeElement = document.activeElement;
   while (activeElement) {
     chain.push(activeElement);
-    const root = activeElement.shadowRoot ?? openOrClosedShadowRoot(activeElement);
+    // KeyMove's own root by reference: it is closed in shipped builds, and Safari may
+    // offer no extension access to closed roots.
+    const root =
+      activeElement.shadowRoot ??
+      keyMoveShadowRoot(activeElement) ??
+      openOrClosedShadowRoot(activeElement);
     activeElement = root?.activeElement ?? null;
   }
   return chain;
@@ -84,6 +89,18 @@ function activeElementChain(): Element[] {
 // A host that delegates focus counts as active while its inner element has focus.
 function elementIsActive(element: Element | null) {
   return element !== null && activeElementChain().includes(element);
+}
+
+/**
+ * The element a keyboard or clipboard event concerns. Listeners outside a closed root see
+ * its host as the target, so for KeyMove's own host the focused element inside stands in:
+ * those events go to the focused element.
+ */
+function focusedEventTarget(event: Event): EventTarget | null {
+  const target = event.composedPath()[0] ?? event.target;
+  return target instanceof Element && isKeyMoveRoot(target)
+    ? (activeElementChain().at(-1) ?? target)
+    : target;
 }
 
 function isExtensionElement(element: EventTarget | null) {
@@ -287,6 +304,7 @@ function restoreInputSelection(input: HTMLInputElement) {
 
 const Utils = {
   differentInputIsActive,
+  focusedEventTarget,
   elementIsActive,
   isExtensionElement,
   clickOrFocusNode,

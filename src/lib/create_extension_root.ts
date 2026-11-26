@@ -3,7 +3,8 @@ import { activeModal, MODAL_CHANGED_EVENT } from './modal_context.js';
 import {
   pageShadowRoots,
   isKeyMoveNode,
-  markKeyMoveRoot,
+  attachKeyMoveShadow,
+  keyMoveShadowRoot,
   PAGE_ROOTS_CHANGED,
   retainPageRoot,
   releasePageRoot,
@@ -29,12 +30,11 @@ type ExtensionRoot = {
 function createExtensionRoot(stylesText: string, browserName?: string): ExtensionRoot {
   const host = document.createElement('div');
   host.id = KEYMOVE_ROOT_ID;
-  markKeyMoveRoot(host);
   if (browserName === 'firefox') {
     host.classList.add('keymove-firefox');
   }
 
-  const shadowRoot = host.attachShadow({ mode: 'open' });
+  const shadowRoot = attachKeyMoveShadow(host);
   // React handles clicks inside the shadow root first. Page listeners would see only
   // this shallow host, not the clicked control, and can mistake it for page content.
   // Do not prevent defaults or intercept clicks dispatched on actual page actions.
@@ -86,7 +86,7 @@ function keepExtensionRootConnected(host: HTMLElement, alive: () => boolean = ()
       // extension UI. Keep the DOM inside, but render in the top layer: a transformed
       // drawer must not become the containing block for our viewport-positioned UI,
       // nor gain scrollable overflow from the searchbar and selection outlines.
-      const focused = host.shadowRoot?.activeElement;
+      const focused = keyMoveShadowRoot(host)?.activeElement;
       movingExtensionRoot = true;
       try {
         const supportsPopover = typeof host.showPopover === 'function';

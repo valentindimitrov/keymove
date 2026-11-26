@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { testBrowsers } from './browser-context.ts';
 import type { TestBrowser } from './browser-context.ts';
@@ -49,8 +50,14 @@ export async function runBrowserTests(args: string[]): Promise<void> {
         else reject(new Error(`${path.basename(script)} exited with ${signal ?? code}.`));
       });
     });
+  // The suite runs on a test build, whose shadow roots stay open so Playwright can look
+  // inside, and checks the closed roots of the production build separately.
+  const wxt = path.join(root, 'node_modules/wxt/bin/wxt.mjs');
   if (!args.includes('--no-build')) {
-    await run(path.join(root, 'node_modules/wxt/bin/wxt.mjs'), ['build', '-b', 'chrome', '--mv3']);
+    await run(wxt, ['build', '-b', 'chrome', '--mv3']);
+    await run(wxt, ['build', '-b', 'chrome', '--mv3', '--mode', 'test']);
+  } else if (!existsSync(path.join(root, '.output/chrome-mv3-test/manifest.json'))) {
+    await run(wxt, ['build', '-b', 'chrome', '--mv3', '--mode', 'test']);
   }
   await run(path.join(root, 'node_modules/@playwright/test/cli.js'), [
     'test',
