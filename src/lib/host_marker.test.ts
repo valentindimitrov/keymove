@@ -66,6 +66,19 @@ test('removes a host signed by an earlier copy of this extension, never the curr
   expect(hosts()).toEqual([current]);
 });
 
+test('removes a stale host that had moved into a modal inside an open shadow root', async () => {
+  const stale = await leftByPreviousCopy();
+  await settle();
+  const component = document.createElement('checkout-dialog');
+  document.body.append(component);
+  const dialog = document.createElement('div');
+  dialog.setAttribute('role', 'dialog');
+  component.attachShadow({ mode: 'open' }).append(dialog);
+  dialog.append(stale);
+  expect(removeStaleKeyMoveHosts(SECRET, read)).toBe(1);
+  expect(stale.isConnected).toBe(false);
+});
+
 test('keeps page elements, whatever shape or marker they copy', async () => {
   const guessed = pageImpostor('f'.repeat(32));
   const open = pageImpostor('0'.repeat(32), 'open');

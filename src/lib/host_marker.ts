@@ -71,7 +71,7 @@ export function removeStaleKeyMoveHosts(
   read: ReadShadowRoot = openOrClosedShadowRoot,
 ): number {
   let removed = 0;
-  for (const host of document.querySelectorAll(`#${KEYMOVE_ROOT_ID}`)) {
+  for (const host of candidateHosts()) {
     // KeyMove's hosts have no light-DOM children, so no page content goes with them.
     if (isKeyMoveRoot(host) || host.hasChildNodes() || !host.shadowRoot) continue;
     const signed = [...host.shadowRoot.children].some(
@@ -83,6 +83,23 @@ export function removeStaleKeyMoveHosts(
     }
   }
   return removed;
+}
+
+/**
+ * Elements with KeyMove's host id in the document and in every open shadow root below it:
+ * a host moves inside a modal, which can sit in a component's root. The id only narrows
+ * the search; the signature decides. KeyMove's own roots are not entered.
+ */
+function candidateHosts(): Element[] {
+  const hosts: Element[] = [];
+  const roots: (Document | ShadowRoot)[] = [document];
+  for (let root = roots.pop(); root; root = roots.pop()) {
+    hosts.push(...root.querySelectorAll(`#${KEYMOVE_ROOT_ID}`));
+    for (const element of root.querySelectorAll('*'))
+      if (element.shadowRoot && !isKeyMoveRoot(element) && element.id !== KEYMOVE_ROOT_ID)
+        roots.push(element.shadowRoot);
+  }
+  return hosts;
 }
 
 /**
