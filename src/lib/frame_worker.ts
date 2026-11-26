@@ -54,6 +54,8 @@ export function installFrameWorker(alive: () => boolean = () => true) {
   let imageToken = '';
   const children = new FrameSearch(changed);
   let nestedQuery = '';
+  let searchQuery = '';
+  let textMatchesQuery = '';
   let nestedResults: SearchResult[] = [];
   let marks: HTMLElement | null = null;
   let lastPaint: Extract<FrameRequest, { op: 'paint' }> | null = null;
@@ -130,6 +132,9 @@ export function installFrameWorker(alive: () => boolean = () => true) {
     clearChildren = paintFrameTargets(matching, selected, request.color, request.highlight);
     if (
       request.highlight &&
+      // Retained matches from a finished search for another query must not be shown
+      // while this frame searches again; a cached painter can still reach it meanwhile.
+      textMatchesQuery === searchQuery &&
       typeof CSS !== 'undefined' &&
       CSS.highlights &&
       typeof window.Highlight !== 'undefined'
@@ -263,6 +268,8 @@ export function installFrameWorker(alive: () => boolean = () => true) {
     if (signal.aborted) throw new DOMException('Cancelled', 'AbortError');
     nodes = currentNodes;
     textMatches = result.matchingText;
+    // A newer search for another query aborts this one, so these matches are its query's.
+    textMatchesQuery = searchQuery;
     return rows;
   }
   function stop() {
@@ -281,8 +288,10 @@ export function installFrameWorker(alive: () => boolean = () => true) {
     children.stop();
     nestedResults = [];
     nestedQuery = '';
+    searchQuery = '';
     nodes.clear();
     textMatches = [];
+    textMatchesQuery = '';
     origin = null;
     scrollOrigins.clear();
   }
@@ -294,6 +303,10 @@ export function installFrameWorker(alive: () => boolean = () => true) {
       controller = new AbortController();
       const signal = controller.signal;
       owner = requester;
+      // Marks for another query are stale. A frame left without rows is never painted
+      // again, so its clearing paint may never come. A refresh keeps them for repainting.
+      if (request.query !== searchQuery) clearMarks();
+      searchQuery = request.query;
       generation = request.generation;
       if (!index || index.root !== document.body) {
         index?.disconnect();

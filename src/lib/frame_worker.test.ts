@@ -71,6 +71,122 @@ test('routes image selection with live tokens and cleans its frame overlay', asy
     vi.restoreAllMocks();
   }
 });
+test('a new query clears outlines; a refresh keeps them for the top frame to repaint', async () => {
+  document.body.innerHTML = '<p>otter one</p><p>beaver two</p>';
+  vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(100);
+  vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(100);
+  transport.add.mockClear();
+  const teardown = installFrameWorker();
+  const listener = transport.add.mock.calls[0]![0];
+  const request = (body: FrameRequest): Promise<unknown> =>
+    new Promise(resolve => {
+      listener(
+        { type: FRAME_MESSAGE, kind: 'deliver', requester: 0, request: body },
+        { id: 'test' },
+        resolve,
+      );
+    });
+  const marks = () => document.getElementById('keymove-root');
+  const paint = { op: 'paint' as const, selected: null, color: '#f59e0b', highlight: false };
+  try {
+    const reply = (await request({
+      op: 'search',
+      query: 'otter',
+      generation: 'one',
+      depth: 1,
+    })) as FrameReply;
+    const id = reply.rows.find(row => row.kind === 'text')!.id;
+    await request({ ...paint, generation: 'one', ids: [id], selected: id });
+    expect(marks()).not.toBeNull();
+    // The query moves on; this frame has no rows now, so nothing paints it again.
+    const next = (await request({
+      op: 'search',
+      query: 'otterzzz',
+      generation: 'two',
+      depth: 1,
+    })) as FrameReply;
+    expect(next.rows).toEqual([]);
+    // The top frame's cleanup paint still carries the first generation.
+    expect(await request({ ...paint, generation: 'one', ids: [] })).toBeNull();
+    expect(marks()).toBeNull();
+    // A refresh of the same query keeps the marks until the top frame repaints them.
+    const third = (await request({
+      op: 'search',
+      query: 'beaver',
+      generation: 'three',
+      depth: 1,
+    })) as FrameReply;
+    const beaver = third.rows.find(row => row.kind === 'text')!.id;
+    await request({ ...paint, generation: 'three', ids: [beaver], selected: beaver });
+    await request({ op: 'search', query: 'beaver', generation: 'four', depth: 1 });
+    expect(marks()).not.toBeNull();
+    expect(await request({ ...paint, generation: 'four', ids: [] })).toBe(true);
+    expect(marks()).toBeNull();
+  } finally {
+    teardown();
+    document.body.innerHTML = '';
+    vi.restoreAllMocks();
+  }
+});
+
+test('never highlights matches retained from a search for another query', async () => {
+  document.body.innerHTML = '<p>otter one</p><p>beaver two</p>';
+  vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(100);
+  vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(100);
+  const registry = new Map<string, { size: number }>();
+  vi.stubGlobal('CSS', { highlights: registry });
+  // jsdom has no adoptedStyleSheets.
+  Object.defineProperty(document, 'adoptedStyleSheets', {
+    value: [],
+    writable: true,
+    configurable: true,
+  });
+  vi.stubGlobal(
+    'Highlight',
+    class {
+      size: number;
+      constructor(...ranges: Range[]) {
+        this.size = ranges.length;
+      }
+    },
+  );
+  transport.add.mockClear();
+  const teardown = installFrameWorker();
+  const listener = transport.add.mock.calls[0]![0];
+  const request = (body: FrameRequest): Promise<unknown> =>
+    new Promise(resolve => {
+      listener(
+        { type: FRAME_MESSAGE, kind: 'deliver', requester: 0, request: body },
+        { id: 'test' },
+        resolve,
+      );
+    });
+  const paint = { op: 'paint' as const, selected: null, color: '#f59e0b', highlight: true };
+  try {
+    const reply = (await request({
+      op: 'search',
+      query: 'otter',
+      generation: 'one',
+      depth: 1,
+    })) as FrameReply;
+    const id = reply.rows.find(row => row.kind === 'text')!.id;
+    // A search for another query is still running when a cached painter repaints.
+    const pending = request({ op: 'search', query: 'beaver', generation: 'two', depth: 1 });
+    await request({ ...paint, generation: 'two', ids: [id] });
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(registry.has('keymove-search-results')).toBe(false);
+    await pending;
+    await request({ ...paint, generation: 'two', ids: [id] });
+    await vi.waitFor(() => expect(registry.get('keymove-search-results')?.size).toBe(1));
+  } finally {
+    teardown();
+    document.body.innerHTML = '';
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    Reflect.deleteProperty(document, 'adoptedStyleSheets');
+  }
+});
+
 test('reports the current openable address of a link, and none for other actions', async () => {
   document.body.innerHTML =
     '<a id="draft" href="https://example.com/draft">Quokka notes</a><button>Quokka launch</button>';
