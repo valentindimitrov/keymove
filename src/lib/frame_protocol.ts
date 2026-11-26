@@ -13,7 +13,8 @@ export type FrameCommand =
   | 'hover'
   | 'unhover'
   | 'text'
-  | 'validate';
+  | 'validate'
+  | 'link';
 export type FrameRequest =
   | { op: 'search'; query: string; generation: string; depth: number }
   | { op: 'stop' }
@@ -59,9 +60,17 @@ export function isFrameRequest(value: unknown): value is FrameRequest {
     return (
       id(value.id) &&
       (isImageCommand(value.command) ||
-        ['activate', 'focus', 'scroll', 'select', 'hover', 'unhover', 'text', 'validate'].includes(
-          String(value.command),
-        ))
+        [
+          'activate',
+          'focus',
+          'scroll',
+          'select',
+          'hover',
+          'unhover',
+          'text',
+          'validate',
+          'link',
+        ].includes(String(value.command)))
     );
   return (
     value.op === 'paint' &&

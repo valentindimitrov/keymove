@@ -28,8 +28,11 @@ import {
 } from './interaction_settings_schema.js';
 import { isRecord } from './runtime_schema.js';
 import { rgbaForHexColor } from './highlight_colors_schema.js';
-import { scheduleHighlightRanges, shadowHighlightStyles } from '../hooks/use_highlights.js';
-import highlightStyles from '../highlights.css?inline';
+import {
+  concreteHighlightStyles,
+  scheduleHighlightRanges,
+  shadowHighlightStyles,
+} from '../hooks/use_highlights.js';
 import { KEYMOVE_HIGHLIGHT_NAME, ACTION_PRIORITY_BOOST } from '../constants.js';
 import { markKeyMoveRoot, renderedParent } from './dom_tree.js';
 import { signKeyMoveHost } from './host_marker.js';
@@ -51,6 +54,8 @@ export function installFrameWorker(alive: () => boolean = () => true) {
   let imageToken = '';
   const children = new FrameSearch(changed);
   let nestedQuery = '';
+  let searchQuery = '';
+  let textMatchesQuery = '';
   let nestedResults: SearchResult[] = [];
   let marks: HTMLElement | null = null;
   let lastPaint: Extract<FrameRequest, { op: 'paint' }> | null = null;
@@ -127,17 +132,15 @@ export function installFrameWorker(alive: () => boolean = () => true) {
     clearChildren = paintFrameTargets(matching, selected, request.color, request.highlight);
     if (
       request.highlight &&
+      // Retained matches from a finished search for another query must not be shown
+      // while this frame searches again; a cached painter can still reach it meanwhile.
+      textMatchesQuery === searchQuery &&
       typeof CSS !== 'undefined' &&
       CSS.highlights &&
       typeof window.Highlight !== 'undefined'
     ) {
       const sheet = new CSSStyleSheet();
-      sheet.replaceSync(
-        highlightStyles
-          .replace(/var\(--keymove-text-wash,[^;]+\)/g, rgbaForHexColor(request.color, 0.28))
-          .replace(/var\(--keymove-text-accent,[^)]+\)/g, request.color)
-          .replace(/var\(--keymove-text-ink,[^)]+\)/g, '#111111'),
-      );
+      sheet.replaceSync(concreteHighlightStyles(request.color));
       document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
       let removeShadowStyles = () => {};
       const cancel = scheduleHighlightRanges(
@@ -162,8 +165,18 @@ export function installFrameWorker(alive: () => boolean = () => true) {
     marks = document.createElement('div');
     marks.id = 'keymove-root';
     markKeyMoveRoot(marks);
-    marks.style.cssText =
-      'all:initial;position:fixed;inset:0;pointer-events:none;z-index:2147483647;';
+    // Important, like the top frame's :host rules: an empty div is what page rules such
+    // as `div:empty { display: none }` hide, and only inline important declarations beat
+    // the page's own important ones.
+    marks.style.cssText = [
+      'all:initial',
+      'position:fixed',
+      'inset:0',
+      'pointer-events:none',
+      'z-index:2147483647',
+    ]
+      .map(declaration => `${declaration} !important;`)
+      .join('');
     const shadow = marks.attachShadow({ mode: 'open' });
     signKeyMoveHost(shadow);
     for (const node of local) {
@@ -255,6 +268,8 @@ export function installFrameWorker(alive: () => boolean = () => true) {
     if (signal.aborted) throw new DOMException('Cancelled', 'AbortError');
     nodes = currentNodes;
     textMatches = result.matchingText;
+    // A newer search for another query aborts this one, so these matches are its query's.
+    textMatchesQuery = searchQuery;
     return rows;
   }
   function stop() {
@@ -273,8 +288,10 @@ export function installFrameWorker(alive: () => boolean = () => true) {
     children.stop();
     nestedResults = [];
     nestedQuery = '';
+    searchQuery = '';
     nodes.clear();
     textMatches = [];
+    textMatchesQuery = '';
     origin = null;
     scrollOrigins.clear();
   }
@@ -286,6 +303,10 @@ export function installFrameWorker(alive: () => boolean = () => true) {
       controller = new AbortController();
       const signal = controller.signal;
       owner = requester;
+      // Marks for another query are stale. A frame left without rows is never painted
+      // again, so its clearing paint may never come. A refresh keeps them for repainting.
+      if (request.query !== searchQuery) clearMarks();
+      searchQuery = request.query;
       generation = request.generation;
       if (!index || index.root !== document.body) {
         index?.disconnect();
@@ -419,6 +440,11 @@ export function installFrameWorker(alive: () => boolean = () => true) {
     switch (request.command) {
       case 'validate':
         return !isActionDisabled(node!);
+      case 'link':
+        // The link's address now: the top frame's copy may predate a change to it.
+        return node instanceof HTMLElement && !isActionDisabled(node)
+          ? Utils.openableLinkUrlForNode(node)
+          : null;
       case 'text':
         return visibleText(node!);
       case 'select':

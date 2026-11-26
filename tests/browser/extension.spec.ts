@@ -1,4 +1,4 @@
-import type { BrowserContext, Locator, Page } from '@playwright/test';
+import type { BrowserContext, Frame, Locator, Page } from '@playwright/test';
 import { test, expect } from './fixtures.js';
 
 async function openSearch(page: Page, fixture = 'fixtures.html') {
@@ -296,6 +296,134 @@ test('mounts beside a page element that already uses the root id and searches it
   await expect
     .poll(() => page.evaluate(() => window.getSelection()?.toString()))
     .toBe('Impostor quokka paragraph');
+});
+
+test('page stylesheets cannot hide, move or cover the searchbar host', async ({ page }) => {
+  // Shopify's Dawn theme ships `div:empty { display: none }`, which matched the host:
+  // its only content is a shadow root. The rest are generic rules for the last child of
+  // body, where the host lives, marked important as a hostile page may.
+  await page.addInitScript(() => {
+    document.addEventListener('DOMContentLoaded', () => {
+      const style = document.createElement('style');
+      style.textContent = `
+        div:empty { display: none !important; }
+        body > div:last-child {
+          visibility: hidden !important;
+          opacity: 0 !important;
+          transform: translateX(-200vw) !important;
+          position: relative !important;
+          z-index: 0 !important;
+        }`;
+      document.head.append(style);
+    });
+  });
+  const input = await openSearch(page);
+  await input.pressSequentially('qalpha');
+  await expect(page.getByRole('status')).toHaveText('Text 1 / 1');
+  const bar = page.locator('#keymove-bar');
+  await expect(bar).toBeVisible();
+  await expect(bar).toBeInViewport();
+  expect(
+    await page
+      .locator('#keymove-root')
+      .evaluate(host => [getComputedStyle(host).opacity, getComputedStyle(host).zIndex]),
+  ).toEqual(['1', 'auto']);
+});
+
+test('page stylesheets cannot hide the result outlines drawn inside frames', async ({ page }) => {
+  // Init scripts also run in child frames; each frame's outline layer is an empty div.
+  await page.addInitScript(() => {
+    document.addEventListener('DOMContentLoaded', () => {
+      const style = document.createElement('style');
+      style.textContent = 'div:empty { display: none !important; }';
+      document.head.append(style);
+    });
+  });
+  const input = await openSearch(page, 'frames.html');
+  await input.pressSequentially('Launch');
+  await expect(page.getByRole('status')).toHaveText(/^(Text|Actions) 1 \/ [1-9]$/);
+  const layers = (frame: Frame) =>
+    frame.evaluate(() =>
+      [...document.querySelectorAll('div')]
+        .filter(element => element.shadowRoot?.querySelector('.keymove-selection'))
+        .map(element => getComputedStyle(element).display),
+    );
+  await expect
+    .poll(async () => (await Promise.all(page.frames().slice(1).map(layers))).flat())
+    .toEqual(expect.arrayContaining(['block']));
+  expect((await Promise.all(page.frames().slice(1).map(layers))).flat()).not.toContain('none');
+});
+
+test('opens the current address of an iframe link that changed after the search', async ({
+  page,
+  context,
+}) => {
+  await page.goto('frames.html');
+  await expect(page.locator('#keymove-bar')).toHaveAttribute('data-always-on', 'true');
+  const local = page.locator('iframe').first().contentFrame();
+  await local.locator('body').evaluate(body => {
+    const link = document.createElement('a');
+    link.id = 'quokka';
+    link.href = '/fixtures.html?draft';
+    link.textContent = 'Quokka notes';
+    body.append(link);
+  });
+  await page.keyboard.press('Alt+f');
+  const input = page.getByRole('combobox', { name: 'Search page', exact: true });
+  await input.pressSequentially('quokka');
+  const status = page.getByRole('status');
+  await expect(status).toHaveText(/^(Text|Actions) 1 \/ 1$/);
+  if ((await status.innerText()).startsWith('Text')) await input.press('Alt+s');
+  await expect(status).toHaveText('Actions 1 / 1');
+  // Changed just before the shortcut, sooner than the frame reports the change.
+  await local
+    .locator('#quokka')
+    .evaluate(link => link.setAttribute('href', '/fixtures.html?published'));
+  const opened = context.waitForEvent('page');
+  await input.press('Shift+Enter');
+  const tab = await opened;
+  await expect(tab).toHaveURL(/\/fixtures\.html\?published$/);
+  await tab.close();
+});
+
+test('type-to-search leaves typing in an editor inside a closed shadow root alone', async ({
+  page,
+}) => {
+  // fixtures.html blocks character keys aimed at non-editable targets, such as this host.
+  await page.goto('shadow.html');
+  await expect(page.locator('#keymove-bar')).toHaveAttribute('data-always-on', 'true');
+  await page.evaluate(() => {
+    const host = document.createElement('closed-editor');
+    const root = host.attachShadow({ mode: 'closed' });
+    const editor = document.createElement('div');
+    editor.contentEditable = 'true';
+    editor.style.minHeight = '2em';
+    root.append(editor);
+    document.body.prepend(host);
+    (window as unknown as { closedEditor: HTMLElement }).closedEditor = editor;
+    editor.focus();
+  });
+  await page.keyboard.type('hello');
+  expect(
+    await page.evaluate(
+      () => (window as unknown as { closedEditor: HTMLElement }).closedEditor.textContent,
+    ),
+  ).toBe('hello');
+  await expect(page.locator('#keymove-input')).toHaveValue('');
+});
+
+test('stays out of XML documents such as sitemaps without reporting errors', async ({ page }) => {
+  // React DOM threw as it loaded on these, since their elements have no `.style`. The
+  // context fixture fails the test on any console error or uncaught exception.
+  await page.goto('feed.xml');
+  expect(await page.evaluate(() => document.contentType)).toMatch(/xml/);
+  await page.waitForLoadState('load');
+  // The content script runs at document_idle; give it time to run and fail as it did.
+  await page.waitForTimeout(1000);
+  expect(await page.evaluate(KEYMOVE_HOSTS)).toBe(0);
+  const input = await openSearch(page);
+  await input.pressSequentially('qalpha');
+  await expect(page.getByRole('status')).toHaveText('Text 1 / 1');
 });
 
 test('an orphaned copy retires for the copy injected after an extension reload', async ({
