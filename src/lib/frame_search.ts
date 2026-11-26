@@ -8,6 +8,7 @@ import {
 } from './frame_protocol.js';
 import type { FrameReply, FrameRequest } from './frame_protocol.js';
 import { frameTarget, setFrameTarget, resultIsConnected } from './frame_target.js';
+import type { FrameTarget } from './frame_target.js';
 import { pageShadowRoots } from './dom_tree.js';
 import { activeModal, actionIsInScope } from './modal_context.js';
 import { isTextVisible } from './visible_text.js';
@@ -34,6 +35,7 @@ type Entry = {
   load: (event: Event) => void;
   update?: (reply: FrameReply) => void;
   cancel?: () => void;
+  paint?: FrameTarget['paint'];
 };
 
 export function connectedFrameResults(results: SearchResult[]): SearchResult[] {
@@ -171,7 +173,8 @@ export class FrameSearch {
 
   private materialize(entry: Entry, reply: FrameReply): SearchResult {
     const keep = new Set<string>();
-    const paint = (
+    // One painter per frame, so a repaint in the same flush cancels its pending clear.
+    const paint = (entry.paint ??= (
       nodes: Element[],
       selected: Element | null,
       color: string,
@@ -188,7 +191,7 @@ export class FrameSearch {
         color,
         highlight,
       });
-    };
+    });
     for (const row of reply.rows) {
       const key = `${row.kind}:${row.id}`;
       keep.add(key);

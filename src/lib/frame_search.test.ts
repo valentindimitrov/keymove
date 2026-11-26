@@ -129,7 +129,20 @@ test('paints a frame with the generation it currently holds, so later clears lan
   await coordinator.search('otter', new AbortController().signal, vi.fn());
   // The first result's cleanup runs after the refresh, with the painter it captured.
   clear();
+  await Promise.resolve();
   expect(paints).toEqual(generations());
+  // A repaint in the same flush cancels the pending clear, so the frame never goes blank.
+  const repaint = paintFrameTargets([handle], handle, '#f59e0b', false);
+  repaint();
+  paintFrameTargets([handle], null, '#f59e0b', false);
+  await Promise.resolve();
+  expect(
+    transport.send.mock.calls
+      .map(([message]) => message.request)
+      .filter(request => request.op === 'paint')
+      .slice(-2)
+      .map(request => request.ids),
+  ).toEqual([[1], [1]]);
   coordinator.stop();
   frame.remove();
   vi.restoreAllMocks();
