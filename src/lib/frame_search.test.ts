@@ -174,6 +174,18 @@ test('paints a frame with the generation it currently holds, so later clears lan
   clear();
   await Promise.resolve();
   expect(paints).toEqual(generations());
+  // A release still reaches the frame while it is hidden; other commands do not.
+  frame.style.opacity = '0';
+  vi.spyOn(frame, 'getClientRects').mockReturnValue([] as unknown as DOMRectList);
+  const sent = transport.send.mock.calls.length;
+  await frameTarget(handle)!.command('scroll');
+  expect(transport.send.mock.calls.length).toBe(sent);
+  await frameTarget(handle)!.command('deselect');
+  expect(transport.send.mock.calls.at(-1)![0].request.command).toBe('deselect');
+  frame.style.opacity = '';
+  vi.spyOn(frame, 'getClientRects').mockReturnValue([
+    { width: 100, height: 100 },
+  ] as unknown as DOMRectList);
   // A repaint in the same flush cancels the pending clear, so the frame never goes blank.
   const repaint = paintFrameTargets([handle], handle, '#f59e0b', false);
   repaint();
