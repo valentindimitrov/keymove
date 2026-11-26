@@ -66,21 +66,70 @@ export function openOrClosedShadowRoot(element: Element): ShadowRoot | null {
 }
 
 /** Removes hosts an earlier copy of this extension signed; returns how many. */
+function removeIfStale(host: Element, value: string, read: ReadShadowRoot) {
+  // KeyMove's hosts have no light-DOM children, so no page content goes with them.
+  if (isKeyMoveRoot(host) || host.hasChildNodes() || !host.shadowRoot) return false;
+  const signed = [...host.shadowRoot.children].some(
+    child => read(child)?.firstElementChild?.getAttribute(SECRET_ATTRIBUTE) === value,
+  );
+  if (signed) host.remove();
+  return signed;
+}
+
+/** Removes hosts an earlier copy of this extension signed in the document tree. */
 export function removeStaleKeyMoveHosts(
   value: string,
   read: ReadShadowRoot = openOrClosedShadowRoot,
 ): number {
   let removed = 0;
-  for (const host of document.querySelectorAll(`#${KEYMOVE_ROOT_ID}`)) {
-    // KeyMove's hosts have no light-DOM children, so no page content goes with them.
-    if (isKeyMoveRoot(host) || host.hasChildNodes() || !host.shadowRoot) continue;
-    const signed = [...host.shadowRoot.children].some(
-      child => read(child)?.firstElementChild?.getAttribute(SECRET_ATTRIBUTE) === value,
-    );
-    if (signed) {
-      host.remove();
-      removed++;
+  for (const host of document.querySelectorAll(`#${KEYMOVE_ROOT_ID}`))
+    if (removeIfStale(host, value, read)) removed++;
+  return removed;
+}
+
+const SHADOW_WALK_CHUNK = 2000;
+
+/**
+ * Removes signed hosts inside open shadow roots: a host moves inside a modal, which can
+ * sit in a component's root. The walk covers every element, so it yields between chunks
+ * rather than holding up a large page at startup, and stops once `alive` turns false.
+ * Only the current copy's root is skipped, recognised by reference, never by id.
+ */
+export async function removeStaleKeyMoveHostsInShadowRoots(
+  value: string,
+  read: ReadShadowRoot = openOrClosedShadowRoot,
+  alive: () => boolean = () => true,
+): Promise<number> {
+  let removed = 0;
+  let visited = 0;
+  const roots: ShadowRoot[] = [];
+  const seen = new WeakSet<ShadowRoot>();
+  const collect = async (root: Document | ShadowRoot) => {
+    // A tree walker visits elements lazily, so discovery itself is chunked as well.
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+    let restarts = 0;
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const element = node as Element;
+      const shadow = element.shadowRoot;
+      if (shadow && !isKeyMoveRoot(element) && !seen.has(shadow)) {
+        seen.add(shadow);
+        roots.push(shadow);
+      }
+      if (++visited % SHADOW_WALK_CHUNK === 0) {
+        await new Promise(resolve => setTimeout(resolve));
+        if (!alive()) return false;
+        // The page may have removed where the walk paused; from there it would never
+        // return to the rest of the tree. Start again, a few times at most.
+        if (!root.contains(walker.currentNode) && restarts++ < 3) walker.currentNode = root;
+      }
     }
+    return true;
+  };
+  if (!(await collect(document))) return removed;
+  for (let root = roots.pop(); root; root = roots.pop()) {
+    for (const host of root.querySelectorAll(`#${KEYMOVE_ROOT_ID}`))
+      if (removeIfStale(host, value, read)) removed++;
+    if (!(await collect(root))) return removed;
   }
   return removed;
 }
@@ -91,6 +140,8 @@ export function removeStaleKeyMoveHosts(
  */
 export function reconcileStaleKeyMoveHosts(alive: () => boolean) {
   void hostMarkerSecret().then(value => {
-    if (value && alive()) removeStaleKeyMoveHosts(value);
+    if (!value || !alive()) return;
+    removeStaleKeyMoveHosts(value);
+    void removeStaleKeyMoveHostsInShadowRoots(value, openOrClosedShadowRoot, alive);
   });
 }
