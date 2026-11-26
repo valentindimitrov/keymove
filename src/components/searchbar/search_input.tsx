@@ -54,6 +54,8 @@ function caretForKey(input: HTMLInputElement, key: string, shift: boolean): numb
   const end = input.selectionEnd ?? start;
   if (key === 'Home') return 0;
   if (key === 'End') return value.length;
+  // In right-to-left text Left and Right move visually, not by string order; leave them.
+  if (/[\u0590-\u08ff\ufb1d-\ufdff\ufe70-\ufeff]/.test(value)) return null;
   if (key === 'ArrowLeft') {
     if (start !== end) return start;
     const last = Array.from(value.slice(0, start)).pop();

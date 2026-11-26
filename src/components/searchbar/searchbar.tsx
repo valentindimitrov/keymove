@@ -70,6 +70,28 @@ const PAGE_REFRESH_PAUSE_MS = 100;
 type ShortcutHandler = (event: KeyboardEvent) => void;
 type ActionActivation = 'current' | 'foreground-tab' | 'background-tab';
 
+/** Copies `text` with the copy command from a hidden field beside `input`, in its root. */
+function copyWithCommand(input: HTMLInputElement, text: string) {
+  const field = document.createElement('textarea');
+  field.value = text;
+  field.setAttribute('aria-hidden', 'true');
+  field.tabIndex = -1;
+  field.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0';
+  // The copy event is composed; it need not travel on to the page's bubbling listeners.
+  field.addEventListener('copy', event => event.stopPropagation(), { once: true });
+  input.after(field);
+  const { selectionStart, selectionEnd } = input;
+  try {
+    field.select();
+    document.execCommand('copy');
+  } finally {
+    field.remove();
+    input.focus({ preventScroll: true });
+    if (selectionStart !== null && selectionEnd !== null)
+      input.setSelectionRange(selectionStart, selectionEnd);
+  }
+}
+
 const Searchbar = () => {
   const scrollOrResizeUpdateTimeout = React.useRef<number | undefined>(undefined);
   const searchAbortController = React.useRef<AbortController | null>(null);
@@ -1053,7 +1075,14 @@ const Searchbar = () => {
   const copyCancelledByPage = React.useCallback(() => {
     if (selectedImage || !isInteractive) return;
     const copyText = selectedCopyText();
-    if (copyText === null) return;
+    const input = searchInputRef.current;
+    if (copyText === null || !input) return;
+    // The Clipboard API exists only on secure origins. Elsewhere, copy from a hidden field
+    // inside KeyMove's own root, which page script cannot read, then return focus.
+    if (!navigator.clipboard?.writeText) {
+      copyWithCommand(input, copyText);
+      return;
+    }
     writeClipboardText(copyText).catch((error: unknown) => {
       const message = error instanceof Error ? error.message : String(error);
       console.warn(`${EXTENSION_NAME} could not copy the selected result: ${message}`);

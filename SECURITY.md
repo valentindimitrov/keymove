@@ -53,9 +53,12 @@ What a closed root does not hide:
 Closing the root also changes what page key handlers see: only KeyMove's host, so a page
 shortcut that ignores keys typed in text fields may treat keys typed in KeyMove's search
 field as its own and cancel them. KeyMove still runs its own shortcuts for such keys and
-re-applies typed characters, Backspace, Delete, Left, Right, Home, End and copying.
-Rarer editing keys a page cancels this way, such as Shift selection or moving by word,
-do not take effect.
+re-applies typed characters, Backspace, Delete, Left, Right, Home, End and copying (with
+the copy command where the Clipboard API is unavailable, on insecure origins). Rarer
+editing keys a page cancels this way, such as Shift selection, moving by word, or Left and
+Right in right-to-left text, do not take effect, and a page handler that also stops the
+event in the capture phase keeps it from KeyMove altogether: an extension script cannot
+run before the page's own capture listeners.
 
 Three paths that could carry frame content into the page are closed separately:
 
