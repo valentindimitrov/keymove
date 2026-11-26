@@ -28,7 +28,14 @@ function matchingTextSpans(text: string, query: string, limit = Infinity) {
   let ends: Uint32Array | undefined;
   // Ordinary casing needs no offset map. Segment only an actual match whose spelling
   // changes length or canonical form, including combining marks crossing DOM nodes.
-  if (normalized.length !== text.length || text.normalize('NFC') !== text) {
+  // Composition after casing counts too: with an expansion elsewhere, as İ lowercases to
+  // two code units, the total length can stay the same while offsets still move.
+  const lowercase = text.toLowerCase();
+  if (
+    normalized.length !== text.length ||
+    text.normalize('NFC') !== text ||
+    lowercase.normalize('NFC') !== lowercase
+  ) {
     starts = new Uint32Array(normalized.length);
     ends = new Uint32Array(normalized.length);
     graphemes ??= new Intl.Segmenter('und', { granularity: 'grapheme' });
