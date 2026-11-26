@@ -49,16 +49,20 @@ function differentInputIsActive(inputElement: Element | null) {
   const chain = activeElementChain();
   const activeElement = chain.at(-1);
   if (!activeElement || activeElement === inputElement) return false;
-  // A shadow host keeps its role while focus sits inside it, such as a listbox whose
-  // option has focus, so every element on the way to the focused one counts.
-  return chain.some(elementIsEditable);
+  // Whether text goes in is the focused element's own state, but a shadow host keeps its
+  // widget role while focus sits inside it, such as a listbox whose option has focus.
+  return elementIsEditable(activeElement) || chain.slice(0, -1).some(hasFocusWidgetRole);
+}
+
+function hasFocusWidgetRole(element: Element) {
+  return FOCUS_WIDGET_ROLES.includes(element.getAttribute('role') ?? '');
 }
 
 function elementIsEditable(element: Element) {
   return (
     (element instanceof HTMLElement && element.isContentEditable) ||
     INPUT_NODE_TYPES.includes(element.nodeName) ||
-    FOCUS_WIDGET_ROLES.includes(element.getAttribute('role') ?? '')
+    hasFocusWidgetRole(element)
   );
 }
 

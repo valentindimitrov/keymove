@@ -106,6 +106,18 @@ test('keeps a focused host widget role protecting keys typed inside it', () => {
   host.remove();
 });
 
+test('lets a non-editable control inside an editable host start a search', () => {
+  const { host, shadowRoot } = closedHost('rich-editor');
+  Object.defineProperty(host, 'isContentEditable', { value: true });
+  const bold = document.createElement('button');
+  shadowRoot.appendChild(bold);
+
+  bold.focus();
+
+  expect(Utils.differentInputIsActive(null)).toBe(false);
+  host.remove();
+});
+
 test('counts a host that delegates focus as active', () => {
   const { host, shadowRoot } = closedHost('text-field', { delegatesFocus: true });
   const input = document.createElement('input');
