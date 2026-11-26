@@ -27,14 +27,19 @@ type ExtensionRoot = {
 // The id is a styling and testing hook, not identity: a page may already use it.
 // Whether another KeyMove copy already serves this document is decided by
 // runSingleContentScript, which page script cannot influence.
-function createExtensionRoot(stylesText: string, browserName?: string): ExtensionRoot {
+function createExtensionRoot(
+  stylesText: string,
+  browserName?: string,
+  // Only tests pass a mode: shipped builds use KEYMOVE_SHADOW_ROOT_MODE.
+  shadowRootMode?: ShadowRootMode,
+): ExtensionRoot {
   const host = document.createElement('div');
   host.id = KEYMOVE_ROOT_ID;
   if (browserName === 'firefox') {
     host.classList.add('keymove-firefox');
   }
 
-  const shadowRoot = attachKeyMoveShadow(host);
+  const shadowRoot = attachKeyMoveShadow(host, shadowRootMode);
   // React handles clicks inside the shadow root first. Page listeners would see only
   // this shallow host, not the clicked control, and can mistake it for page content.
   // Do not prevent defaults or intercept clicks dispatched on actual page actions.

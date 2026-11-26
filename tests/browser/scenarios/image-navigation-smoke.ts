@@ -113,7 +113,9 @@ export async function checkRelatedImages(context: BrowserContext, origin: string
     await page.locator('#paste-image-address').focus();
     await page.keyboard.press('ControlOrMeta+v');
     await expect(page.locator('#paste-image-address')).toHaveValue(await shoeSource());
-    // An image inside an iframe is selected and viewed through its owning frame.
+    // An image inside an iframe is selected through its owning frame. The larger viewer
+    // would load it in the embedding page, which could read its address, so it is
+    // unavailable for frame images (SECURITY.md, "Isolation from the page").
     await replaceQuery(page, 'Embedded trainer');
     await expect(status).toContainText('1 / 1');
     await settled(page);
@@ -122,18 +124,16 @@ export async function checkRelatedImages(context: BrowserContext, origin: string
     await page.keyboard.press('ArrowRight');
     await expect(selectedImage('Orange walking shoe')).toBeAttached();
     await page.keyboard.press('Space');
+    await expect(menu.getByRole('menuitem', { name: /View larger/ })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
     await page.keyboard.press('Enter');
-    await expect
-      .poll(() =>
-        viewerImage.evaluate(image => (image as HTMLImageElement).naturalWidth).catch(() => 0),
-      )
-      .toBe(780);
-    await expect(viewerImage).toHaveAttribute('alt', 'Orange walking shoe');
-    // Escape closes the viewer, then the menu, then returns from the image to the result.
+    await page.waitForTimeout(300);
+    await expect(viewerImage).toHaveCount(0);
+    // Escape from the image menu returns from the image to the result.
     await page.keyboard.press('Escape');
-    await page.keyboard.press('Space');
-    await expect(menu).toHaveCount(1);
-    await page.keyboard.press('Escape');
+    await expect(menu).toHaveCount(0);
     await expect(imageSelected).toHaveCount(0);
     await expect(input).toHaveValue('Embedded trainer');
     // Images inside open shadow roots release their selection when removed.

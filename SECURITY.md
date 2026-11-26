@@ -45,9 +45,16 @@ What a closed root does not hide:
 - Highlight ranges registered with the CSS Custom Highlight API, inside the page or a
   frame, are readable by that document's own script.
 
+Two paths that could carry frame content into the page are closed separately: copying a
+result in KeyMove stops the copy event before page listeners can read its clipboard data,
+and the larger image viewer is unavailable for images from frames, since loading one in the
+page would record its address in the page's Resource Timing entries.
+
 Test builds keep the roots open so the browser suite can inspect them: `pnpm
-build:chromium:test` writes `.output/chrome-mv3-test`, which the Playwright suite loads,
-and development servers such as `pnpm preview:ui` also use open roots.
+build:chromium:test` writes `.output/chrome-mv3-test`, which the Playwright suite and the
+capture tools load. An explicit build constant, defined only in test mode and in the unit
+test, preview and website configurations, opens them; no environment variable does, and a
+test build names itself "(test build)", which release validation rejects.
 `tests/browser/closed-root.spec.ts` runs against the production build and checks that its
 roots are closed while keyboard navigation, selection, copying and activation still work.
 Never load a test build in a regular browser profile, and never publish one.

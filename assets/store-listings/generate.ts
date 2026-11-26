@@ -30,7 +30,10 @@ const captionFont = [
 ].find(file => file && existsSync(file));
 if (!captionFont) throw new Error('Set KEYMOVE_CAPTION_FONT to an installed bold TrueType font.');
 mkdirSync(output, { recursive: true });
-const preview = createPreviewCopy(path.resolve('.output/chrome-mv3'));
+const preview = createPreviewCopy(
+  // The test build: its shadow roots stay open so the capture can drive the interface.
+  path.resolve('.output/chrome-mv3-test'),
+);
 const build = preview.directory;
 let captureContext: BrowserContext | undefined;
 const report: { file: string; width: number; height: number; caption?: string }[] = [];

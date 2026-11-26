@@ -2295,9 +2295,14 @@ test('Tab selects and copies a whole text block, and Enter opens its nested acti
   const setData = vi.fn();
   const copyEvent = new Event('copy', { bubbles: true, cancelable: true });
   Object.defineProperty(copyEvent, 'clipboardData', { value: { setData } });
+  // A page listener after KeyMove's must not see the copied text, which can come from a frame.
+  const pageListener = vi.fn();
+  window.addEventListener('copy', pageListener);
   document.dispatchEvent(copyEvent);
+  window.removeEventListener('copy', pageListener);
   expect(setData).toHaveBeenCalledWith('text/plain', paragraph.textContent);
   expect(copyEvent.defaultPrevented).toBe(true);
+  expect(pageListener).not.toHaveBeenCalled();
 
   fireEvent.keyDown(input, { bubbles: true, cancelable: true, code: 'Enter', key: 'Enter' });
   expect(click).toHaveBeenCalledOnce();

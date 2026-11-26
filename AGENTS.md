@@ -571,7 +571,7 @@ then removes its temporary build copy.
   cold/warm timings in `.artifacts/playwright/<browser>/timings.json`, and close the dedicated
   browser. This also fulfills the preview launch requirement.
 - `pnpm test:browser:built`: the same on existing production output after `pnpm quality`
-  (it builds the test variant if `.output/chrome-mv3-test` is missing);
+  (it always rebuilds the test build, `.output/chrome-mv3-test`, from the current source);
   `pnpm test:browser:vivaldi` and `pnpm test:browser:chrome` name the browser. Run it for input,
   navigation, search, settings, and extension-mounting changes. Tests use real Playwright
   input only, never script-dispatched events at KeyMove's controls, and pass values to

@@ -1,5 +1,4 @@
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { testBrowsers } from './browser-context.ts';
 import type { TestBrowser } from './browser-context.ts';
@@ -53,12 +52,10 @@ export async function runBrowserTests(args: string[]): Promise<void> {
   // The suite runs on a test build, whose shadow roots stay open so Playwright can look
   // inside, and checks the closed roots of the production build separately.
   const wxt = path.join(root, 'node_modules/wxt/bin/wxt.mjs');
-  if (!args.includes('--no-build')) {
-    await run(wxt, ['build', '-b', 'chrome', '--mv3']);
-    await run(wxt, ['build', '-b', 'chrome', '--mv3', '--mode', 'test']);
-  } else if (!existsSync(path.join(root, '.output/chrome-mv3-test/manifest.json'))) {
-    await run(wxt, ['build', '-b', 'chrome', '--mv3', '--mode', 'test']);
-  }
+  // --no-build keeps the existing production build; the test build is always made from
+  // the current source, so it can never lag behind what the production build was made from.
+  if (!args.includes('--no-build')) await run(wxt, ['build', '-b', 'chrome', '--mv3']);
+  await run(wxt, ['build', '-b', 'chrome', '--mv3', '--mode', 'test']);
   await run(path.join(root, 'node_modules/@playwright/test/cli.js'), [
     'test',
     ...args.filter(arg => arg !== '--no-build' && !arg.startsWith('--browser=')),

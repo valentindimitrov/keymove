@@ -656,7 +656,7 @@ const Searchbar = () => {
 
   const closeActionMenu = React.useCallback(() => setMenuTarget(null), []);
   const menuActions = selectedImage
-    ? actionsForImage(selectedImage)
+    ? actionsForImage(selectedImage, frameTarget(imageOwner) !== undefined)
     : [
         ...actionsForResult(selectedActionNode, selectedTextMatch?.node ?? null),
         { id: 'related-image', label: 'Select related image' },
@@ -779,7 +779,7 @@ const Searchbar = () => {
             clearImage();
             throw new Error('This image is no longer available.');
           }
-          if (id === 'image-view') setImageViewer(true);
+          if (id === 'image-view' && !frameTarget(imageOwner)) setImageViewer(true);
           else if (id === 'image-open' && /^https?:/i.test(info.url)) {
             await browser.runtime.sendMessage({
               type: ExtensionMessageTypes.OPEN_LINK_IN_NEW_TAB,
@@ -853,6 +853,7 @@ const Searchbar = () => {
       clearImage,
       imageCommand,
       setImageViewer,
+      imageOwner,
     ],
   );
 
@@ -1047,6 +1048,9 @@ const Searchbar = () => {
       }
       event.preventDefault();
       event.clipboardData.setData('text/plain', copyText);
+      // Page listeners later in the event could read the copied text, which can come from
+      // a cross-origin frame, out of clipboardData. This copy is KeyMove's alone.
+      event.stopImmediatePropagation();
     },
     [isInteractive, selectedTextMatch, selectedActionNode, selectedImage],
   );

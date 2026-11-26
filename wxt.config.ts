@@ -52,11 +52,15 @@ export default defineConfig({
       });
     },
   },
-  vite: () => ({
+  vite: env => ({
     plugins: [svgr(), productionReactInTestBuilds()],
+    // Test builds keep KeyMove's shadow roots open for the browser suite (SECURITY.md).
+    define: { __KEYMOVE_OPEN_SHADOW_ROOTS__: JSON.stringify(env.mode === 'test') },
   }),
-  manifest: ({ browser }) => ({
-    name: EXTENSION_IDENTITY.name,
+  manifest: ({ browser, mode }) => ({
+    // Marks a test build in the browser's extension list. Build validation compares the
+    // name with the identity, so a test build packaged as a release fails it.
+    name: mode === 'test' ? `${EXTENSION_IDENTITY.name} (test build)` : EXTENSION_IDENTITY.name,
     short_name: EXTENSION_IDENTITY.shortName,
     description: EXTENSION_IDENTITY.description,
     icons,

@@ -43,8 +43,8 @@ whose shadow roots stay open so locators can reach KeyMove's interface. Shipped 
 close them (SECURITY.md, "Isolation from the page"); `closed-root.spec.ts` uses
 `test.use({ build: 'production' })` to run against `.output/chrome-mv3` and observes it
 through real input, page-visible effects and the accessibility tree. `pnpm test:e2e` and
-`pnpm test:browser` build both; the `:built` forms expect them, and `test:browser:built`
-builds the test variant when it is missing.
+`pnpm test:browser` build both. `test:browser:built` keeps the existing production build and
+rebuilds the test build from the current source; `test:e2e:built` expects both to exist.
 
 Each test loads a separate snapshot of its build into a fresh temporary
 profile, and each worker serves `preview/` on a free loopback port, so concurrent
@@ -163,6 +163,7 @@ Build first, then pause a test in one terminal:
 
 ```text
 pnpm build:chromium
+pnpm build:chromium:test
 pnpm test:e2e:debug --grep "frames"
 ```
 
