@@ -66,41 +66,60 @@ export function openOrClosedShadowRoot(element: Element): ShadowRoot | null {
 }
 
 /** Removes hosts an earlier copy of this extension signed; returns how many. */
+function removeIfStale(host: Element, value: string, read: ReadShadowRoot) {
+  // KeyMove's hosts have no light-DOM children, so no page content goes with them.
+  if (isKeyMoveRoot(host) || host.hasChildNodes() || !host.shadowRoot) return false;
+  const signed = [...host.shadowRoot.children].some(
+    child => read(child)?.firstElementChild?.getAttribute(SECRET_ATTRIBUTE) === value,
+  );
+  if (signed) host.remove();
+  return signed;
+}
+
+/** Removes hosts an earlier copy of this extension signed in the document tree. */
 export function removeStaleKeyMoveHosts(
   value: string,
   read: ReadShadowRoot = openOrClosedShadowRoot,
 ): number {
   let removed = 0;
-  for (const host of candidateHosts()) {
-    // KeyMove's hosts have no light-DOM children, so no page content goes with them.
-    if (isKeyMoveRoot(host) || host.hasChildNodes() || !host.shadowRoot) continue;
-    const signed = [...host.shadowRoot.children].some(
-      child => read(child)?.firstElementChild?.getAttribute(SECRET_ATTRIBUTE) === value,
-    );
-    if (signed) {
-      host.remove();
-      removed++;
-    }
-  }
+  for (const host of document.querySelectorAll(`#${KEYMOVE_ROOT_ID}`))
+    if (removeIfStale(host, value, read)) removed++;
   return removed;
 }
 
+const SHADOW_WALK_CHUNK = 2000;
+
 /**
- * Elements with KeyMove's host id in the document and in every open shadow root below it:
- * a host moves inside a modal, which can sit in a component's root. The id only narrows
- * the search; the signature decides. KeyMove's own roots are not entered.
+ * Removes signed hosts inside open shadow roots: a host moves inside a modal, which can
+ * sit in a component's root. The walk covers every element, so it yields between chunks
+ * rather than holding up a large page at startup, and stops once `alive` turns false.
+ * Only the current copy's root is skipped, recognised by reference, never by id.
  */
-function candidateHosts(): Element[] {
-  const hosts: Element[] = [];
-  const roots: (Document | ShadowRoot)[] = [document];
-  for (let root = roots.pop(); root; root = roots.pop()) {
-    // Pushed one by one: a page can hold more matches than a call takes arguments.
-    for (const host of root.querySelectorAll(`#${KEYMOVE_ROOT_ID}`)) hosts.push(host);
-    // Only the current copy's root is skipped, recognised by reference, never by id.
-    for (const element of root.querySelectorAll('*'))
+export async function removeStaleKeyMoveHostsInShadowRoots(
+  value: string,
+  read: ReadShadowRoot = openOrClosedShadowRoot,
+  alive: () => boolean = () => true,
+): Promise<number> {
+  let removed = 0;
+  let visited = 0;
+  const roots: ShadowRoot[] = [];
+  const collect = async (root: Document | ShadowRoot) => {
+    for (const element of root.querySelectorAll('*')) {
       if (element.shadowRoot && !isKeyMoveRoot(element)) roots.push(element.shadowRoot);
+      if (++visited % SHADOW_WALK_CHUNK === 0) {
+        await new Promise(resolve => setTimeout(resolve));
+        if (!alive()) return false;
+      }
+    }
+    return true;
+  };
+  if (!(await collect(document))) return removed;
+  for (let root = roots.pop(); root; root = roots.pop()) {
+    for (const host of root.querySelectorAll(`#${KEYMOVE_ROOT_ID}`))
+      if (removeIfStale(host, value, read)) removed++;
+    if (!(await collect(root))) return removed;
   }
-  return hosts;
+  return removed;
 }
 
 /**
@@ -109,6 +128,8 @@ function candidateHosts(): Element[] {
  */
 export function reconcileStaleKeyMoveHosts(alive: () => boolean) {
   void hostMarkerSecret().then(value => {
-    if (value && alive()) removeStaleKeyMoveHosts(value);
+    if (!value || !alive()) return;
+    removeStaleKeyMoveHosts(value);
+    void removeStaleKeyMoveHostsInShadowRoots(value, openOrClosedShadowRoot, alive);
   });
 }
