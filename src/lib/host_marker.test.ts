@@ -75,8 +75,11 @@ test('removes a stale host that had moved into a modal inside an open shadow roo
   dialog.setAttribute('role', 'dialog');
   component.attachShadow({ mode: 'open' }).append(dialog);
   dialog.append(stale);
+  // A page component that happens to use KeyMove's id is entered like any other.
+  component.id = KEYMOVE_ROOT_ID;
   expect(removeStaleKeyMoveHosts(SECRET, read)).toBe(1);
   expect(stale.isConnected).toBe(false);
+  expect(component.isConnected).toBe(true);
 });
 
 test('keeps page elements, whatever shape or marker they copy', async () => {

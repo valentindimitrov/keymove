@@ -94,10 +94,11 @@ function candidateHosts(): Element[] {
   const hosts: Element[] = [];
   const roots: (Document | ShadowRoot)[] = [document];
   for (let root = roots.pop(); root; root = roots.pop()) {
-    hosts.push(...root.querySelectorAll(`#${KEYMOVE_ROOT_ID}`));
+    // Pushed one by one: a page can hold more matches than a call takes arguments.
+    for (const host of root.querySelectorAll(`#${KEYMOVE_ROOT_ID}`)) hosts.push(host);
+    // Only the current copy's root is skipped, recognised by reference, never by id.
     for (const element of root.querySelectorAll('*'))
-      if (element.shadowRoot && !isKeyMoveRoot(element) && element.id !== KEYMOVE_ROOT_ID)
-        roots.push(element.shadowRoot);
+      if (element.shadowRoot && !isKeyMoveRoot(element)) roots.push(element.shadowRoot);
   }
   return hosts;
 }
