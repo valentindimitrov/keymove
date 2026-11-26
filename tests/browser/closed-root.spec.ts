@@ -47,14 +47,31 @@ async function optionNames(page: Page) {
   }
 }
 
+/**
+ * Opens search and types `query` until the status matches. Input before KeyMove has read
+ * its settings is ignored, and a closed root offers no attribute to wait on instead.
+ */
+async function search(page: Page, query: string, status: RegExp) {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    await page.keyboard.press('Alt+f');
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.type(query);
+    const reached = await expect
+      .poll(() => statusText(page), { timeout: 2000 })
+      .toMatch(status)
+      .then(() => true)
+      .catch(() => false);
+    if (reached) return;
+  }
+  await expect.poll(() => statusText(page)).toMatch(status);
+}
+
 test('page script cannot reach the search interface or results from frames', async ({ page }) => {
   await page.goto('frames.html');
   const cross = page.locator('#cross').contentFrame();
   await expect(cross.locator('#price')).toBeAttached();
-  await page.keyboard.press('Alt+f');
-  await page.keyboard.type('otter');
   // Results from the page and both frames, including the cross-origin one.
-  await expect.poll(() => statusText(page)).toMatch(/^Text 1 \/ 4$/);
+  await search(page, 'otter', /^Text 1 \/ 4$/);
   // The page sees KeyMove's host, but neither its root nor the frame's outline layer.
   expect(
     await page.evaluate(() => {
@@ -86,9 +103,7 @@ test('keyboard navigation, selection, copying and activation work through the cl
   const local = page.locator('iframe').first().contentFrame();
   const cross = page.locator('#cross').contentFrame();
   await expect(cross.locator('#launch')).toBeAttached();
-  await page.keyboard.press('Alt+f');
-  await page.keyboard.type('otter');
-  await expect.poll(() => statusText(page)).toMatch(/^Text 1 \/ 4$/);
+  await search(page, 'otter', /^Text 1 \/ 4$/);
   // Tab reaches KeyMove's shortcut handler from the closed root and selects frame text.
   await page.keyboard.press('Tab');
   await expect

@@ -58,7 +58,9 @@ Three paths that could carry frame content into the page are closed separately:
 - Copying a result in KeyMove stops the copy event before page listeners can read its
   clipboard data.
 - The larger image viewer is unavailable for images from frames, since loading one in the
-  page would record its address in the page's Resource Timing entries.
+  page would record its address in the page's Resource Timing entries. That includes
+  same-origin frames: from the top page, KeyMove cannot tell whether an image sits in a
+  cross-origin frame nested inside one.
 
 Test builds keep the roots open so the browser suite can inspect them: `pnpm
 build:chromium:test` writes `.output/chrome-mv3-test`, which the Playwright suite and the

@@ -89,7 +89,7 @@ export default defineConfig({
     // {{modeSuffix}} is empty for production; a test build's ZIP ends in -test, so it can
     // never take the release ZIP's name, which signing and the release workflow use.
     artifactTemplate: '{{name}}-v{{version}}-{{browser}}-{{manifestVersion}}{{modeSuffix}}.zip',
-    sourcesTemplate: '{{name}}-v{{version}}-sources.zip',
+    sourcesTemplate: '{{name}}-v{{version}}-sources{{modeSuffix}}.zip',
     excludeSources: ['.output/**', '.wxt/**', 'coverage/**'],
   },
 });
