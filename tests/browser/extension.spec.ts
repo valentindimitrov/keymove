@@ -412,6 +412,64 @@ test('type-to-search leaves typing in an editor inside a closed shadow root alon
   await expect(page.locator('#keymove-input')).toHaveValue('');
 });
 
+test('outlines inside a frame follow its content when the frame scrolls', async ({ page }) => {
+  await page.goto('frames.html');
+  await expect(page.locator('#keymove-bar')).toHaveAttribute('data-always-on', 'true');
+  const local = page.locator('iframe').first().contentFrame();
+  await local.locator('body').evaluate(body => {
+    for (let index = 0; index < 40; index++) {
+      const paragraph = document.createElement('p');
+      paragraph.textContent = `Quokka paragraph ${index}`;
+      body.append(paragraph);
+    }
+  });
+  await page.keyboard.press('Alt+f');
+  await page.keyboard.type('quokka');
+  await expect(page.getByRole('status')).toHaveText(/\/ 40$/);
+  // Each outline sits 4 px outside its paragraph, before and after the frame scrolls.
+  const offsets = () =>
+    local.locator('body').evaluate(() => {
+      const outlines = document
+        .getElementById('keymove-root')!
+        .shadowRoot!.querySelectorAll('.keymove-selection');
+      const paragraphs = [...document.querySelectorAll('p')].filter(p =>
+        p.textContent?.startsWith('Quokka'),
+      );
+      return [...outlines].map((outline, index) =>
+        Math.round(
+          outline.getBoundingClientRect().top - paragraphs[index]!.getBoundingClientRect().top,
+        ),
+      );
+    });
+  await expect.poll(async () => new Set(await offsets())).toEqual(new Set([-4]));
+  await local.locator('body').evaluate(() => window.scrollBy(0, 300));
+  await expect.poll(async () => new Set(await offsets())).toEqual(new Set([-4]));
+  // A resize can hide a result, so it paints again rather than only moving outlines.
+  const outlineCount = () =>
+    local
+      .locator('body')
+      .evaluate(
+        () =>
+          document
+            .getElementById('keymove-root')!
+            .shadowRoot!.querySelectorAll('.keymove-selection').length,
+      );
+  await local.locator('body').evaluate(() => {
+    const style = document.createElement('style');
+    style.textContent = '@media (max-width: 400px) { .narrow-hidden { visibility: hidden; } }';
+    document.head.append(style);
+    document.querySelectorAll('p')[3]!.classList.add('narrow-hidden');
+  });
+  expect(await outlineCount()).toBe(40);
+  await page
+    .locator('iframe')
+    .first()
+    .evaluate(frame => {
+      frame.style.width = '350px';
+    });
+  await expect.poll(outlineCount).toBe(39);
+});
+
 test('stays out of XML documents such as sitemaps without reporting errors', async ({ page }) => {
   // React DOM threw as it loaded on these, since their elements have no `.style`. The
   // context fixture fails the test on any console error or uncaught exception.
