@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { defineConfig } from 'wxt';
 import svgr from 'vite-plugin-svgr';
+import type { Plugin } from 'vite';
 import EXTENSION_IDENTITY from './src/extension_identity.js';
 
 const icons = {
@@ -13,6 +14,25 @@ const icons = {
   128: 'logo-128.png',
   192: 'logo-192.png',
 };
+
+/**
+ * A test build (`--mode test`) differs from production only in leaving KeyMove's shadow
+ * roots open, so it keeps React's production build. WXT defines NODE_ENV as the mode in
+ * each entrypoint's config; a plugin's config hook is merged over that. Vitest also runs
+ * in test mode, but serves rather than builds, and needs React's development build.
+ */
+function productionReactInTestBuilds(): Plugin {
+  return {
+    name: 'keymove-production-react-in-test-builds',
+    config: (_config, env) => {
+      if (env.mode !== 'test' || env.command !== 'build') return undefined;
+      // Vite decides production behaviour, such as the JSX runtime, from NODE_ENV after
+      // config hooks run; WXT set it to the mode before.
+      process.env['NODE_ENV'] = 'production';
+      return { define: { 'process.env.NODE_ENV': JSON.stringify('production') } };
+    },
+  };
+}
 
 export default defineConfig({
   modules: ['@wxt-dev/module-react'],
@@ -32,11 +52,15 @@ export default defineConfig({
       });
     },
   },
-  vite: () => ({
-    plugins: [svgr()],
+  vite: env => ({
+    plugins: [svgr(), productionReactInTestBuilds()],
+    // Test builds keep KeyMove's shadow roots open for the browser suite (SECURITY.md).
+    define: { __KEYMOVE_OPEN_SHADOW_ROOTS__: JSON.stringify(env.mode === 'test') },
   }),
-  manifest: ({ browser }) => ({
-    name: EXTENSION_IDENTITY.name,
+  manifest: ({ browser, mode }) => ({
+    // Marks a test build in the browser's extension list. Build validation compares the
+    // name with the identity, so a test build packaged as a release fails it.
+    name: mode === 'test' ? `${EXTENSION_IDENTITY.name} (test build)` : EXTENSION_IDENTITY.name,
     short_name: EXTENSION_IDENTITY.shortName,
     description: EXTENSION_IDENTITY.description,
     icons,
@@ -62,8 +86,10 @@ export default defineConfig({
   }),
   zip: {
     name: EXTENSION_IDENTITY.artifactName,
-    artifactTemplate: '{{name}}-v{{version}}-{{browser}}-{{manifestVersion}}.zip',
-    sourcesTemplate: '{{name}}-v{{version}}-sources.zip',
+    // {{modeSuffix}} is empty for production; a test build's ZIP ends in -test, so it can
+    // never take the release ZIP's name, which signing and the release workflow use.
+    artifactTemplate: '{{name}}-v{{version}}-{{browser}}-{{manifestVersion}}{{modeSuffix}}.zip',
+    sourcesTemplate: '{{name}}-v{{version}}-sources{{modeSuffix}}.zip',
     excludeSources: ['.output/**', '.wxt/**', 'coverage/**'],
   },
 });

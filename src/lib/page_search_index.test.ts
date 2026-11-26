@@ -2,11 +2,29 @@ import NodeScorer from './node_scorer.js';
 import { PageSearchIndex } from './page_search_index.js';
 import { markKeyMoveRoot } from './dom_tree.js';
 import { highlightRangesForMatches } from '../hooks/use_highlights.js';
+import { MODAL_CHANGED_EVENT } from './modal_context.js';
+import { acceptSyntheticInputForTesting, dispatchOwnEvent } from './trusted_input.js';
 
 let index: PageSearchIndex | null = null;
 
 function scorerFor(query: string) {
   return new NodeScorer(query);
+}
+
+// jsdom has no Range layout; a display: contents element's contents are measured with one.
+function stubRangeLayout() {
+  Object.defineProperty(Range.prototype, 'getClientRects', {
+    configurable: true,
+    value: () => [new DOMRect(0, 0, 100, 20)],
+  });
+  Object.defineProperty(Range.prototype, 'getBoundingClientRect', {
+    configurable: true,
+    value: () => new DOMRect(0, 0, 100, 20),
+  });
+  return () => {
+    Reflect.deleteProperty(Range.prototype, 'getClientRects');
+    Reflect.deleteProperty(Range.prototype, 'getBoundingClientRect');
+  };
 }
 
 function waitForMutations() {
@@ -567,6 +585,89 @@ describe('text owned by a node', () => {
     ).toEqual([document.querySelector('b')]);
   });
 
+  test('finds a phrase in a standalone block that no candidate contains', async () => {
+    document.body.innerHTML =
+      '<section><div id="block"><span>Free </span><b>shipping</b></div></section>' +
+      '<div id="links"><span>Save </span><a href="#b">settings</a></div>' +
+      '<div id="labelled"><label for="address">Billing </label><a href="#help">address</a></div>' +
+      '<input id="address">';
+    index = new PageSearchIndex();
+    for (const [query, id] of [
+      ['free shipping', 'block'],
+      ['free shippong', 'block'],
+      ['save settings', 'links'],
+      ['billing address', 'labelled'],
+    ]) {
+      const result = await index.search(scorerFor(query!));
+      expect(result.matchingText.map(match => match.node)).toEqual([document.getElementById(id!)]);
+    }
+    // A word one inline child holds is still that child's result alone.
+    expect(
+      (await index.search(scorerFor('shipping'))).matchingText.map(match => match.node),
+    ).toEqual([document.querySelector('b')]);
+  });
+
+  test('never makes the page root a result for inline phrases directly inside it', async () => {
+    document.body.innerHTML =
+      '<span>Free </span><b>shipping</b><main><a href="/account">Account</a></main>';
+    index = new PageSearchIndex();
+    expect((await index.search(scorerFor('free shipping'))).matchingText).toEqual([]);
+  });
+
+  test.each([
+    // Text in a wrapper belongs to the block around it, whether one wrapper holds it all
+    // or two each hold half.
+    ['<span style="display: contents">Free <b>shipping</b></span>', 'block'],
+    [
+      '<span style="display: contents">Free </span><span style="display: contents">shipping</span>',
+      'block',
+    ],
+  ])('finds a phrase through wrappers laid out with display: contents: %s', async (html, id) => {
+    document.body.innerHTML = `<section><div id="block">${html}</div></section>`;
+    // Browsers give a display: contents element no box of its own; jsdom has no layout.
+    for (const wrapper of document.querySelectorAll('span')) {
+      Object.defineProperty(wrapper, 'offsetWidth', { value: 0 });
+      Object.defineProperty(wrapper, 'offsetHeight', { value: 0 });
+      wrapper.getClientRects = () => ({ length: 0 }) as DOMRectList;
+    }
+    const restore = stubRangeLayout();
+    try {
+      index = new PageSearchIndex();
+      expect(
+        (await index.search(scorerFor('free shipping'))).matchingText.map(match => match.node),
+      ).toEqual([document.getElementById(id)]);
+    } finally {
+      restore();
+    }
+  });
+
+  test('never queues a block for text that is out of scope', async () => {
+    document.body.innerHTML =
+      '<section><div><span inert>Archive project</span><button>Delete</button></div></section>';
+    index = new PageSearchIndex();
+    expect((await index.search(scorerFor('archive project'))).matchingText).toEqual([]);
+  });
+
+  test('never attaches an action from a box the result does not own', async () => {
+    document.body.innerHTML =
+      '<section><div id="block"><span>Free </span><b>shipping</b> <a href="#terms">terms</a>' +
+      '<aside><button>Delete account</button></aside></div></section>' +
+      '<section><div id="other"><span>Gift </span><b>wrap</b>' +
+      '<aside><button>Delete account</button></aside></div></section>' +
+      '<section><div id="third"><span>Next </span><b>day</b>' +
+      '<button style="display: block">Delete account</button></div></section>';
+    index = new PageSearchIndex();
+    expect((await index.search(scorerFor('next day'))).matchingText).toMatchObject([
+      { node: document.getElementById('third'), action: null },
+    ]);
+    expect((await index.search(scorerFor('free shipping'))).matchingText).toMatchObject([
+      { node: document.getElementById('block'), action: document.querySelector('a') },
+    ]);
+    expect((await index.search(scorerFor('gift wrap'))).matchingText).toMatchObject([
+      { node: document.getElementById('other'), action: null },
+    ]);
+  });
+
   test('keeps a block whose own phrase is separate from a matching nested block', async () => {
     document.body.innerHTML =
       '<div>Intro <div id="own"><span>Total </span><b>revenue</b>' +
@@ -689,4 +790,43 @@ describe('text owned by a node', () => {
       { node: document.getElementById('title'), action: link },
     ]);
   });
+});
+
+test('finds links and text laid out with display: contents', async () => {
+  document.body.innerHTML =
+    '<nav><a href="/docs" style="display: contents">Quokka docs</a></nav>' +
+    '<div><span style="display: contents">Quokka notes</span></div>';
+  // Browsers give a display: contents element no box of its own, only its contents one.
+  for (const element of document.querySelectorAll<HTMLElement>('[style]')) {
+    Object.defineProperty(element, 'offsetWidth', { value: 0 });
+    Object.defineProperty(element, 'offsetHeight', { value: 0 });
+    element.getClientRects = () => ({ length: 0 }) as DOMRectList;
+  }
+  const restore = stubRangeLayout();
+  index = new PageSearchIndex();
+  try {
+    const result = await index.search(scorerFor('quokka'));
+    expect(result.matchingLinksAndButtons).toEqual([document.querySelector('a')]);
+    // Text a wrapper holds is found through the block around it, not as a second result.
+    expect(result.matchingText.map(match => match.node)).toEqual([
+      document.querySelector('a'),
+      document.querySelector('div'),
+    ]);
+  } finally {
+    restore();
+  }
+});
+
+test('refreshes for its own modal notifications, never for page-dispatched ones', () => {
+  const changed = vi.fn();
+  index = new PageSearchIndex(changed);
+  acceptSyntheticInputForTesting(false);
+  try {
+    document.dispatchEvent(new Event(MODAL_CHANGED_EVENT));
+    expect(changed).not.toHaveBeenCalled();
+    dispatchOwnEvent(document, new Event(MODAL_CHANGED_EVENT));
+    expect(changed).toHaveBeenCalledOnce();
+  } finally {
+    acceptSyntheticInputForTesting(true);
+  }
 });

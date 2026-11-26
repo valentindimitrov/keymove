@@ -4,16 +4,26 @@ import path from 'node:path';
 
 const contentStyles = readFileSync(path.resolve(process.cwd(), 'src/content.css'), 'utf8');
 
-test('resets inherited host-page styling at the shadow boundary', () => {
+test('resets host-page styling at the shadow boundary, ahead of important page rules', () => {
   // Strip comments first: one that mentions the reset must not stand in for the rule.
   const rules = contentStyles.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^}]*)\}/g);
-  const hostResets = [...rules].filter(
-    ([, selectors, body]) =>
-      selectors!.split(',').some(selector => selector.trim() === ':host') &&
-      /(?:^|;)\s*all\s*:\s*initial\s*(?:;|$)/.test(body!),
+  // Rules for the host element itself, not for its descendants or its ::backdrop.
+  const hostRules = [...rules].filter(([, selectors]) =>
+    selectors!.split(',').some(selector => /^:host(?:\([^)]*\))?$/.test(selector.trim())),
+  );
+  const declarations = hostRules.flatMap(([, , body]) =>
+    body!
+      .split(';')
+      .map(declaration => declaration.trim())
+      .filter(Boolean),
   );
 
-  expect(hostResets).toHaveLength(1);
+  // Page rules reach the host itself and beat normal :host declarations; only important
+  // ones win, even over the page's important rules (Dawn's `div:empty { display: none }`).
+  // That includes the theme's custom properties, which a page rule could otherwise set.
+  expect(declarations).toContain('all: initial !important');
+  expect(declarations).toContain('display: block !important');
+  expect(declarations.filter(declaration => !declaration.endsWith('!important'))).toEqual([]);
 });
 
 test('never reads a custom property without a fallback', () => {

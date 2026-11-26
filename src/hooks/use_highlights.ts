@@ -9,7 +9,6 @@ import { iterateRenderedText } from '../lib/visible_text.js';
 import { matchingTextSpans } from '../lib/search_text.js';
 import type { StyleCache, RenderedTextPart, TextBoundary } from '../lib/visible_text.js';
 import { renderedParent, textRangeScope } from '../lib/dom_tree.js';
-import highlightStyles from '../highlights.css?inline';
 // Highlighting needs only the node and the slice that matched, not the rest of a result.
 type HighlightTarget = { node: Element; term: string };
 
@@ -184,6 +183,18 @@ type HighlightOptions = {
   color?: string;
 };
 
+/**
+ * The rules of `highlights.css` with the chosen colour written in, for documents and
+ * shadow roots the page-level stylesheet does not reach. Built from values rather than
+ * by rewriting that stylesheet's text, whose minified form ends no rule with a semicolon.
+ */
+function concreteHighlightStyles(color: string) {
+  return (
+    `::highlight(${KEYMOVE_HIGHLIGHT_NAME}) { background-color: ${rgbaForHexColor(color, 0.28)}; }\n` +
+    `::highlight(${KEYMOVE_CURRENT_HIGHLIGHT_NAME}) { background-color: ${color}; color: ${inkForHexColor(color)}; }`
+  );
+}
+
 function shadowHighlightStyles(ranges: Range[], color: string) {
   const roots = new Set<ShadowRoot>();
   for (const range of ranges) {
@@ -194,12 +205,7 @@ function shadowHighlightStyles(ranges: Range[], color: string) {
   const sheet = new CSSStyleSheet();
   // Adopted styles avoid DOM mutations (and observer/search feedback loops). Concrete
   // values work even when a component resets or overrides inherited custom properties.
-  sheet.replaceSync(
-    highlightStyles
-      .replace(/var\(--keymove-text-wash,[^;]+\)/g, rgbaForHexColor(color, 0.28))
-      .replace(/var\(--keymove-text-accent,[^)]+\)/g, color)
-      .replace(/var\(--keymove-text-ink,[^)]+\)/g, inkForHexColor(color)),
-  );
+  sheet.replaceSync(concreteHighlightStyles(color));
   for (const root of roots) root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
   return () => {
     for (const root of roots)
@@ -270,6 +276,7 @@ const useHighlights = ({
 };
 
 export {
+  concreteHighlightStyles,
   highlightRangesForMatches,
   highlightRangesForNodes,
   rangesForTextNode,

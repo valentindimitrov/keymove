@@ -38,7 +38,15 @@ and pass any other argument to Playwright, for example
 changes affecting input, navigation, search, popup settings or extension mounting; use
 the `:built` forms after `pnpm quality` to test those exact artifacts.
 
-Each test loads a separate snapshot of `.output/chrome-mv3` into a fresh temporary
+Most tests load the test build, `.output/chrome-mv3-test` (`pnpm build:chromium:test`),
+whose shadow roots stay open so locators can reach KeyMove's interface. Shipped builds
+close them (SECURITY.md, "Isolation from the page"); `closed-root.spec.ts` uses
+`test.use({ build: 'production' })` to run against `.output/chrome-mv3` and observes it
+through real input, page-visible effects and the accessibility tree. `pnpm test:e2e` and
+`pnpm test:browser` build both. `test:browser:built` keeps the existing production build and
+rebuilds the test build from the current source; `test:e2e:built` expects both to exist.
+
+Each test loads a separate snapshot of its build into a fresh temporary
 profile, and each worker serves `preview/` on a free loopback port, so concurrent
 worktrees do not collide and no regular browser profile is touched. A missing build or
 browser fails the run; it is never a mocked pass. The fixtures fail a test that logs a
@@ -155,6 +163,7 @@ Build first, then pause a test in one terminal:
 
 ```text
 pnpm build:chromium
+pnpm build:chromium:test
 pnpm test:e2e:debug --grep "frames"
 ```
 

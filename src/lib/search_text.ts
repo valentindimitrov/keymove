@@ -3,9 +3,12 @@
 function normalizeSearchText(text: string): string {
   // ASCII is already NFC and contains neither NBSP nor Greek final sigma.
   if (!/[^\p{ASCII}]/u.test(text)) return text.toLowerCase();
+  // Composed again after casing: some lowercase letters, such as ǰ, compose with a
+  // combining mark where their uppercase forms have no precomposed character.
   return text
     .normalize('NFC')
     .toLowerCase()
+    .normalize('NFC')
     .replace(/\u00a0/g, ' ')
     .replace(/ς/g, 'σ');
 }
@@ -25,7 +28,14 @@ function matchingTextSpans(text: string, query: string, limit = Infinity) {
   let ends: Uint32Array | undefined;
   // Ordinary casing needs no offset map. Segment only an actual match whose spelling
   // changes length or canonical form, including combining marks crossing DOM nodes.
-  if (normalized.length !== text.length || text.normalize('NFC') !== text) {
+  // Composition after casing counts too: with an expansion elsewhere, as İ lowercases to
+  // two code units, the total length can stay the same while offsets still move.
+  const lowercase = text.toLowerCase();
+  if (
+    normalized.length !== text.length ||
+    text.normalize('NFC') !== text ||
+    lowercase.normalize('NFC') !== lowercase
+  ) {
     starts = new Uint32Array(normalized.length);
     ends = new Uint32Array(normalized.length);
     graphemes ??= new Intl.Segmenter('und', { granularity: 'grapheme' });
@@ -40,8 +50,11 @@ function matchingTextSpans(text: string, query: string, limit = Infinity) {
   while (index !== -1 && spans.length < limit) {
     const start = starts?.[index] ?? index;
     const end = ends?.[index + needle.length - 1] ?? index + needle.length;
-    // A normalized grapheme can contain several occurrences; highlight the original once.
-    if (spans.at(-1)?.end !== end) spans.push({ start, end });
+    // Occurrences inside or across shared graphemes widen to overlapping spans; merge
+    // them, since highlight ranges are built in order and cannot step back.
+    const last = spans.at(-1);
+    if (last && start < last.end) last.end = Math.max(last.end, end);
+    else spans.push({ start, end });
     index = normalized.indexOf(needle, index + needle.length);
   }
   return spans;

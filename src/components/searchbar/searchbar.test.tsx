@@ -16,6 +16,7 @@ import { MODAL_CHANGED_EVENT } from '../../lib/modal_context.js';
 import { stopFrameSearch } from '../../lib/find_in_page.js';
 import { RelatedImageSelection } from '../../lib/related_images.js';
 import { setFrameTarget } from '../../lib/frame_target.js';
+import type { FrameCommand } from '../../lib/frame_protocol.js';
 import { acceptSyntheticInputForTesting } from '../../lib/trusted_input.js';
 
 const searchMocks = vi.hoisted(() => ({
@@ -272,6 +273,99 @@ test('starts frame-text copying in the input event and retains a reopened menu a
     await act(async () => pending.resolve('Validated frame report'));
     vi.unstubAllGlobals();
   }
+});
+
+test('opens the current iframe link address unless a newer query arrived meanwhile', async () => {
+  const userActivation = { isActive: true };
+  Object.defineProperty(navigator, 'userActivation', { configurable: true, value: userActivation });
+  const boundary = document.createElement('iframe');
+  document.body.append(boundary);
+  const link = document.createElement('a');
+  link.href = 'https://example.com/draft';
+  const replies: PromiseWithResolvers<unknown>[] = [];
+  const command = vi.fn((operation: FrameCommand) => {
+    if (operation !== 'link') return Promise.resolve(true);
+    replies.push(Promise.withResolvers<unknown>());
+    return replies.at(-1)!.promise;
+  });
+  setFrameTarget(link, {
+    boundary,
+    alive: () => boundary.isConnected,
+    command,
+    paint: vi.fn(),
+    row: {
+      id: 1,
+      kind: 'action',
+      action: null,
+      label: 'Quokka notes',
+      text: 'Quokka notes',
+      context: 'link',
+      href: 'https://example.com/draft',
+      disabled: false,
+      focusable: true,
+      score: 1,
+      term: 'quokka',
+      distance: null,
+    },
+  });
+  settingsMocks.startInActionMode = true;
+  searchMocks.findMatches.mockResolvedValue(makeSearchResult({ matchingLinksAndButtons: [link] }));
+  render(<Searchbar />);
+  const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
+  fireEvent.input(input, { target: { value: 'quokka' } });
+  await flushSearch();
+
+  fireEvent.keyDown(input, { key: 'Enter', code: 'Enter', shiftKey: true });
+  expect(command).toHaveBeenLastCalledWith('link');
+  // The owning frame reports the address as it is now, not as the search saw it.
+  await act(async () => replies[0]!.resolve('https://example.com/published'));
+  expect(searchMocks.sendMessage).toHaveBeenLastCalledWith({
+    type: 'KEYMOVE_OPEN_LINK_IN_NEW_TAB',
+    url: 'https://example.com/published',
+    active: true,
+  });
+  expect(input).toHaveValue('');
+
+  searchMocks.sendMessage.mockClear();
+  fireEvent.input(input, { target: { value: 'quokka' } });
+  await flushSearch();
+  fireEvent.keyDown(input, { key: 'Enter', code: 'Enter', shiftKey: true });
+  fireEvent.input(input, { target: { value: 'quokka notes' } });
+  await act(async () => replies[1]!.resolve('https://example.com/published'));
+  // The user moved on before the reply; neither a tab nor a reset follows.
+  expect(searchMocks.sendMessage).not.toHaveBeenCalled();
+  expect(input).toHaveValue('quokka notes');
+  await flushSearch();
+
+  // Typing back to the same text is still a newer query.
+  fireEvent.input(input, { target: { value: 'quokka' } });
+  await flushSearch();
+  fireEvent.keyDown(input, { key: 'Enter', code: 'Enter', shiftKey: true });
+  fireEvent.input(input, { target: { value: 'quokkas' } });
+  fireEvent.input(input, { target: { value: 'quokka' } });
+  await act(async () => replies[2]!.resolve('https://example.com/published'));
+  expect(searchMocks.sendMessage).not.toHaveBeenCalled();
+  expect(input).toHaveValue('quokka');
+  await flushSearch();
+
+  // A gesture that expired while the frame answered opens nothing.
+  fireEvent.keyDown(input, { key: 'Enter', code: 'Enter', shiftKey: true });
+  userActivation.isActive = false;
+  await act(async () => replies[3]!.resolve('https://example.com/published'));
+  userActivation.isActive = true;
+  expect(searchMocks.sendMessage).not.toHaveBeenCalled();
+
+  // A recorded address that was not openable is asked about again, not rejected here.
+  link.href = 'mailto:help@example.com';
+  fireEvent.keyDown(input, { key: 'Enter', code: 'Enter', shiftKey: true });
+  await act(async () => replies[4]!.resolve('https://example.com/help'));
+  expect(searchMocks.sendMessage).toHaveBeenLastCalledWith({
+    type: 'KEYMOVE_OPEN_LINK_IN_NEW_TAB',
+    url: 'https://example.com/help',
+    active: true,
+  });
+  Reflect.deleteProperty(navigator, 'userActivation');
 });
 
 test('selects a related image on demand, offers image actions, then restores text and query', async () => {
@@ -1897,6 +1991,63 @@ test.each(['Tab', 'Alt+1'])(
   },
 );
 
+test('a refused iframe link keeps the way back to where the search began', async () => {
+  const userActivation = { isActive: true };
+  Object.defineProperty(navigator, 'userActivation', { configurable: true, value: userActivation });
+  const boundary = document.createElement('iframe');
+  document.body.append(boundary);
+  const link = document.createElement('a');
+  link.href = 'mailto:help@example.com';
+  const command = vi.fn((operation: FrameCommand) =>
+    Promise.resolve(operation === 'link' ? null : true),
+  );
+  setFrameTarget(link, {
+    boundary,
+    alive: () => boundary.isConnected,
+    command,
+    paint: vi.fn(),
+    row: {
+      id: 1,
+      kind: 'action',
+      action: null,
+      label: 'Email support',
+      text: 'Email support',
+      context: 'link',
+      href: 'mailto:help@example.com',
+      disabled: false,
+      focusable: true,
+      score: 1,
+      term: 'support',
+      distance: null,
+    },
+  });
+  settingsMocks.startInActionMode = true;
+  searchMocks.findMatches.mockResolvedValue(makeSearchResult({ matchingLinksAndButtons: [link] }));
+  vi.stubGlobal('scrollX', 15);
+  vi.stubGlobal('scrollY', 240);
+  const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+  try {
+    render(<Searchbar />);
+    fireEvent.keyDown(document.body, { key: 's', code: 'KeyS' });
+    const input = screen.getByRole('combobox', { name: 'Search page' });
+    input.focus();
+    fireEvent.change(input, { target: { value: 'support' } });
+    await flushSearch();
+    fireEvent.keyDown(input, { key: 'Tab', code: 'Tab' });
+    vi.stubGlobal('scrollY', 1500);
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter', shiftKey: true });
+    await act(async () => {});
+    expect(command).toHaveBeenCalledWith('link');
+    expect(searchMocks.sendMessage).not.toHaveBeenCalled();
+    fireEvent.keyDown(input, { key: 'Backspace', code: 'Backspace', altKey: true });
+    expect(scrollTo).toHaveBeenCalledWith({ left: 15, top: 240, behavior: 'instant' });
+  } finally {
+    scrollTo.mockRestore();
+    vi.unstubAllGlobals();
+    Reflect.deleteProperty(navigator, 'userActivation');
+  }
+});
+
 test('Escape keeps the current position and does not restore an earlier field', async () => {
   searchMocks.findMatches.mockResolvedValue(makeSearchResult());
   const original = document.createElement('textarea');
@@ -2144,12 +2295,79 @@ test('Tab selects and copies a whole text block, and Enter opens its nested acti
   const setData = vi.fn();
   const copyEvent = new Event('copy', { bubbles: true, cancelable: true });
   Object.defineProperty(copyEvent, 'clipboardData', { value: { setData } });
+  // A page listener after KeyMove's must not see the copied text, which can come from a frame.
+  const pageListener = vi.fn();
+  window.addEventListener('copy', pageListener);
   document.dispatchEvent(copyEvent);
+  window.removeEventListener('copy', pageListener);
   expect(setData).toHaveBeenCalledWith('text/plain', paragraph.textContent);
   expect(copyEvent.defaultPrevented).toBe(true);
+  expect(pageListener).not.toHaveBeenCalled();
 
   fireEvent.keyDown(input, { bubbles: true, cancelable: true, code: 'Enter', key: 'Enter' });
   expect(click).toHaveBeenCalledOnce();
+});
+
+test('copies the selected block when the page cancels Ctrl+C, also without the Clipboard API', async () => {
+  const paragraph = document.createElement('p');
+  paragraph.textContent = 'Read the documentation before continuing.';
+  document.body.append(paragraph);
+  const textMatch = makeTextMatch({ node: paragraph, term: 'documentation' });
+  searchMocks.findMatches.mockResolvedValue(makeSearchResult({ matchingText: [textMatch] }));
+  render(<Searchbar />);
+  const input = screen.getByRole<HTMLInputElement>('combobox', { name: 'Search page' });
+  input.focus();
+  fireEvent.change(input, { target: { value: 'documentation' } });
+  await flushSearch();
+  // A page shortcut that cancels Ctrl+C outside text fields, seeing only KeyMove's host.
+  const cancel = (event: KeyboardEvent) => event.preventDefault();
+  window.addEventListener('keydown', cancel, true);
+  // An insecure origin has no Clipboard API; the copy command copies a selected field.
+  vi.stubGlobal('navigator', { ...navigator, clipboard: undefined });
+  let copied = '';
+  const execCommand = vi.fn((command: string) => {
+    const field = input.parentElement?.querySelector('textarea');
+    if (command === 'copy' && field)
+      copied = field.value.slice(field.selectionStart, field.selectionEnd);
+    return true;
+  });
+  Object.defineProperty(document, 'execCommand', { configurable: true, value: execCommand });
+  try {
+    fireEvent.keyDown(input, { key: 'c', code: 'KeyC', ctrlKey: true, bubbles: true });
+    expect(execCommand).toHaveBeenCalledWith('copy');
+    expect(copied).toBe(paragraph.textContent);
+    expect(document.activeElement === input || input.matches(':focus')).toBe(true);
+  } finally {
+    window.removeEventListener('keydown', cancel, true);
+    vi.unstubAllGlobals();
+    Reflect.deleteProperty(document, 'execCommand');
+  }
+});
+
+test('a cancelled Ctrl+C copies the selected query when there is no result', async () => {
+  searchMocks.findMatches.mockResolvedValue(makeSearchResult());
+  render(<Searchbar />);
+  const input = screen.getByRole<HTMLInputElement>('combobox', { name: 'Search page' });
+  input.focus();
+  fireEvent.change(input, { target: { value: 'missing words' } });
+  await flushSearch();
+  input.setSelectionRange(0, 7);
+  const cancel = (event: KeyboardEvent) => event.preventDefault();
+  window.addEventListener('keydown', cancel, true);
+  // A page can deny clipboard writes; the copy command is the fallback.
+  const writeText = vi.fn().mockRejectedValue(new Error('denied'));
+  vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
+  const execCommand = vi.fn(() => true);
+  Object.defineProperty(document, 'execCommand', { configurable: true, value: execCommand });
+  try {
+    fireEvent.keyDown(input, { key: 'c', code: 'KeyC', ctrlKey: true, bubbles: true });
+    expect(writeText).toHaveBeenCalledWith('missing');
+    await waitFor(() => expect(execCommand).toHaveBeenCalledWith('copy'));
+  } finally {
+    window.removeEventListener('keydown', cancel, true);
+    vi.unstubAllGlobals();
+    Reflect.deleteProperty(document, 'execCommand');
+  }
 });
 
 test('Ctrl+Tab and Shift+Ctrl+Tab navigate only action elements', async () => {

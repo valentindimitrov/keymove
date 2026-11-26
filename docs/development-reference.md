@@ -28,6 +28,7 @@ so every assertion still passes. Add a scenario when a state is worth looking at
 | `pnpm preview:ui` | Serve the interface on `localhost:5174` for a visual check, without a browser extension install. |
 | `pnpm build` | Build Chromium, Firefox and experimental Safari web resources. |
 | `pnpm build:chromium` | Build the Chromium/Vivaldi artifact. |
+| `pnpm build:chromium:test` | Build `.output/chrome-mv3-test`, with open shadow roots, for the browser suite and capture tools. Never publish it. |
 | `pnpm build:vivaldi` | Explicit alias for the Chromium artifact used by Vivaldi. |
 | `pnpm build:firefox` | Build the Firefox artifact. |
 | `pnpm build:safari` / `pnpm zip:safari` | Build/package Safari MV3 web resources for the macOS-only app. |
@@ -115,8 +116,10 @@ lockfile records it, and replace the hash with the new tarball's SHA-512 (hex, f
 
 ### Architecture
 
-- [entrypoints/content.tsx](../entrypoints/content.tsx) mounts the interface inside an isolated Shadow
-  DOM and restores it if a page replaces `document.body`.
+- [entrypoints/content.tsx](../entrypoints/content.tsx) loads
+  [src/content_ui.tsx](../src/content_ui.tsx) into HTML documents (not XML ones such as
+  sitemaps), which mounts the interface inside an isolated Shadow DOM and restores it if a page
+  replaces `document.body`.
 - [src/components/searchbar/searchbar.tsx](../src/components/searchbar/searchbar.tsx) coordinates input,
   the two navigation modes, activation, selection, and copying.
 - [src/lib/page_search_index.ts](../src/lib/page_search_index.ts) maintains a mutation-aware page index

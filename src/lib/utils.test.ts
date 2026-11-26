@@ -1,4 +1,15 @@
 import Utils from './utils.js';
+import { setFrameTarget } from './frame_target.js';
+import type { FrameCommand } from './frame_protocol.js';
+
+// Extension-only access to closed roots, as `dom.openOrClosedShadowRoot` gives in Chromium.
+const closedRoots = vi.hoisted(() => new WeakMap<Element, ShadowRoot>());
+vi.mock('wxt/browser', () => ({
+  browser: {
+    runtime: { id: 'test' },
+    dom: { openOrClosedShadowRoot: (element: Element) => closedRoots.get(element) ?? null },
+  },
+}));
 
 test.each(['é', 'Б', 'λ', '日', 'ع', '𐐀', '१'])('accepts %s to start searching', key => {
   expect(Utils.keyValidForFocus(key)).toBe(true);
@@ -58,6 +69,67 @@ test('tracks the active input through a shadow root', () => {
 
   expect(Utils.elementIsActive(input)).toBe(true);
   expect(Utils.differentInputIsActive(input)).toBe(false);
+});
+
+function closedHost(tag: string, init: Partial<ShadowRootInit> = {}) {
+  const host = document.createElement(tag);
+  const shadowRoot = host.attachShadow({ mode: 'closed', ...init });
+  closedRoots.set(host, shadowRoot);
+  document.body.appendChild(host);
+  return { host, shadowRoot };
+}
+
+test('tracks the active editor through a closed shadow root', () => {
+  const { host, shadowRoot } = closedHost('rich-editor');
+  const editor = document.createElement('div');
+  editor.setAttribute('contenteditable', 'true');
+  // jsdom computes no isContentEditable.
+  Object.defineProperty(editor, 'isContentEditable', { value: true });
+  shadowRoot.appendChild(editor);
+
+  editor.focus();
+
+  expect(Utils.elementIsActive(editor)).toBe(true);
+  expect(Utils.differentInputIsActive(null)).toBe(true);
+  host.remove();
+});
+
+test('keeps a focused host widget role protecting keys typed inside it', () => {
+  const { host, shadowRoot } = closedHost('fruit-list');
+  host.setAttribute('role', 'listbox');
+  const option = document.createElement('div');
+  option.setAttribute('role', 'option');
+  option.tabIndex = 0;
+  shadowRoot.appendChild(option);
+
+  option.focus();
+
+  expect(Utils.differentInputIsActive(null)).toBe(true);
+  host.remove();
+});
+
+test('lets a non-editable control inside an editable host start a search', () => {
+  const { host, shadowRoot } = closedHost('rich-editor');
+  Object.defineProperty(host, 'isContentEditable', { value: true });
+  const bold = document.createElement('button');
+  shadowRoot.appendChild(bold);
+
+  bold.focus();
+
+  expect(Utils.differentInputIsActive(null)).toBe(false);
+  host.remove();
+});
+
+test('counts a host that delegates focus as active', () => {
+  const { host, shadowRoot } = closedHost('text-field', { delegatesFocus: true });
+  const input = document.createElement('input');
+  shadowRoot.appendChild(input);
+
+  input.focus();
+
+  expect(Utils.elementIsActive(host)).toBe(true);
+  expect(Utils.elementIsActive(input)).toBe(true);
+  host.remove();
 });
 
 test('recognizes a host-page input as a different active input', () => {
@@ -187,4 +259,75 @@ test('dispatches pointer and mouse activation events in browser order', () => {
     'pointerout',
     'mouseout',
   ]);
+});
+
+test('releases a frame selection once the cursor leaves that frame, not when it stays', async () => {
+  const commands: string[] = [];
+  const frameNode = (name: string, boundary = document.createElement('iframe')) => {
+    document.body.append(boundary);
+    const node = document.createElement('p');
+    setFrameTarget(node, {
+      boundary,
+      alive: () => true,
+      command: (command: FrameCommand) => {
+        commands.push(`${name}:${String(command)}`);
+        return Promise.resolve(true);
+      },
+      paint: vi.fn(),
+      row: {
+        id: 1,
+        kind: 'text',
+        action: null,
+        label: name,
+        text: name,
+        context: '',
+        href: null,
+        disabled: false,
+        focusable: false,
+        score: 1,
+        term: null,
+        distance: null,
+      },
+    });
+    return node;
+  };
+  const shared = document.createElement('iframe');
+  const first = frameNode('first', shared);
+  const sibling = frameNode('first-again', shared);
+  const other = frameNode('other');
+  const local = document.createElement('p');
+  local.textContent = 'Local text';
+  document.body.append(local);
+
+  Utils.selectNodeContents(first);
+  // An effect clears before selecting again in the same frame: no release goes out.
+  Utils.clearPageSelection();
+  Utils.selectNodeContents(sibling);
+  await Promise.resolve();
+  expect(commands).toEqual(['first:select', 'first-again:select']);
+
+  Utils.selectNodeContents(other);
+  await Promise.resolve();
+  expect(commands.slice(2)).toEqual(['other:select', 'first-again:deselect']);
+
+  Utils.selectNodeContents(local);
+  await Promise.resolve();
+  expect(commands.slice(4)).toEqual(['other:deselect']);
+
+  // Tab from one frame to another: the key handler selects, then the effect clears and
+  // selects the same result again. The first frame is still released.
+  Utils.selectNodeContents(first);
+  await Promise.resolve();
+  Utils.selectNodeContents(other);
+  Utils.clearPageSelection();
+  Utils.selectNodeContents(other);
+  await Promise.resolve();
+  expect(commands.slice(5)).toEqual([
+    'first:select',
+    'other:select',
+    'other:select',
+    'first:deselect',
+  ]);
+  Utils.clearPageSelection();
+  document.body.replaceChildren();
 });

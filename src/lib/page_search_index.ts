@@ -11,12 +11,19 @@ import {
   labelledToggle,
   searchableAttributeValuesForNode,
 } from './searchable_attributes.js';
-import { isInlineLevel, isTextVisible, iterateRenderedText } from './visible_text.js';
+import {
+  computedStyle,
+  hasRenderedBox,
+  isInlineLevel,
+  isTextVisible,
+  iterateRenderedText,
+} from './visible_text.js';
 import { normalizeSearchText } from './search_text.js';
 import type { OwnedText, StyleCache } from './visible_text.js';
 import { iterateControlName } from './control_name.js';
 import { hasSearchableInputValue, inputDisplayValue } from './input_value.js';
 import { activeModal, actionIsInScope, MODAL_CHANGED_EVENT } from './modal_context.js';
+import { isOwnEvent } from './trusted_input.js';
 import {
   containsAcrossRoots,
   isKeyMoveNode,
@@ -247,6 +254,8 @@ class PageSearchIndex {
   // Blocks some candidate's owned text left out. They own their inline text even without
   // a text node of their own, so they can be text results.
   private ownedBlocks = new WeakSet<Element>();
+  // The block, if any, each inline ancestor's text belongs to, for the current search.
+  private ownerBlocks = new WeakMap<Element, Element | null>();
   // Left-out blocks indexed only for that reason, not as candidates in their own right.
   private readonly lazyBlocks = new Set<Element>();
   private subtreeRevision = 0;
@@ -257,7 +266,7 @@ class PageSearchIndex {
     this.root = document.body;
     this.actionableSelector = ACTIONABLE_SELECTOR;
     this.onChange = onChange;
-    document.addEventListener(MODAL_CHANGED_EVENT, this.onChange);
+    document.addEventListener(MODAL_CHANGED_EVENT, this.handleModalChange);
     document.addEventListener('input', this.handleControlChange, true);
     document.addEventListener('change', this.handleControlChange, true);
     this.handleMutations = this.handleMutations.bind(this);
@@ -271,6 +280,11 @@ class PageSearchIndex {
       subtree: true,
     });
   }
+
+  // Page script can dispatch this notification too; only KeyMove's own counts.
+  private readonly handleModalChange = (event: Event) => {
+    if (isOwnEvent(event)) this.onChange();
+  };
 
   private readonly handleControlChange = (event: Event) => {
     if (this.handledControlEvents.has(event)) return;
@@ -508,13 +522,9 @@ class PageSearchIndex {
   }
 
   isVisible(node: Element, styles: StyleCache = new WeakMap()) {
-    if (
-      !node.isConnected ||
-      !(
-        (node instanceof HTMLElement && (node.offsetWidth || node.offsetHeight)) ||
-        node.getClientRects().length
-      )
-    ) {
+    // Only actions are measured by their contents when display: contents gives them no
+    // box: text in such a wrapper already belongs to the block around it.
+    if (!node.isConnected || !hasRenderedBox(node, styles, isLinkOrButtonOrInput(node))) {
       return false;
     }
 
@@ -567,6 +577,7 @@ class PageSearchIndex {
     for (const block of this.lazyBlocks) this.records.delete(block);
     this.lazyBlocks.clear();
     this.ownedBlocks = new WeakSet();
+    this.ownerBlocks = new WeakMap();
     const collector: MatchCollector = {
       styles: new WeakMap(),
       modal: activeModal(),
@@ -597,9 +608,12 @@ class PageSearchIndex {
         continue;
       }
 
-      if (!actionIsInScope(node, collector.modal) || !this.isVisible(node, styles)) {
-        continue;
-      }
+      if (!actionIsInScope(node, collector.modal)) continue;
+      // Before the visibility check: a display: contents element has no box of its own,
+      // yet its text is visible through the block it belongs to.
+      const owner = this.uncoveredOwnerBlock(node, styles);
+      if (owner) this.queueSkippedBlocks({ skipped: [owner], boundary: isSeparateBlock });
+      if (!this.isVisible(node, styles)) continue;
 
       const record = this.recordForNode(node);
       if (isLinkOrButtonOrInput(node) && record.nameRevision !== this.nameRevision) {
@@ -698,7 +712,8 @@ class PageSearchIndex {
           isLinkOrButtonOrInput(node) &&
           actionIsInScope(node, collector.modal) &&
           !isActionDisabled(node) &&
-          this.isVisible(node, styles)
+          this.isVisible(node, styles) &&
+          !this.inSeparateBox(node, match.node, styles)
         ) {
           match.action = node;
           break;
@@ -776,6 +791,61 @@ class PageSearchIndex {
       this.records.set(block, null);
       this.lazyBlocks.add(block);
     }
+  }
+
+  /**
+   * Whether an action inside a text result sits in a box the result does not own. Any
+   * element other than a semantic block owns its text and inline content, not the boxes
+   * laid out inside it, so an action in one of those is not the result's action.
+   */
+  private inSeparateBox(action: Element, result: Element, styles: StyleCache) {
+    if (result.matches(TEXT_BLOCK_SELECTOR)) return false;
+    for (let node: Element | null = action; node && node !== result; node = renderedParent(node)) {
+      if (isSeparateBlock(node, computedStyle(node, styles).display)) return true;
+    }
+    return false;
+  }
+
+  /**
+   * The block an inline candidate's text belongs to, when no candidate holds that block.
+   * A block whose inline children carry all of its text has no text node of its own, so
+   * it is not a candidate, and a phrase spread over those children matches only there.
+   * Blocks that a candidate leaves out are queued by that candidate instead.
+   */
+  private uncoveredOwnerBlock(node: Element, styles: StyleCache) {
+    // Controls are results of their own; adjacent ones run together in a block's text.
+    if (
+      node.matches(TEXT_BLOCK_SELECTOR) ||
+      isLinkOrButtonOrInput(node) ||
+      !isInlineLevel(computedStyle(node, styles).display)
+    )
+      return null;
+    // Inline siblings share their ancestors, so each ancestor is resolved once a search.
+    const visited: Element[] = [];
+    let owner: Element | null = null;
+    for (let parent = renderedParent(node); parent; parent = renderedParent(parent)) {
+      const known = this.ownerBlocks.get(parent);
+      if (known !== undefined) {
+        owner = known;
+        break;
+      }
+      visited.push(parent);
+      const display = computedStyle(parent, styles).display;
+      // A record holds this text, unless it has no box and so is never scanned itself.
+      if (this.records.has(parent) && display !== 'contents') break;
+      if (isSeparateBlock(parent, display)) {
+        // Selecting the page's root would take in the whole page and its actions.
+        const isRoot =
+          parent === this.root ||
+          parent === document.body ||
+          parent === document.documentElement ||
+          isKeyMoveRoot(parent);
+        if (!isRoot) owner = parent;
+        break;
+      }
+    }
+    for (const element of visited) this.ownerBlocks.set(element, owner);
+    return owner;
   }
 
   /**
@@ -912,7 +982,7 @@ class PageSearchIndex {
     const blocks = new Map([...blockMatches].map(match => [match.node, match]));
     const covered = new Map<TextMatch, number>();
     const startsOwnBlock = (element: Element) =>
-      isSeparateBlock(element, window.getComputedStyle(element).display);
+      isSeparateBlock(element, computedStyle(element, collector.styles).display);
     for (const match of collector.matchingText) {
       // Text inside a block of its own belongs to no block above it.
       for (
@@ -943,7 +1013,7 @@ class PageSearchIndex {
   }
 
   disconnect() {
-    document.removeEventListener(MODAL_CHANGED_EVENT, this.onChange);
+    document.removeEventListener(MODAL_CHANGED_EVENT, this.handleModalChange);
     document.removeEventListener('input', this.handleControlChange, true);
     document.removeEventListener('change', this.handleControlChange, true);
     this.lifetime.abort();

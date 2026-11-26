@@ -16,6 +16,9 @@ export default defineConfig({
   root: fromHere('.'),
   base: '/',
   publicDir: fromHere('./public'),
+  // The demo page is KeyMove's own page, not a host page to isolate from: its scripts
+  // read the demo searchbar's shadow root.
+  define: { __KEYMOVE_OPEN_SHADOW_ROOTS__: 'true' },
   plugins: [
     react(),
     svgr(),

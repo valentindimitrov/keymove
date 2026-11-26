@@ -1,4 +1,4 @@
-import type { BrowserContext, Locator, Page } from '@playwright/test';
+import type { BrowserContext, Frame, Locator, Page } from '@playwright/test';
 import { test, expect } from './fixtures.js';
 
 async function openSearch(page: Page, fixture = 'fixtures.html') {
@@ -296,6 +296,408 @@ test('mounts beside a page element that already uses the root id and searches it
   await expect
     .poll(() => page.evaluate(() => window.getSelection()?.toString()))
     .toBe('Impostor quokka paragraph');
+});
+
+test('page stylesheets cannot hide, move or cover the searchbar host', async ({ page }) => {
+  // Shopify's Dawn theme ships `div:empty { display: none }`, which matched the host:
+  // its only content is a shadow root. The rest are generic rules for the last child of
+  // body, where the host lives, marked important as a hostile page may.
+  await page.addInitScript(() => {
+    document.addEventListener('DOMContentLoaded', () => {
+      const style = document.createElement('style');
+      style.textContent = `
+        div:empty { display: none !important; }
+        body > div:last-child {
+          visibility: hidden !important;
+          opacity: 0 !important;
+          transform: translateX(-200vw) !important;
+          position: relative !important;
+          z-index: 0 !important;
+        }`;
+      document.head.append(style);
+    });
+  });
+  const input = await openSearch(page);
+  await input.pressSequentially('qalpha');
+  await expect(page.getByRole('status')).toHaveText('Text 1 / 1');
+  const bar = page.locator('#keymove-bar');
+  await expect(bar).toBeVisible();
+  await expect(bar).toBeInViewport();
+  expect(
+    await page
+      .locator('#keymove-root')
+      .evaluate(host => [getComputedStyle(host).opacity, getComputedStyle(host).zIndex]),
+  ).toEqual(['1', 'auto']);
+});
+
+test('page stylesheets cannot hide the result outlines drawn inside frames', async ({ page }) => {
+  // Init scripts also run in child frames; each frame's outline layer is an empty div.
+  await page.addInitScript(() => {
+    document.addEventListener('DOMContentLoaded', () => {
+      const style = document.createElement('style');
+      style.textContent = 'div:empty { display: none !important; }';
+      document.head.append(style);
+    });
+  });
+  const input = await openSearch(page, 'frames.html');
+  await input.pressSequentially('Launch');
+  await expect(page.getByRole('status')).toHaveText(/^(Text|Actions) 1 \/ [1-9]$/);
+  const layers = (frame: Frame) =>
+    frame.evaluate(() =>
+      [...document.querySelectorAll('div')]
+        .filter(element => element.shadowRoot?.querySelector('.keymove-selection'))
+        .map(element => getComputedStyle(element).display),
+    );
+  await expect
+    .poll(async () => (await Promise.all(page.frames().slice(1).map(layers))).flat())
+    .toEqual(expect.arrayContaining(['block']));
+  expect((await Promise.all(page.frames().slice(1).map(layers))).flat()).not.toContain('none');
+});
+
+test('opens the current address of an iframe link that changed after the search', async ({
+  page,
+  context,
+}) => {
+  await page.goto('frames.html');
+  await expect(page.locator('#keymove-bar')).toHaveAttribute('data-always-on', 'true');
+  const local = page.locator('iframe').first().contentFrame();
+  await local.locator('body').evaluate(body => {
+    const link = document.createElement('a');
+    link.id = 'quokka';
+    link.href = '/fixtures.html?draft';
+    link.textContent = 'Quokka notes';
+    body.append(link);
+  });
+  await page.keyboard.press('Alt+f');
+  const input = page.getByRole('combobox', { name: 'Search page', exact: true });
+  await input.pressSequentially('quokka');
+  const status = page.getByRole('status');
+  await expect(status).toHaveText(/^(Text|Actions) 1 \/ 1$/);
+  if ((await status.innerText()).startsWith('Text')) await input.press('Alt+s');
+  await expect(status).toHaveText('Actions 1 / 1');
+  // Changed just before the shortcut, sooner than the frame reports the change.
+  await local
+    .locator('#quokka')
+    .evaluate(link => link.setAttribute('href', '/fixtures.html?published'));
+  const opened = context.waitForEvent('page');
+  await input.press('Shift+Enter');
+  const tab = await opened;
+  await expect(tab).toHaveURL(/\/fixtures\.html\?published$/);
+  await tab.close();
+});
+
+test('type-to-search leaves typing in an editor inside a closed shadow root alone', async ({
+  page,
+}) => {
+  // fixtures.html blocks character keys aimed at non-editable targets, such as this host.
+  await page.goto('shadow.html');
+  await expect(page.locator('#keymove-bar')).toHaveAttribute('data-always-on', 'true');
+  await page.evaluate(() => {
+    const host = document.createElement('closed-editor');
+    const root = host.attachShadow({ mode: 'closed' });
+    const editor = document.createElement('div');
+    editor.contentEditable = 'true';
+    editor.style.minHeight = '2em';
+    root.append(editor);
+    document.body.prepend(host);
+    (window as unknown as { closedEditor: HTMLElement }).closedEditor = editor;
+    editor.focus();
+  });
+  await page.keyboard.type('hello');
+  expect(
+    await page.evaluate(
+      () => (window as unknown as { closedEditor: HTMLElement }).closedEditor.textContent,
+    ),
+  ).toBe('hello');
+  await expect(page.locator('#keymove-input')).toHaveValue('');
+});
+
+test('outlines inside a frame follow its content when the frame scrolls', async ({ page }) => {
+  await page.goto('frames.html');
+  await expect(page.locator('#keymove-bar')).toHaveAttribute('data-always-on', 'true');
+  const local = page.locator('iframe').first().contentFrame();
+  await local.locator('body').evaluate(body => {
+    for (let index = 0; index < 40; index++) {
+      const paragraph = document.createElement('p');
+      paragraph.textContent = `Quokka paragraph ${index}`;
+      body.append(paragraph);
+    }
+  });
+  await page.keyboard.press('Alt+f');
+  await page.keyboard.type('quokka');
+  await expect(page.getByRole('status')).toHaveText(/\/ 40$/);
+  // Each outline sits 4 px outside its paragraph, before and after the frame scrolls.
+  const offsets = () =>
+    local.locator('body').evaluate(() => {
+      const outlines = document
+        .getElementById('keymove-root')!
+        .shadowRoot!.querySelectorAll('.keymove-selection');
+      const paragraphs = [...document.querySelectorAll('p')].filter(p =>
+        p.textContent?.startsWith('Quokka'),
+      );
+      return [...outlines].map((outline, index) =>
+        Math.round(
+          outline.getBoundingClientRect().top - paragraphs[index]!.getBoundingClientRect().top,
+        ),
+      );
+    });
+  await expect.poll(async () => new Set(await offsets())).toEqual(new Set([-4]));
+  await local.locator('body').evaluate(() => window.scrollBy(0, 300));
+  await expect.poll(async () => new Set(await offsets())).toEqual(new Set([-4]));
+  // A resize can hide a result, so it paints again rather than only moving outlines.
+  const outlineCount = () =>
+    local
+      .locator('body')
+      .evaluate(
+        () =>
+          document
+            .getElementById('keymove-root')!
+            .shadowRoot!.querySelectorAll('.keymove-selection').length,
+      );
+  await local.locator('body').evaluate(() => {
+    const style = document.createElement('style');
+    style.textContent = '@media (max-width: 400px) { .narrow-hidden { visibility: hidden; } }';
+    document.head.append(style);
+    document.querySelectorAll('p')[3]!.classList.add('narrow-hidden');
+  });
+  expect(await outlineCount()).toBe(40);
+  await page
+    .locator('iframe')
+    .first()
+    .evaluate(frame => {
+      frame.style.width = '350px';
+    });
+  await expect.poll(outlineCount).toBe(39);
+});
+
+test('draws outlines only near the viewport, following it as the page scrolls', async ({
+  page,
+}) => {
+  await page.goto('shadow.html');
+  await expect(page.locator('#keymove-bar')).toHaveAttribute('data-always-on', 'true');
+  await page.evaluate(() => {
+    for (let index = 0; index < 600; index++) {
+      const paragraph = document.createElement('p');
+      paragraph.textContent = `Quokka paragraph ${index}`;
+      document.body.append(paragraph);
+    }
+  });
+  await page.keyboard.press('Alt+f');
+  await page.keyboard.type('quokka');
+  await expect(page.getByRole('status')).toHaveText(/\/ 600$/);
+  // Every outline lies within a screen of the viewport, and some lie on it.
+  const placement = () =>
+    page.evaluate(() => {
+      const root = document.getElementById('keymove-root')!.shadowRoot!;
+      const tops = [...root.querySelectorAll('.keymove-selection')].map(
+        outline => outline.getBoundingClientRect().top,
+      );
+      return {
+        count: tops.length,
+        near: tops.every(top => top >= -2 * innerHeight && top <= 3 * innerHeight),
+        onScreen: tops.some(top => top >= 0 && top <= innerHeight),
+      };
+    });
+  await expect.poll(placement).toMatchObject({ near: true, onScreen: true });
+  expect((await placement()).count).toBeLessThan(600);
+  await page.evaluate(() => window.scrollBy(0, 8000));
+  await expect.poll(placement).toMatchObject({ near: true, onScreen: true });
+  // Scrolling inside a panel brings its matches into view; they get outlines too.
+  await page.evaluate(() => {
+    window.scrollTo(0, 0);
+    const panel = document.createElement('div');
+    panel.id = 'panel';
+    panel.style.cssText = 'position:fixed;top:0;left:0;width:400px;height:300px;overflow:auto';
+    panel.innerHTML = '<div style="height:4000px"></div><p id="deep">Quokka deep in a panel</p>';
+    document.body.append(panel);
+  });
+  await page.keyboard.press('Alt+f');
+  await page.keyboard.press('Backspace');
+  await page.keyboard.type('a');
+  await expect(page.getByRole('status')).toHaveText(/\/ 601$/);
+  await expect(page.locator('#keymove-input')).toHaveValue('quokka');
+  // Let the search and its refresh settle, so only the panel's scroll can redraw outlines.
+  await page.waitForTimeout(500);
+  await page.evaluate(() => {
+    document.getElementById('panel')!.scrollTop = 4000;
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const deep = document.getElementById('deep')!.getBoundingClientRect();
+        const root = document.getElementById('keymove-root')!.shadowRoot!;
+        return [...root.querySelectorAll('.keymove-selection')].some(
+          outline => Math.abs(outline.getBoundingClientRect().top - (deep.top - 7)) < 2,
+        );
+      }),
+    )
+    .toBe(true);
+  // A carousel that keeps scrolling neither hides the outlines nor remounts them: without
+  // a match it refreshes nothing, and with one, outlines move instead of being recreated.
+  await page.evaluate(() => {
+    const carousel = document.createElement('div');
+    carousel.id = 'carousel';
+    carousel.style.cssText = 'width:200px;height:50px;overflow:auto';
+    carousel.innerHTML = '<div style="height:2000px">slides</div><p>Quokka slide</p>';
+    document.body.append(carousel);
+  });
+  await page.waitForTimeout(500);
+  await page.evaluate(() => {
+    for (const outline of document
+      .getElementById('keymove-root')!
+      .shadowRoot!.querySelectorAll('.keymove-selection'))
+      outline.setAttribute('data-before-carousel', '');
+  });
+  await page.evaluate(async () => {
+    const carousel = document.getElementById('carousel')!;
+    for (let step = 1; step <= 5; step++) {
+      carousel.scrollTop = step * 100;
+      await new Promise(resolve => setTimeout(resolve, 60));
+    }
+  });
+  await page.waitForTimeout(300);
+  expect(
+    await page.evaluate(
+      () =>
+        document
+          .getElementById('keymove-root')!
+          .shadowRoot!.querySelectorAll('.keymove-selected-selection[data-before-carousel]').length,
+    ),
+  ).toBe(1);
+});
+
+test('finds, outlines, scrolls to and activates links laid out with display: contents', async ({
+  page,
+}) => {
+  await page.goto('shadow.html');
+  await expect(page.locator('#keymove-bar')).toHaveAttribute('data-always-on', 'true');
+  await page.evaluate(() => {
+    const spacer = document.createElement('div');
+    spacer.style.height = '3000px';
+    // Below the fold, with a hidden badge far to the side that must not stretch the outline.
+    const nav = document.createElement('nav');
+    nav.innerHTML =
+      '<a id="boxless" href="#boxless" style="display: contents">Quokka guide' +
+      '<span style="position:absolute;left:2000px;visibility:hidden">Badge</span></a>' +
+      '<a href="#hidden" aria-label="Quokka hidden" style="display: contents">' +
+      '<span style="visibility:hidden">Hidden</span></a>';
+    nav.querySelector('a')!.addEventListener('click', event => {
+      event.preventDefault();
+      document.body.dataset['boxlessClicked'] = 'yes';
+    });
+    // A boxless link around a slot shows the host's light-DOM text.
+    const host = document.createElement('quokka-card');
+    host.textContent = 'Quokka card';
+    host.attachShadow({ mode: 'open' }).innerHTML =
+      '<a href="#card" style="display: contents"><slot></slot></a>';
+    document.body.append(spacer, nav, host);
+  });
+  await page.keyboard.press('Alt+f');
+  const input = page.getByRole('combobox', { name: 'Search page', exact: true });
+  await input.pressSequentially('quokka');
+  const status = page.getByRole('status');
+  await expect(status).toHaveText(/^(Text|Actions) \d+ \/ \d+$/);
+  if ((await status.innerText()).startsWith('Text')) await input.press('Alt+s');
+  // The guide and the card, not the link whose contents are all hidden.
+  await expect(status).toHaveText('Actions 1 / 2');
+  // The selected outline surrounds the guide's visible text, now scrolled into view.
+  const placement = () =>
+    page.evaluate(() => {
+      const text = document.getElementById('boxless')!.firstChild!;
+      const range = document.createRange();
+      range.selectNodeContents(text);
+      const box = range.getBoundingClientRect();
+      const selected = document
+        .getElementById('keymove-root')!
+        .shadowRoot!.querySelector('.keymove-selected-selection');
+      if (!selected) return null;
+      const outline = selected.getBoundingClientRect();
+      return {
+        onScreen: box.top >= 0 && box.bottom <= innerHeight,
+        surrounds: outline.left <= box.left && outline.top <= box.top && outline.right >= box.right,
+        tight: outline.width < box.width + 40,
+      };
+    });
+  // The outline is hidden while the page scrolls to the result, then drawn again.
+  await expect.poll(placement).toEqual({ onScreen: true, surrounds: true, tight: true });
+  await input.press('Enter');
+  await expect(page.locator('body')).toHaveAttribute('data-boxless-clicked', 'yes');
+});
+
+test('reaches boxless links inside scrolling panels and hidden wrappers', async ({ page }) => {
+  await page.goto('shadow.html');
+  await expect(page.locator('#keymove-bar')).toHaveAttribute('data-always-on', 'true');
+  await page.evaluate(() => {
+    const panel = (id: string, link: string) => {
+      const aside = document.createElement('aside');
+      aside.id = id;
+      aside.style.cssText = 'height:240px;overflow-y:auto';
+      aside.innerHTML = `<div style="height:1000px"></div>${link}`;
+      return aside;
+    };
+    // A link with only text, and one whose first box is a tooltip hidden at opacity 0.
+    const text = panel(
+      'text-panel',
+      '<a id="text-link" href="#text" style="display: contents">Quokka sidebar</a>',
+    );
+    const labelled = panel(
+      'label-panel',
+      '<a href="#label" style="display: contents">' +
+        '<span style="position:fixed;top:0;left:0;opacity:0">Tip</span>' +
+        '<span style="position:absolute;width:1px;height:1px;overflow:hidden;' +
+        'clip-path:inset(50%)">opens in a new tab</span>' +
+        '<span id="label">Quokka label</span></a>',
+    );
+    // The label renders: a descendant can make text visible inside a hidden wrapper.
+    const help = document.createElement('p');
+    help.innerHTML =
+      '<a href="#help" style="display: contents"><span style="visibility:hidden">' +
+      '<span style="visibility:visible">Quokka help</span></span></a>';
+    document.body.prepend(text, labelled, help);
+  });
+  await page.keyboard.press('Alt+f');
+  const input = page.getByRole('combobox', { name: 'Search page', exact: true });
+  await input.pressSequentially('quokka');
+  const status = page.getByRole('status');
+  await expect(status).toHaveText(/^(Text|Actions) \d+ \/ \d+$/);
+  if ((await status.innerText()).startsWith('Text')) await input.press('Alt+s');
+  await expect(status).toHaveText('Actions 1 / 3');
+  const insidePanel = (panelId: string, target: string) =>
+    page.evaluate(
+      ([panelId, target]) => {
+        const panel = document.getElementById(panelId!)!.getBoundingClientRect();
+        const element = document.getElementById(target!)!;
+        const range = document.createRange();
+        range.selectNodeContents(element);
+        const box = range.getBoundingClientRect();
+        return box.top >= panel.top && box.bottom <= panel.bottom;
+      },
+      [panelId, target],
+    );
+  // Explicitly selecting each link scrolls its own panel to show it. Actions are ranked,
+  // so step through all three and check each panel once its link has been selected.
+  const reached = { text: false, label: false };
+  for (let step = 0; step < 3; step++) {
+    await input.press('Tab');
+    await page.waitForTimeout(150);
+    reached.text ||= await insidePanel('text-panel', 'text-link');
+    reached.label ||= await insidePanel('label-panel', 'label');
+  }
+  expect(reached).toEqual({ text: true, label: true });
+});
+
+test('stays out of XML documents such as sitemaps without reporting errors', async ({ page }) => {
+  // React DOM threw as it loaded on these, since their elements have no `.style`. The
+  // context fixture fails the test on any console error or uncaught exception.
+  await page.goto('feed.xml');
+  expect(await page.evaluate(() => document.contentType)).toMatch(/xml/);
+  await page.waitForLoadState('load');
+  // The content script runs at document_idle; give it time to run and fail as it did.
+  await page.waitForTimeout(1000);
+  expect(await page.evaluate(KEYMOVE_HOSTS)).toBe(0);
+  const input = await openSearch(page);
+  await input.pressSequentially('qalpha');
+  await expect(page.getByRole('status')).toHaveText('Text 1 / 1');
 });
 
 test('an orphaned copy retires for the copy injected after an extension reload', async ({

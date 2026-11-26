@@ -65,6 +65,20 @@ export async function checkIframes(context: BrowserContext, origin: string) {
           .evaluate(() => CSS.highlights.get('keymove-search-results')?.size ?? 0),
       )
       .toBeGreaterThan(0);
+    // Both highlight rules survive in the frame's adopted sheet; only the current one sets ink.
+    await expect
+      .poll(() =>
+        local.locator('body').evaluate(() =>
+          [...document.adoptedStyleSheets]
+            .flatMap(sheet => [...sheet.cssRules].map(rule => rule.cssText))
+            .filter(text => text.startsWith('::highlight(keymove-search'))
+            .map(
+              text =>
+                `${text.slice(0, text.indexOf('{')).trim()}${/[{;\s]color:/.test(text) ? ' ink' : ''}`,
+            ),
+        ),
+      )
+      .toEqual(['::highlight(keymove-search-results)', '::highlight(keymove-search-current) ink']);
     await page.keyboard.press('ControlOrMeta+c');
     await page.evaluate(() => {
       const target = document.createElement('textarea');
@@ -130,6 +144,33 @@ export async function checkIframes(context: BrowserContext, origin: string) {
     await expect(hoverItems).toHaveJSProperty('hidden', false);
     await page.keyboard.press('Enter');
     await expect(local.locator('body')).toHaveAttribute('data-hover-activated', 'yes');
+    // Marks painted for one query leave the frame once a later query has no rows there.
+    await openSearch(page);
+    for (const key of 'otter') await page.keyboard.type(key);
+    await expect(status).toHaveText(/\/ 4$/);
+    await expect(local.locator('#keymove-root')).toHaveCount(1);
+    // The selected frame match gets its own highlight, and its selection is released
+    // once the cursor moves back to the top document.
+    await page.keyboard.press('Tab');
+    await expect
+      .poll(() => local.locator('body').evaluate(() => getSelection()?.toString()))
+      .toBe('local otter paragraph to copy.');
+    await expect
+      .poll(() =>
+        local
+          .locator('body')
+          .evaluate(() => CSS.highlights.get('keymove-search-current')?.size ?? 0),
+      )
+      .toBe(1);
+    await page.keyboard.press('Shift+Tab');
+    await expect(status).toHaveText(/^Text 1 \/ 4$/);
+    await expect
+      .poll(() => local.locator('body').evaluate(() => getSelection()?.toString()))
+      .toBe('');
+    await replaceQuery(page, 'otterzzz');
+    await expect(status).toHaveText(/ 0 \/ 0$/);
+    await expect(local.locator('#keymove-root')).toHaveCount(0);
+    await expect.poll(() => local.locator('body').evaluate(() => CSS.highlights.size)).toBe(0);
   } catch (error) {
     await attachFailure(page);
     throw error;

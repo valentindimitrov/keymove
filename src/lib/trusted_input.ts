@@ -62,3 +62,19 @@ export function hasUserActivation(): boolean {
     .userActivation;
   return activation === undefined || activation.isActive;
 }
+
+// Key events KeyMove itself has acted on. With a closed root, page handlers see only
+// KeyMove's host and may cancel keys typed in its input; KeyMove tells its own handling
+// from theirs, so it neither runs a second handler on a key it took nor gives up one the
+// page cancelled by mistake.
+const handledByKeyMove = new WeakSet<Event>();
+
+/** Records that KeyMove acted on this event. */
+export function markHandledByKeyMove(event: Event) {
+  handledByKeyMove.add(event);
+}
+
+/** True when one of KeyMove's own handlers has already acted on this event. */
+export function isHandledByKeyMove(event: Event): boolean {
+  return handledByKeyMove.has(event);
+}

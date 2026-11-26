@@ -104,7 +104,8 @@ data is not preloaded. The steps beneath each player also provide a readable des
 All clips use this same sample guide, including its planner, labelled checkbox, fields,
 dropdown, disclosure, JavaScript hover menu, native modal, notes area, and walking route.
 
-To record them again, build the Chromium extension, build and serve the website, then run:
+To record them again, build the Chromium test build (`pnpm build:chromium:test`, whose shadow
+roots stay open so the recorder can drive the interface), build and serve the website, then run:
 
 ```sh
 pnpm website:record-patterns http://127.0.0.1:5182/

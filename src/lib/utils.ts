@@ -1,9 +1,11 @@
 import { INPUT_NODE_TYPES, KEYS_VALID_FOR_FOCUS_REGEX, MAC_OS_PLATFORMS } from '../constants.js';
 import { normalizedOpenableLinkUrl } from './extension_tabs.js';
 import { isActionDisabled, labelledToggle } from './searchable_attributes.js';
-import { iterateRenderedText } from './visible_text.js';
+import { elementBox, firstVisibleBox, iterateRenderedText, lacksOwnBox } from './visible_text.js';
 import { frameTarget } from './frame_target.js';
-import { isKeyMoveNode } from './dom_tree.js';
+import type { FrameTarget } from './frame_target.js';
+import { isKeyMoveNode, isKeyMoveRoot, keyMoveShadowRoot, renderedParent } from './dom_tree.js';
+import { openOrClosedShadowRoot } from './host_marker.js';
 
 const FOCUS_WIDGET_ROLES = [
   'combobox',
@@ -45,28 +47,61 @@ let savedInputSelection: {
 } | null = null;
 
 function differentInputIsActive(inputElement: Element | null) {
-  const activeElement = getDeepActiveElement();
-  return activeElement && activeElement !== inputElement && elementIsEditable(activeElement);
+  const chain = activeElementChain();
+  const activeElement = chain.at(-1);
+  if (!activeElement || activeElement === inputElement) return false;
+  // Whether text goes in is the focused element's own state, but a shadow host keeps its
+  // widget role while focus sits inside it, such as a listbox whose option has focus.
+  return elementIsEditable(activeElement) || chain.slice(0, -1).some(hasFocusWidgetRole);
+}
+
+function hasFocusWidgetRole(element: Element) {
+  return FOCUS_WIDGET_ROLES.includes(element.getAttribute('role') ?? '');
 }
 
 function elementIsEditable(element: Element) {
   return (
     (element instanceof HTMLElement && element.isContentEditable) ||
     INPUT_NODE_TYPES.includes(element.nodeName) ||
-    FOCUS_WIDGET_ROLES.includes(element.getAttribute('role') ?? '')
+    hasFocusWidgetRole(element)
   );
 }
 
-function getDeepActiveElement(): Element | null {
+// The focused element and every shadow host above it. Focus is followed into closed
+// roots too, through extension-only access, so typing in an editor a component keeps
+// closed is not taken for type-to-search. Nothing else here reads closed roots, and
+// search never enters them.
+function activeElementChain(): Element[] {
+  const chain: Element[] = [];
   let activeElement = document.activeElement;
-  while (activeElement && activeElement.shadowRoot && activeElement.shadowRoot.activeElement) {
-    activeElement = activeElement.shadowRoot.activeElement;
+  while (activeElement) {
+    chain.push(activeElement);
+    // KeyMove's own root by reference: it is closed in shipped builds, and Safari may
+    // offer no extension access to closed roots.
+    const root =
+      activeElement.shadowRoot ??
+      keyMoveShadowRoot(activeElement) ??
+      openOrClosedShadowRoot(activeElement);
+    activeElement = root?.activeElement ?? null;
   }
-  return activeElement;
+  return chain;
 }
 
+// A host that delegates focus counts as active while its inner element has focus.
 function elementIsActive(element: Element | null) {
-  return getDeepActiveElement() === element;
+  return element !== null && activeElementChain().includes(element);
+}
+
+/**
+ * The element a keyboard or clipboard event concerns. Listeners outside a closed root see
+ * its host as the target, so for KeyMove's own host the focused element inside stands in:
+ * those events go to the focused element.
+ */
+function focusedEventTarget(event: Event): EventTarget | null {
+  const target = event.composedPath()[0] ?? event.target;
+  return target instanceof Element && isKeyMoveRoot(target)
+    ? (activeElementChain().at(-1) ?? target)
+    : target;
 }
 
 function isExtensionElement(element: EventTarget | null) {
@@ -161,7 +196,7 @@ function nodeIsInViewport(node: Node) {
   if (!(element instanceof Element)) {
     return false;
   }
-  const boundingRect = element.getBoundingClientRect();
+  const boundingRect = elementBox(element);
   const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
   return (
@@ -180,13 +215,56 @@ function scrollToNodeAtIndexInList(nodeList: readonly Element[], selectedIndex: 
       void remote.command('scroll');
       return;
     }
-    const rect = selectedMatchingNode.getBoundingClientRect();
+    const rect = elementBox(selectedMatchingNode);
     const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
     // Native text selection can first reveal a result flush against the viewport edge.
     // Reserve context there too, while leaving comfortably visible results in place.
     const contextMargin = Math.min(200, viewportHeight * 0.2);
     const nearViewportEdge =
       rect.top < contextMargin || rect.bottom > viewportHeight - contextMargin;
+    // An element without a box of its own (display: contents) cannot scroll itself into
+    // view. Its first visible element can, which also scrolls any panel around it; a link
+    // with only text scrolls the nearest boxed ancestor, then the window, to that text.
+    if (lacksOwnBox(selectedMatchingNode)) {
+      const box = firstVisibleBox(selectedMatchingNode);
+      if (box) {
+        box.scrollIntoView({ block: nearViewportEdge ? 'center' : 'nearest', inline: 'nearest' });
+        return;
+      }
+      // Scroll each scrolling ancestor, innermost first, until the text is inside it.
+      for (let area = renderedParent(selectedMatchingNode); area; area = renderedParent(area)) {
+        const { overflowX, overflowY } = getComputedStyle(area);
+        const vertical = /auto|scroll/.test(overflowY) && area.scrollHeight > area.clientHeight;
+        const horizontal = /auto|scroll/.test(overflowX) && area.scrollWidth > area.clientWidth;
+        if (!vertical && !horizontal) continue;
+        const text = elementBox(selectedMatchingNode);
+        const bounds = area.getBoundingClientRect();
+        // Instant even where the page asks for smooth scrolling, so the next measurement holds.
+        area.scrollTo({
+          top:
+            vertical && (text.top < bounds.top || text.bottom > bounds.bottom)
+              ? area.scrollTop + text.top + text.height / 2 - (bounds.top + bounds.height / 2)
+              : area.scrollTop,
+          left:
+            horizontal && (text.left < bounds.left || text.right > bounds.right)
+              ? area.scrollLeft + text.left + text.width / 2 - (bounds.left + bounds.width / 2)
+              : area.scrollLeft,
+          behavior: 'instant',
+        });
+      }
+      const moved = elementBox(selectedMatchingNode);
+      const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+      const offVertically =
+        moved.top < contextMargin || moved.bottom > viewportHeight - contextMargin;
+      const offHorizontally = moved.left < 0 || moved.right > viewportWidth;
+      if (offVertically || offHorizontally)
+        window.scrollBy({
+          top: offVertically ? moved.top + moved.height / 2 - viewportHeight / 2 : 0,
+          left: offHorizontally ? moved.left + moved.width / 2 - viewportWidth / 2 : 0,
+          behavior: 'instant',
+        });
+      return;
+    }
     selectedMatchingNode.scrollIntoView({
       block: nearViewportEdge ? 'center' : 'nearest',
       inline: 'nearest',
@@ -194,19 +272,43 @@ function scrollToNodeAtIndexInList(nodeList: readonly Element[], selectedIndex: 
   }
 }
 
+// The frame holding KeyMove's selection, if a frame does. Its selection lives in its own
+// document, so leaving it for another document, or clearing, has to release it there.
+let selectingFrame: FrameTarget | null = null;
+// Releases wait for the end of the task: the effect that moves the selection clears it
+// first, and selecting again in the same frame must not race a release sent before it.
+const releasingFrames = new Map<HTMLIFrameElement, FrameTarget>();
+
+function releaseFrameSelection() {
+  if (!selectingFrame) return;
+  if (!releasingFrames.size) queueMicrotask(sendFrameReleases);
+  releasingFrames.set(selectingFrame.boundary, selectingFrame);
+  selectingFrame = null;
+}
+
+function sendFrameReleases() {
+  const frames = [...releasingFrames.values()];
+  releasingFrames.clear();
+  for (const frame of frames) void frame.command('deselect');
+}
+
 function selectNodeContents(node: Element) {
   const remote = frameTarget(node);
   if (remote) {
     clearPageSelection();
+    // The frame replaces its own selection, so a pending release there is not needed.
+    releasingFrames.delete(remote.boundary);
+    selectingFrame = remote;
     void remote.command('select');
     return;
   }
+  releaseFrameSelection();
   const selection = window.getSelection();
   if (!selection) {
     return;
   }
   if (!ownsSelection(selection)) {
-    const input = getDeepActiveElement();
+    const input = activeElementChain().at(-1);
     savedInputSelection =
       input instanceof HTMLInputElement && input.selectionStart !== null
         ? {
@@ -251,6 +353,7 @@ function selectNodeContents(node: Element) {
 }
 
 function clearPageSelection() {
+  releaseFrameSelection();
   const selection = window.getSelection();
   if (selection && ownsSelection(selection)) {
     selection.removeAllRanges();
@@ -270,6 +373,7 @@ function restoreInputSelection(input: HTMLInputElement) {
 
 const Utils = {
   differentInputIsActive,
+  focusedEventTarget,
   elementIsActive,
   isExtensionElement,
   clickOrFocusNode,

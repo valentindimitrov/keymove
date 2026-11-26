@@ -18,3 +18,71 @@ This is an independently maintained project; there is no guaranteed response tim
 KeyMove is currently preparing its first browser-store release. Security fixes target the
 current `main` branch. Older development snapshots do not receive separate security updates.
 Use the latest available version when verifying a report.
+
+## Isolation from the page
+
+KeyMove runs inside every page it searches, so it treats page script as untrusted. Its
+interface is attached to the page in a shadow root, and in shipped builds that root is
+**closed**. Page script then gets `null` for the host's `shadowRoot` and cannot read what
+KeyMove shows or drive its controls.
+
+This matters most for frames. KeyMove searches inside embedded frames, including frames
+from other origins whose content the browser keeps from the embedding page. Results from
+those frames appear in KeyMove's interface, so with an open root the embedding page could
+read their text, image addresses and result counts, or set the query itself. The outline
+layer KeyMove draws inside child frames is closed for the same reason.
+
+The decision, made in November 2026 after a code review found the leak, was to close the
+roots rather than search same-origin frames only, which would have dropped searching
+inside embedded forms, documents and widgets.
+
+What a closed root does not hide:
+
+- Key events travel outside shadow roots, so a page can still see what is typed into
+  KeyMove, as it can for any typing on the page.
+- A page can tell where KeyMove's interface covers the page, for example with
+  `elementFromPoint`, and so whether a search has visible results. Chromium's `window.find`
+  also matches text inside closed roots, so the page can test the status line, such as
+  `Text 1 / 4`, and so learn how many results there are, including those from frames.
+- A page can define a font with the name KeyMove's interface uses and limit it to chosen
+  characters; which of those fonts the browser downloads reveals characters in the text
+  KeyMove draws. Avoiding this would mean drawing the interface in generic system fonts only.
+- Highlight ranges registered with the CSS Custom Highlight API, inside the page or a
+  frame, are readable by that document's own script.
+
+Closing the root also changes what page key handlers see: only KeyMove's host, so a page
+shortcut that ignores keys typed in text fields may treat keys typed in KeyMove's search
+field as its own and cancel them. KeyMove still runs its own shortcuts for such keys and
+re-applies typed characters, Backspace, Delete, Left, Right, Home, End and copying (with
+the copy command where the Clipboard API is unavailable, on insecure origins). Rarer
+editing keys a page cancels this way, such as Shift selection, moving by word, or Left and
+Right in right-to-left text, do not take effect, and a page handler that also stops the
+event in the capture phase keeps it from KeyMove altogether: an extension script cannot
+run before the page's own capture listeners.
+
+Three paths that could carry frame content into the page are closed separately:
+
+- Builds with closed roots draw result text as CSS generated content from an attribute,
+  because `window.find` matches ordinary text inside closed roots but not generated
+  content. Screen readers still read it as part of each result's name.
+- Copying a result in KeyMove stops the copy event before page listeners can read its
+  clipboard data.
+- The larger image viewer is unavailable for images from frames, since loading one in the
+  page would record its address in the page's Resource Timing entries. That includes
+  same-origin frames: from the top page, KeyMove cannot tell whether an image sits in a
+  cross-origin frame nested inside one.
+
+Test builds keep the roots open so the browser suite can inspect them: `pnpm
+build:chromium:test` writes `.output/chrome-mv3-test`, which the Playwright suite and the
+capture tools load. An explicit build constant, defined only in test mode and in the unit
+test, preview and website configurations, opens them; no environment variable does, and a
+test build names itself "(test build)", which release validation rejects, and its ZIP
+ends in `-test`, so it cannot take a release ZIP's name.
+`tests/browser/closed-root.spec.ts` runs against the production build and checks that its
+roots are closed while keyboard navigation, selection, copying and activation still work.
+Never load a test build in a regular browser profile, and never publish one.
+
+KeyMove reaches its own closed roots by reference, never through page-readable values.
+Hosts left by an earlier copy, which a newer copy removes after an update, are read through
+the extension-only closed-root accessor where the browser provides one (Chromium and
+Firefox); Safari's support for it is unverified.

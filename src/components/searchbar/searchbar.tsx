@@ -26,13 +26,21 @@ import { isImageDirection, isImageInfo } from '../../lib/image_schema.js';
 import ImageViewer from './image_viewer.js';
 
 import Utils from '../../lib/utils.js';
-import { hasUserActivation, isOwnEvent, isTrustedInput } from '../../lib/trusted_input.js';
+import { normalizedOpenableLinkUrl } from '../../lib/extension_tabs.js';
+import {
+  hasUserActivation,
+  isHandledByKeyMove,
+  isOwnEvent,
+  isTrustedInput,
+  markHandledByKeyMove,
+} from '../../lib/trusted_input.js';
 import { isActionDisabled } from '../../lib/searchable_attributes.js';
 import { activeModal, actionIsInScope, MODAL_CHANGED_EVENT } from '../../lib/modal_context.js';
 import { isMovingExtensionRoot } from '../../lib/create_extension_root.js';
 import FindInPage, { subscribeToPageChanges } from '../../lib/find_in_page.js';
 import { stopFrameSearch } from '../../lib/find_in_page.js';
 import { frameTarget, resultIsConnected } from '../../lib/frame_target.js';
+import { renderedContains } from '../../lib/dom_tree.js';
 import { writeClipboardText } from '../../lib/clipboard.js';
 import type { RankedMatch } from '../../lib/page_search_index.js';
 import { isTextVisible, visibleText } from '../../lib/visible_text.js';
@@ -62,6 +70,28 @@ const SCROLL_OR_RESIZE_UPDATE_TIMEOUT_DURATION = 100;
 const PAGE_REFRESH_PAUSE_MS = 100;
 type ShortcutHandler = (event: KeyboardEvent) => void;
 type ActionActivation = 'current' | 'foreground-tab' | 'background-tab';
+
+/** Copies `text` with the copy command from a hidden field beside `input`, in its root. */
+function copyWithCommand(input: HTMLInputElement, text: string) {
+  const field = document.createElement('textarea');
+  field.value = text;
+  field.setAttribute('aria-hidden', 'true');
+  field.tabIndex = -1;
+  field.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0';
+  // The copy event is composed; it need not travel on to the page's bubbling listeners.
+  field.addEventListener('copy', event => event.stopPropagation(), { once: true });
+  input.after(field);
+  const { selectionStart, selectionEnd } = input;
+  try {
+    field.select();
+    document.execCommand('copy');
+  } finally {
+    field.remove();
+    input.focus({ preventScroll: true });
+    if (selectionStart !== null && selectionEnd !== null)
+      input.setSelectionRange(selectionStart, selectionEnd);
+  }
+}
 
 const Searchbar = () => {
   const scrollOrResizeUpdateTimeout = React.useRef<number | undefined>(undefined);
@@ -133,6 +163,7 @@ const Searchbar = () => {
   const previousMenuTarget = React.useRef<Element | null>(null);
   const menuGeneration = React.useRef(0);
   const previousSearchText = React.useRef(searchText);
+  const queryEdits = React.useRef(0);
   const [scrollOrResizeRefresh, setScrollOrResizeRefresh] = React.useState<boolean>(false);
   const [hideSelections, setHideSelections] = React.useState<boolean>(false);
   const isInteractive = !isHidden && !paused;
@@ -280,6 +311,10 @@ const Searchbar = () => {
       // Child frames run relayed commands without activation of their own, so the gesture
       // is checked here, in the frame that received the input, before any command is sent.
       if (!hasUserActivation()) return;
+      // Frame commands are awaited; a query typed meanwhile must not be reset by them,
+      // even one typed back to the same text.
+      const edits = queryEdits.current;
+      const superseded = () => queryEdits.current !== edits;
       if (selectedImage) {
         event?.preventDefault();
         event?.stopPropagation();
@@ -294,6 +329,7 @@ const Searchbar = () => {
             active: activation === 'foreground-tab',
           });
         }
+        if (superseded()) return;
         resetSearchTextAndMatches();
         if (autoHide) setIsHidden(true);
         return;
@@ -307,22 +343,33 @@ const Searchbar = () => {
         return;
       }
 
-      const linkUrl = Utils.openableLinkUrlForNode(selectedActionNode);
-      if (activation !== 'current' && !linkUrl) {
+      let linkUrl = Utils.openableLinkUrlForNode(selectedActionNode);
+      // A frame link's recorded address may have become openable since; its frame decides.
+      const remoteLink =
+        frameTarget(selectedActionNode) && selectedActionNode instanceof HTMLAnchorElement;
+      if (activation !== 'current' && !linkUrl && !remoteLink) {
         return;
       }
 
       event?.preventDefault();
       event?.stopPropagation();
-      discardOrigin();
       if (activation === 'current') {
+        discardOrigin();
         const remote = frameTarget(selectedActionNode);
         if (remote) {
-          if ((await remote.command('activate')) !== true) return;
+          if ((await remote.command('activate')) !== true || superseded()) return;
         } else Utils.clickOrFocusNode(selectedActionNode);
       } else {
         const remote = frameTarget(selectedActionNode);
-        if (remote && (await remote.command('validate')) !== true) return;
+        if (remote) {
+          // The owning frame reports the link's current address; the copy here may be stale.
+          const current = await remote.command('link');
+          linkUrl = typeof current === 'string' ? normalizedOpenableLinkUrl(current) : null;
+          // The tab request needs the gesture still; a slow frame can outlast it.
+          if (!linkUrl || superseded() || !hasUserActivation()) return;
+        }
+        // Only once a tab will open: a refused link keeps the way back to where search began.
+        discardOrigin();
         void browser.runtime
           .sendMessage({
             type: ExtensionMessageTypes.OPEN_LINK_IN_NEW_TAB,
@@ -428,6 +475,38 @@ const Searchbar = () => {
       setHideSelections(false);
     }, SCROLL_OR_RESIZE_UPDATE_TIMEOUT_DURATION);
   }, []);
+
+  // Scrolling inside an element moves the matches in it too. Only an element holding one
+  // of them refreshes outlines, at most once per interval, leaving them shown: a carousel
+  // elsewhere that never stops scrolling must neither hide them nor keep redrawing them.
+  const innerScrollRefresh = React.useRef<number | undefined>(undefined);
+  const scrolledElements = React.useRef(new Set<Element>());
+  const matchesForScroll = React.useRef<Element[]>([]);
+  React.useEffect(() => {
+    matchesForScroll.current = activeMatchingNodes;
+  }, [activeMatchingNodes]);
+  const handleScroll = React.useCallback(
+    (event: Event) => {
+      if (event.target === document || event.target === document.documentElement) {
+        updateSelectionPositionsAfterTimeout();
+        return;
+      }
+      if (!(event.target instanceof Element)) return;
+      scrolledElements.current.add(event.target);
+      if (innerScrollRefresh.current !== undefined) return;
+      innerScrollRefresh.current = window.setTimeout(() => {
+        innerScrollRefresh.current = undefined;
+        const scrolled = [...scrolledElements.current];
+        scrolledElements.current.clear();
+        const moved = matchesForScroll.current.some(
+          node => !frameTarget(node) && scrolled.some(element => renderedContains(element, node)),
+        );
+        if (moved) setScrollOrResizeRefresh(refresh => !refresh);
+      }, SCROLL_OR_RESIZE_UPDATE_TIMEOUT_DURATION);
+    },
+    [updateSelectionPositionsAfterTimeout],
+  );
+  React.useEffect(() => () => window.clearTimeout(innerScrollRefresh.current), []);
 
   const scheduleSearch = React.useCallback(
     (preserveSelection = false) => {
@@ -638,7 +717,7 @@ const Searchbar = () => {
 
   const closeActionMenu = React.useCallback(() => setMenuTarget(null), []);
   const menuActions = selectedImage
-    ? actionsForImage(selectedImage)
+    ? actionsForImage(selectedImage, frameTarget(imageOwner) !== undefined)
     : [
         ...actionsForResult(selectedActionNode, selectedTextMatch?.node ?? null),
         { id: 'related-image', label: 'Select related image' },
@@ -761,7 +840,7 @@ const Searchbar = () => {
             clearImage();
             throw new Error('This image is no longer available.');
           }
-          if (id === 'image-view') setImageViewer(true);
+          if (id === 'image-view' && !frameTarget(imageOwner)) setImageViewer(true);
           else if (id === 'image-open' && /^https?:/i.test(info.url)) {
             await browser.runtime.sendMessage({
               type: ExtensionMessageTypes.OPEN_LINK_IN_NEW_TAB,
@@ -835,6 +914,7 @@ const Searchbar = () => {
       clearImage,
       imageCommand,
       setImageViewer,
+      imageOwner,
     ],
   );
 
@@ -937,7 +1017,7 @@ const Searchbar = () => {
 
   const handleShortcut = React.useCallback(
     (keyboardShortcutName: KeyboardShortcutName, event: KeyboardEvent) => {
-      const target = event.composedPath()[0] ?? event.target;
+      const target = Utils.focusedEventTarget(event);
       if (
         keyboardShortcutName !== 'focus_searchbar' &&
         keyboardShortcutName !== 'select_related_image' &&
@@ -949,7 +1029,10 @@ const Searchbar = () => {
       }
       const keyboardEventHandler = keyboardShortcutHandlerMapping[keyboardShortcutName];
       if (keyboardShortcutName !== 'open_action_menu') setMenuTarget(null);
-      keyboardEventHandler?.(event);
+      if (!keyboardEventHandler) return;
+      keyboardEventHandler(event);
+      // A key one of KeyMove's handlers took is not typed into the field again.
+      if (event.defaultPrevented) markHandledByKeyMove(event);
     },
     [keyboardShortcutHandlerMapping],
   );
@@ -962,7 +1045,8 @@ const Searchbar = () => {
       if (
         !isTrustedInput(event) ||
         !Utils.elementIsActive(searchInputRef.current) ||
-        event.defaultPrevented ||
+        // Keys come from KeyMove's input here; a page that cancelled one saw only the host.
+        isHandledByKeyMove(event) ||
         event.isComposing ||
         event.altKey ||
         event.ctrlKey ||
@@ -972,10 +1056,14 @@ const Searchbar = () => {
         return;
       const direction = event.key.startsWith('Arrow') ? event.key.slice(5).toLowerCase() : '';
       if (isImageDirection(direction)) {
+        markHandledByKeyMove(event);
         event.preventDefault();
         event.stopPropagation();
         void nextImage(direction);
-      } else if (event.key === ' ') openActionMenu(event);
+      } else if (event.key === ' ') {
+        markHandledByKeyMove(event);
+        openActionMenu(event);
+      }
     };
     document.addEventListener('keydown', navigateImage, true);
     return () => document.removeEventListener('keydown', navigateImage, true);
@@ -1005,6 +1093,35 @@ const Searchbar = () => {
     [revealAndFocus, searchText],
   );
 
+  const selectedCopyText = React.useCallback(
+    () =>
+      selectedTextMatch && resultIsConnected(selectedTextMatch.node)
+        ? visibleText(selectedTextMatch.node)
+        : resultIsConnected(selectedActionNode)
+          ? Utils.linkUrlForNode(selectedActionNode)
+          : null,
+    [selectedTextMatch, selectedActionNode],
+  );
+
+  // A page that cancelled Ctrl/Cmd+C in the search field, seeing only KeyMove's host, also
+  // stopped the copy event that follows. The keystroke still counts as the user's gesture.
+  const copyCancelledByPage = React.useCallback(() => {
+    if (selectedImage || !isInteractive) return;
+    const input = searchInputRef.current;
+    if (!input) return;
+    // The selected result, as the copy event would give; with none, the selected query text.
+    const copyText =
+      selectedCopyText() ?? input.value.slice(input.selectionStart ?? 0, input.selectionEnd ?? 0);
+    if (!copyText) return;
+    // The Clipboard API exists only on secure origins and a page can deny it. Then copy from
+    // a hidden field inside KeyMove's own root, which page script cannot read.
+    if (!navigator.clipboard?.writeText) {
+      copyWithCommand(input, copyText);
+      return;
+    }
+    writeClipboardText(copyText).catch(() => copyWithCommand(input, copyText));
+  }, [selectedImage, isInteractive, selectedCopyText]);
+
   const handleCopy = React.useCallback(
     (event: ClipboardEvent) => {
       if (selectedImage || !isTrustedInput(event)) return;
@@ -1016,26 +1133,25 @@ const Searchbar = () => {
       ) {
         return;
       }
-      const target = event.composedPath()[0] ?? event.target;
+      const target = Utils.focusedEventTarget(event);
       if (target !== searchInputRef.current && Utils.isExtensionElement(target)) return;
-      const copyText =
-        selectedTextMatch && resultIsConnected(selectedTextMatch.node)
-          ? visibleText(selectedTextMatch.node)
-          : resultIsConnected(selectedActionNode)
-            ? Utils.linkUrlForNode(selectedActionNode)
-            : null;
+      const copyText = selectedCopyText();
       if (copyText === null) {
         return;
       }
       event.preventDefault();
       event.clipboardData.setData('text/plain', copyText);
+      // Page listeners later in the event could read the copied text, which can come from
+      // a cross-origin frame, out of clipboardData. This copy is KeyMove's alone.
+      event.stopImmediatePropagation();
     },
-    [isInteractive, selectedTextMatch, selectedActionNode, selectedImage],
+    [isInteractive, selectedCopyText, selectedImage],
   );
 
   React.useEffect(() => {
     if (searchText !== previousSearchText.current) {
       previousSearchText.current = searchText;
+      queryEdits.current += 1;
       scheduleSearch();
     }
   }, [searchText, scheduleSearch]);
@@ -1208,7 +1324,8 @@ const Searchbar = () => {
 
   const shouldBindEvents = isInteractive && (hasActiveMatches || selectedImage !== null);
 
-  useWindowEvent('scroll', shouldBindEvents, updateSelectionPositionsAfterTimeout);
+  // Capture: scroll events from scrolling elements do not bubble to the window.
+  useWindowEvent('scroll', shouldBindEvents, handleScroll, true);
   useWindowEvent('wheel', shouldBindEvents, updateSelectionPositionsAfterTimeout);
   useWindowEvent('resize', shouldBindEvents, updateSelectionPositionsAfterTimeout);
   useDocumentEvent('keydown', typeToSearch, handleKeydown, true);
@@ -1303,6 +1420,7 @@ const Searchbar = () => {
             imageSelected={selectedImage !== null}
             onBlur={handleBlur}
             updateSearchText={setSearchText}
+            onCopyCancelled={copyCancelledByPage}
           />
           {selectedImage ? (
             <span

@@ -12,7 +12,10 @@ import { openPage, waitFor } from './browser-pages.ts';
 const artifacts = new URL('../.artifacts/pattern-recordings/', import.meta.url);
 mkdirSync(artifacts, { recursive: true });
 const base = process.argv[2] ?? 'http://127.0.0.1:5182/';
-const preview = createPreviewCopy(path.resolve('.output/chrome-mv3'));
+const preview = createPreviewCopy(
+  // The test build: its shadow roots stay open so the capture can drive the interface.
+  path.resolve('.output/chrome-mv3-test'),
+);
 let recordingContext: BrowserContext | undefined;
 try {
   const context = await launchExtensionContext(preview.directory, captureBrowser(), {

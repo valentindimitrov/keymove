@@ -9,5 +9,7 @@ import svgr from 'vite-plugin-svgr';
 export default defineConfig({
   root: fileURLToPath(new URL('.', import.meta.url)),
   plugins: [react(), svgr()],
+  // The visual harness and test fixtures look inside KeyMove's shadow roots.
+  define: { __KEYMOVE_OPEN_SHADOW_ROOTS__: 'true' },
   server: { port: 5174, strictPort: true, open: false },
 });

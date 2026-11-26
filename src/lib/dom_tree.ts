@@ -13,6 +13,41 @@ export function isKeyMoveRoot(node: Node): boolean {
   return node instanceof Element && keyMoveRoots.has(node);
 }
 
+// Defined true only by test builds (`wxt build --mode test`), Vitest and the preview and
+// website servers, none of them the shipped extension. Anywhere it is undefined, roots close.
+declare const __KEYMOVE_OPEN_SHADOW_ROOTS__: boolean | undefined;
+
+/**
+ * Shipped builds close KeyMove's shadow roots, so page script can neither read what they
+ * show, which includes text from cross-origin frames, nor drive the interface. Test builds
+ * keep them open so Playwright and jsdom can look inside. An explicit build constant, not
+ * the Vite mode or DEV flag, decides, so no environment variable opens a release build.
+ * See SECURITY.md, "Isolation from the page".
+ */
+export const KEYMOVE_SHADOW_ROOT_MODE: ShadowRootMode =
+  typeof __KEYMOVE_OPEN_SHADOW_ROOTS__ !== 'undefined' && __KEYMOVE_OPEN_SHADOW_ROOTS__
+    ? 'open'
+    : 'closed';
+
+// A closed root is reachable only through the reference attachShadow returns.
+const keyMoveShadowRoots = new WeakMap<Element, ShadowRoot>();
+
+/** Creates the shadow root of a KeyMove host and records both, by reference. */
+export function attachKeyMoveShadow(
+  host: HTMLElement,
+  mode: ShadowRootMode = KEYMOVE_SHADOW_ROOT_MODE,
+): ShadowRoot {
+  const root = host.attachShadow({ mode });
+  markKeyMoveRoot(host);
+  keyMoveShadowRoots.set(host, root);
+  return root;
+}
+
+/** The shadow root of one of this copy's hosts, open or closed; null for anything else. */
+export function keyMoveShadowRoot(element: Element): ShadowRoot | null {
+  return keyMoveShadowRoots.get(element) ?? null;
+}
+
 /** DOM ownership (including hosts), distinct from rendered ancestry through slots. */
 export function ownerParent(node: Node): Element | null {
   return (

@@ -34,6 +34,8 @@ jobs:
       - run: pnpm run postinstall
       - run: pnpm quality
       - run: pnpm exec playwright install --with-deps chromium
+      # The suite runs on a test build with open shadow roots, beside the production build.
+      - run: pnpm build:chromium:test
       # Every installed-extension check, including the former CDP smoke scenarios.
       - name: Run the browser suite in bundled Chromium
         run: pnpm test:e2e:built

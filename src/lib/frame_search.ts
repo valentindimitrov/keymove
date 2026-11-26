@@ -8,6 +8,7 @@ import {
 } from './frame_protocol.js';
 import type { FrameReply, FrameRequest } from './frame_protocol.js';
 import { frameTarget, setFrameTarget, resultIsConnected } from './frame_target.js';
+import type { FrameTarget } from './frame_target.js';
 import { pageShadowRoots } from './dom_tree.js';
 import { activeModal, actionIsInScope } from './modal_context.js';
 import { isTextVisible } from './visible_text.js';
@@ -34,6 +35,7 @@ type Entry = {
   load: (event: Event) => void;
   update?: (reply: FrameReply) => void;
   cancel?: () => void;
+  paint?: FrameTarget['paint'];
 };
 
 export function connectedFrameResults(results: SearchResult[]): SearchResult[] {
@@ -97,16 +99,41 @@ export class FrameSearch {
         entry.frame.contentWindow?.postMessage({ type: FRAME_PROBE, token: entry.token }, '*');
   };
 
-  private eligible(frame: HTMLIFrameElement) {
+  // Every result row checks its frame, several times in one merge, and the modal lookup
+  // queries the whole document. Answers hold until the current task ends.
+  private eligibility: Map<HTMLIFrameElement, boolean> | null = null;
+  private modal: Element | null = null;
+
+  private eligible(frame: HTMLIFrameElement, fresh = false) {
+    if (fresh) return this.checkEligible(frame, activeModal());
+    if (!this.eligibility) {
+      this.eligibility = new Map();
+      this.modal = activeModal();
+      queueMicrotask(() => {
+        this.eligibility = null;
+        this.modal = null;
+      });
+    }
+    let eligible = this.eligibility.get(frame);
+    if (eligible === undefined) {
+      eligible = this.checkEligible(frame, this.modal);
+      this.eligibility.set(frame, eligible);
+    }
+    return eligible;
+  }
+
+  private checkEligible(frame: HTMLIFrameElement, modal: Element | null) {
     return (
       frame.isConnected &&
       isTextVisible(frame) &&
       frame.getClientRects().length > 0 &&
-      actionIsInScope(frame, activeModal())
+      actionIsInScope(frame, modal)
     );
   }
 
   private discover() {
+    // Discovery runs once a search and always reads the page as it is now.
+    this.eligibility = null;
     const frames = [document, ...pageShadowRoots()]
       .flatMap(root => [...root.querySelectorAll('iframe')])
       .filter(frame => this.eligible(frame));
@@ -151,6 +178,9 @@ export class FrameSearch {
       this.entries.set(frame, entry);
       frame.addEventListener('load', entry.load);
       frame.contentWindow?.postMessage({ type: FRAME_PROBE, token: entry.token }, '*');
+      // Frames that never answer, such as data: frames, time out together from discovery
+      // rather than one after another in the search slots.
+      setTimeout(readiness.resolve, 1500);
     }
     return [...this.entries.values()];
   }
@@ -171,22 +201,27 @@ export class FrameSearch {
 
   private materialize(entry: Entry, reply: FrameReply): SearchResult {
     const keep = new Set<string>();
-    const paint = (
+    // One painter per frame, so a repaint in the same flush cancels its pending clear.
+    const paint = (entry.paint ??= (
       nodes: Element[],
       selected: Element | null,
       color: string,
       highlight: boolean,
     ) => {
       const own = nodes.filter(node => frameTarget(node)?.boundary === entry.frame);
+      // The frame's current generation, as commands use: a painter outlives the reply
+      // it was made for, and its clearing paint must still land after a refresh.
       void this.request(entry, {
         op: 'paint',
-        generation: reply.generation,
+        generation: entry.generation,
         ids: own.map(node => frameTarget(node)!.row.id),
         selected: selected && own.includes(selected) ? frameTarget(selected)!.row.id : null,
+        selectedText:
+          !!selected && own.includes(selected) && frameTarget(selected)!.row.kind === 'text',
         color,
         highlight,
       });
-    };
+    });
     for (const row of reply.rows) {
       const key = `${row.kind}:${row.id}`;
       keep.add(key);
@@ -205,7 +240,10 @@ export class FrameSearch {
           entry.nodes.get(key) === node &&
           this.eligible(entry.frame),
         command: async command => {
-          if (!this.eligible(entry.frame)) return null;
+          // Releasing a selection must reach a frame even while it is hidden: shown again,
+          // it would still hold KeyMove's selection. Other commands check the frame afresh:
+          // KeyMove's own hover events can run page code that hides it.
+          if (command !== 'deselect' && !this.eligible(entry.frame, true)) return null;
           if (
             command === 'scroll' ||
             (typeof command === 'object' &&
@@ -261,12 +299,18 @@ export class FrameSearch {
     const results = entries.map(entry =>
       entry.cached?.query === query ? entry.cached.result : empty(),
     );
+    // Frames known to answer go first, so ones still loading or never answering do not
+    // hold up their results. Results keep document order through their index.
+    const order = entries
+      .map((entry, index) => ({ index, waiting: entry.frameId === undefined }))
+      .sort((left, right) => Number(left.waiting) - Number(right.waiting))
+      .map(({ index }) => index);
     let next = 0;
     // Bound fan-out rather than giving every iframe a simultaneous work budget.
     await Promise.all(
       Array.from({ length: Math.min(2, entries.length) }, async () => {
         while (next < entries.length && !signal.aborted) {
-          const index = next++;
+          const index = order[next++]!;
           const entry = entries[index]!;
           entry.cancel?.();
           const generation = crypto.randomUUID();

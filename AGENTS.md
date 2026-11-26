@@ -35,7 +35,7 @@ Never infer Safari runtime compatibility from a Windows build or Chromium smoke 
 |   |-- background.ts        WXT background entrypoint
 |   |-- frames.content.ts    Child-frame search and navigation helper
 |   |-- popup/               Toolbar settings popup page and React mount
-|   `-- content.tsx          WXT content-script and React mount
+|   `-- content.tsx          WXT content script; loads the interface into HTML documents
 |-- preview/                 Shadow-root harness for visual checks, served by `pnpm preview:ui`
 |-- scripts/
 |   `-- validate-builds.ts   Manifest and generated-bundle checks
@@ -49,6 +49,7 @@ Never infer Safari runtime compatibility from a Windows build or Chromium smoke 
 |   |-- lib/                  Search index, scoring, schemas, and utilities
 |   |-- test_support/        Builders for test fixtures, never imported by shipped code
 |   |-- content.css           Shadow-root component styling
+|   |-- content_ui.tsx        Extension root and React mount, loaded by the content script
 |   |-- popup.css             Toolbar settings popup document styling
 |   `-- highlights.css        Page-level CSS Custom Highlight styling
 |-- tests/browser/           Playwright installed-extension tests
@@ -62,11 +63,17 @@ Never infer Safari runtime compatibility from a Windows build or Chromium smoke 
 ```
 
 Generated directories are `.output/` and `.wxt/`; do not edit or commit them. Production unpacked
-artifacts are `.output/chrome-mv3`, `.output/firefox-mv3` and `.output/safari-mv3`.
+artifacts are `.output/chrome-mv3`, `.output/firefox-mv3` and `.output/safari-mv3`. The
+browser suite's test build, with open shadow roots, is `.output/chrome-mv3-test`
+(`pnpm build:chromium:test`); never load it in a regular profile or publish it.
 
 ## Runtime flow
 
-1. `entrypoints/content.tsx` creates one extension root and a Shadow DOM. A document-level observer
+1. `entrypoints/content.tsx` imports `src/content_ui.tsx` dynamically, and only into documents
+   whose `createElement('div')` returns an `HTMLElement`. React DOM reads that element's `style`
+   as soon as its code runs, so a static import threw in XML documents such as sitemaps and
+   feeds. Keep React and anything that touches the page out of the entrypoint's static imports.
+   `content_ui.tsx` creates one extension root and a Shadow DOM. A document-level observer
    reattaches that same host if the page replaces `document.body`; portals use the stable target
    supplied by context, and an error boundary offers an in-page retry for unexpected render errors.
 2. `Searchbar` accepts type-to-search input and schedules cancellable searches.
@@ -124,8 +131,16 @@ artifacts are `.output/chrome-mv3`, `.output/firefox-mv3` and `.output/safari-mv
 
 ## Untrusted page input
 
-Page script shares the DOM and can dispatch any event at KeyMove's listeners, and reach
-the open shadow root. Every KeyMove listener whose effect is a state change, focus move,
+Page script shares the DOM and can dispatch any event at KeyMove's listeners. Shipped
+builds close KeyMove's shadow roots (`attachKeyMoveShadow` in `dom_tree.ts`; reasons and
+limits in `SECURITY.md`), so page script cannot read results, which include text from
+cross-origin frames, or drive the interface. Test builds and development servers keep them
+open; never rely on a page being unable to reach them in those. KeyMove reaches its own
+roots through `keyMoveShadowRoot`, never `host.shadowRoot`, and document-level listeners
+see its host as the target of events from inside: resolve keyboard and clipboard targets
+with `Utils.focusedEventTarget`. Builds with closed roots draw result text as generated
+content (`suggestion_content.tsx`), since `window.find` matches text in closed roots; unit
+tests and test builds render it as ordinary text. Every KeyMove listener whose effect is a state change, focus move,
 storage write or cleanup ignores untrusted events through `src/lib/trusted_input.ts`; never
 test `event.isTrusted` inline. That covers keyboard, input, copy, paste/cut/composition,
 click and pointer input, focus and blur, mouse moves and releases during drag and resize,
@@ -303,6 +318,12 @@ the shadow host and popup document. `useTheme` applies the resolved `data-keymov
 to those owned roots; never apply it to the host page's document. Keep both palettes on the
 same components and layout rules. Settings use a shared control/text grid. See
 `docs/appearance.md` for token conventions and preview scenarios.
+
+Page stylesheets select KeyMove's hosts like any other element, and a page rule beats a
+normal `:host` declaration. Every declaration on the host itself (`:host`, `:host(...)`),
+the theme's custom properties included, is therefore `!important`, which wins over the page's important rules too; the child-frame
+outline layer uses inline important declarations for the same reason. Shopify's Dawn theme
+once hid the whole searchbar with `div:empty { display: none }`.
 
 Never read a custom property without a fallback. An unresolved `var()` is invalid at
 computed-value time, which resets the whole declaration it appears in. Inside a shorthand
@@ -538,8 +559,11 @@ then removes its temporary build copy.
 
 - `pnpm preview`: rebuild and open the preferred installed browser.
 - `pnpm browser:install`: install Playwright's bundled Chromium once.
-- `pnpm test:e2e`: rebuild Chromium and run the Playwright browser suite in bundled Chromium.
-- `pnpm test:e2e:built`: the same suite on the existing build after `pnpm quality`. All
+- `pnpm test:e2e`: rebuild Chromium, both the production build and the test build whose
+  shadow roots stay open for locators, and run the Playwright browser suite in bundled
+  Chromium. `tests/browser/closed-root.spec.ts` checks the production build's closed roots.
+- `pnpm test:e2e:built`: the same suite on the existing builds after `pnpm quality` and
+  `pnpm build:chromium:test`. All
   automated installed-extension checks live in this one Playwright suite under `tests/browser/`,
   separate from Vitest. Its fresh profiles and snapshots preserve the same isolation rule.
   See `docs/browser-testing.md` for the coverage map, failure artifacts and playwright-cli
@@ -548,7 +572,8 @@ then removes its temporary build copy.
   installed of Vivaldi (through its Chromium shell, `--disable-vivaldi`) and Chrome, record
   cold/warm timings in `.artifacts/playwright/<browser>/timings.json`, and close the dedicated
   browser. This also fulfills the preview launch requirement.
-- `pnpm test:browser:built`: the same on existing production output after `pnpm quality`;
+- `pnpm test:browser:built`: the same on existing production output after `pnpm quality`
+  (it always rebuilds the test build, `.output/chrome-mv3-test`, from the current source);
   `pnpm test:browser:vivaldi` and `pnpm test:browser:chrome` name the browser. Run it for input,
   navigation, search, settings, and extension-mounting changes. Tests use real Playwright
   input only, never script-dispatched events at KeyMove's controls, and pass values to
