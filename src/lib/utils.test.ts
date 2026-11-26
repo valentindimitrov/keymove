@@ -1,5 +1,17 @@
 import Utils from './utils.js';
 
+// Extension-only access to closed roots, as `dom.openOrClosedShadowRoot` gives in Chromium.
+const closedRoots = vi.hoisted(() => new WeakMap<Element, ShadowRoot>());
+vi.mock('wxt/browser', async original => {
+  const actual = await original<typeof import('wxt/browser')>();
+  return {
+    ...actual,
+    browser: Object.assign(Object.create(actual.browser), {
+      dom: { openOrClosedShadowRoot: (element: Element) => closedRoots.get(element) ?? null },
+    }),
+  };
+});
+
 test.each(['é', 'Б', 'λ', '日', 'ع', '𐐀', '१'])('accepts %s to start searching', key => {
   expect(Utils.keyValidForFocus(key)).toBe(true);
 });
@@ -58,6 +70,24 @@ test('tracks the active input through a shadow root', () => {
 
   expect(Utils.elementIsActive(input)).toBe(true);
   expect(Utils.differentInputIsActive(input)).toBe(false);
+});
+
+test('tracks the active editor through a closed shadow root', () => {
+  const host = document.createElement('rich-editor');
+  const shadowRoot = host.attachShadow({ mode: 'closed' });
+  closedRoots.set(host, shadowRoot);
+  const editor = document.createElement('div');
+  editor.contentEditable = 'true';
+  shadowRoot.appendChild(editor);
+  document.body.appendChild(host);
+  // jsdom computes no isContentEditable.
+  Object.defineProperty(editor, 'isContentEditable', { value: true });
+
+  editor.focus();
+
+  expect(Utils.elementIsActive(editor)).toBe(true);
+  expect(Utils.differentInputIsActive(null)).toBe(true);
+  host.remove();
 });
 
 test('recognizes a host-page input as a different active input', () => {

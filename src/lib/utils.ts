@@ -4,6 +4,7 @@ import { isActionDisabled, labelledToggle } from './searchable_attributes.js';
 import { iterateRenderedText } from './visible_text.js';
 import { frameTarget } from './frame_target.js';
 import { isKeyMoveNode } from './dom_tree.js';
+import { openOrClosedShadowRoot } from './host_marker.js';
 
 const FOCUS_WIDGET_ROLES = [
   'combobox',
@@ -57,10 +58,15 @@ function elementIsEditable(element: Element) {
   );
 }
 
+// Focus is followed into closed roots too, through extension-only access, so typing in
+// an editor a component keeps closed is not taken for type-to-search. Nothing else here
+// reads closed roots, and search never enters them.
 function getDeepActiveElement(): Element | null {
   let activeElement = document.activeElement;
-  while (activeElement && activeElement.shadowRoot && activeElement.shadowRoot.activeElement) {
-    activeElement = activeElement.shadowRoot.activeElement;
+  while (activeElement) {
+    const root = activeElement.shadowRoot ?? openOrClosedShadowRoot(activeElement);
+    if (!root?.activeElement) break;
+    activeElement = root.activeElement;
   }
   return activeElement;
 }
