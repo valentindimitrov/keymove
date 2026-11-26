@@ -490,6 +490,8 @@ test('reaches boxless links inside scrolling panels and hidden wrappers', async 
       'label-panel',
       '<a href="#label" style="display: contents">' +
         '<span style="position:fixed;top:0;left:0;opacity:0">Tip</span>' +
+        '<span style="position:absolute;width:1px;height:1px;overflow:hidden;' +
+        'clip-path:inset(50%)">opens in a new tab</span>' +
         '<span id="label">Quokka label</span></a>',
     );
     // The label renders: a descendant can make text visible inside a hidden wrapper.

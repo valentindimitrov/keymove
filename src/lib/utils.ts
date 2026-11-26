@@ -215,12 +215,16 @@ function scrollToNodeAtIndexInList(nodeList: readonly Element[], selectedIndex: 
       }
       // Scroll each scrolling ancestor, innermost first, until the text is inside it.
       for (let area = renderedParent(selectedMatchingNode); area; area = renderedParent(area)) {
-        const { overflowY } = getComputedStyle(area);
-        if (!/auto|scroll/.test(overflowY) || area.scrollHeight <= area.clientHeight) continue;
+        const { overflowX, overflowY } = getComputedStyle(area);
+        const vertical = /auto|scroll/.test(overflowY) && area.scrollHeight > area.clientHeight;
+        const horizontal = /auto|scroll/.test(overflowX) && area.scrollWidth > area.clientWidth;
+        if (!vertical && !horizontal) continue;
         const text = elementBox(selectedMatchingNode);
         const bounds = area.getBoundingClientRect();
-        if (text.top < bounds.top || text.bottom > bounds.bottom)
+        if (vertical && (text.top < bounds.top || text.bottom > bounds.bottom))
           area.scrollTop += text.top + text.height / 2 - (bounds.top + bounds.height / 2);
+        if (horizontal && (text.left < bounds.left || text.right > bounds.right))
+          area.scrollLeft += text.left + text.width / 2 - (bounds.left + bounds.width / 2);
       }
       const moved = elementBox(selectedMatchingNode);
       if (moved.top < contextMargin || moved.bottom > viewportHeight - contextMargin)
