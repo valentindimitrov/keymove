@@ -22,6 +22,7 @@ import type { OwnedText, StyleCache } from './visible_text.js';
 import { iterateControlName } from './control_name.js';
 import { hasSearchableInputValue, inputDisplayValue } from './input_value.js';
 import { activeModal, actionIsInScope, MODAL_CHANGED_EVENT } from './modal_context.js';
+import { isOwnEvent } from './trusted_input.js';
 import {
   containsAcrossRoots,
   isKeyMoveNode,
@@ -264,7 +265,7 @@ class PageSearchIndex {
     this.root = document.body;
     this.actionableSelector = ACTIONABLE_SELECTOR;
     this.onChange = onChange;
-    document.addEventListener(MODAL_CHANGED_EVENT, this.onChange);
+    document.addEventListener(MODAL_CHANGED_EVENT, this.handleModalChange);
     document.addEventListener('input', this.handleControlChange, true);
     document.addEventListener('change', this.handleControlChange, true);
     this.handleMutations = this.handleMutations.bind(this);
@@ -278,6 +279,11 @@ class PageSearchIndex {
       subtree: true,
     });
   }
+
+  // Page script can dispatch this notification too; only KeyMove's own counts.
+  private readonly handleModalChange = (event: Event) => {
+    if (isOwnEvent(event)) this.onChange();
+  };
 
   private readonly handleControlChange = (event: Event) => {
     if (this.handledControlEvents.has(event)) return;
@@ -1010,7 +1016,7 @@ class PageSearchIndex {
   }
 
   disconnect() {
-    document.removeEventListener(MODAL_CHANGED_EVENT, this.onChange);
+    document.removeEventListener(MODAL_CHANGED_EVENT, this.handleModalChange);
     document.removeEventListener('input', this.handleControlChange, true);
     document.removeEventListener('change', this.handleControlChange, true);
     this.lifetime.abort();
