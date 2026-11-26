@@ -50,7 +50,9 @@ const useKeyboardShortcuts = (
       if (
         !isTrustedInput(event) ||
         event.isComposing ||
-        event.defaultPrevented ||
+        // A page cancelling keys typed in KeyMove's own input has seen only its host, which
+        // is all a closed root shows, and taken it for page content; those keys stay KeyMove's.
+        (event.defaultPrevented && !Utils.isExtensionElement(Utils.focusedEventTarget(event))) ||
         event.getModifierState('AltGraph')
       ) {
         return;

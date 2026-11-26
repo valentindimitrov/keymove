@@ -104,6 +104,17 @@ test('keyboard navigation, selection, copying and activation work through the cl
   const cross = page.locator('#cross').contentFrame();
   await expect(cross.locator('#launch')).toBeAttached();
   await search(page, 'otter', /^Text 1 \/ 4$/);
+  // A focus manager that cancels Tab unless it targets an input sees only KeyMove's host.
+  await page.evaluate(() =>
+    window.addEventListener(
+      'keydown',
+      event => {
+        if (event.key === 'Tab' && !(event.composedPath()[0] instanceof HTMLInputElement))
+          event.preventDefault();
+      },
+      true,
+    ),
+  );
   // Tab reaches KeyMove's shortcut handler from the closed root and selects frame text.
   await page.keyboard.press('Tab');
   await expect
