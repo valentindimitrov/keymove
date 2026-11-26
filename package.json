@@ -1,6 +1,6 @@
 {
   "name": "keymove",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "A keyboard-first search interface for web pages.",
   "author": "Valentin Dimitrov",
   "license": "(Apache-2.0 AND BSD-4-Clause)",
