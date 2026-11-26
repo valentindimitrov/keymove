@@ -276,6 +276,8 @@ test('starts frame-text copying in the input event and retains a reopened menu a
 });
 
 test('opens the current iframe link address unless a newer query arrived meanwhile', async () => {
+  const userActivation = { isActive: true };
+  Object.defineProperty(navigator, 'userActivation', { configurable: true, value: userActivation });
   const boundary = document.createElement('iframe');
   document.body.append(boundary);
   const link = document.createElement('a');
@@ -335,6 +337,35 @@ test('opens the current iframe link address unless a newer query arrived meanwhi
   expect(searchMocks.sendMessage).not.toHaveBeenCalled();
   expect(input).toHaveValue('quokka notes');
   await flushSearch();
+
+  // Typing back to the same text is still a newer query.
+  fireEvent.input(input, { target: { value: 'quokka' } });
+  await flushSearch();
+  fireEvent.keyDown(input, { key: 'Enter', code: 'Enter', shiftKey: true });
+  fireEvent.input(input, { target: { value: 'quokkas' } });
+  fireEvent.input(input, { target: { value: 'quokka' } });
+  await act(async () => replies[2]!.resolve('https://example.com/published'));
+  expect(searchMocks.sendMessage).not.toHaveBeenCalled();
+  expect(input).toHaveValue('quokka');
+  await flushSearch();
+
+  // A gesture that expired while the frame answered opens nothing.
+  fireEvent.keyDown(input, { key: 'Enter', code: 'Enter', shiftKey: true });
+  userActivation.isActive = false;
+  await act(async () => replies[3]!.resolve('https://example.com/published'));
+  userActivation.isActive = true;
+  expect(searchMocks.sendMessage).not.toHaveBeenCalled();
+
+  // A recorded address that was not openable is asked about again, not rejected here.
+  link.href = 'mailto:help@example.com';
+  fireEvent.keyDown(input, { key: 'Enter', code: 'Enter', shiftKey: true });
+  await act(async () => replies[4]!.resolve('https://example.com/help'));
+  expect(searchMocks.sendMessage).toHaveBeenLastCalledWith({
+    type: 'KEYMOVE_OPEN_LINK_IN_NEW_TAB',
+    url: 'https://example.com/help',
+    active: true,
+  });
+  Reflect.deleteProperty(navigator, 'userActivation');
 });
 
 test('selects a related image on demand, offers image actions, then restores text and query', async () => {

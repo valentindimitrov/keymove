@@ -134,6 +134,7 @@ const Searchbar = () => {
   const previousMenuTarget = React.useRef<Element | null>(null);
   const menuGeneration = React.useRef(0);
   const previousSearchText = React.useRef(searchText);
+  const queryEdits = React.useRef(0);
   const [scrollOrResizeRefresh, setScrollOrResizeRefresh] = React.useState<boolean>(false);
   const [hideSelections, setHideSelections] = React.useState<boolean>(false);
   const isInteractive = !isHidden && !paused;
@@ -281,9 +282,10 @@ const Searchbar = () => {
       // Child frames run relayed commands without activation of their own, so the gesture
       // is checked here, in the frame that received the input, before any command is sent.
       if (!hasUserActivation()) return;
-      // Frame commands are awaited; a query typed meanwhile must not be reset by them.
-      const query = previousSearchText.current;
-      const superseded = () => previousSearchText.current !== query;
+      // Frame commands are awaited; a query typed meanwhile must not be reset by them,
+      // even one typed back to the same text.
+      const edits = queryEdits.current;
+      const superseded = () => queryEdits.current !== edits;
       if (selectedImage) {
         event?.preventDefault();
         event?.stopPropagation();
@@ -313,7 +315,10 @@ const Searchbar = () => {
       }
 
       let linkUrl = Utils.openableLinkUrlForNode(selectedActionNode);
-      if (activation !== 'current' && !linkUrl) {
+      // A frame link's recorded address may have become openable since; its frame decides.
+      const remoteLink =
+        frameTarget(selectedActionNode) && selectedActionNode instanceof HTMLAnchorElement;
+      if (activation !== 'current' && !linkUrl && !remoteLink) {
         return;
       }
 
@@ -331,7 +336,8 @@ const Searchbar = () => {
           // The owning frame reports the link's current address; the copy here may be stale.
           const current = await remote.command('link');
           linkUrl = typeof current === 'string' ? normalizedOpenableLinkUrl(current) : null;
-          if (!linkUrl || superseded()) return;
+          // The tab request needs the gesture still; a slow frame can outlast it.
+          if (!linkUrl || superseded() || !hasUserActivation()) return;
         }
         void browser.runtime
           .sendMessage({
@@ -1046,6 +1052,7 @@ const Searchbar = () => {
   React.useEffect(() => {
     if (searchText !== previousSearchText.current) {
       previousSearchText.current = searchText;
+      queryEdits.current += 1;
       scheduleSearch();
     }
   }, [searchText, scheduleSearch]);
