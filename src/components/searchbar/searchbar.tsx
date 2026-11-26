@@ -27,7 +27,13 @@ import ImageViewer from './image_viewer.js';
 
 import Utils from '../../lib/utils.js';
 import { normalizedOpenableLinkUrl } from '../../lib/extension_tabs.js';
-import { hasUserActivation, isOwnEvent, isTrustedInput } from '../../lib/trusted_input.js';
+import {
+  hasUserActivation,
+  isHandledByKeyMove,
+  isOwnEvent,
+  isTrustedInput,
+  markHandledByKeyMove,
+} from '../../lib/trusted_input.js';
 import { isActionDisabled } from '../../lib/searchable_attributes.js';
 import { activeModal, actionIsInScope, MODAL_CHANGED_EVENT } from '../../lib/modal_context.js';
 import { isMovingExtensionRoot } from '../../lib/create_extension_root.js';
@@ -981,7 +987,8 @@ const Searchbar = () => {
       if (
         !isTrustedInput(event) ||
         !Utils.elementIsActive(searchInputRef.current) ||
-        event.defaultPrevented ||
+        // Keys come from KeyMove's input here; a page that cancelled one saw only the host.
+        isHandledByKeyMove(event) ||
         event.isComposing ||
         event.altKey ||
         event.ctrlKey ||
@@ -991,10 +998,14 @@ const Searchbar = () => {
         return;
       const direction = event.key.startsWith('Arrow') ? event.key.slice(5).toLowerCase() : '';
       if (isImageDirection(direction)) {
+        markHandledByKeyMove(event);
         event.preventDefault();
         event.stopPropagation();
         void nextImage(direction);
-      } else if (event.key === ' ') openActionMenu(event);
+      } else if (event.key === ' ') {
+        markHandledByKeyMove(event);
+        openActionMenu(event);
+      }
     };
     document.addEventListener('keydown', navigateImage, true);
     return () => document.removeEventListener('keydown', navigateImage, true);

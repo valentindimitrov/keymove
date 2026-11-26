@@ -123,6 +123,11 @@ export async function checkRelatedImages(context: BrowserContext, origin: string
     await expect(imageStatus).toHaveText('Image 1 / 1');
     await page.keyboard.press('ArrowRight');
     await expect(selectedImage('Orange walking shoe')).toBeAttached();
+    // Down moves among images here; it must not also open the action menu.
+    await page.keyboard.press('ArrowDown');
+    await page.waitForTimeout(200);
+    await expect(menu).toHaveCount(0);
+    await expect(imageSelected).toHaveCount(1);
     await page.keyboard.press('Space');
     await expect(menu.getByRole('menuitem', { name: /View larger/ })).toHaveAttribute(
       'aria-disabled',

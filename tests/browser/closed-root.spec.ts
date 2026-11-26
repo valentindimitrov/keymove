@@ -36,6 +36,22 @@ async function statusText(page: Page) {
   }
 }
 
+/** The search field's value, read from the accessibility tree. */
+async function queryText(page: Page) {
+  const cdp = await page.context().newCDPSession(page);
+  try {
+    const { nodes } = (await cdp.send('Accessibility.getFullAXTree')) as {
+      nodes: (AXNode & { value?: { value?: string } })[];
+    };
+    return (
+      nodes.find(node => node.role?.value === 'combobox' && node.name?.value === 'Search page')
+        ?.value?.value ?? null
+    );
+  } finally {
+    await cdp.detach();
+  }
+}
+
 /** The accessible names of the result rows. */
 async function optionNames(page: Page) {
   const cdp = await page.context().newCDPSession(page);
@@ -115,6 +131,24 @@ test('keyboard navigation, selection, copying and activation work through the cl
       true,
     ),
   );
+  // A page shortcut that cancels letters unless they target an input sees only the host;
+  // letters typed in KeyMove still arrive.
+  await page.evaluate(() =>
+    window.addEventListener(
+      'keydown',
+      event => {
+        if (event.key === 'j' && !(event.composedPath()[0] instanceof HTMLInputElement))
+          event.preventDefault();
+      },
+      true,
+    ),
+  );
+  await page.keyboard.press('ControlOrMeta+a');
+  await page.keyboard.type('jotter');
+  await expect.poll(() => queryText(page)).toBe('jotter');
+  await page.keyboard.press('ControlOrMeta+a');
+  await page.keyboard.type('otter');
+  await expect.poll(() => statusText(page)).toMatch(/^Text 1 \/ 4$/);
   // Tab reaches KeyMove's shortcut handler from the closed root and selects frame text.
   await page.keyboard.press('Tab');
   await expect

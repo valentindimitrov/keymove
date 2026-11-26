@@ -1,7 +1,7 @@
 import React from 'react';
 import { keyboardShortcuts } from '../lib/static_data.js';
 import Utils from '../lib/utils.js';
-import { isTrustedInput } from '../lib/trusted_input.js';
+import { isHandledByKeyMove, isTrustedInput, markHandledByKeyMove } from '../lib/trusted_input.js';
 import {
   DEFAULT_OPENING_SHORTCUT,
   matchesOpeningShortcut,
@@ -50,6 +50,7 @@ const useKeyboardShortcuts = (
       if (
         !isTrustedInput(event) ||
         event.isComposing ||
+        isHandledByKeyMove(event) ||
         // A page cancelling keys typed in KeyMove's own input has seen only its host, which
         // is all a closed root shows, and taken it for page content; those keys stay KeyMove's.
         (event.defaultPrevented && !Utils.isExtensionElement(Utils.focusedEventTarget(event))) ||
@@ -71,6 +72,7 @@ const useKeyboardShortcuts = (
       const matchingShortcut = findShortcutMatchingEvent(event);
       if (matchingShortcut && matchingShortcut.name) {
         handleShortcut(matchingShortcut.name, event);
+        if (event.defaultPrevented) markHandledByKeyMove(event);
       }
     },
     [handleShortcut, findShortcutMatchingEvent],

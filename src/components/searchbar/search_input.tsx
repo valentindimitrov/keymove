@@ -2,7 +2,7 @@ import React from 'react';
 import { EXTENSION_NAME } from '../../extension_identity.js';
 import { KEYMOVE_INPUT_ID, KEYMOVE_SUGGESTIONS_ID } from '../../constants.js';
 import Utils from '../../lib/utils.js';
-import { isTrustedInput, trusted } from '../../lib/trusted_input.js';
+import { isHandledByKeyMove, isTrustedInput, trusted } from '../../lib/trusted_input.js';
 
 type SearchInputProps = {
   searchText: string;
@@ -54,6 +54,32 @@ const SearchInput = (props: SearchInputProps) => {
   const { searchText, updateSearchText, inputRef, onBlur, suggestionCount, activeSuggestionIndex } =
     props;
 
+  // A page shortcut handler sees only KeyMove's host, the whole of a closed root, and can
+  // cancel a character typed here as if it were page input. Page handlers that run in the
+  // capture phase come first, so a cancelled character KeyMove did not take is typed here.
+  const onKeyDown = React.useCallback(
+    (event: React.KeyboardEvent<HTMLInputElement>) => {
+      handleKeyDown(event);
+      const native = event.nativeEvent;
+      if (
+        !isTrustedInput(event) ||
+        !native.defaultPrevented ||
+        isHandledByKeyMove(native) ||
+        native.isComposing ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.altKey ||
+        Array.from(event.key).length !== 1
+      )
+        return;
+      const input = event.currentTarget;
+      const start = input.selectionStart ?? input.value.length;
+      input.setRangeText(event.key, start, input.selectionEnd ?? start, 'end');
+      updateSearchText(input.value);
+    },
+    [updateSearchText],
+  );
+
   // Page script can set this input's value and dispatch input events through the open
   // shadow root. React restores the controlled value when the handler ignores them.
   const onSearchTextChange = React.useMemo(
@@ -92,7 +118,7 @@ const SearchInput = (props: SearchInputProps) => {
         placeholder={`${EXTENSION_NAME}!`}
         value={searchText}
         onChange={onSearchTextChange}
-        onKeyDown={handleKeyDown}
+        onKeyDown={onKeyDown}
         onKeyPress={stopKeyboardPropagation}
         onKeyUp={stopKeyboardPropagation}
         onPaste={restoreSelection}
