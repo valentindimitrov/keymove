@@ -412,6 +412,102 @@ test('type-to-search leaves typing in an editor inside a closed shadow root alon
   await expect(page.locator('#keymove-input')).toHaveValue('');
 });
 
+test('draws outlines only near the viewport, following it as the page scrolls', async ({
+  page,
+}) => {
+  await page.goto('shadow.html');
+  await expect(page.locator('#keymove-bar')).toHaveAttribute('data-always-on', 'true');
+  await page.evaluate(() => {
+    for (let index = 0; index < 600; index++) {
+      const paragraph = document.createElement('p');
+      paragraph.textContent = `Quokka paragraph ${index}`;
+      document.body.append(paragraph);
+    }
+  });
+  await page.keyboard.press('Alt+f');
+  await page.keyboard.type('quokka');
+  await expect(page.getByRole('status')).toHaveText(/\/ 600$/);
+  // Every outline lies within a screen of the viewport, and some lie on it.
+  const placement = () =>
+    page.evaluate(() => {
+      const root = document.getElementById('keymove-root')!.shadowRoot!;
+      const tops = [...root.querySelectorAll('.keymove-selection')].map(
+        outline => outline.getBoundingClientRect().top,
+      );
+      return {
+        count: tops.length,
+        near: tops.every(top => top >= -2 * innerHeight && top <= 3 * innerHeight),
+        onScreen: tops.some(top => top >= 0 && top <= innerHeight),
+      };
+    });
+  await expect.poll(placement).toMatchObject({ near: true, onScreen: true });
+  expect((await placement()).count).toBeLessThan(600);
+  await page.evaluate(() => window.scrollBy(0, 8000));
+  await expect.poll(placement).toMatchObject({ near: true, onScreen: true });
+  // Scrolling inside a panel brings its matches into view; they get outlines too.
+  await page.evaluate(() => {
+    window.scrollTo(0, 0);
+    const panel = document.createElement('div');
+    panel.id = 'panel';
+    panel.style.cssText = 'position:fixed;top:0;left:0;width:400px;height:300px;overflow:auto';
+    panel.innerHTML = '<div style="height:4000px"></div><p id="deep">Quokka deep in a panel</p>';
+    document.body.append(panel);
+  });
+  await page.keyboard.press('Alt+f');
+  await page.keyboard.press('Backspace');
+  await page.keyboard.type('a');
+  await expect(page.getByRole('status')).toHaveText(/\/ 601$/);
+  await expect(page.locator('#keymove-input')).toHaveValue('quokka');
+  // Let the search and its refresh settle, so only the panel's scroll can redraw outlines.
+  await page.waitForTimeout(500);
+  await page.evaluate(() => {
+    document.getElementById('panel')!.scrollTop = 4000;
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const deep = document.getElementById('deep')!.getBoundingClientRect();
+        const root = document.getElementById('keymove-root')!.shadowRoot!;
+        return [...root.querySelectorAll('.keymove-selection')].some(
+          outline => Math.abs(outline.getBoundingClientRect().top - (deep.top - 7)) < 2,
+        );
+      }),
+    )
+    .toBe(true);
+  // A carousel that keeps scrolling neither hides the outlines nor remounts them: without
+  // a match it refreshes nothing, and with one, outlines move instead of being recreated.
+  await page.evaluate(() => {
+    const carousel = document.createElement('div');
+    carousel.id = 'carousel';
+    carousel.style.cssText = 'width:200px;height:50px;overflow:auto';
+    carousel.innerHTML = '<div style="height:2000px">slides</div><p>Quokka slide</p>';
+    document.body.append(carousel);
+  });
+  await page.waitForTimeout(500);
+  await page.evaluate(() => {
+    for (const outline of document
+      .getElementById('keymove-root')!
+      .shadowRoot!.querySelectorAll('.keymove-selection'))
+      outline.setAttribute('data-before-carousel', '');
+  });
+  await page.evaluate(async () => {
+    const carousel = document.getElementById('carousel')!;
+    for (let step = 1; step <= 5; step++) {
+      carousel.scrollTop = step * 100;
+      await new Promise(resolve => setTimeout(resolve, 60));
+    }
+  });
+  await page.waitForTimeout(300);
+  expect(
+    await page.evaluate(
+      () =>
+        document
+          .getElementById('keymove-root')!
+          .shadowRoot!.querySelectorAll('.keymove-selected-selection[data-before-carousel]').length,
+    ),
+  ).toBe(1);
+});
+
 test('finds, outlines, scrolls to and activates links laid out with display: contents', async ({
   page,
 }) => {

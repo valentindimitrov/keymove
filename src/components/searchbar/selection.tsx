@@ -1,6 +1,5 @@
 import React from 'react';
 import { rgbaForHexColor } from '../../lib/highlight_colors_schema.js';
-import { elementBox } from '../../lib/visible_text.js';
 
 const SELECTION_MARGIN = 7;
 
@@ -15,14 +14,12 @@ function outlineShadow(color: string) {
   ].join(', ');
 }
 
-type SelectionProps = { node: Element; isSelected: boolean; color: string };
+type SelectionProps = { bounds: DOMRect; isSelected: boolean; color: string };
 
 const Selection = (props: SelectionProps) => {
-  const { node, isSelected, color } = props;
+  const { bounds: nodeBounds, isSelected, color } = props;
 
   const classes = isSelected ? 'keymove-selection keymove-selected-selection' : 'keymove-selection';
-
-  const nodeBounds = React.useMemo(() => elementBox(node), [node]);
 
   const style = React.useMemo(() => {
     const left = nodeBounds.left - SELECTION_MARGIN;

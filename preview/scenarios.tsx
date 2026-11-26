@@ -243,7 +243,7 @@ const TransformedModalPreview = () => {
   return (
     target && (
       <>
-        <Selection node={target} isSelected color="#e69500" />
+        <Selection bounds={target.getBoundingClientRect()} isSelected color="#e69500" />
         <Bar
           searchText="prix"
           mode={SEARCH_MODES.TEXT}
