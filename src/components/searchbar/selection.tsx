@@ -14,14 +14,12 @@ function outlineShadow(color: string) {
   ].join(', ');
 }
 
-type SelectionProps = { node: Element; isSelected: boolean; color: string };
+type SelectionProps = { bounds: DOMRect; isSelected: boolean; color: string };
 
 const Selection = (props: SelectionProps) => {
-  const { node, isSelected, color } = props;
+  const { bounds: nodeBounds, isSelected, color } = props;
 
   const classes = isSelected ? 'keymove-selection keymove-selected-selection' : 'keymove-selection';
-
-  const nodeBounds = React.useMemo(() => node.getBoundingClientRect(), [node]);
 
   const style = React.useMemo(() => {
     const left = nodeBounds.left - SELECTION_MARGIN;

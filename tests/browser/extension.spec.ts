@@ -412,6 +412,40 @@ test('type-to-search leaves typing in an editor inside a closed shadow root alon
   await expect(page.locator('#keymove-input')).toHaveValue('');
 });
 
+test('draws outlines only near the viewport, following it as the page scrolls', async ({
+  page,
+}) => {
+  await page.goto('shadow.html');
+  await expect(page.locator('#keymove-bar')).toHaveAttribute('data-always-on', 'true');
+  await page.evaluate(() => {
+    for (let index = 0; index < 600; index++) {
+      const paragraph = document.createElement('p');
+      paragraph.textContent = `Quokka paragraph ${index}`;
+      document.body.append(paragraph);
+    }
+  });
+  await page.keyboard.press('Alt+f');
+  await page.keyboard.type('quokka');
+  await expect(page.getByRole('status')).toHaveText(/\/ 600$/);
+  // Every outline lies within a screen of the viewport, and some lie on it.
+  const placement = () =>
+    page.evaluate(() => {
+      const root = document.getElementById('keymove-root')!.shadowRoot!;
+      const tops = [...root.querySelectorAll('.keymove-selection')].map(
+        outline => outline.getBoundingClientRect().top,
+      );
+      return {
+        count: tops.length,
+        near: tops.every(top => top >= -2 * innerHeight && top <= 3 * innerHeight),
+        onScreen: tops.some(top => top >= 0 && top <= innerHeight),
+      };
+    });
+  await expect.poll(placement).toMatchObject({ near: true, onScreen: true });
+  expect((await placement()).count).toBeLessThan(600);
+  await page.evaluate(() => window.scrollBy(0, 8000));
+  await expect.poll(placement).toMatchObject({ near: true, onScreen: true });
+});
+
 test('stays out of XML documents such as sitemaps without reporting errors', async ({ page }) => {
   // React DOM threw as it loaded on these, since their elements have no `.style`. The
   // context fixture fails the test on any console error or uncaught exception.
