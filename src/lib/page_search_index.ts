@@ -11,7 +11,12 @@ import {
   labelledToggle,
   searchableAttributeValuesForNode,
 } from './searchable_attributes.js';
-import { isInlineLevel, isTextVisible, iterateRenderedText } from './visible_text.js';
+import {
+  computedStyle,
+  isInlineLevel,
+  isTextVisible,
+  iterateRenderedText,
+} from './visible_text.js';
 import { normalizeSearchText } from './search_text.js';
 import type { OwnedText, StyleCache } from './visible_text.js';
 import { iterateControlName } from './control_name.js';
@@ -630,6 +635,8 @@ class PageSearchIndex {
       // own whose inline children cannot match a phrase separately. The record map's
       // iteration reaches entries added during it.
       this.queueSkippedBlocks(owned);
+      const owner = this.uncoveredOwnerBlock(node, styles);
+      if (owner) this.queueSkippedBlocks({ skipped: [owner], boundary: isSeparateBlock });
       // An action is still named by everything it contains, such as a card link's blocks.
       const actionText =
         isLinkOrButtonOrInput(node) && owned.skipped.length > 0
@@ -776,6 +783,29 @@ class PageSearchIndex {
       this.records.set(block, null);
       this.lazyBlocks.add(block);
     }
+  }
+
+  /**
+   * The block an inline candidate's text belongs to, when no candidate holds that block.
+   * A block whose inline children carry all of its text has no text node of its own, so
+   * it is not a candidate, and a phrase spread over those children matches only there.
+   * Blocks that a candidate leaves out are queued by that candidate instead.
+   */
+  private uncoveredOwnerBlock(node: Element, styles: StyleCache) {
+    // Controls are results of their own; adjacent ones run together in a block's text.
+    if (
+      node.matches(TEXT_BLOCK_SELECTOR) ||
+      node.matches(this.actionableSelector) ||
+      !isInlineLevel(computedStyle(node, styles).display)
+    )
+      return null;
+    for (let parent = renderedParent(node); parent; parent = renderedParent(parent)) {
+      if (this.records.has(parent) || isKeyMoveNode(parent)) return null;
+      if (isSeparateBlock(parent, computedStyle(parent, styles).display)) {
+        return parent === document.documentElement ? null : parent;
+      }
+    }
+    return null;
   }
 
   /**

@@ -567,6 +567,25 @@ describe('text owned by a node', () => {
     ).toEqual([document.querySelector('b')]);
   });
 
+  test('finds a phrase in a standalone block that no candidate contains', async () => {
+    document.body.innerHTML =
+      '<section><div id="block"><span>Free </span><b>shipping</b></div></section>' +
+      '<div id="links"><span>Save </span><a href="#b">settings</a></div>';
+    index = new PageSearchIndex();
+    for (const [query, id] of [
+      ['free shipping', 'block'],
+      ['free shippong', 'block'],
+      ['save settings', 'links'],
+    ]) {
+      const result = await index.search(scorerFor(query!));
+      expect(result.matchingText.map(match => match.node)).toEqual([document.getElementById(id!)]);
+    }
+    // A word one inline child holds is still that child's result alone.
+    expect(
+      (await index.search(scorerFor('shipping'))).matchingText.map(match => match.node),
+    ).toEqual([document.querySelector('b')]);
+  });
+
   test('keeps a block whose own phrase is separate from a matching nested block', async () => {
     document.body.innerHTML =
       '<div>Intro <div id="own"><span>Total </span><b>revenue</b>' +
