@@ -103,15 +103,24 @@ export async function removeStaleKeyMoveHostsInShadowRoots(
   let removed = 0;
   let visited = 0;
   const roots: ShadowRoot[] = [];
+  const seen = new WeakSet<ShadowRoot>();
   const collect = async (root: Document | ShadowRoot) => {
     // A tree walker visits elements lazily, so discovery itself is chunked as well.
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+    let restarts = 0;
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
       const element = node as Element;
-      if (element.shadowRoot && !isKeyMoveRoot(element)) roots.push(element.shadowRoot);
+      const shadow = element.shadowRoot;
+      if (shadow && !isKeyMoveRoot(element) && !seen.has(shadow)) {
+        seen.add(shadow);
+        roots.push(shadow);
+      }
       if (++visited % SHADOW_WALK_CHUNK === 0) {
         await new Promise(resolve => setTimeout(resolve));
         if (!alive()) return false;
+        // The page may have removed where the walk paused; from there it would never
+        // return to the rest of the tree. Start again, a few times at most.
+        if (!root.contains(walker.currentNode) && restarts++ < 3) walker.currentNode = root;
       }
     }
     return true;

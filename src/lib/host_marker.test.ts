@@ -101,7 +101,13 @@ test('the shadow-root walk yields on large pages and stops once the copy has gon
   expect(await removeStaleKeyMoveHostsInShadowRoots(SECRET, read, alive)).toBe(0);
   expect(checks).toBe(2);
   expect(stale.isConnected).toBe(true);
-  expect(await removeStaleKeyMoveHostsInShadowRoots(SECRET, read)).toBe(1);
+  // The page replaces the part of the tree the walk paused in; it still reaches the rest.
+  const cleanup = removeStaleKeyMoveHostsInShadowRoots(SECRET, read, () => {
+    filler.remove();
+    return true;
+  });
+  expect(await cleanup).toBe(1);
+  expect(stale.isConnected).toBe(false);
 });
 
 test('keeps page elements, whatever shape or marker they copy', async () => {
