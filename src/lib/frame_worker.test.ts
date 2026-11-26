@@ -87,7 +87,13 @@ test('a new query clears outlines; a refresh keeps them for the top frame to rep
       );
     });
   const marks = () => document.getElementById('keymove-root');
-  const paint = { op: 'paint' as const, selected: null, color: '#f59e0b', highlight: false };
+  const paint = {
+    op: 'paint' as const,
+    selectedText: false,
+    selected: null,
+    color: '#f59e0b',
+    highlight: false,
+  };
   try {
     const reply = (await request({
       op: 'search',
@@ -161,7 +167,13 @@ test('never highlights matches retained from a search for another query', async 
         resolve,
       );
     });
-  const paint = { op: 'paint' as const, selected: null, color: '#f59e0b', highlight: true };
+  const paint = {
+    op: 'paint' as const,
+    selectedText: false,
+    selected: null,
+    color: '#f59e0b',
+    highlight: true,
+  };
   try {
     const reply = (await request({
       op: 'search',
@@ -222,6 +234,78 @@ test('reports the current openable address of a link, and none for other actions
     teardown();
     document.body.innerHTML = '';
     vi.restoreAllMocks();
+  }
+});
+
+test('paints the selected match with its own highlight and releases its selection', async () => {
+  document.body.innerHTML = '<p>otter one</p><p>otter two</p>';
+  vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(100);
+  vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(100);
+  const registry = new Map<string, { size: number; priority: number }>();
+  vi.stubGlobal('CSS', { highlights: registry });
+  vi.stubGlobal(
+    'Highlight',
+    class {
+      priority = 0;
+      size: number;
+      constructor(...ranges: Range[]) {
+        this.size = ranges.length;
+      }
+    },
+  );
+  // jsdom has no adoptedStyleSheets.
+  Object.defineProperty(document, 'adoptedStyleSheets', {
+    value: [],
+    writable: true,
+    configurable: true,
+  });
+  transport.add.mockClear();
+  const teardown = installFrameWorker();
+  const listener = transport.add.mock.calls[0]![0];
+  const request = (body: FrameRequest): Promise<unknown> =>
+    new Promise(resolve => {
+      listener(
+        { type: FRAME_MESSAGE, kind: 'deliver', requester: 0, request: body },
+        { id: 'test' },
+        resolve,
+      );
+    });
+  try {
+    const reply = (await request({
+      op: 'search',
+      query: 'otter',
+      generation: 'one',
+      depth: 1,
+    })) as FrameReply;
+    const [first, second] = reply.rows.filter(row => row.kind === 'text').map(row => row.id);
+    const paint = {
+      op: 'paint' as const,
+      selectedText: false,
+      generation: 'one',
+      color: '#f59e0b',
+      highlight: true,
+    };
+    await request({ ...paint, ids: [first!, second!], selected: first!, selectedText: true });
+    await vi.waitFor(() =>
+      expect(registry.get('keymove-search-current')).toMatchObject({ size: 1, priority: 1 }),
+    );
+    expect(registry.get('keymove-search-results')?.size).toBe(2);
+
+    const command = { op: 'command' as const, generation: 'one', id: first! };
+    await request({ ...command, command: 'select' });
+    expect(getSelection()?.toString()).toBe('otter one');
+    await request({ ...command, command: 'deselect' });
+    expect(getSelection()?.toString()).toBe('');
+
+    // An action sharing the element, as in Actions mode, gets no text highlight.
+    await request({ ...paint, ids: [first!, second!], selected: first!, selectedText: false });
+    expect(registry.has('keymove-search-current')).toBe(false);
+  } finally {
+    teardown();
+    document.body.innerHTML = '';
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    Reflect.deleteProperty(document, 'adoptedStyleSheets');
   }
 });
 

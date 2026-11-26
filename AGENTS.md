@@ -320,8 +320,8 @@ same components and layout rules. Settings use a shared control/text grid. See
 `docs/appearance.md` for token conventions and preview scenarios.
 
 Page stylesheets select KeyMove's hosts like any other element, and a page rule beats a
-normal `:host` declaration. Every declaration on the host itself (`:host`, `:host(...)`)
-is therefore `!important`, which wins over the page's important rules too; the child-frame
+normal `:host` declaration. Every declaration on the host itself (`:host`, `:host(...)`),
+the theme's custom properties included, is therefore `!important`, which wins over the page's important rules too; the child-frame
 outline layer uses inline important declarations for the same reason. Shopify's Dawn theme
 once hid the whole searchbar with `div:empty { display: none }`.
 
