@@ -593,14 +593,17 @@ describe('text owned by a node', () => {
     expect((await index.search(scorerFor('free shipping'))).matchingText).toEqual([]);
   });
 
-  test('finds a phrase through a wrapper laid out with display: contents', async () => {
-    document.body.innerHTML =
-      '<section><div id="block"><span style="display: contents">Free <b>shipping</b></span></div></section>';
+  test.each([
+    ['<span style="display: contents">Free <b>shipping</b></span>'],
+    ['<span style="display: contents">Free </span><span style="display: contents">shipping</span>'],
+  ])('finds a phrase through wrappers laid out with display: contents: %s', async html => {
+    document.body.innerHTML = `<section><div id="block">${html}</div></section>`;
     // Browsers give a display: contents element no box of its own; jsdom has no layout.
-    const wrapper = document.querySelector('span')!;
-    Object.defineProperty(wrapper, 'offsetWidth', { value: 0 });
-    Object.defineProperty(wrapper, 'offsetHeight', { value: 0 });
-    wrapper.getClientRects = () => ({ length: 0 }) as DOMRectList;
+    for (const wrapper of document.querySelectorAll('span')) {
+      Object.defineProperty(wrapper, 'offsetWidth', { value: 0 });
+      Object.defineProperty(wrapper, 'offsetHeight', { value: 0 });
+      wrapper.getClientRects = () => ({ length: 0 }) as DOMRectList;
+    }
     index = new PageSearchIndex();
     expect(
       (await index.search(scorerFor('free shipping'))).matchingText.map(match => match.node),

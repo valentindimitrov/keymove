@@ -605,6 +605,10 @@ class PageSearchIndex {
         continue;
       }
 
+      // Before the visibility check: a display: contents element has no box of its own,
+      // yet its text is visible through the block it belongs to.
+      const owner = this.uncoveredOwnerBlock(node, styles);
+      if (owner) this.queueSkippedBlocks({ skipped: [owner], boundary: isSeparateBlock });
       if (!actionIsInScope(node, collector.modal) || !this.isVisible(node, styles)) {
         continue;
       }
@@ -638,8 +642,6 @@ class PageSearchIndex {
       // own whose inline children cannot match a phrase separately. The record map's
       // iteration reaches entries added during it.
       this.queueSkippedBlocks(owned);
-      const owner = this.uncoveredOwnerBlock(node, styles);
-      if (owner) this.queueSkippedBlocks({ skipped: [owner], boundary: isSeparateBlock });
       // An action is still named by everything it contains, such as a card link's blocks.
       const actionText =
         isLinkOrButtonOrInput(node) && owned.skipped.length > 0
@@ -964,7 +966,7 @@ class PageSearchIndex {
     const blocks = new Map([...blockMatches].map(match => [match.node, match]));
     const covered = new Map<TextMatch, number>();
     const startsOwnBlock = (element: Element) =>
-      isSeparateBlock(element, window.getComputedStyle(element).display);
+      isSeparateBlock(element, computedStyle(element, collector.styles).display);
     for (const match of collector.matchingText) {
       // Text inside a block of its own belongs to no block above it.
       for (
