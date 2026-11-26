@@ -33,7 +33,10 @@ type SelectionsProps = {
 };
 
 const Selections = (props: SelectionsProps) => {
-  const { selectedSelectionIndex, matchingNodes, refresh, color, showOtherMatches = false } = props;
+  // `refresh` changes on scroll, resize and completed searches; a change re-renders, which
+  // re-reads every outline's box. Frames place and scroll their own marks, so it does not
+  // repaint them.
+  const { selectedSelectionIndex, matchingNodes, color, showOtherMatches = false } = props;
   const selectedNode =
     selectedSelectionIndex === null ? null : matchingNodes[selectedSelectionIndex];
   const visibleNodes = React.useMemo(
@@ -42,7 +45,7 @@ const Selections = (props: SelectionsProps) => {
   );
   React.useEffect(
     () => paintFrameTargets(visibleNodes, selectedNode ?? null, color, showOtherMatches),
-    [visibleNodes, selectedNode, showOtherMatches, color, refresh],
+    [visibleNodes, selectedNode, showOtherMatches, color],
   );
   // Outlines for matches far off screen cost a box read and an element each, and a short
   // query on a long page has thousands. Scrolling refreshes them, so only matches within
