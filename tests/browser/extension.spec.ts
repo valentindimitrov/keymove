@@ -474,6 +474,37 @@ test('draws outlines only near the viewport, following it as the page scrolls', 
       }),
     )
     .toBe(true);
+  // A scrolling element without matches, such as a carousel, leaves the outlines alone.
+  await page.evaluate(() => {
+    const carousel = document.createElement('div');
+    carousel.id = 'carousel';
+    carousel.style.cssText = 'width:200px;height:50px;overflow:auto';
+    carousel.innerHTML = '<div style="height:2000px">slides</div>';
+    document.body.append(carousel);
+  });
+  await page.waitForTimeout(500);
+  await page.evaluate(() => {
+    for (const outline of document
+      .getElementById('keymove-root')!
+      .shadowRoot!.querySelectorAll('.keymove-selection'))
+      outline.setAttribute('data-before-carousel', '');
+  });
+  await page.evaluate(async () => {
+    const carousel = document.getElementById('carousel')!;
+    for (let step = 1; step <= 5; step++) {
+      carousel.scrollTop = step * 100;
+      await new Promise(resolve => setTimeout(resolve, 60));
+    }
+  });
+  await page.waitForTimeout(300);
+  expect(
+    await page.evaluate(
+      () =>
+        document
+          .getElementById('keymove-root')!
+          .shadowRoot!.querySelectorAll('.keymove-selection:not([data-before-carousel])').length,
+    ),
+  ).toBe(0);
 });
 
 test('stays out of XML documents such as sitemaps without reporting errors', async ({ page }) => {
