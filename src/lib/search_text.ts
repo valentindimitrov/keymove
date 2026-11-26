@@ -50,8 +50,11 @@ function matchingTextSpans(text: string, query: string, limit = Infinity) {
   while (index !== -1 && spans.length < limit) {
     const start = starts?.[index] ?? index;
     const end = ends?.[index + needle.length - 1] ?? index + needle.length;
-    // A normalized grapheme can contain several occurrences; highlight the original once.
-    if (spans.at(-1)?.end !== end) spans.push({ start, end });
+    // Occurrences inside or across shared graphemes widen to overlapping spans; merge
+    // them, since highlight ranges are built in order and cannot step back.
+    const last = spans.at(-1);
+    if (last && start < last.end) last.end = Math.max(last.end, end);
+    else spans.push({ start, end });
     index = normalized.indexOf(needle, index + needle.length);
   }
   return spans;

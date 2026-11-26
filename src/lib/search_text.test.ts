@@ -36,4 +36,10 @@ test('treats spellings that compose only once lowercased as equal', () => {
   expect(matchingTextSpans(text, 'cat').map(span => text.slice(span.start, span.end))).toEqual([
     'cat',
   ]);
+  // Lone combining marks widen two occurrences to overlapping graphemes: one span.
+  const marks = 'J\u030C a\u0338a\u0338\u0338a\u0338';
+  const spans = matchingTextSpans(marks, '\u0338a\u0338');
+  expect(spans.every((span, index) => index === 0 || span.start >= spans[index - 1]!.end)).toBe(
+    true,
+  );
 });
