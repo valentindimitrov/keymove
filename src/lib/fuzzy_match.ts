@@ -115,7 +115,9 @@ function bestMatchEnd(text: Characters, query: Characters, maxDistance: number) 
       }
       currentRow[i] = cost;
     }
-    for (let i = lastActiveRow + 1; i <= queryLength; i += 1) currentRow[i] = maxDistance + 1;
+    // The next column reads at most one row past the ones computed here, so only that row
+    // needs its over-budget value; filling every inactive row costs the query's length.
+    if (lastActiveRow < queryLength) currentRow[lastActiveRow + 1] = maxDistance + 1;
 
     while (lastActiveRow > 0 && currentRow[lastActiveRow]! > maxDistance) lastActiveRow -= 1;
     if (lastActiveRow === queryLength) {
