@@ -324,8 +324,8 @@ const Searchbar = () => {
 
       event?.preventDefault();
       event?.stopPropagation();
-      discardOrigin();
       if (activation === 'current') {
+        discardOrigin();
         const remote = frameTarget(selectedActionNode);
         if (remote) {
           if ((await remote.command('activate')) !== true || superseded()) return;
@@ -339,6 +339,8 @@ const Searchbar = () => {
           // The tab request needs the gesture still; a slow frame can outlast it.
           if (!linkUrl || superseded() || !hasUserActivation()) return;
         }
+        // Only once a tab will open: a refused link keeps the way back to where search began.
+        discardOrigin();
         void browser.runtime
           .sendMessage({
             type: ExtensionMessageTypes.OPEN_LINK_IN_NEW_TAB,
