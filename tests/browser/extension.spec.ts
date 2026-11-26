@@ -354,6 +354,38 @@ test('page stylesheets cannot hide the result outlines drawn inside frames', asy
   expect((await Promise.all(page.frames().slice(1).map(layers))).flat()).not.toContain('none');
 });
 
+test('opens the current address of an iframe link that changed after the search', async ({
+  page,
+  context,
+}) => {
+  await page.goto('frames.html');
+  await expect(page.locator('#keymove-bar')).toHaveAttribute('data-always-on', 'true');
+  const local = page.locator('iframe').first().contentFrame();
+  await local.locator('body').evaluate(body => {
+    const link = document.createElement('a');
+    link.id = 'quokka';
+    link.href = '/fixtures.html?draft';
+    link.textContent = 'Quokka notes';
+    body.append(link);
+  });
+  await page.keyboard.press('Alt+f');
+  const input = page.getByRole('combobox', { name: 'Search page', exact: true });
+  await input.pressSequentially('quokka');
+  const status = page.getByRole('status');
+  await expect(status).toHaveText(/^(Text|Actions) 1 \/ 1$/);
+  if ((await status.innerText()).startsWith('Text')) await input.press('Alt+s');
+  await expect(status).toHaveText('Actions 1 / 1');
+  // Changed just before the shortcut, sooner than the frame reports the change.
+  await local
+    .locator('#quokka')
+    .evaluate(link => link.setAttribute('href', '/fixtures.html?published'));
+  const opened = context.waitForEvent('page');
+  await input.press('Shift+Enter');
+  const tab = await opened;
+  await expect(tab).toHaveURL(/\/fixtures\.html\?published$/);
+  await tab.close();
+});
+
 test('type-to-search leaves typing in an editor inside a closed shadow root alone', async ({
   page,
 }) => {

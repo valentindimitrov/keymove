@@ -440,6 +440,11 @@ export function installFrameWorker(alive: () => boolean = () => true) {
     switch (request.command) {
       case 'validate':
         return !isActionDisabled(node!);
+      case 'link':
+        // The link's address now: the top frame's copy may predate a change to it.
+        return node instanceof HTMLElement && !isActionDisabled(node)
+          ? Utils.openableLinkUrlForNode(node)
+          : null;
       case 'text':
         return visibleText(node!);
       case 'select':

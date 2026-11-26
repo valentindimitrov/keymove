@@ -26,6 +26,7 @@ import { isImageDirection, isImageInfo } from '../../lib/image_schema.js';
 import ImageViewer from './image_viewer.js';
 
 import Utils from '../../lib/utils.js';
+import { normalizedOpenableLinkUrl } from '../../lib/extension_tabs.js';
 import { hasUserActivation, isOwnEvent, isTrustedInput } from '../../lib/trusted_input.js';
 import { isActionDisabled } from '../../lib/searchable_attributes.js';
 import { activeModal, actionIsInScope, MODAL_CHANGED_EVENT } from '../../lib/modal_context.js';
@@ -133,6 +134,7 @@ const Searchbar = () => {
   const previousMenuTarget = React.useRef<Element | null>(null);
   const menuGeneration = React.useRef(0);
   const previousSearchText = React.useRef(searchText);
+  const queryEdits = React.useRef(0);
   const [scrollOrResizeRefresh, setScrollOrResizeRefresh] = React.useState<boolean>(false);
   const [hideSelections, setHideSelections] = React.useState<boolean>(false);
   const isInteractive = !isHidden && !paused;
@@ -280,6 +282,10 @@ const Searchbar = () => {
       // Child frames run relayed commands without activation of their own, so the gesture
       // is checked here, in the frame that received the input, before any command is sent.
       if (!hasUserActivation()) return;
+      // Frame commands are awaited; a query typed meanwhile must not be reset by them,
+      // even one typed back to the same text.
+      const edits = queryEdits.current;
+      const superseded = () => queryEdits.current !== edits;
       if (selectedImage) {
         event?.preventDefault();
         event?.stopPropagation();
@@ -294,6 +300,7 @@ const Searchbar = () => {
             active: activation === 'foreground-tab',
           });
         }
+        if (superseded()) return;
         resetSearchTextAndMatches();
         if (autoHide) setIsHidden(true);
         return;
@@ -307,22 +314,33 @@ const Searchbar = () => {
         return;
       }
 
-      const linkUrl = Utils.openableLinkUrlForNode(selectedActionNode);
-      if (activation !== 'current' && !linkUrl) {
+      let linkUrl = Utils.openableLinkUrlForNode(selectedActionNode);
+      // A frame link's recorded address may have become openable since; its frame decides.
+      const remoteLink =
+        frameTarget(selectedActionNode) && selectedActionNode instanceof HTMLAnchorElement;
+      if (activation !== 'current' && !linkUrl && !remoteLink) {
         return;
       }
 
       event?.preventDefault();
       event?.stopPropagation();
-      discardOrigin();
       if (activation === 'current') {
+        discardOrigin();
         const remote = frameTarget(selectedActionNode);
         if (remote) {
-          if ((await remote.command('activate')) !== true) return;
+          if ((await remote.command('activate')) !== true || superseded()) return;
         } else Utils.clickOrFocusNode(selectedActionNode);
       } else {
         const remote = frameTarget(selectedActionNode);
-        if (remote && (await remote.command('validate')) !== true) return;
+        if (remote) {
+          // The owning frame reports the link's current address; the copy here may be stale.
+          const current = await remote.command('link');
+          linkUrl = typeof current === 'string' ? normalizedOpenableLinkUrl(current) : null;
+          // The tab request needs the gesture still; a slow frame can outlast it.
+          if (!linkUrl || superseded() || !hasUserActivation()) return;
+        }
+        // Only once a tab will open: a refused link keeps the way back to where search began.
+        discardOrigin();
         void browser.runtime
           .sendMessage({
             type: ExtensionMessageTypes.OPEN_LINK_IN_NEW_TAB,
@@ -1036,6 +1054,7 @@ const Searchbar = () => {
   React.useEffect(() => {
     if (searchText !== previousSearchText.current) {
       previousSearchText.current = searchText;
+      queryEdits.current += 1;
       scheduleSearch();
     }
   }, [searchText, scheduleSearch]);

@@ -187,6 +187,44 @@ test('never highlights matches retained from a search for another query', async 
   }
 });
 
+test('reports the current openable address of a link, and none for other actions', async () => {
+  document.body.innerHTML =
+    '<a id="draft" href="https://example.com/draft">Quokka notes</a><button>Quokka launch</button>';
+  vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(100);
+  vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(30);
+  transport.add.mockClear();
+  const teardown = installFrameWorker();
+  const listener = transport.add.mock.calls[0]![0];
+  const request = (body: FrameRequest): Promise<unknown> =>
+    new Promise(resolve => {
+      listener(
+        { type: FRAME_MESSAGE, kind: 'deliver', requester: 0, request: body },
+        { id: 'test' },
+        resolve,
+      );
+    });
+  try {
+    const reply = (await request({
+      op: 'search',
+      query: 'quokka',
+      generation: 'links',
+      depth: 1,
+    })) as FrameReply;
+    const actions = reply.rows.filter(row => row.kind === 'action');
+    const link = actions.find(row => row.href)!;
+    const button = actions.find(row => !row.href)!;
+    document.getElementById('draft')!.setAttribute('href', 'https://example.com/published');
+    const command = { op: 'command' as const, generation: 'links', command: 'link' as const };
+    expect(link.href).toBe('https://example.com/draft');
+    expect(await request({ ...command, id: link.id })).toBe('https://example.com/published');
+    expect(await request({ ...command, id: button.id })).toBeNull();
+  } finally {
+    teardown();
+    document.body.innerHTML = '';
+    vi.restoreAllMocks();
+  }
+});
+
 vi.mock('wxt/browser', () => ({
   browser: {
     runtime: {
