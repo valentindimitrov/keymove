@@ -1,4 +1,5 @@
 import Selection from './selection.js';
+import { elementBox } from '../../lib/visible_text.js';
 import React from 'react';
 import { frameTarget, paintFrameTargets } from '../../lib/frame_target.js';
 
@@ -52,7 +53,7 @@ const Selections = (props: SelectionsProps) => {
   // a screen of the viewport, and the selected one, are drawn.
   const outlines = visibleNodes
     .filter(node => !frameTarget(node))
-    .map(node => ({ node, bounds: node.getBoundingClientRect() }))
+    .map(node => ({ node, bounds: elementBox(node) }))
     .filter(({ node, bounds }) => node === selectedNode || nearViewport(bounds));
   return (
     <>

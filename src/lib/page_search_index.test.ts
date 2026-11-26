@@ -11,6 +11,22 @@ function scorerFor(query: string) {
   return new NodeScorer(query);
 }
 
+// jsdom has no Range layout; a display: contents element's contents are measured with one.
+function stubRangeLayout() {
+  Object.defineProperty(Range.prototype, 'getClientRects', {
+    configurable: true,
+    value: () => [new DOMRect(0, 0, 100, 20)],
+  });
+  Object.defineProperty(Range.prototype, 'getBoundingClientRect', {
+    configurable: true,
+    value: () => new DOMRect(0, 0, 100, 20),
+  });
+  return () => {
+    Reflect.deleteProperty(Range.prototype, 'getClientRects');
+    Reflect.deleteProperty(Range.prototype, 'getBoundingClientRect');
+  };
+}
+
 function waitForMutations() {
   return new Promise<void>(resolve => window.setTimeout(resolve, 0));
 }
@@ -599,9 +615,14 @@ describe('text owned by a node', () => {
   });
 
   test.each([
-    ['<span style="display: contents">Free <b>shipping</b></span>'],
-    ['<span style="display: contents">Free </span><span style="display: contents">shipping</span>'],
-  ])('finds a phrase through wrappers laid out with display: contents: %s', async html => {
+    // Text in a wrapper belongs to the block around it, whether one wrapper holds it all
+    // or two each hold half.
+    ['<span style="display: contents">Free <b>shipping</b></span>', 'block'],
+    [
+      '<span style="display: contents">Free </span><span style="display: contents">shipping</span>',
+      'block',
+    ],
+  ])('finds a phrase through wrappers laid out with display: contents: %s', async (html, id) => {
     document.body.innerHTML = `<section><div id="block">${html}</div></section>`;
     // Browsers give a display: contents element no box of its own; jsdom has no layout.
     for (const wrapper of document.querySelectorAll('span')) {
@@ -609,10 +630,15 @@ describe('text owned by a node', () => {
       Object.defineProperty(wrapper, 'offsetHeight', { value: 0 });
       wrapper.getClientRects = () => ({ length: 0 }) as DOMRectList;
     }
-    index = new PageSearchIndex();
-    expect(
-      (await index.search(scorerFor('free shipping'))).matchingText.map(match => match.node),
-    ).toEqual([document.getElementById('block')]);
+    const restore = stubRangeLayout();
+    try {
+      index = new PageSearchIndex();
+      expect(
+        (await index.search(scorerFor('free shipping'))).matchingText.map(match => match.node),
+      ).toEqual([document.getElementById(id)]);
+    } finally {
+      restore();
+    }
   });
 
   test('never queues a block for text that is out of scope', async () => {
@@ -764,6 +790,31 @@ describe('text owned by a node', () => {
       { node: document.getElementById('title'), action: link },
     ]);
   });
+});
+
+test('finds links and text laid out with display: contents', async () => {
+  document.body.innerHTML =
+    '<nav><a href="/docs" style="display: contents">Quokka docs</a></nav>' +
+    '<div><span style="display: contents">Quokka notes</span></div>';
+  // Browsers give a display: contents element no box of its own, only its contents one.
+  for (const element of document.querySelectorAll<HTMLElement>('[style]')) {
+    Object.defineProperty(element, 'offsetWidth', { value: 0 });
+    Object.defineProperty(element, 'offsetHeight', { value: 0 });
+    element.getClientRects = () => ({ length: 0 }) as DOMRectList;
+  }
+  const restore = stubRangeLayout();
+  index = new PageSearchIndex();
+  try {
+    const result = await index.search(scorerFor('quokka'));
+    expect(result.matchingLinksAndButtons).toEqual([document.querySelector('a')]);
+    // Text a wrapper holds is found through the block around it, not as a second result.
+    expect(result.matchingText.map(match => match.node)).toEqual([
+      document.querySelector('a'),
+      document.querySelector('div'),
+    ]);
+  } finally {
+    restore();
+  }
 });
 
 test('refreshes for its own modal notifications, never for page-dispatched ones', () => {

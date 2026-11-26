@@ -14,7 +14,7 @@ import NodeScorer from './node_scorer.js';
 import { normalizeSearchText } from './search_text.js';
 import { FrameSearch, mergeFrameResults, connectedFrameResults } from './frame_search.js';
 import { frameTarget, resultIsConnected, paintFrameTargets } from './frame_target.js';
-import { isTextVisible, visibleText } from './visible_text.js';
+import { elementBox, isTextVisible, visibleText } from './visible_text.js';
 import type { StyleCache } from './visible_text.js';
 import { activeModal, actionIsInScope } from './modal_context.js';
 import { isActionDisabled } from './searchable_attributes.js';
@@ -219,13 +219,13 @@ export function installFrameWorker(alive: () => boolean = () => true) {
     const styles: StyleCache = new WeakMap();
     const boxes = [...outlines].map(([node, outline]) => ({
       outline,
-      rect: node.getBoundingClientRect(),
+      rect: elementBox(node),
       visible: isTextVisible(node, styles),
     }));
     for (const { outline, rect, visible } of boxes) setOutlineBox(outline, rect, visible);
   }
   function placeOutline(outline: HTMLElement, node: Element) {
-    setOutlineBox(outline, node.getBoundingClientRect(), true);
+    setOutlineBox(outline, elementBox(node), true);
   }
   function setOutlineBox(outline: HTMLElement, rect: DOMRect, visible: boolean) {
     outline.hidden = !visible || !rect.width || !rect.height;
