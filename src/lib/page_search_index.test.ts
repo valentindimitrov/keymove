@@ -2,6 +2,8 @@ import NodeScorer from './node_scorer.js';
 import { PageSearchIndex } from './page_search_index.js';
 import { markKeyMoveRoot } from './dom_tree.js';
 import { highlightRangesForMatches } from '../hooks/use_highlights.js';
+import { MODAL_CHANGED_EVENT } from './modal_context.js';
+import { acceptSyntheticInputForTesting, dispatchOwnEvent } from './trusted_input.js';
 
 let index: PageSearchIndex | null = null;
 
@@ -812,5 +814,19 @@ test('finds links and text laid out with display: contents', async () => {
     ]);
   } finally {
     restore();
+  }
+});
+
+test('refreshes for its own modal notifications, never for page-dispatched ones', () => {
+  const changed = vi.fn();
+  index = new PageSearchIndex(changed);
+  acceptSyntheticInputForTesting(false);
+  try {
+    document.dispatchEvent(new Event(MODAL_CHANGED_EVENT));
+    expect(changed).not.toHaveBeenCalled();
+    dispatchOwnEvent(document, new Event(MODAL_CHANGED_EVENT));
+    expect(changed).toHaveBeenCalledOnce();
+  } finally {
+    acceptSyntheticInputForTesting(true);
   }
 });

@@ -14,7 +14,8 @@ export type FrameCommand =
   | 'unhover'
   | 'text'
   | 'validate'
-  | 'link';
+  | 'link'
+  | 'deselect';
 export type FrameRequest =
   | { op: 'search'; query: string; generation: string; depth: number }
   | { op: 'stop' }
@@ -25,6 +26,8 @@ export type FrameRequest =
       op: 'paint';
       generation: string;
       selected: number | null;
+      // Whether the selected row is a text result; an action can share its element.
+      selectedText: boolean;
       ids: number[];
       color: string;
       highlight: boolean;
@@ -70,12 +73,14 @@ export function isFrameRequest(value: unknown): value is FrameRequest {
           'text',
           'validate',
           'link',
+          'deselect',
         ].includes(String(value.command)))
     );
   return (
     value.op === 'paint' &&
     typeof value.highlight === 'boolean' &&
     (value.selected === null || id(value.selected)) &&
+    typeof value.selectedText === 'boolean' &&
     Array.isArray(value.ids) &&
     value.ids.every(id) &&
     str(value.color) &&

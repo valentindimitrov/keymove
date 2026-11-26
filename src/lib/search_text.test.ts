@@ -26,3 +26,20 @@ test('retains accent distinctions and limits non-overlapping occurrences', () =>
   ]);
   expect(matchingTextSpans('abc', '')).toEqual([]);
 });
+
+test('treats spellings that compose only once lowercased as equal', () => {
+  // U+01F0 has no uppercase precomposed form: uppercase J plus caron lowercases to it.
+  expect(normalizeSearchText('J̌')).toBe(normalizeSearchText('ǰ'));
+  expect(matchingTextSpans('Read J̌ava', 'ǰava')).toEqual([{ start: 5, end: 10 }]);
+  // A contraction and an expansion that leave the length unchanged still move offsets.
+  const text = 'J\u030C cat \u0130';
+  expect(matchingTextSpans(text, 'cat').map(span => text.slice(span.start, span.end))).toEqual([
+    'cat',
+  ]);
+  // Lone combining marks widen two occurrences to overlapping graphemes: one span.
+  const marks = 'J\u030C a\u0338a\u0338\u0338a\u0338';
+  const spans = matchingTextSpans(marks, '\u0338a\u0338');
+  expect(spans.every((span, index) => index === 0 || span.start >= spans[index - 1]!.end)).toBe(
+    true,
+  );
+});
