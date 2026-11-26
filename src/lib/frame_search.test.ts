@@ -2,7 +2,12 @@ import { FrameSearch, mergeFrameResults } from './frame_search.js';
 import { FRAME_MESSAGE, FRAME_PROBE } from './frame_protocol.js';
 import type { FrameReply } from './frame_protocol.js';
 import { makeSearchResult, makeRankedMatch, makeTextMatch } from '../test_support/factories.js';
-import { frameTarget, setFrameTarget, resultIsConnected } from './frame_target.js';
+import {
+  frameTarget,
+  paintFrameTargets,
+  setFrameTarget,
+  resultIsConnected,
+} from './frame_target.js';
 import { isTextVisible } from './visible_text.js';
 import { actionIsInScope } from './modal_context.js';
 import { acceptSyntheticInputForTesting } from './trusted_input.js';
@@ -75,6 +80,60 @@ test('discards superseded responses, retains current handles, and releases hidde
   expect(transport.remove).toHaveBeenCalled();
   frame.remove();
   vi.restoreAllMocks();
+});
+
+test('paints a frame with the generation it currently holds, so later clears land', async () => {
+  const frame = document.createElement('iframe');
+  document.body.append(frame);
+  vi.spyOn(frame, 'getClientRects').mockReturnValue([
+    { width: 100, height: 100 },
+  ] as unknown as DOMRectList);
+  const paints: string[] = [];
+  const row = {
+    id: 1,
+    kind: 'text' as const,
+    action: null,
+    label: 'otter',
+    text: 'otter',
+    context: 'paragraph',
+    href: null,
+    disabled: false,
+    focusable: false,
+    score: 1,
+    term: 'otter',
+    distance: null,
+  };
+  transport.send.mockImplementation((message: { request: { op: string; generation: string } }) => {
+    const { op, generation } = message.request;
+    if (op === 'paint') paints.push(generation);
+    if (op !== 'search') return Promise.resolve(true);
+    return Promise.resolve({ generation, rows: [row], isFuzzy: false });
+  });
+  vi.spyOn(frame.contentWindow!, 'postMessage').mockImplementation((message: { token: string }) => {
+    const listener = transport.add.mock.calls.at(-1)![0];
+    listener(
+      { type: FRAME_MESSAGE, kind: 'ready', token: message.token, frameId: 7 },
+      { id: 'test' },
+    );
+  });
+  const coordinator = new FrameSearch(vi.fn());
+  const generations = () =>
+    transport.send.mock.calls
+      .map(([message]) => message.request)
+      .filter(request => request.op === 'search')
+      .map(request => request.generation as string);
+  const first = await coordinator.search('otter', new AbortController().signal, vi.fn());
+  const handle = first[0]!.matchingText[0]!.node;
+  const clear = paintFrameTargets([handle], handle, '#f59e0b', false);
+  // A refresh of the same query searches the frame again under a new generation.
+  await coordinator.search('otter', new AbortController().signal, vi.fn());
+  // The first result's cleanup runs after the refresh, with the painter it captured.
+  clear();
+  expect(paints).toEqual(generations());
+  coordinator.stop();
+  frame.remove();
+  vi.restoreAllMocks();
+  transport.send.mockReset();
 });
 
 test('a same-query partial refresh retains results from siblings still searching', async () => {

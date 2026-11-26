@@ -54,6 +54,7 @@ export function installFrameWorker(alive: () => boolean = () => true) {
   let imageToken = '';
   const children = new FrameSearch(changed);
   let nestedQuery = '';
+  let searchQuery = '';
   let nestedResults: SearchResult[] = [];
   let marks: HTMLElement | null = null;
   let lastPaint: Extract<FrameRequest, { op: 'paint' }> | null = null;
@@ -281,6 +282,7 @@ export function installFrameWorker(alive: () => boolean = () => true) {
     children.stop();
     nestedResults = [];
     nestedQuery = '';
+    searchQuery = '';
     nodes.clear();
     textMatches = [];
     origin = null;
@@ -294,10 +296,10 @@ export function installFrameWorker(alive: () => boolean = () => true) {
       controller = new AbortController();
       const signal = controller.signal;
       owner = requester;
-      // Paint requests carry the generation they were made for, so the top frame's
-      // clearing paint for an earlier search would be refused here. Marks belong to one
-      // search: clear them, and any frame with results in this one is painted again.
-      if (generation !== request.generation) clearMarks();
+      // Marks for another query are stale. A frame left without rows is never painted
+      // again, so its clearing paint may never come. A refresh keeps them for repainting.
+      if (request.query !== searchQuery) clearMarks();
+      searchQuery = request.query;
       generation = request.generation;
       if (!index || index.root !== document.body) {
         index?.disconnect();

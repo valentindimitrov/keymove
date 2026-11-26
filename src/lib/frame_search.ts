@@ -178,9 +178,11 @@ export class FrameSearch {
       highlight: boolean,
     ) => {
       const own = nodes.filter(node => frameTarget(node)?.boundary === entry.frame);
+      // The frame's current generation, as commands use: a painter outlives the reply
+      // it was made for, and its clearing paint must still land after a refresh.
       void this.request(entry, {
         op: 'paint',
-        generation: reply.generation,
+        generation: entry.generation,
         ids: own.map(node => frameTarget(node)!.row.id),
         selected: selected && own.includes(selected) ? frameTarget(selected)!.row.id : null,
         color,

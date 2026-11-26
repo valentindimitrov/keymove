@@ -71,7 +71,7 @@ test('routes image selection with live tokens and cleans its frame overlay', asy
     vi.restoreAllMocks();
   }
 });
-test('a new search clears outlines whose clearing paint carries the old generation', async () => {
+test('a new query clears outlines; a refresh keeps them for the top frame to repaint', async () => {
   document.body.innerHTML = '<p>otter one</p><p>beaver two</p>';
   vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(100);
   vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(100);
@@ -108,6 +108,19 @@ test('a new search clears outlines whose clearing paint carries the old generati
     expect(next.rows).toEqual([]);
     // The top frame's cleanup paint still carries the first generation.
     expect(await request({ ...paint, generation: 'one', ids: [] })).toBeNull();
+    expect(marks()).toBeNull();
+    // A refresh of the same query keeps the marks until the top frame repaints them.
+    const third = (await request({
+      op: 'search',
+      query: 'beaver',
+      generation: 'three',
+      depth: 1,
+    })) as FrameReply;
+    const beaver = third.rows.find(row => row.kind === 'text')!.id;
+    await request({ ...paint, generation: 'three', ids: [beaver], selected: beaver });
+    await request({ op: 'search', query: 'beaver', generation: 'four', depth: 1 });
+    expect(marks()).not.toBeNull();
+    expect(await request({ ...paint, generation: 'four', ids: [] })).toBe(true);
     expect(marks()).toBeNull();
   } finally {
     teardown();
