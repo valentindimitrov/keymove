@@ -2,15 +2,12 @@ import Utils from './utils.js';
 
 // Extension-only access to closed roots, as `dom.openOrClosedShadowRoot` gives in Chromium.
 const closedRoots = vi.hoisted(() => new WeakMap<Element, ShadowRoot>());
-vi.mock('wxt/browser', async original => {
-  const actual = await original<typeof import('wxt/browser')>();
-  return {
-    ...actual,
-    browser: Object.assign(Object.create(actual.browser), {
-      dom: { openOrClosedShadowRoot: (element: Element) => closedRoots.get(element) ?? null },
-    }),
-  };
-});
+vi.mock('wxt/browser', () => ({
+  browser: {
+    runtime: { id: 'test' },
+    dom: { openOrClosedShadowRoot: (element: Element) => closedRoots.get(element) ?? null },
+  },
+}));
 
 test.each(['é', 'Б', 'λ', '日', 'ع', '𐐀', '१'])('accepts %s to start searching', key => {
   expect(Utils.keyValidForFocus(key)).toBe(true);
@@ -72,21 +69,52 @@ test('tracks the active input through a shadow root', () => {
   expect(Utils.differentInputIsActive(input)).toBe(false);
 });
 
-test('tracks the active editor through a closed shadow root', () => {
-  const host = document.createElement('rich-editor');
-  const shadowRoot = host.attachShadow({ mode: 'closed' });
+function closedHost(tag: string, init: Partial<ShadowRootInit> = {}) {
+  const host = document.createElement(tag);
+  const shadowRoot = host.attachShadow({ mode: 'closed', ...init });
   closedRoots.set(host, shadowRoot);
-  const editor = document.createElement('div');
-  editor.contentEditable = 'true';
-  shadowRoot.appendChild(editor);
   document.body.appendChild(host);
+  return { host, shadowRoot };
+}
+
+test('tracks the active editor through a closed shadow root', () => {
+  const { host, shadowRoot } = closedHost('rich-editor');
+  const editor = document.createElement('div');
+  editor.setAttribute('contenteditable', 'true');
   // jsdom computes no isContentEditable.
   Object.defineProperty(editor, 'isContentEditable', { value: true });
+  shadowRoot.appendChild(editor);
 
   editor.focus();
 
   expect(Utils.elementIsActive(editor)).toBe(true);
   expect(Utils.differentInputIsActive(null)).toBe(true);
+  host.remove();
+});
+
+test('keeps a focused host widget role protecting keys typed inside it', () => {
+  const { host, shadowRoot } = closedHost('fruit-list');
+  host.setAttribute('role', 'listbox');
+  const option = document.createElement('div');
+  option.setAttribute('role', 'option');
+  option.tabIndex = 0;
+  shadowRoot.appendChild(option);
+
+  option.focus();
+
+  expect(Utils.differentInputIsActive(null)).toBe(true);
+  host.remove();
+});
+
+test('counts a host that delegates focus as active', () => {
+  const { host, shadowRoot } = closedHost('text-field', { delegatesFocus: true });
+  const input = document.createElement('input');
+  shadowRoot.appendChild(input);
+
+  input.focus();
+
+  expect(Utils.elementIsActive(host)).toBe(true);
+  expect(Utils.elementIsActive(input)).toBe(true);
   host.remove();
 });
 
