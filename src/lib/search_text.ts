@@ -3,9 +3,12 @@
 function normalizeSearchText(text: string): string {
   // ASCII is already NFC and contains neither NBSP nor Greek final sigma.
   if (!/[^\p{ASCII}]/u.test(text)) return text.toLowerCase();
+  // Composed again after casing: some lowercase letters, such as ǰ, compose with a
+  // combining mark where their uppercase forms have no precomposed character.
   return text
     .normalize('NFC')
     .toLowerCase()
+    .normalize('NFC')
     .replace(/\u00a0/g, ' ')
     .replace(/ς/g, 'σ');
 }

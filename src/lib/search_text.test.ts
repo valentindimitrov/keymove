@@ -26,3 +26,9 @@ test('retains accent distinctions and limits non-overlapping occurrences', () =>
   ]);
   expect(matchingTextSpans('abc', '')).toEqual([]);
 });
+
+test('treats spellings that compose only once lowercased as equal', () => {
+  // U+01F0 has no uppercase precomposed form: uppercase J plus caron lowercases to it.
+  expect(normalizeSearchText('J̌')).toBe(normalizeSearchText('ǰ'));
+  expect(matchingTextSpans('Read J̌ava', 'ǰava')).toEqual([{ start: 5, end: 10 }]);
+});
