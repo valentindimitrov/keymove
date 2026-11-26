@@ -605,13 +605,12 @@ class PageSearchIndex {
         continue;
       }
 
+      if (!actionIsInScope(node, collector.modal)) continue;
       // Before the visibility check: a display: contents element has no box of its own,
       // yet its text is visible through the block it belongs to.
       const owner = this.uncoveredOwnerBlock(node, styles);
       if (owner) this.queueSkippedBlocks({ skipped: [owner], boundary: isSeparateBlock });
-      if (!actionIsInScope(node, collector.modal) || !this.isVisible(node, styles)) {
-        continue;
-      }
+      if (!this.isVisible(node, styles)) continue;
 
       const record = this.recordForNode(node);
       if (isLinkOrButtonOrInput(node) && record.nameRevision !== this.nameRevision) {

@@ -610,6 +610,13 @@ describe('text owned by a node', () => {
     ).toEqual([document.getElementById('block')]);
   });
 
+  test('never queues a block for text that is out of scope', async () => {
+    document.body.innerHTML =
+      '<section><div><span inert>Archive project</span><button>Delete</button></div></section>';
+    index = new PageSearchIndex();
+    expect((await index.search(scorerFor('archive project'))).matchingText).toEqual([]);
+  });
+
   test('keeps a block whose own phrase is separate from a matching nested block', async () => {
     document.body.innerHTML =
       '<div>Intro <div id="own"><span>Total </span><b>revenue</b>' +
