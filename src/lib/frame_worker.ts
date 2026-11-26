@@ -15,6 +15,7 @@ import { normalizeSearchText } from './search_text.js';
 import { FrameSearch, mergeFrameResults, connectedFrameResults } from './frame_search.js';
 import { frameTarget, resultIsConnected, paintFrameTargets } from './frame_target.js';
 import { isTextVisible, visibleText } from './visible_text.js';
+import type { StyleCache } from './visible_text.js';
 import { activeModal, actionIsInScope } from './modal_context.js';
 import { isActionDisabled } from './searchable_attributes.js';
 import { labelForNode, kindLabelForNode, landmarkForNode } from './suggestion_context.js';
@@ -197,9 +198,22 @@ export function installFrameWorker(alive: () => boolean = () => true) {
     }
     (modal ?? document.documentElement).append(marks);
   }
+  // All boxes are read before any outline is written, so layout runs once, not per outline.
+  // Visibility is read again too: scrolling can fade a result out without a mutation.
+  function placeOutlines() {
+    const styles: StyleCache = new WeakMap();
+    const boxes = [...outlines].map(([node, outline]) => ({
+      outline,
+      rect: node.getBoundingClientRect(),
+      visible: isTextVisible(node, styles),
+    }));
+    for (const { outline, rect, visible } of boxes) setOutlineBox(outline, rect, visible);
+  }
   function placeOutline(outline: HTMLElement, node: Element) {
-    const rect = node.getBoundingClientRect();
-    outline.hidden = !rect.width || !rect.height;
+    setOutlineBox(outline, node.getBoundingClientRect(), true);
+  }
+  function setOutlineBox(outline: HTMLElement, rect: DOMRect, visible: boolean) {
+    outline.hidden = !visible || !rect.width || !rect.height;
     outline.style.left = `${rect.left - 4}px`;
     outline.style.top = `${rect.top - 4}px`;
     outline.style.width = `${rect.width + 8}px`;
@@ -218,7 +232,7 @@ export function installFrameWorker(alive: () => boolean = () => true) {
       const full = repaint;
       repaint = false;
       if (full && lastPaint) paint(lastPaint);
-      else for (const [node, outline] of outlines) placeOutline(outline, node);
+      else placeOutlines();
     });
   };
   const repositionMarks = () => {
