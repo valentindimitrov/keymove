@@ -617,6 +617,21 @@ describe('text owned by a node', () => {
     expect((await index.search(scorerFor('archive project'))).matchingText).toEqual([]);
   });
 
+  test('never attaches an action from a box the result does not own', async () => {
+    document.body.innerHTML =
+      '<section><div id="block"><span>Free </span><b>shipping</b> <a href="#terms">terms</a>' +
+      '<aside><button>Delete account</button></aside></div></section>' +
+      '<section><div id="other"><span>Gift </span><b>wrap</b>' +
+      '<aside><button>Delete account</button></aside></div></section>';
+    index = new PageSearchIndex();
+    expect((await index.search(scorerFor('free shipping'))).matchingText).toMatchObject([
+      { node: document.getElementById('block'), action: document.querySelector('a') },
+    ]);
+    expect((await index.search(scorerFor('gift wrap'))).matchingText).toMatchObject([
+      { node: document.getElementById('other'), action: null },
+    ]);
+  });
+
   test('keeps a block whose own phrase is separate from a matching nested block', async () => {
     document.body.innerHTML =
       '<div>Intro <div id="own"><span>Total </span><b>revenue</b>' +

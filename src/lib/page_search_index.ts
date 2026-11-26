@@ -709,7 +709,8 @@ class PageSearchIndex {
           isLinkOrButtonOrInput(node) &&
           actionIsInScope(node, collector.modal) &&
           !isActionDisabled(node) &&
-          this.isVisible(node, styles)
+          this.isVisible(node, styles) &&
+          !this.inSeparateBox(node, match.node, styles)
         ) {
           match.action = node;
           break;
@@ -787,6 +788,19 @@ class PageSearchIndex {
       this.records.set(block, null);
       this.lazyBlocks.add(block);
     }
+  }
+
+  /**
+   * Whether an action inside a text result sits in a box the result does not own. Any
+   * element other than a semantic block owns its text and inline content, not the boxes
+   * laid out inside it, so an action in one of those is not the result's action.
+   */
+  private inSeparateBox(action: Element, result: Element, styles: StyleCache) {
+    if (result.matches(TEXT_BLOCK_SELECTOR)) return false;
+    for (let node = renderedParent(action); node && node !== result; node = renderedParent(node)) {
+      if (isSeparateBlock(node, computedStyle(node, styles).display)) return true;
+    }
+    return false;
   }
 
   /**
