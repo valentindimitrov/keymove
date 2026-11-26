@@ -138,7 +138,9 @@ cross-origin frames, or drive the interface. Test builds and development servers
 open; never rely on a page being unable to reach them in those. KeyMove reaches its own
 roots through `keyMoveShadowRoot`, never `host.shadowRoot`, and document-level listeners
 see its host as the target of events from inside: resolve keyboard and clipboard targets
-with `Utils.focusedEventTarget`. Every KeyMove listener whose effect is a state change, focus move,
+with `Utils.focusedEventTarget`. Builds with closed roots draw result text as generated
+content (`suggestion_content.tsx`), since `window.find` matches text in closed roots; unit
+tests and test builds render it as ordinary text. Every KeyMove listener whose effect is a state change, focus move,
 storage write or cleanup ignores untrusted events through `src/lib/trusted_input.ts`; never
 test `event.isTrusted` inline. That covers keyboard, input, copy, paste/cut/composition,
 click and pointer input, focus and blur, mouse moves and releases during drag and resize,

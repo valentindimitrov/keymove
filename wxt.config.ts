@@ -86,7 +86,9 @@ export default defineConfig({
   }),
   zip: {
     name: EXTENSION_IDENTITY.artifactName,
-    artifactTemplate: '{{name}}-v{{version}}-{{browser}}-{{manifestVersion}}.zip',
+    // {{modeSuffix}} is empty for production; a test build's ZIP ends in -test, so it can
+    // never take the release ZIP's name, which signing and the release workflow use.
+    artifactTemplate: '{{name}}-v{{version}}-{{browser}}-{{manifestVersion}}{{modeSuffix}}.zip',
     sourcesTemplate: '{{name}}-v{{version}}-sources.zip',
     excludeSources: ['.output/**', '.wxt/**', 'coverage/**'],
   },

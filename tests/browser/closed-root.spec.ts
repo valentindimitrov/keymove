@@ -36,6 +36,17 @@ async function statusText(page: Page) {
   }
 }
 
+/** The accessible names of the result rows. */
+async function optionNames(page: Page) {
+  const cdp = await page.context().newCDPSession(page);
+  try {
+    const { nodes } = (await cdp.send('Accessibility.getFullAXTree')) as { nodes: AXNode[] };
+    return nodes.filter(node => node.role?.value === 'option').map(node => node.name?.value ?? '');
+  } finally {
+    await cdp.detach();
+  }
+}
+
 test('page script cannot reach the search interface or results from frames', async ({ page }) => {
   await page.goto('frames.html');
   const cross = page.locator('#cross').contentFrame();
@@ -51,6 +62,18 @@ test('page script cannot reach the search interface or results from frames', asy
       return { host: host !== null, root: host?.shadowRoot ?? null };
     }),
   ).toEqual({ host: true, root: null });
+  // Chromium's window.find matches text inside closed roots; result text is drawn as
+  // generated content so it cannot, while screen readers still get it in each row's name.
+  expect(
+    await page.evaluate(() => {
+      getSelection()?.removeAllRanges();
+      // Non-standard, so absent from the DOM types.
+      return (window as unknown as { find(text: string): boolean }).find('remote otter paragraph');
+    }),
+  ).toBe(false);
+  await expect
+    .poll(() => optionNames(page))
+    .toContainEqual(expect.stringContaining('remote otter paragraph'));
   const local = page.locator('iframe').first().contentFrame();
   await expect(local.locator('#keymove-root')).toHaveCount(1);
   expect(await local.locator('#keymove-root').evaluate(marks => marks.shadowRoot)).toBeNull();

@@ -41,20 +41,31 @@ What a closed root does not hide:
 - Key events travel outside shadow roots, so a page can still see what is typed into
   KeyMove, as it can for any typing on the page.
 - A page can tell where KeyMove's interface covers the page, for example with
-  `elementFromPoint`, and so whether a search has visible results.
+  `elementFromPoint`, and so whether a search has visible results. Chromium's `window.find`
+  also matches text inside closed roots, so the page can test the status line, such as
+  `Text 1 / 4`, and so learn how many results there are, including those from frames.
+- A page can define a font with the name KeyMove's interface uses and limit it to chosen
+  characters; which of those fonts the browser downloads reveals characters in the text
+  KeyMove draws. Avoiding this would mean drawing the interface in generic system fonts only.
 - Highlight ranges registered with the CSS Custom Highlight API, inside the page or a
   frame, are readable by that document's own script.
 
-Two paths that could carry frame content into the page are closed separately: copying a
-result in KeyMove stops the copy event before page listeners can read its clipboard data,
-and the larger image viewer is unavailable for images from frames, since loading one in the
-page would record its address in the page's Resource Timing entries.
+Three paths that could carry frame content into the page are closed separately:
+
+- Builds with closed roots draw result text as CSS generated content from an attribute,
+  because `window.find` matches ordinary text inside closed roots but not generated
+  content. Screen readers still read it as part of each result's name.
+- Copying a result in KeyMove stops the copy event before page listeners can read its
+  clipboard data.
+- The larger image viewer is unavailable for images from frames, since loading one in the
+  page would record its address in the page's Resource Timing entries.
 
 Test builds keep the roots open so the browser suite can inspect them: `pnpm
 build:chromium:test` writes `.output/chrome-mv3-test`, which the Playwright suite and the
 capture tools load. An explicit build constant, defined only in test mode and in the unit
 test, preview and website configurations, opens them; no environment variable does, and a
-test build names itself "(test build)", which release validation rejects.
+test build names itself "(test build)", which release validation rejects, and its ZIP
+ends in `-test`, so it cannot take a release ZIP's name.
 `tests/browser/closed-root.spec.ts` runs against the production build and checks that its
 roots are closed while keyboard navigation, selection, copying and activation still work.
 Never load a test build in a regular browser profile, and never publish one.
