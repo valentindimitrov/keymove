@@ -65,6 +65,20 @@ export async function checkIframes(context: BrowserContext, origin: string) {
           .evaluate(() => CSS.highlights.get('keymove-search-results')?.size ?? 0),
       )
       .toBeGreaterThan(0);
+    // Both highlight rules survive in the frame's adopted sheet; only the current one sets ink.
+    await expect
+      .poll(() =>
+        local.locator('body').evaluate(() =>
+          [...document.adoptedStyleSheets]
+            .flatMap(sheet => [...sheet.cssRules].map(rule => rule.cssText))
+            .filter(text => text.startsWith('::highlight(keymove-search'))
+            .map(
+              text =>
+                `${text.slice(0, text.indexOf('{')).trim()}${/[{;\s]color:/.test(text) ? ' ink' : ''}`,
+            ),
+        ),
+      )
+      .toEqual(['::highlight(keymove-search-results)', '::highlight(keymove-search-current) ink']);
     await page.keyboard.press('ControlOrMeta+c');
     await page.evaluate(() => {
       const target = document.createElement('textarea');

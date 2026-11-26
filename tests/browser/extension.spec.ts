@@ -386,6 +386,32 @@ test('opens the current address of an iframe link that changed after the search'
   await tab.close();
 });
 
+test('type-to-search leaves typing in an editor inside a closed shadow root alone', async ({
+  page,
+}) => {
+  // fixtures.html blocks character keys aimed at non-editable targets, such as this host.
+  await page.goto('shadow.html');
+  await expect(page.locator('#keymove-bar')).toHaveAttribute('data-always-on', 'true');
+  await page.evaluate(() => {
+    const host = document.createElement('closed-editor');
+    const root = host.attachShadow({ mode: 'closed' });
+    const editor = document.createElement('div');
+    editor.contentEditable = 'true';
+    editor.style.minHeight = '2em';
+    root.append(editor);
+    document.body.prepend(host);
+    (window as unknown as { closedEditor: HTMLElement }).closedEditor = editor;
+    editor.focus();
+  });
+  await page.keyboard.type('hello');
+  expect(
+    await page.evaluate(
+      () => (window as unknown as { closedEditor: HTMLElement }).closedEditor.textContent,
+    ),
+  ).toBe('hello');
+  await expect(page.locator('#keymove-input')).toHaveValue('');
+});
+
 test('stays out of XML documents such as sitemaps without reporting errors', async ({ page }) => {
   // React DOM threw as it loaded on these, since their elements have no `.style`. The
   // context fixture fails the test on any console error or uncaught exception.

@@ -6,7 +6,18 @@ import useHighlights, {
   highlightRangesForNodes,
   rangesForTextNode,
   MAX_HIGHLIGHT_RANGES,
+  shadowHighlightStyles,
 } from './use_highlights.js';
+
+// The stylesheet as it ships, minified so no semicolon ends a rule's last declaration.
+// Rewriting this text once dropped the current-match rule; keep it here so going back
+// to deriving the adopted rules from it fails the test below.
+vi.mock('../highlights.css?inline', () => ({
+  default:
+    '::highlight(keymove-search-results){background-color:var(--keymove-text-wash,#f59e0b47)}' +
+    '::highlight(keymove-search-current){background-color:var(--keymove-text-accent,#f59e0b);' +
+    'color:var(--keymove-text-ink,#1a1a1a)}',
+}));
 
 afterEach(() => {
   document.body.innerHTML = '';
@@ -257,4 +268,31 @@ test('paints nothing when match highlighting is turned off', () => {
 
   expect(registry.size).toBe(0);
   vi.unstubAllGlobals();
+});
+
+test('adopts both highlight rules with concrete colours into shadow roots', () => {
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = host.attachShadow({ mode: 'open' });
+  root.innerHTML = '<p>Save</p>';
+  // jsdom has no adoptedStyleSheets on shadow roots.
+  Object.defineProperty(root, 'adoptedStyleSheets', { value: [], writable: true });
+  const range = document.createRange();
+  range.selectNodeContents(root.querySelector('p')!);
+  const replaceSync = vi.spyOn(CSSStyleSheet.prototype, 'replaceSync');
+
+  const remove = shadowHighlightStyles([range], '#3366ff');
+
+  const css = String(replaceSync.mock.calls[0]?.[0]);
+  expect(css).not.toContain('var(');
+  expect(css).toMatch(
+    /::highlight\(keymove-search-results\)\s*\{\s*background-color:\s*rgba\(51, 102, 255, 0\.28\);?\s*\}/,
+  );
+  expect(css).toMatch(
+    /::highlight\(keymove-search-current\)\s*\{\s*background-color:\s*#3366ff;\s*color:\s*#ffffff;?\s*\}/,
+  );
+  expect(root.adoptedStyleSheets).toHaveLength(1);
+  remove();
+  expect(root.adoptedStyleSheets).toHaveLength(0);
+  replaceSync.mockRestore();
 });
