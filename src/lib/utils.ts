@@ -4,6 +4,7 @@ import { isActionDisabled, labelledToggle } from './searchable_attributes.js';
 import { iterateRenderedText } from './visible_text.js';
 import { frameTarget } from './frame_target.js';
 import { isKeyMoveNode } from './dom_tree.js';
+import { openOrClosedShadowRoot } from './host_marker.js';
 
 const FOCUS_WIDGET_ROLES = [
   'combobox',
@@ -45,28 +46,44 @@ let savedInputSelection: {
 } | null = null;
 
 function differentInputIsActive(inputElement: Element | null) {
-  const activeElement = getDeepActiveElement();
-  return activeElement && activeElement !== inputElement && elementIsEditable(activeElement);
+  const chain = activeElementChain();
+  const activeElement = chain.at(-1);
+  if (!activeElement || activeElement === inputElement) return false;
+  // Whether text goes in is the focused element's own state, but a shadow host keeps its
+  // widget role while focus sits inside it, such as a listbox whose option has focus.
+  return elementIsEditable(activeElement) || chain.slice(0, -1).some(hasFocusWidgetRole);
+}
+
+function hasFocusWidgetRole(element: Element) {
+  return FOCUS_WIDGET_ROLES.includes(element.getAttribute('role') ?? '');
 }
 
 function elementIsEditable(element: Element) {
   return (
     (element instanceof HTMLElement && element.isContentEditable) ||
     INPUT_NODE_TYPES.includes(element.nodeName) ||
-    FOCUS_WIDGET_ROLES.includes(element.getAttribute('role') ?? '')
+    hasFocusWidgetRole(element)
   );
 }
 
-function getDeepActiveElement(): Element | null {
+// The focused element and every shadow host above it. Focus is followed into closed
+// roots too, through extension-only access, so typing in an editor a component keeps
+// closed is not taken for type-to-search. Nothing else here reads closed roots, and
+// search never enters them.
+function activeElementChain(): Element[] {
+  const chain: Element[] = [];
   let activeElement = document.activeElement;
-  while (activeElement && activeElement.shadowRoot && activeElement.shadowRoot.activeElement) {
-    activeElement = activeElement.shadowRoot.activeElement;
+  while (activeElement) {
+    chain.push(activeElement);
+    const root = activeElement.shadowRoot ?? openOrClosedShadowRoot(activeElement);
+    activeElement = root?.activeElement ?? null;
   }
-  return activeElement;
+  return chain;
 }
 
+// A host that delegates focus counts as active while its inner element has focus.
 function elementIsActive(element: Element | null) {
-  return getDeepActiveElement() === element;
+  return element !== null && activeElementChain().includes(element);
 }
 
 function isExtensionElement(element: EventTarget | null) {
@@ -206,7 +223,7 @@ function selectNodeContents(node: Element) {
     return;
   }
   if (!ownsSelection(selection)) {
-    const input = getDeepActiveElement();
+    const input = activeElementChain().at(-1);
     savedInputSelection =
       input instanceof HTMLInputElement && input.selectionStart !== null
         ? {
