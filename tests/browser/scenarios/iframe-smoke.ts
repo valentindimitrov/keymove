@@ -149,6 +149,24 @@ export async function checkIframes(context: BrowserContext, origin: string) {
     for (const key of 'otter') await page.keyboard.type(key);
     await expect(status).toHaveText(/\/ 4$/);
     await expect(local.locator('#keymove-root')).toHaveCount(1);
+    // The selected frame match gets its own highlight, and its selection is released
+    // once the cursor moves back to the top document.
+    await page.keyboard.press('Tab');
+    await expect
+      .poll(() => local.locator('body').evaluate(() => getSelection()?.toString()))
+      .toBe('local otter paragraph to copy.');
+    await expect
+      .poll(() =>
+        local
+          .locator('body')
+          .evaluate(() => CSS.highlights.get('keymove-search-current')?.size ?? 0),
+      )
+      .toBe(1);
+    await page.keyboard.press('Shift+Tab');
+    await expect(status).toHaveText(/^Text 1 \/ 4$/);
+    await expect
+      .poll(() => local.locator('body').evaluate(() => getSelection()?.toString()))
+      .toBe('');
     await replaceQuery(page, 'otterzzz');
     await expect(status).toHaveText(/ 0 \/ 0$/);
     await expect(local.locator('#keymove-root')).toHaveCount(0);
