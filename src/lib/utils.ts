@@ -3,6 +3,7 @@ import { normalizedOpenableLinkUrl } from './extension_tabs.js';
 import { isActionDisabled, labelledToggle } from './searchable_attributes.js';
 import { iterateRenderedText } from './visible_text.js';
 import { frameTarget } from './frame_target.js';
+import type { FrameTarget } from './frame_target.js';
 import { isKeyMoveNode } from './dom_tree.js';
 import { openOrClosedShadowRoot } from './host_marker.js';
 
@@ -211,13 +212,37 @@ function scrollToNodeAtIndexInList(nodeList: readonly Element[], selectedIndex: 
   }
 }
 
+// The frame holding KeyMove's selection, if a frame does. Its selection lives in its own
+// document, so leaving it for another document, or clearing, has to release it there.
+let selectingFrame: FrameTarget | null = null;
+let releasingFrame: FrameTarget | null = null;
+
+// Waits for the end of the task: the effect that moves the selection clears it first, and
+// selecting again in the same frame must not race a release sent just before it.
+function releaseFrameSelection() {
+  if (!selectingFrame) return;
+  if (!releasingFrame) queueMicrotask(sendFrameRelease);
+  releasingFrame = selectingFrame;
+  selectingFrame = null;
+}
+
+function sendFrameRelease() {
+  const frame = releasingFrame;
+  releasingFrame = null;
+  void frame?.command('deselect');
+}
+
 function selectNodeContents(node: Element) {
   const remote = frameTarget(node);
   if (remote) {
     clearPageSelection();
+    // The frame replaces its own selection, so a pending release there is not needed.
+    if (releasingFrame?.boundary === remote.boundary) releasingFrame = null;
+    selectingFrame = remote;
     void remote.command('select');
     return;
   }
+  releaseFrameSelection();
   const selection = window.getSelection();
   if (!selection) {
     return;
@@ -268,6 +293,7 @@ function selectNodeContents(node: Element) {
 }
 
 function clearPageSelection() {
+  releaseFrameSelection();
   const selection = window.getSelection();
   if (selection && ownsSelection(selection)) {
     selection.removeAllRanges();

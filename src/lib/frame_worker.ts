@@ -33,7 +33,11 @@ import {
   scheduleHighlightRanges,
   shadowHighlightStyles,
 } from '../hooks/use_highlights.js';
-import { KEYMOVE_HIGHLIGHT_NAME, ACTION_PRIORITY_BOOST } from '../constants.js';
+import {
+  KEYMOVE_CURRENT_HIGHLIGHT_NAME,
+  KEYMOVE_HIGHLIGHT_NAME,
+  ACTION_PRIORITY_BOOST,
+} from '../constants.js';
 import { markKeyMoveRoot, renderedParent } from './dom_tree.js';
 import { signKeyMoveHost } from './host_marker.js';
 import { RelatedImageSelection } from './related_images.js';
@@ -143,17 +147,26 @@ export function installFrameWorker(alive: () => boolean = () => true) {
       sheet.replaceSync(concreteHighlightStyles(request.color));
       document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
       let removeShadowStyles = () => {};
-      const cancel = scheduleHighlightRanges(
-        textMatches.filter(match => !frameTarget(match.node)),
-        ranges => {
-          removeShadowStyles = shadowHighlightStyles(ranges, request.color);
-          CSS.highlights.set(KEYMOVE_HIGHLIGHT_NAME, new window.Highlight(...ranges));
-        },
-      );
+      const local = textMatches.filter(match => !frameTarget(match.node));
+      const cancel = scheduleHighlightRanges(local, ranges => {
+        removeShadowStyles = shadowHighlightStyles(ranges, request.color);
+        CSS.highlights.set(KEYMOVE_HIGHLIGHT_NAME, new window.Highlight(...ranges));
+      });
+      // The selected match gets its own, higher-priority highlight, as in the top document.
+      const current = local.find(match => match.node === selected);
+      const cancelCurrent = current
+        ? scheduleHighlightRanges([current], ranges => {
+            const highlight = new window.Highlight(...ranges);
+            highlight.priority = 1;
+            CSS.highlights.set(KEYMOVE_CURRENT_HIGHLIGHT_NAME, highlight);
+          })
+        : () => {};
       clearHighlights = () => {
         cancel();
+        cancelCurrent();
         removeShadowStyles();
         CSS.highlights.delete(KEYMOVE_HIGHLIGHT_NAME);
+        CSS.highlights.delete(KEYMOVE_CURRENT_HIGHLIGHT_NAME);
         document.adoptedStyleSheets = document.adoptedStyleSheets.filter(
           existing => existing !== sheet,
         );
@@ -380,6 +393,11 @@ export function installFrameWorker(alive: () => boolean = () => true) {
       hover.clear();
       return true;
     }
+    if (request.command === 'deselect') {
+      // Releases only a selection KeyMove made here, in this document or a nested frame.
+      Utils.clearPageSelection();
+      return true;
+    }
     const node = nodes.get(request.id);
     if (!available(node)) return null;
     if (request.command === 'hover') {
@@ -390,6 +408,11 @@ export function installFrameWorker(alive: () => boolean = () => true) {
     }
     if (request.command === 'scroll' || request.command === 'select') remember(node!);
     const remote = frameTarget(node);
+    // Selecting through Utils records a nested frame's selection so it can be released.
+    if (remote && request.command === 'select') {
+      Utils.selectNodeContents(node!);
+      return true;
+    }
     if (remote) return remote.command(request.command);
     if (typeof request.command === 'object') {
       const { image, token } = request.command;

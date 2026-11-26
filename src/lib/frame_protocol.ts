@@ -14,7 +14,8 @@ export type FrameCommand =
   | 'unhover'
   | 'text'
   | 'validate'
-  | 'link';
+  | 'link'
+  | 'deselect';
 export type FrameRequest =
   | { op: 'search'; query: string; generation: string; depth: number }
   | { op: 'stop' }
@@ -70,6 +71,7 @@ export function isFrameRequest(value: unknown): value is FrameRequest {
           'text',
           'validate',
           'link',
+          'deselect',
         ].includes(String(value.command)))
     );
   return (

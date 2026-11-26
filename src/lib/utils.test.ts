@@ -1,4 +1,6 @@
 import Utils from './utils.js';
+import { setFrameTarget } from './frame_target.js';
+import type { FrameCommand } from './frame_protocol.js';
 
 // Extension-only access to closed roots, as `dom.openOrClosedShadowRoot` gives in Chromium.
 const closedRoots = vi.hoisted(() => new WeakMap<Element, ShadowRoot>());
@@ -257,4 +259,60 @@ test('dispatches pointer and mouse activation events in browser order', () => {
     'pointerout',
     'mouseout',
   ]);
+});
+
+test('releases a frame selection once the cursor leaves that frame, not when it stays', async () => {
+  const commands: string[] = [];
+  const frameNode = (name: string, boundary = document.createElement('iframe')) => {
+    document.body.append(boundary);
+    const node = document.createElement('p');
+    setFrameTarget(node, {
+      boundary,
+      alive: () => true,
+      command: (command: FrameCommand) => {
+        commands.push(`${name}:${String(command)}`);
+        return Promise.resolve(true);
+      },
+      paint: vi.fn(),
+      row: {
+        id: 1,
+        kind: 'text',
+        action: null,
+        label: name,
+        text: name,
+        context: '',
+        href: null,
+        disabled: false,
+        focusable: false,
+        score: 1,
+        term: null,
+        distance: null,
+      },
+    });
+    return node;
+  };
+  const shared = document.createElement('iframe');
+  const first = frameNode('first', shared);
+  const sibling = frameNode('first-again', shared);
+  const other = frameNode('other');
+  const local = document.createElement('p');
+  local.textContent = 'Local text';
+  document.body.append(local);
+
+  Utils.selectNodeContents(first);
+  // An effect clears before selecting again in the same frame: no release goes out.
+  Utils.clearPageSelection();
+  Utils.selectNodeContents(sibling);
+  await Promise.resolve();
+  expect(commands).toEqual(['first:select', 'first-again:select']);
+
+  Utils.selectNodeContents(other);
+  await Promise.resolve();
+  expect(commands.slice(2)).toEqual(['other:select', 'first-again:deselect']);
+
+  Utils.selectNodeContents(local);
+  await Promise.resolve();
+  expect(commands.slice(4)).toEqual(['other:deselect']);
+  Utils.clearPageSelection();
+  document.body.replaceChildren();
 });
