@@ -2344,6 +2344,32 @@ test('copies the selected block when the page cancels Ctrl+C, also without the C
   }
 });
 
+test('a cancelled Ctrl+C copies the selected query when there is no result', async () => {
+  searchMocks.findMatches.mockResolvedValue(makeSearchResult());
+  render(<Searchbar />);
+  const input = screen.getByRole<HTMLInputElement>('combobox', { name: 'Search page' });
+  input.focus();
+  fireEvent.change(input, { target: { value: 'missing words' } });
+  await flushSearch();
+  input.setSelectionRange(0, 7);
+  const cancel = (event: KeyboardEvent) => event.preventDefault();
+  window.addEventListener('keydown', cancel, true);
+  // A page can deny clipboard writes; the copy command is the fallback.
+  const writeText = vi.fn().mockRejectedValue(new Error('denied'));
+  vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
+  const execCommand = vi.fn(() => true);
+  Object.defineProperty(document, 'execCommand', { configurable: true, value: execCommand });
+  try {
+    fireEvent.keyDown(input, { key: 'c', code: 'KeyC', ctrlKey: true, bubbles: true });
+    expect(writeText).toHaveBeenCalledWith('missing');
+    await waitFor(() => expect(execCommand).toHaveBeenCalledWith('copy'));
+  } finally {
+    window.removeEventListener('keydown', cancel, true);
+    vi.unstubAllGlobals();
+    Reflect.deleteProperty(document, 'execCommand');
+  }
+});
+
 test('Ctrl+Tab and Shift+Ctrl+Tab navigate only action elements', async () => {
   const paragraph = document.createElement('p');
   paragraph.textContent = 'Save this text';

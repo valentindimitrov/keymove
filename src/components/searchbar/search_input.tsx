@@ -46,6 +46,8 @@ function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
   }
 }
 
+let graphemes: Intl.Segmenter | undefined;
+
 /** Where Left, Right, Home or End, without Shift, put the caret in `input`; else null. */
 function caretForKey(input: HTMLInputElement, key: string, shift: boolean): number | null {
   if (shift) return null;
@@ -56,15 +58,19 @@ function caretForKey(input: HTMLInputElement, key: string, shift: boolean): numb
   if (key === 'End') return value.length;
   // In right-to-left text Left and Right move visually, not by string order; leave them.
   if (/[\u0590-\u08ff\ufb1d-\ufdff\ufe70-\ufeff]/.test(value)) return null;
+  // By whole characters as users see them, so an accent never parts from its letter.
+  graphemes ??= new Intl.Segmenter('und', { granularity: 'grapheme' });
+  const bounds = [
+    0,
+    ...Array.from(graphemes.segment(value), part => part.index + part.segment.length),
+  ];
   if (key === 'ArrowLeft') {
     if (start !== end) return start;
-    const last = Array.from(value.slice(0, start)).pop();
-    return start - (last?.length ?? 0);
+    return bounds.filter(bound => bound < start).at(-1) ?? 0;
   }
   if (key === 'ArrowRight') {
     if (start !== end) return end;
-    const next = Array.from(value.slice(end))[0];
-    return end + (next?.length ?? 0);
+    return bounds.find(bound => bound > end) ?? value.length;
   }
   return null;
 }

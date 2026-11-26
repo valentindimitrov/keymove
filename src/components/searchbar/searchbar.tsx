@@ -1074,19 +1074,19 @@ const Searchbar = () => {
   // stopped the copy event that follows. The keystroke still counts as the user's gesture.
   const copyCancelledByPage = React.useCallback(() => {
     if (selectedImage || !isInteractive) return;
-    const copyText = selectedCopyText();
     const input = searchInputRef.current;
-    if (copyText === null || !input) return;
-    // The Clipboard API exists only on secure origins. Elsewhere, copy from a hidden field
-    // inside KeyMove's own root, which page script cannot read, then return focus.
+    if (!input) return;
+    // The selected result, as the copy event would give; with none, the selected query text.
+    const copyText =
+      selectedCopyText() ?? input.value.slice(input.selectionStart ?? 0, input.selectionEnd ?? 0);
+    if (!copyText) return;
+    // The Clipboard API exists only on secure origins and a page can deny it. Then copy from
+    // a hidden field inside KeyMove's own root, which page script cannot read.
     if (!navigator.clipboard?.writeText) {
       copyWithCommand(input, copyText);
       return;
     }
-    writeClipboardText(copyText).catch((error: unknown) => {
-      const message = error instanceof Error ? error.message : String(error);
-      console.warn(`${EXTENSION_NAME} could not copy the selected result: ${message}`);
-    });
+    writeClipboardText(copyText).catch(() => copyWithCommand(input, copyText));
   }, [selectedImage, isInteractive, selectedCopyText]);
 
   const handleCopy = React.useCallback(
