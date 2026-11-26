@@ -474,12 +474,13 @@ test('draws outlines only near the viewport, following it as the page scrolls', 
       }),
     )
     .toBe(true);
-  // A scrolling element without matches, such as a carousel, leaves the outlines alone.
+  // A carousel that keeps scrolling neither hides the outlines nor remounts them: without
+  // a match it refreshes nothing, and with one, outlines move instead of being recreated.
   await page.evaluate(() => {
     const carousel = document.createElement('div');
     carousel.id = 'carousel';
     carousel.style.cssText = 'width:200px;height:50px;overflow:auto';
-    carousel.innerHTML = '<div style="height:2000px">slides</div>';
+    carousel.innerHTML = '<div style="height:2000px">slides</div><p>Quokka slide</p>';
     document.body.append(carousel);
   });
   await page.waitForTimeout(500);
@@ -502,9 +503,9 @@ test('draws outlines only near the viewport, following it as the page scrolls', 
       () =>
         document
           .getElementById('keymove-root')!
-          .shadowRoot!.querySelectorAll('.keymove-selection:not([data-before-carousel])').length,
+          .shadowRoot!.querySelectorAll('.keymove-selected-selection[data-before-carousel]').length,
     ),
-  ).toBe(0);
+  ).toBe(1);
 });
 
 test('stays out of XML documents such as sitemaps without reporting errors', async ({ page }) => {

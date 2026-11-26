@@ -2,6 +2,17 @@ import Selection from './selection.js';
 import React from 'react';
 import { frameTarget, paintFrameTargets } from '../../lib/frame_target.js';
 
+const outlineKeys = new WeakMap<Element, number>();
+let nextOutlineKey = 0;
+function outlineKey(node: Element) {
+  let key = outlineKeys.get(node);
+  if (key === undefined) {
+    key = ++nextOutlineKey;
+    outlineKeys.set(node, key);
+  }
+  return key;
+}
+
 function nearViewport(bounds: DOMRect) {
   const height = window.innerHeight;
   const width = window.innerWidth;
@@ -42,9 +53,11 @@ const Selections = (props: SelectionsProps) => {
     .filter(({ node, bounds }) => node === selectedNode || nearViewport(bounds));
   return (
     <>
-      {outlines.map(({ node, bounds }, index) => (
+      {outlines.map(({ node, bounds }) => (
         <Selection
-          key={`${refresh}${index}`}
+          // Keyed by element: a refresh moves an outline rather than remounting it, which
+          // would restart the selected outline's entrance animation.
+          key={outlineKey(node)}
           bounds={bounds}
           isSelected={node === selectedNode}
           color={color}
