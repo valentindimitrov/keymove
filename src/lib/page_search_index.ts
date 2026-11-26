@@ -797,7 +797,7 @@ class PageSearchIndex {
    */
   private inSeparateBox(action: Element, result: Element, styles: StyleCache) {
     if (result.matches(TEXT_BLOCK_SELECTOR)) return false;
-    for (let node = renderedParent(action); node && node !== result; node = renderedParent(node)) {
+    for (let node: Element | null = action; node && node !== result; node = renderedParent(node)) {
       if (isSeparateBlock(node, computedStyle(node, styles).display)) return true;
     }
     return false;

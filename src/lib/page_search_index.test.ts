@@ -622,8 +622,13 @@ describe('text owned by a node', () => {
       '<section><div id="block"><span>Free </span><b>shipping</b> <a href="#terms">terms</a>' +
       '<aside><button>Delete account</button></aside></div></section>' +
       '<section><div id="other"><span>Gift </span><b>wrap</b>' +
-      '<aside><button>Delete account</button></aside></div></section>';
+      '<aside><button>Delete account</button></aside></div></section>' +
+      '<section><div id="third"><span>Next </span><b>day</b>' +
+      '<button style="display: block">Delete account</button></div></section>';
     index = new PageSearchIndex();
+    expect((await index.search(scorerFor('next day'))).matchingText).toMatchObject([
+      { node: document.getElementById('third'), action: null },
+    ]);
     expect((await index.search(scorerFor('free shipping'))).matchingText).toMatchObject([
       { node: document.getElementById('block'), action: document.querySelector('a') },
     ]);
