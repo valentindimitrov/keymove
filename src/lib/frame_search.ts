@@ -8,6 +8,7 @@ import {
 } from './frame_protocol.js';
 import type { FrameReply, FrameRequest } from './frame_protocol.js';
 import { frameTarget, setFrameTarget, resultIsConnected } from './frame_target.js';
+import type { FrameTarget } from './frame_target.js';
 import { pageShadowRoots } from './dom_tree.js';
 import { activeModal, actionIsInScope } from './modal_context.js';
 import { isTextVisible } from './visible_text.js';
@@ -34,6 +35,7 @@ type Entry = {
   load: (event: Event) => void;
   update?: (reply: FrameReply) => void;
   cancel?: () => void;
+  paint?: FrameTarget['paint'];
 };
 
 export function connectedFrameResults(results: SearchResult[]): SearchResult[] {
@@ -171,22 +173,25 @@ export class FrameSearch {
 
   private materialize(entry: Entry, reply: FrameReply): SearchResult {
     const keep = new Set<string>();
-    const paint = (
+    // One painter per frame, so a repaint in the same flush cancels its pending clear.
+    const paint = (entry.paint ??= (
       nodes: Element[],
       selected: Element | null,
       color: string,
       highlight: boolean,
     ) => {
       const own = nodes.filter(node => frameTarget(node)?.boundary === entry.frame);
+      // The frame's current generation, as commands use: a painter outlives the reply
+      // it was made for, and its clearing paint must still land after a refresh.
       void this.request(entry, {
         op: 'paint',
-        generation: reply.generation,
+        generation: entry.generation,
         ids: own.map(node => frameTarget(node)!.row.id),
         selected: selected && own.includes(selected) ? frameTarget(selected)!.row.id : null,
         color,
         highlight,
       });
-    };
+    });
     for (const row of reply.rows) {
       const key = `${row.kind}:${row.id}`;
       keep.add(key);

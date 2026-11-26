@@ -144,6 +144,15 @@ export async function checkIframes(context: BrowserContext, origin: string) {
     await expect(hoverItems).toHaveJSProperty('hidden', false);
     await page.keyboard.press('Enter');
     await expect(local.locator('body')).toHaveAttribute('data-hover-activated', 'yes');
+    // Marks painted for one query leave the frame once a later query has no rows there.
+    await openSearch(page);
+    for (const key of 'otter') await page.keyboard.type(key);
+    await expect(status).toHaveText(/\/ 4$/);
+    await expect(local.locator('#keymove-root')).toHaveCount(1);
+    await replaceQuery(page, 'otterzzz');
+    await expect(status).toHaveText(/ 0 \/ 0$/);
+    await expect(local.locator('#keymove-root')).toHaveCount(0);
+    await expect.poll(() => local.locator('body').evaluate(() => CSS.highlights.size)).toBe(0);
   } catch (error) {
     await attachFailure(page);
     throw error;
