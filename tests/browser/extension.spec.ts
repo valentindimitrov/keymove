@@ -444,6 +444,30 @@ test('outlines inside a frame follow its content when the frame scrolls', async 
   await expect.poll(async () => new Set(await offsets())).toEqual(new Set([-4]));
   await local.locator('body').evaluate(() => window.scrollBy(0, 300));
   await expect.poll(async () => new Set(await offsets())).toEqual(new Set([-4]));
+  // A resize can hide a result, so it paints again rather than only moving outlines.
+  const outlineCount = () =>
+    local
+      .locator('body')
+      .evaluate(
+        () =>
+          document
+            .getElementById('keymove-root')!
+            .shadowRoot!.querySelectorAll('.keymove-selection').length,
+      );
+  await local.locator('body').evaluate(() => {
+    const style = document.createElement('style');
+    style.textContent = '@media (max-width: 400px) { .narrow-hidden { visibility: hidden; } }';
+    document.head.append(style);
+    document.querySelectorAll('p')[3]!.classList.add('narrow-hidden');
+  });
+  expect(await outlineCount()).toBe(40);
+  await page
+    .locator('iframe')
+    .first()
+    .evaluate(frame => {
+      frame.style.width = '350px';
+    });
+  await expect.poll(outlineCount).toBe(39);
 });
 
 test('stays out of XML documents such as sitemaps without reporting errors', async ({ page }) => {

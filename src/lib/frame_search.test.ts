@@ -161,6 +161,13 @@ test('paints a frame with the generation it currently holds, so later clears lan
   const first = await coordinator.search('otter', new AbortController().signal, vi.fn());
   const handle = first[0]!.matchingText[0]!.node;
   const clear = paintFrameTargets([handle], handle, '#f59e0b', false);
+  // A command checks the frame afresh, even in the task that just checked it.
+  expect(resultIsConnected(handle)).toBe(true);
+  frame.hidden = true;
+  const before = transport.send.mock.calls.length;
+  await frameTarget(handle)!.command('hover');
+  expect(transport.send.mock.calls.length).toBe(before);
+  frame.hidden = false;
   // A refresh of the same query searches the frame again under a new generation.
   await coordinator.search('otter', new AbortController().signal, vi.fn());
   // The first result's cleanup runs after the refresh, with the painter it captured.

@@ -58,6 +58,7 @@ export function installFrameWorker(alive: () => boolean = () => true) {
   let textMatchesQuery = '';
   let nestedResults: SearchResult[] = [];
   let marks: HTMLElement | null = null;
+  let lastPaint: Extract<FrameRequest, { op: 'paint' }> | null = null;
   const outlines = new Map<Element, HTMLElement>();
   let clearChildren = () => {};
   let clearHighlights = () => {};
@@ -118,11 +119,13 @@ export function installFrameWorker(alive: () => boolean = () => true) {
     clearHighlights = () => {};
     marks?.remove();
     marks = null;
+    lastPaint = null;
     outlines.clear();
     clearChildren();
   }
   function paint(request: Extract<FrameRequest, { op: 'paint' }>) {
     clearMarks();
+    lastPaint = request;
     // One modal lookup for the whole paint: it queries the document, and results can be many.
     const modal = activeModal();
     const matching = request.ids.flatMap(id => {
@@ -202,15 +205,27 @@ export function installFrameWorker(alive: () => boolean = () => true) {
     outline.style.width = `${rect.width + 8}px`;
     outline.style.height = `${rect.height + 8}px`;
   }
-  // Scrolling and resizing move outlines but change nothing else, so they only reposition
-  // them, once per frame, leaving highlights, styles and nested frames alone.
+  // Scrolling moves outlines but changes nothing else, so it only repositions them, once
+  // per frame, leaving highlights, styles and nested frames alone. A resize can change
+  // what is visible or in a modal, so it paints again, also at most once per frame.
   let repositionFrame = 0;
-  const refreshPaint = () => {
-    if (!marks || repositionFrame) return;
+  let repaint = false;
+  const schedule = (full: boolean) => {
+    repaint ||= full;
+    if (repositionFrame) return;
     repositionFrame = requestAnimationFrame(() => {
       repositionFrame = 0;
-      for (const [node, outline] of outlines) placeOutline(outline, node);
+      const full = repaint;
+      repaint = false;
+      if (full && lastPaint) paint(lastPaint);
+      else for (const [node, outline] of outlines) placeOutline(outline, node);
     });
+  };
+  const repositionMarks = () => {
+    if (marks) schedule(false);
+  };
+  const refreshPaint = () => {
+    if (lastPaint) schedule(true);
   };
   async function serialize(result: SearchResult, signal: AbortSignal): Promise<FrameRow[]> {
     const currentNodes = new Map<number, Element>();
@@ -548,7 +563,7 @@ export function installFrameWorker(alive: () => boolean = () => true) {
   browser.runtime.onMessage.addListener(listener);
   browser.storage.onChanged.addListener(loadShortcut);
   document.addEventListener('keydown', key, true);
-  window.addEventListener('scroll', refreshPaint, true);
+  window.addEventListener('scroll', repositionMarks, true);
   window.addEventListener('resize', refreshPaint);
   window.addEventListener('pagehide', pagehide);
   loadShortcut();
@@ -560,7 +575,7 @@ export function installFrameWorker(alive: () => boolean = () => true) {
     browser.runtime?.onMessage.removeListener(listener);
     browser.storage?.onChanged.removeListener(loadShortcut);
     document.removeEventListener('keydown', key, true);
-    window.removeEventListener('scroll', refreshPaint, true);
+    window.removeEventListener('scroll', repositionMarks, true);
     window.removeEventListener('resize', refreshPaint);
     cancelAnimationFrame(repositionFrame);
     window.removeEventListener('pagehide', pagehide);

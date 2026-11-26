@@ -104,7 +104,8 @@ export class FrameSearch {
   private eligibility: Map<HTMLIFrameElement, boolean> | null = null;
   private modal: Element | null = null;
 
-  private eligible(frame: HTMLIFrameElement) {
+  private eligible(frame: HTMLIFrameElement, fresh = false) {
+    if (fresh) return this.checkEligible(frame, activeModal());
     if (!this.eligibility) {
       this.eligibility = new Map();
       this.modal = activeModal();
@@ -115,14 +116,19 @@ export class FrameSearch {
     }
     let eligible = this.eligibility.get(frame);
     if (eligible === undefined) {
-      eligible =
-        frame.isConnected &&
-        isTextVisible(frame) &&
-        frame.getClientRects().length > 0 &&
-        actionIsInScope(frame, this.modal);
+      eligible = this.checkEligible(frame, this.modal);
       this.eligibility.set(frame, eligible);
     }
     return eligible;
+  }
+
+  private checkEligible(frame: HTMLIFrameElement, modal: Element | null) {
+    return (
+      frame.isConnected &&
+      isTextVisible(frame) &&
+      frame.getClientRects().length > 0 &&
+      actionIsInScope(frame, modal)
+    );
   }
 
   private discover() {
@@ -232,7 +238,8 @@ export class FrameSearch {
           entry.nodes.get(key) === node &&
           this.eligible(entry.frame),
         command: async command => {
-          if (!this.eligible(entry.frame)) return null;
+          // Checked afresh: KeyMove's own hover events can run page code that hides it.
+          if (!this.eligible(entry.frame, true)) return null;
           if (
             command === 'scroll' ||
             (typeof command === 'object' &&
