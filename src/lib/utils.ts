@@ -221,15 +221,28 @@ function scrollToNodeAtIndexInList(nodeList: readonly Element[], selectedIndex: 
         if (!vertical && !horizontal) continue;
         const text = elementBox(selectedMatchingNode);
         const bounds = area.getBoundingClientRect();
-        if (vertical && (text.top < bounds.top || text.bottom > bounds.bottom))
-          area.scrollTop += text.top + text.height / 2 - (bounds.top + bounds.height / 2);
-        if (horizontal && (text.left < bounds.left || text.right > bounds.right))
-          area.scrollLeft += text.left + text.width / 2 - (bounds.left + bounds.width / 2);
+        // Instant even where the page asks for smooth scrolling, so the next measurement holds.
+        area.scrollTo({
+          top:
+            vertical && (text.top < bounds.top || text.bottom > bounds.bottom)
+              ? area.scrollTop + text.top + text.height / 2 - (bounds.top + bounds.height / 2)
+              : area.scrollTop,
+          left:
+            horizontal && (text.left < bounds.left || text.right > bounds.right)
+              ? area.scrollLeft + text.left + text.width / 2 - (bounds.left + bounds.width / 2)
+              : area.scrollLeft,
+          behavior: 'instant',
+        });
       }
       const moved = elementBox(selectedMatchingNode);
-      if (moved.top < contextMargin || moved.bottom > viewportHeight - contextMargin)
+      const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+      const offVertically =
+        moved.top < contextMargin || moved.bottom > viewportHeight - contextMargin;
+      const offHorizontally = moved.left < 0 || moved.right > viewportWidth;
+      if (offVertically || offHorizontally)
         window.scrollBy({
-          top: moved.top + moved.height / 2 - viewportHeight / 2,
+          top: offVertically ? moved.top + moved.height / 2 - viewportHeight / 2 : 0,
+          left: offHorizontally ? moved.left + moved.width / 2 - viewportWidth / 2 : 0,
           behavior: 'instant',
         });
       return;

@@ -273,7 +273,10 @@ function contentsRects(element: Element, cache: StyleCache): DOMRect[] {
 
 /** The first visible element inside a boxless element, which can scroll itself into view. */
 function firstVisibleBox(element: Element, cache: StyleCache = new WeakMap()): Element | null {
+  const textVisible = computedStyle(element, cache).visibility === 'visible';
   for (const child of renderedChildren(element)) {
+    // Leading text is what the user searched for: scroll to it, not to a later box.
+    if (child.nodeType === Node.TEXT_NODE && textVisible && child.textContent?.trim()) return null;
     if (!(child instanceof Element)) continue;
     const style = computedStyle(child, cache);
     if (style.display === 'none') continue;
