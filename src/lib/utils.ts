@@ -1,9 +1,9 @@
 import { INPUT_NODE_TYPES, KEYS_VALID_FOR_FOCUS_REGEX, MAC_OS_PLATFORMS } from '../constants.js';
 import { normalizedOpenableLinkUrl } from './extension_tabs.js';
 import { isActionDisabled, labelledToggle } from './searchable_attributes.js';
-import { elementBox, iterateRenderedText, lacksOwnBox } from './visible_text.js';
+import { elementBox, firstVisibleBox, iterateRenderedText, lacksOwnBox } from './visible_text.js';
 import { frameTarget } from './frame_target.js';
-import { isKeyMoveNode } from './dom_tree.js';
+import { isKeyMoveNode, renderedParent } from './dom_tree.js';
 import { openOrClosedShadowRoot } from './host_marker.js';
 
 const FOCUS_WIDGET_ROLES = [
@@ -205,11 +205,21 @@ function scrollToNodeAtIndexInList(nodeList: readonly Element[], selectedIndex: 
     const nearViewportEdge =
       rect.top < contextMargin || rect.bottom > viewportHeight - contextMargin;
     // An element without a box of its own (display: contents) cannot scroll itself into
-    // view; scroll the window to the box its contents occupy instead.
+    // view. Its first visible element can, which also scrolls any panel around it; a link
+    // with only text scrolls the nearest boxed ancestor, then the window, to that text.
     if (lacksOwnBox(selectedMatchingNode)) {
-      if (nearViewportEdge || rect.bottom < 0 || rect.top > viewportHeight)
+      const box = firstVisibleBox(selectedMatchingNode);
+      if (box) {
+        box.scrollIntoView({ block: nearViewportEdge ? 'center' : 'nearest', inline: 'nearest' });
+        return;
+      }
+      let ancestor = renderedParent(selectedMatchingNode);
+      while (ancestor && !ancestor.getClientRects().length) ancestor = renderedParent(ancestor);
+      ancestor?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      const moved = elementBox(selectedMatchingNode);
+      if (moved.top < contextMargin || moved.bottom > viewportHeight - contextMargin)
         window.scrollBy({
-          top: rect.top + rect.height / 2 - viewportHeight / 2,
+          top: moved.top + moved.height / 2 - viewportHeight / 2,
           behavior: 'instant',
         });
       return;

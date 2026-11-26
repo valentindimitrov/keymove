@@ -470,6 +470,45 @@ test('finds, outlines, scrolls to and activates links laid out with display: con
   await expect(page.locator('body')).toHaveAttribute('data-boxless-clicked', 'yes');
 });
 
+test('reaches boxless links inside scrolling panels and hidden wrappers', async ({ page }) => {
+  await page.goto('shadow.html');
+  await expect(page.locator('#keymove-bar')).toHaveAttribute('data-always-on', 'true');
+  await page.evaluate(() => {
+    const sidebar = document.createElement('aside');
+    sidebar.id = 'sidebar';
+    sidebar.style.cssText = 'height:240px;overflow-y:auto';
+    sidebar.innerHTML =
+      '<div style="height:1000px"></div>' +
+      '<a href="#side" style="display: contents"><span id="side">Quokka sidebar</span></a>';
+    // The label renders: a descendant can make text visible inside a hidden wrapper.
+    const help = document.createElement('p');
+    help.innerHTML =
+      '<a href="#help" style="display: contents"><span style="visibility:hidden">' +
+      '<span style="visibility:visible">Quokka help</span></span></a>';
+    document.body.prepend(sidebar, help);
+  });
+  await page.keyboard.press('Alt+f');
+  const input = page.getByRole('combobox', { name: 'Search page', exact: true });
+  await input.pressSequentially('quokka');
+  const status = page.getByRole('status');
+  await expect(status).toHaveText(/^(Text|Actions) \d+ \/ \d+$/);
+  if ((await status.innerText()).startsWith('Text')) await input.press('Alt+s');
+  await expect(status).toHaveText('Actions 1 / 2');
+  // Explicitly selecting the sidebar link scrolls the sidebar itself to show it.
+  await input.press('Tab');
+  await input.press('Shift+Tab');
+  await expect(status).toHaveText('Actions 1 / 2');
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const sidebar = document.getElementById('sidebar')!.getBoundingClientRect();
+        const link = document.getElementById('side')!.getBoundingClientRect();
+        return link.top >= sidebar.top && link.bottom <= sidebar.bottom;
+      }),
+    )
+    .toBe(true);
+});
+
 test('stays out of XML documents such as sitemaps without reporting errors', async ({ page }) => {
   // React DOM threw as it loaded on these, since their elements have no `.style`. The
   // context fixture fails the test on any console error or uncaught exception.

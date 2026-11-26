@@ -250,19 +250,43 @@ function boxlessElement(element: Element, cache: StyleCache = new WeakMap()) {
 
 function contentsRects(element: Element, cache: StyleCache): DOMRect[] {
   const rects: DOMRect[] = [];
-  if (!isTextVisible(element, cache)) return rects;
+  if (!isSubtreeVisible(element, cache)) return rects;
+  // Text shows only where its parent is visible, but a hidden wrapper can hold a
+  // descendant that sets visibility: visible again, so hidden wrappers are entered.
+  const textVisible = computedStyle(element, cache).visibility === 'visible';
   for (const child of renderedChildren(element)) {
     if (child.nodeType === Node.TEXT_NODE) {
-      if (!child.textContent?.trim()) continue;
+      if (!textVisible || !child.textContent?.trim()) continue;
       const range = document.createRange();
       range.selectNodeContents(child);
       rects.push(...range.getClientRects());
     } else if (child instanceof Element) {
-      if (boxlessElement(child, cache)) rects.push(...contentsRects(child, cache));
+      const style = computedStyle(child, cache);
+      if (style.display === 'none') continue;
+      if (style.display === 'contents' || style.visibility !== 'visible')
+        rects.push(...contentsRects(child, cache));
       else if (isTextVisible(child, cache)) rects.push(...child.getClientRects());
     }
   }
   return rects.filter(rect => rect.width || rect.height);
+}
+
+/** The first visible element inside a boxless element, which can scroll itself into view. */
+function firstVisibleBox(element: Element, cache: StyleCache = new WeakMap()): Element | null {
+  for (const child of renderedChildren(element)) {
+    if (!(child instanceof Element)) continue;
+    const style = computedStyle(child, cache);
+    if (style.display === 'none') continue;
+    if (
+      style.display !== 'contents' &&
+      style.visibility === 'visible' &&
+      child.getClientRects().length
+    )
+      return child;
+    const nested = firstVisibleBox(child, cache);
+    if (nested) return nested;
+  }
+  return null;
 }
 
 /** Whether an element occupies space; for display: contents, only if `boxless` allows it. */
@@ -295,6 +319,7 @@ function lacksOwnBox(element: Element) {
 
 export {
   elementBox,
+  firstVisibleBox,
   hasRenderedBox,
   lacksOwnBox,
   computedStyle,
