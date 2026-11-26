@@ -188,6 +188,8 @@ export class FrameSearch {
         generation: entry.generation,
         ids: own.map(node => frameTarget(node)!.row.id),
         selected: selected && own.includes(selected) ? frameTarget(selected)!.row.id : null,
+        selectedText:
+          !!selected && own.includes(selected) && frameTarget(selected)!.row.kind === 'text',
         color,
         highlight,
       });
@@ -210,7 +212,9 @@ export class FrameSearch {
           entry.nodes.get(key) === node &&
           this.eligible(entry.frame),
         command: async command => {
-          if (!this.eligible(entry.frame)) return null;
+          // Releasing a selection must reach a frame even while it is hidden: shown again,
+          // it would still hold KeyMove's selection.
+          if (command !== 'deselect' && !this.eligible(entry.frame)) return null;
           if (
             command === 'scroll' ||
             (typeof command === 'object' &&
