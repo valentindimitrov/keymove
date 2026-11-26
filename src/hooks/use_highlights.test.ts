@@ -296,3 +296,11 @@ test('adopts both highlight rules with concrete colours into shadow roots', () =
   expect(root.adoptedStyleSheets).toHaveLength(0);
   replaceSync.mockRestore();
 });
+
+test('highlights occurrences that share combining marks across text nodes without throwing', () => {
+  document.body.innerHTML = '<p>J\u030C a\u0338a<span>\u0338\u0338a\u0338</span></p>';
+  const paragraph = document.querySelector('p')!;
+  expect(() =>
+    highlightRangesForMatches([makeTextMatch({ node: paragraph, term: '\u0338a\u0338' })]),
+  ).not.toThrow();
+});

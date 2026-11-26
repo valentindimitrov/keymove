@@ -91,9 +91,11 @@ test('agrees with an exhaustive substring oracle across random inputs', () => {
     return out;
   };
 
-  for (let trial = 0; trial < 6000; trial += 1) {
-    const text = randomString(14);
-    const query = randomString(6, 1);
+  // Longer strings let the band of rows within budget grow and shrink across a text.
+  for (let trial = 0; trial < 7500; trial += 1) {
+    const long = trial >= 6000;
+    const text = randomString(long ? 40 : 14);
+    const query = randomString(long ? 12 : 6, 1);
     for (const budget of [1, 2]) {
       const expected = oracle(text, query, budget);
       const actual = fuzzyMatchInText(text, query, budget);
