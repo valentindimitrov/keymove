@@ -13,6 +13,7 @@ import {
 } from './searchable_attributes.js';
 import {
   computedStyle,
+  hasRenderedBox,
   isInlineLevel,
   isTextVisible,
   iterateRenderedText,
@@ -521,13 +522,9 @@ class PageSearchIndex {
   }
 
   isVisible(node: Element, styles: StyleCache = new WeakMap()) {
-    if (
-      !node.isConnected ||
-      !(
-        (node instanceof HTMLElement && (node.offsetWidth || node.offsetHeight)) ||
-        node.getClientRects().length
-      )
-    ) {
+    // Only actions are measured by their contents when display: contents gives them no
+    // box: text in such a wrapper already belongs to the block around it.
+    if (!node.isConnected || !hasRenderedBox(node, styles, isLinkOrButtonOrInput(node))) {
       return false;
     }
 

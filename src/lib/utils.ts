@@ -1,10 +1,10 @@
 import { INPUT_NODE_TYPES, KEYS_VALID_FOR_FOCUS_REGEX, MAC_OS_PLATFORMS } from '../constants.js';
 import { normalizedOpenableLinkUrl } from './extension_tabs.js';
 import { isActionDisabled, labelledToggle } from './searchable_attributes.js';
-import { iterateRenderedText } from './visible_text.js';
+import { elementBox, firstVisibleBox, iterateRenderedText, lacksOwnBox } from './visible_text.js';
 import { frameTarget } from './frame_target.js';
 import type { FrameTarget } from './frame_target.js';
-import { isKeyMoveNode, isKeyMoveRoot, keyMoveShadowRoot } from './dom_tree.js';
+import { isKeyMoveNode, isKeyMoveRoot, keyMoveShadowRoot, renderedParent } from './dom_tree.js';
 import { openOrClosedShadowRoot } from './host_marker.js';
 
 const FOCUS_WIDGET_ROLES = [
@@ -196,7 +196,7 @@ function nodeIsInViewport(node: Node) {
   if (!(element instanceof Element)) {
     return false;
   }
-  const boundingRect = element.getBoundingClientRect();
+  const boundingRect = elementBox(element);
   const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
   return (
@@ -215,13 +215,56 @@ function scrollToNodeAtIndexInList(nodeList: readonly Element[], selectedIndex: 
       void remote.command('scroll');
       return;
     }
-    const rect = selectedMatchingNode.getBoundingClientRect();
+    const rect = elementBox(selectedMatchingNode);
     const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
     // Native text selection can first reveal a result flush against the viewport edge.
     // Reserve context there too, while leaving comfortably visible results in place.
     const contextMargin = Math.min(200, viewportHeight * 0.2);
     const nearViewportEdge =
       rect.top < contextMargin || rect.bottom > viewportHeight - contextMargin;
+    // An element without a box of its own (display: contents) cannot scroll itself into
+    // view. Its first visible element can, which also scrolls any panel around it; a link
+    // with only text scrolls the nearest boxed ancestor, then the window, to that text.
+    if (lacksOwnBox(selectedMatchingNode)) {
+      const box = firstVisibleBox(selectedMatchingNode);
+      if (box) {
+        box.scrollIntoView({ block: nearViewportEdge ? 'center' : 'nearest', inline: 'nearest' });
+        return;
+      }
+      // Scroll each scrolling ancestor, innermost first, until the text is inside it.
+      for (let area = renderedParent(selectedMatchingNode); area; area = renderedParent(area)) {
+        const { overflowX, overflowY } = getComputedStyle(area);
+        const vertical = /auto|scroll/.test(overflowY) && area.scrollHeight > area.clientHeight;
+        const horizontal = /auto|scroll/.test(overflowX) && area.scrollWidth > area.clientWidth;
+        if (!vertical && !horizontal) continue;
+        const text = elementBox(selectedMatchingNode);
+        const bounds = area.getBoundingClientRect();
+        // Instant even where the page asks for smooth scrolling, so the next measurement holds.
+        area.scrollTo({
+          top:
+            vertical && (text.top < bounds.top || text.bottom > bounds.bottom)
+              ? area.scrollTop + text.top + text.height / 2 - (bounds.top + bounds.height / 2)
+              : area.scrollTop,
+          left:
+            horizontal && (text.left < bounds.left || text.right > bounds.right)
+              ? area.scrollLeft + text.left + text.width / 2 - (bounds.left + bounds.width / 2)
+              : area.scrollLeft,
+          behavior: 'instant',
+        });
+      }
+      const moved = elementBox(selectedMatchingNode);
+      const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+      const offVertically =
+        moved.top < contextMargin || moved.bottom > viewportHeight - contextMargin;
+      const offHorizontally = moved.left < 0 || moved.right > viewportWidth;
+      if (offVertically || offHorizontally)
+        window.scrollBy({
+          top: offVertically ? moved.top + moved.height / 2 - viewportHeight / 2 : 0,
+          left: offHorizontally ? moved.left + moved.width / 2 - viewportWidth / 2 : 0,
+          behavior: 'instant',
+        });
+      return;
+    }
     selectedMatchingNode.scrollIntoView({
       block: nearViewportEdge ? 'center' : 'nearest',
       inline: 'nearest',
