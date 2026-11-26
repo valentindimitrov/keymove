@@ -153,7 +153,9 @@ export function installFrameWorker(alive: () => boolean = () => true) {
         CSS.highlights.set(KEYMOVE_HIGHLIGHT_NAME, new window.Highlight(...ranges));
       });
       // The selected match gets its own, higher-priority highlight, as in the top document.
-      const current = local.find(match => match.node === selected);
+      const current = request.selectedText
+        ? local.find(match => match.node === selected)
+        : undefined;
       const cancelCurrent = current
         ? scheduleHighlightRanges([current], ranges => {
             const highlight = new window.Highlight(...ranges);
@@ -440,6 +442,7 @@ export function installFrameWorker(alive: () => boolean = () => true) {
             op: 'paint',
             generation,
             selected: null,
+            selectedText: false,
             ids: [],
             color: '#a78bfa',
             highlight: false,

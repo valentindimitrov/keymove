@@ -313,6 +313,21 @@ test('releases a frame selection once the cursor leaves that frame, not when it 
   Utils.selectNodeContents(local);
   await Promise.resolve();
   expect(commands.slice(4)).toEqual(['other:deselect']);
+
+  // Tab from one frame to another: the key handler selects, then the effect clears and
+  // selects the same result again. The first frame is still released.
+  Utils.selectNodeContents(first);
+  await Promise.resolve();
+  Utils.selectNodeContents(other);
+  Utils.clearPageSelection();
+  Utils.selectNodeContents(other);
+  await Promise.resolve();
+  expect(commands.slice(5)).toEqual([
+    'first:select',
+    'other:select',
+    'other:select',
+    'first:deselect',
+  ]);
   Utils.clearPageSelection();
   document.body.replaceChildren();
 });

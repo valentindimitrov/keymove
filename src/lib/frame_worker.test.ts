@@ -87,7 +87,13 @@ test('a new query clears outlines; a refresh keeps them for the top frame to rep
       );
     });
   const marks = () => document.getElementById('keymove-root');
-  const paint = { op: 'paint' as const, selected: null, color: '#f59e0b', highlight: false };
+  const paint = {
+    op: 'paint' as const,
+    selectedText: false,
+    selected: null,
+    color: '#f59e0b',
+    highlight: false,
+  };
   try {
     const reply = (await request({
       op: 'search',
@@ -161,7 +167,13 @@ test('never highlights matches retained from a search for another query', async 
         resolve,
       );
     });
-  const paint = { op: 'paint' as const, selected: null, color: '#f59e0b', highlight: true };
+  const paint = {
+    op: 'paint' as const,
+    selectedText: false,
+    selected: null,
+    color: '#f59e0b',
+    highlight: true,
+  };
   try {
     const reply = (await request({
       op: 'search',
@@ -266,8 +278,14 @@ test('paints the selected match with its own highlight and releases its selectio
       depth: 1,
     })) as FrameReply;
     const [first, second] = reply.rows.filter(row => row.kind === 'text').map(row => row.id);
-    const paint = { op: 'paint' as const, generation: 'one', color: '#f59e0b', highlight: true };
-    await request({ ...paint, ids: [first!, second!], selected: first! });
+    const paint = {
+      op: 'paint' as const,
+      selectedText: false,
+      generation: 'one',
+      color: '#f59e0b',
+      highlight: true,
+    };
+    await request({ ...paint, ids: [first!, second!], selected: first!, selectedText: true });
     await vi.waitFor(() =>
       expect(registry.get('keymove-search-current')).toMatchObject({ size: 1, priority: 1 }),
     );
@@ -279,7 +297,8 @@ test('paints the selected match with its own highlight and releases its selectio
     await request({ ...command, command: 'deselect' });
     expect(getSelection()?.toString()).toBe('');
 
-    await request({ ...paint, ids: [first!, second!], selected: null });
+    // An action sharing the element, as in Actions mode, gets no text highlight.
+    await request({ ...paint, ids: [first!, second!], selected: first!, selectedText: false });
     expect(registry.has('keymove-search-current')).toBe(false);
   } finally {
     teardown();

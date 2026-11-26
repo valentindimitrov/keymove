@@ -215,21 +215,21 @@ function scrollToNodeAtIndexInList(nodeList: readonly Element[], selectedIndex: 
 // The frame holding KeyMove's selection, if a frame does. Its selection lives in its own
 // document, so leaving it for another document, or clearing, has to release it there.
 let selectingFrame: FrameTarget | null = null;
-let releasingFrame: FrameTarget | null = null;
+// Releases wait for the end of the task: the effect that moves the selection clears it
+// first, and selecting again in the same frame must not race a release sent before it.
+const releasingFrames = new Map<HTMLIFrameElement, FrameTarget>();
 
-// Waits for the end of the task: the effect that moves the selection clears it first, and
-// selecting again in the same frame must not race a release sent just before it.
 function releaseFrameSelection() {
   if (!selectingFrame) return;
-  if (!releasingFrame) queueMicrotask(sendFrameRelease);
-  releasingFrame = selectingFrame;
+  if (!releasingFrames.size) queueMicrotask(sendFrameReleases);
+  releasingFrames.set(selectingFrame.boundary, selectingFrame);
   selectingFrame = null;
 }
 
-function sendFrameRelease() {
-  const frame = releasingFrame;
-  releasingFrame = null;
-  void frame?.command('deselect');
+function sendFrameReleases() {
+  const frames = [...releasingFrames.values()];
+  releasingFrames.clear();
+  for (const frame of frames) void frame.command('deselect');
 }
 
 function selectNodeContents(node: Element) {
@@ -237,7 +237,7 @@ function selectNodeContents(node: Element) {
   if (remote) {
     clearPageSelection();
     // The frame replaces its own selection, so a pending release there is not needed.
-    if (releasingFrame?.boundary === remote.boundary) releasingFrame = null;
+    releasingFrames.delete(remote.boundary);
     selectingFrame = remote;
     void remote.command('select');
     return;
