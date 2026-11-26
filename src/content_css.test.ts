@@ -15,11 +15,12 @@ test('resets host-page styling at the shadow boundary, ahead of important page r
     body!
       .split(';')
       .map(declaration => declaration.trim())
-      .filter(declaration => declaration && !declaration.startsWith('--')),
+      .filter(Boolean),
   );
 
   // Page rules reach the host itself and beat normal :host declarations; only important
   // ones win, even over the page's important rules (Dawn's `div:empty { display: none }`).
+  // That includes the theme's custom properties, which a page rule could otherwise set.
   expect(declarations).toContain('all: initial !important');
   expect(declarations).toContain('display: block !important');
   expect(declarations.filter(declaration => !declaration.endsWith('!important'))).toEqual([]);
