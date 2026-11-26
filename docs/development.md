@@ -83,7 +83,9 @@ them. Avoid duplicate helper checks and tests that only echo their input props.
 ### Rendered and installed-browser checks
 
 - `pnpm test:e2e` rebuilds and tests the installed extension with Playwright's
-  bundled Chromium. After `pnpm quality`, use `pnpm test:e2e:built`. See
+  bundled Chromium. It builds both the production build and the test build, whose
+  shadow roots stay open for the suite (shipped builds close them; see SECURITY.md).
+  After `pnpm quality`, run `pnpm build:chromium:test`, then `pnpm test:e2e:built`. See
   [browser testing and CLI debugging](browser-testing.md) for setup, the coverage
   map, failure traces, and attaching playwright-cli to a paused test.
 

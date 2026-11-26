@@ -2295,12 +2295,79 @@ test('Tab selects and copies a whole text block, and Enter opens its nested acti
   const setData = vi.fn();
   const copyEvent = new Event('copy', { bubbles: true, cancelable: true });
   Object.defineProperty(copyEvent, 'clipboardData', { value: { setData } });
+  // A page listener after KeyMove's must not see the copied text, which can come from a frame.
+  const pageListener = vi.fn();
+  window.addEventListener('copy', pageListener);
   document.dispatchEvent(copyEvent);
+  window.removeEventListener('copy', pageListener);
   expect(setData).toHaveBeenCalledWith('text/plain', paragraph.textContent);
   expect(copyEvent.defaultPrevented).toBe(true);
+  expect(pageListener).not.toHaveBeenCalled();
 
   fireEvent.keyDown(input, { bubbles: true, cancelable: true, code: 'Enter', key: 'Enter' });
   expect(click).toHaveBeenCalledOnce();
+});
+
+test('copies the selected block when the page cancels Ctrl+C, also without the Clipboard API', async () => {
+  const paragraph = document.createElement('p');
+  paragraph.textContent = 'Read the documentation before continuing.';
+  document.body.append(paragraph);
+  const textMatch = makeTextMatch({ node: paragraph, term: 'documentation' });
+  searchMocks.findMatches.mockResolvedValue(makeSearchResult({ matchingText: [textMatch] }));
+  render(<Searchbar />);
+  const input = screen.getByRole<HTMLInputElement>('combobox', { name: 'Search page' });
+  input.focus();
+  fireEvent.change(input, { target: { value: 'documentation' } });
+  await flushSearch();
+  // A page shortcut that cancels Ctrl+C outside text fields, seeing only KeyMove's host.
+  const cancel = (event: KeyboardEvent) => event.preventDefault();
+  window.addEventListener('keydown', cancel, true);
+  // An insecure origin has no Clipboard API; the copy command copies a selected field.
+  vi.stubGlobal('navigator', { ...navigator, clipboard: undefined });
+  let copied = '';
+  const execCommand = vi.fn((command: string) => {
+    const field = input.parentElement?.querySelector('textarea');
+    if (command === 'copy' && field)
+      copied = field.value.slice(field.selectionStart, field.selectionEnd);
+    return true;
+  });
+  Object.defineProperty(document, 'execCommand', { configurable: true, value: execCommand });
+  try {
+    fireEvent.keyDown(input, { key: 'c', code: 'KeyC', ctrlKey: true, bubbles: true });
+    expect(execCommand).toHaveBeenCalledWith('copy');
+    expect(copied).toBe(paragraph.textContent);
+    expect(document.activeElement === input || input.matches(':focus')).toBe(true);
+  } finally {
+    window.removeEventListener('keydown', cancel, true);
+    vi.unstubAllGlobals();
+    Reflect.deleteProperty(document, 'execCommand');
+  }
+});
+
+test('a cancelled Ctrl+C copies the selected query when there is no result', async () => {
+  searchMocks.findMatches.mockResolvedValue(makeSearchResult());
+  render(<Searchbar />);
+  const input = screen.getByRole<HTMLInputElement>('combobox', { name: 'Search page' });
+  input.focus();
+  fireEvent.change(input, { target: { value: 'missing words' } });
+  await flushSearch();
+  input.setSelectionRange(0, 7);
+  const cancel = (event: KeyboardEvent) => event.preventDefault();
+  window.addEventListener('keydown', cancel, true);
+  // A page can deny clipboard writes; the copy command is the fallback.
+  const writeText = vi.fn().mockRejectedValue(new Error('denied'));
+  vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
+  const execCommand = vi.fn(() => true);
+  Object.defineProperty(document, 'execCommand', { configurable: true, value: execCommand });
+  try {
+    fireEvent.keyDown(input, { key: 'c', code: 'KeyC', ctrlKey: true, bubbles: true });
+    expect(writeText).toHaveBeenCalledWith('missing');
+    await waitFor(() => expect(execCommand).toHaveBeenCalledWith('copy'));
+  } finally {
+    window.removeEventListener('keydown', cancel, true);
+    vi.unstubAllGlobals();
+    Reflect.deleteProperty(document, 'execCommand');
+  }
 });
 
 test('Ctrl+Tab and Shift+Ctrl+Tab navigate only action elements', async () => {

@@ -49,9 +49,13 @@ export async function runBrowserTests(args: string[]): Promise<void> {
         else reject(new Error(`${path.basename(script)} exited with ${signal ?? code}.`));
       });
     });
-  if (!args.includes('--no-build')) {
-    await run(path.join(root, 'node_modules/wxt/bin/wxt.mjs'), ['build', '-b', 'chrome', '--mv3']);
-  }
+  // The suite runs on a test build, whose shadow roots stay open so Playwright can look
+  // inside, and checks the closed roots of the production build separately.
+  const wxt = path.join(root, 'node_modules/wxt/bin/wxt.mjs');
+  // --no-build keeps the existing production build; the test build is always made from
+  // the current source, so it can never lag behind what the production build was made from.
+  if (!args.includes('--no-build')) await run(wxt, ['build', '-b', 'chrome', '--mv3']);
+  await run(wxt, ['build', '-b', 'chrome', '--mv3', '--mode', 'test']);
   await run(path.join(root, 'node_modules/@playwright/test/cli.js'), [
     'test',
     ...args.filter(arg => arg !== '--no-build' && !arg.startsWith('--browser=')),

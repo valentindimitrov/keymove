@@ -4,6 +4,8 @@ import svgr from 'vite-plugin-svgr';
 
 export default defineConfig({
   plugins: [svgr(), react()],
+  // Unit tests look inside KeyMove's shadow roots; shipped builds close them.
+  define: { __KEYMOVE_OPEN_SHADOW_ROOTS__: 'true' },
   test: {
     exclude: [...configDefaults.exclude, 'tests/browser/**'],
     environment: 'jsdom',

@@ -755,6 +755,12 @@
   color: var(--keymove-text-primary, white);
 }
 
+/* Result text in builds with closed roots, drawn from an attribute so that the page's
+   window.find cannot match it (suggestion_content.tsx, SECURITY.md). */
+.keymove-generated-text::before {
+  content: attr(data-text);
+}
+
 .keymove-suggestion-match {
   padding: 0;
   background-color: var(--keymove-match-bg, rgba(122, 98, 18, 0.9));

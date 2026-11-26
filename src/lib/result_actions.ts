@@ -36,9 +36,17 @@ function actionsForResult(action: HTMLElement | null, text: Element | null): Res
 export { actionsForResult };
 export type { ResultAction };
 
-export function actionsForImage(image: ImageInfo): ResultAction[] {
+/**
+ * `fromFrame`: the viewer would load a frame's image in the embedding page, whose script can
+ * read loaded URLs from Resource Timing, so it is unavailable for images from frames.
+ */
+export function actionsForImage(image: ImageInfo, fromFrame = false): ResultAction[] {
   return [
-    { id: 'image-view', label: 'View larger' },
+    {
+      id: 'image-view',
+      label: fromFrame ? 'View larger (not for images in frames)' : 'View larger',
+      disabled: fromFrame,
+    },
     { id: 'image-open', label: 'Open image in new tab', disabled: !/^https?:/i.test(image.url) },
     { id: 'image-copy', label: 'Copy image' },
     { id: 'image-address', label: 'Copy image address' },

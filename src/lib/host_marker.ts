@@ -68,8 +68,12 @@ export function openOrClosedShadowRoot(element: Element): ShadowRoot | null {
 /** Removes hosts an earlier copy of this extension signed; returns how many. */
 function removeIfStale(host: Element, value: string, read: ReadShadowRoot) {
   // KeyMove's hosts have no light-DOM children, so no page content goes with them.
-  if (isKeyMoveRoot(host) || host.hasChildNodes() || !host.shadowRoot) return false;
-  const signed = [...host.shadowRoot.children].some(
+  if (isKeyMoveRoot(host) || host.hasChildNodes()) return false;
+  // An earlier copy's root is closed in shipped builds, so it is read through the
+  // extension-only accessor; where the browser offers none, the host stays.
+  const root = host.shadowRoot ?? read(host);
+  if (!root) return false;
+  const signed = [...root.children].some(
     child => read(child)?.firstElementChild?.getAttribute(SECRET_ATTRIBUTE) === value,
   );
   if (signed) host.remove();

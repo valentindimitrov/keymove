@@ -8,7 +8,8 @@ the extension builds; only the runtime icons in the parent `assets/` directory a
 tiles, upload instructions, and capture metadata. Other stores can reuse those screenshots
 and copy when their requirements match; check their requirements before submitting.
 
-To refresh the Chromium captures, build the extension with `pnpm build:chromium`, start
+To refresh the Chromium captures, build the test build with `pnpm build:chromium:test` (its
+shadow roots stay open so the generator can drive the interface; it looks the same), start
 `pnpm website:dev`, then run `node assets/store-listings/generate.ts` from the repository root.
 It opens a dedicated temporary profile in installed Vivaldi's Chromium shell (or the browser
 named by `KEYMOVE_TEST_BROWSER`, e.g. `chromium`), uses the installed extension, and converts
