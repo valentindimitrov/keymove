@@ -974,7 +974,10 @@ const Searchbar = () => {
       }
       const keyboardEventHandler = keyboardShortcutHandlerMapping[keyboardShortcutName];
       if (keyboardShortcutName !== 'open_action_menu') setMenuTarget(null);
-      keyboardEventHandler?.(event);
+      if (!keyboardEventHandler) return;
+      keyboardEventHandler(event);
+      // A key one of KeyMove's handlers took is not typed into the field again.
+      if (event.defaultPrevented) markHandledByKeyMove(event);
     },
     [keyboardShortcutHandlerMapping],
   );
@@ -1035,6 +1038,28 @@ const Searchbar = () => {
     [revealAndFocus, searchText],
   );
 
+  const selectedCopyText = React.useCallback(
+    () =>
+      selectedTextMatch && resultIsConnected(selectedTextMatch.node)
+        ? visibleText(selectedTextMatch.node)
+        : resultIsConnected(selectedActionNode)
+          ? Utils.linkUrlForNode(selectedActionNode)
+          : null,
+    [selectedTextMatch, selectedActionNode],
+  );
+
+  // A page that cancelled Ctrl/Cmd+C in the search field, seeing only KeyMove's host, also
+  // stopped the copy event that follows. The keystroke still counts as the user's gesture.
+  const copyCancelledByPage = React.useCallback(() => {
+    if (selectedImage || !isInteractive) return;
+    const copyText = selectedCopyText();
+    if (copyText === null) return;
+    writeClipboardText(copyText).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`${EXTENSION_NAME} could not copy the selected result: ${message}`);
+    });
+  }, [selectedImage, isInteractive, selectedCopyText]);
+
   const handleCopy = React.useCallback(
     (event: ClipboardEvent) => {
       if (selectedImage || !isTrustedInput(event)) return;
@@ -1048,12 +1073,7 @@ const Searchbar = () => {
       }
       const target = Utils.focusedEventTarget(event);
       if (target !== searchInputRef.current && Utils.isExtensionElement(target)) return;
-      const copyText =
-        selectedTextMatch && resultIsConnected(selectedTextMatch.node)
-          ? visibleText(selectedTextMatch.node)
-          : resultIsConnected(selectedActionNode)
-            ? Utils.linkUrlForNode(selectedActionNode)
-            : null;
+      const copyText = selectedCopyText();
       if (copyText === null) {
         return;
       }
@@ -1063,7 +1083,7 @@ const Searchbar = () => {
       // a cross-origin frame, out of clipboardData. This copy is KeyMove's alone.
       event.stopImmediatePropagation();
     },
-    [isInteractive, selectedTextMatch, selectedActionNode, selectedImage],
+    [isInteractive, selectedCopyText, selectedImage],
   );
 
   React.useEffect(() => {
@@ -1337,6 +1357,7 @@ const Searchbar = () => {
             imageSelected={selectedImage !== null}
             onBlur={handleBlur}
             updateSearchText={setSearchText}
+            onCopyCancelled={copyCancelledByPage}
           />
           {selectedImage ? (
             <span

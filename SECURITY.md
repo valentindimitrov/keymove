@@ -50,6 +50,13 @@ What a closed root does not hide:
 - Highlight ranges registered with the CSS Custom Highlight API, inside the page or a
   frame, are readable by that document's own script.
 
+Closing the root also changes what page key handlers see: only KeyMove's host, so a page
+shortcut that ignores keys typed in text fields may treat keys typed in KeyMove's search
+field as its own and cancel them. KeyMove still runs its own shortcuts for such keys and
+re-applies typed characters, Backspace, Delete, Left, Right, Home, End and copying.
+Rarer editing keys a page cancels this way, such as Shift selection or moving by word,
+do not take effect.
+
 Three paths that could carry frame content into the page are closed separately:
 
 - Builds with closed roots draw result text as CSS generated content from an attribute,

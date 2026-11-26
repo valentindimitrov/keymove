@@ -16,6 +16,7 @@ type SearchInputProps = {
   updateSearchText: (value: string) => void;
   inputRef: React.RefObject<HTMLInputElement | null>;
   onBlur: React.FocusEventHandler<HTMLInputElement>;
+  onCopyCancelled?: () => void;
 };
 
 function stopKeyboardPropagation(event: React.KeyboardEvent<HTMLInputElement>) {
@@ -45,6 +46,27 @@ function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
   }
 }
 
+/** Where Left, Right, Home or End, without Shift, put the caret in `input`; else null. */
+function caretForKey(input: HTMLInputElement, key: string, shift: boolean): number | null {
+  if (shift) return null;
+  const { value } = input;
+  const start = input.selectionStart ?? value.length;
+  const end = input.selectionEnd ?? start;
+  if (key === 'Home') return 0;
+  if (key === 'End') return value.length;
+  if (key === 'ArrowLeft') {
+    if (start !== end) return start;
+    const last = Array.from(value.slice(0, start)).pop();
+    return start - (last?.length ?? 0);
+  }
+  if (key === 'ArrowRight') {
+    if (start !== end) return end;
+    const next = Array.from(value.slice(end))[0];
+    return end + (next?.length ?? 0);
+  }
+  return null;
+}
+
 /** The value and caret a typed character, Backspace or Delete leaves in `input`. */
 function editForKey(input: HTMLInputElement, key: string) {
   const { value } = input;
@@ -72,8 +94,15 @@ const restoreSelection = trusted((event: React.SyntheticEvent<HTMLInputElement>)
 );
 
 const SearchInput = (props: SearchInputProps) => {
-  const { searchText, updateSearchText, inputRef, onBlur, suggestionCount, activeSuggestionIndex } =
-    props;
+  const {
+    searchText,
+    updateSearchText,
+    inputRef,
+    onBlur,
+    onCopyCancelled,
+    suggestionCount,
+    activeSuggestionIndex,
+  } = props;
 
   // A page shortcut handler sees only KeyMove's host, the whole of a closed root, and can
   // cancel a key typed here as if it were page input. Page handlers that run in the capture
@@ -88,12 +117,26 @@ const SearchInput = (props: SearchInputProps) => {
         !isTrustedInput(event) ||
         !native.defaultPrevented ||
         isHandledByKeyMove(native) ||
-        native.isComposing ||
-        event.ctrlKey ||
-        event.metaKey ||
-        event.altKey
+        native.isComposing
       )
         return;
+      // Copying: the cancelled keystroke also stopped the copy event KeyMove serves.
+      if (
+        (event.ctrlKey || event.metaKey) &&
+        !event.altKey &&
+        !event.shiftKey &&
+        event.key.toLowerCase() === 'c'
+      ) {
+        onCopyCancelled?.();
+        return;
+      }
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      const caret = caretForKey(event.currentTarget, event.key, event.shiftKey);
+      if (caret !== null) {
+        event.currentTarget.setSelectionRange(caret, caret);
+        return;
+      }
+      if (event.shiftKey && Array.from(event.key).length !== 1) return;
       const edit = editForKey(event.currentTarget, event.key);
       if (!edit) return;
       const input = event.currentTarget;
@@ -101,7 +144,7 @@ const SearchInput = (props: SearchInputProps) => {
       input.setSelectionRange(edit.caret, edit.caret);
       updateSearchText(edit.value);
     },
-    [updateSearchText],
+    [updateSearchText, onCopyCancelled],
   );
 
   // Page script cannot reach this input in shipped builds, whose root is closed, but can in

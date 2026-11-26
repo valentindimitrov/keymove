@@ -1,7 +1,7 @@
 import React from 'react';
 import { keyboardShortcuts } from '../lib/static_data.js';
 import Utils from '../lib/utils.js';
-import { isHandledByKeyMove, isTrustedInput, markHandledByKeyMove } from '../lib/trusted_input.js';
+import { isHandledByKeyMove, isTrustedInput } from '../lib/trusted_input.js';
 import {
   DEFAULT_OPENING_SHORTCUT,
   matchesOpeningShortcut,
@@ -72,7 +72,6 @@ const useKeyboardShortcuts = (
       const matchingShortcut = findShortcutMatchingEvent(event);
       if (matchingShortcut && matchingShortcut.name) {
         handleShortcut(matchingShortcut.name, event);
-        if (event.defaultPrevented) markHandledByKeyMove(event);
       }
     },
     [handleShortcut, findShortcutMatchingEvent],

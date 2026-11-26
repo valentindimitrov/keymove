@@ -138,7 +138,7 @@ test('keyboard navigation, selection, copying and activation work through the cl
       'keydown',
       event => {
         if (
-          ['j', 's', 'Backspace'].includes(event.key) &&
+          ['j', 's', 'c', 'Backspace', 'ArrowLeft'].includes(event.key) &&
           !(event.composedPath()[0] instanceof HTMLInputElement) &&
           !(event.composedPath()[0] instanceof HTMLTextAreaElement)
         )
@@ -157,12 +157,20 @@ test('keyboard navigation, selection, copying and activation work through the cl
   await page.keyboard.press('Backspace');
   await expect.poll(() => queryText(page)).toBe('otter');
   await expect.poll(() => statusText(page)).toMatch(/^Text 1 \/ 4$/);
+  // Caret keys still move within the query.
+  await page.keyboard.press('ControlOrMeta+a');
+  await page.keyboard.type('ottr');
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.type('e');
+  await expect.poll(() => queryText(page)).toBe('otter');
+  await expect.poll(() => statusText(page)).toMatch(/^Text 1 \/ 4$/);
   // Tab reaches KeyMove's shortcut handler from the closed root and selects frame text.
   await page.keyboard.press('Tab');
   await expect
     .poll(() => local.locator('body').evaluate(() => getSelection()?.toString()))
     .toBe('local otter paragraph to copy.');
-  // Copying from KeyMove's input copies the selected block.
+  // Copying from KeyMove's input copies the selected block, even though the page cancels
+  // the keystroke.
   await page.keyboard.press('ControlOrMeta+c');
   await page.evaluate(() => {
     const target = document.createElement('textarea');
