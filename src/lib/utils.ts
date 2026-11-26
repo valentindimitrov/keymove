@@ -213,9 +213,15 @@ function scrollToNodeAtIndexInList(nodeList: readonly Element[], selectedIndex: 
         box.scrollIntoView({ block: nearViewportEdge ? 'center' : 'nearest', inline: 'nearest' });
         return;
       }
-      let ancestor = renderedParent(selectedMatchingNode);
-      while (ancestor && !ancestor.getClientRects().length) ancestor = renderedParent(ancestor);
-      ancestor?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      // Scroll each scrolling ancestor, innermost first, until the text is inside it.
+      for (let area = renderedParent(selectedMatchingNode); area; area = renderedParent(area)) {
+        const { overflowY } = getComputedStyle(area);
+        if (!/auto|scroll/.test(overflowY) || area.scrollHeight <= area.clientHeight) continue;
+        const text = elementBox(selectedMatchingNode);
+        const bounds = area.getBoundingClientRect();
+        if (text.top < bounds.top || text.bottom > bounds.bottom)
+          area.scrollTop += text.top + text.height / 2 - (bounds.top + bounds.height / 2);
+      }
       const moved = elementBox(selectedMatchingNode);
       if (moved.top < contextMargin || moved.bottom > viewportHeight - contextMargin)
         window.scrollBy({

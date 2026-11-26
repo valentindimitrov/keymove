@@ -474,18 +474,30 @@ test('reaches boxless links inside scrolling panels and hidden wrappers', async 
   await page.goto('shadow.html');
   await expect(page.locator('#keymove-bar')).toHaveAttribute('data-always-on', 'true');
   await page.evaluate(() => {
-    const sidebar = document.createElement('aside');
-    sidebar.id = 'sidebar';
-    sidebar.style.cssText = 'height:240px;overflow-y:auto';
-    sidebar.innerHTML =
-      '<div style="height:1000px"></div>' +
-      '<a href="#side" style="display: contents"><span id="side">Quokka sidebar</span></a>';
+    const panel = (id: string, link: string) => {
+      const aside = document.createElement('aside');
+      aside.id = id;
+      aside.style.cssText = 'height:240px;overflow-y:auto';
+      aside.innerHTML = `<div style="height:1000px"></div>${link}`;
+      return aside;
+    };
+    // A link with only text, and one whose first box is a tooltip hidden at opacity 0.
+    const text = panel(
+      'text-panel',
+      '<a id="text-link" href="#text" style="display: contents">Quokka sidebar</a>',
+    );
+    const labelled = panel(
+      'label-panel',
+      '<a href="#label" style="display: contents">' +
+        '<span style="position:fixed;top:0;left:0;opacity:0">Tip</span>' +
+        '<span id="label">Quokka label</span></a>',
+    );
     // The label renders: a descendant can make text visible inside a hidden wrapper.
     const help = document.createElement('p');
     help.innerHTML =
       '<a href="#help" style="display: contents"><span style="visibility:hidden">' +
       '<span style="visibility:visible">Quokka help</span></span></a>';
-    document.body.prepend(sidebar, help);
+    document.body.prepend(text, labelled, help);
   });
   await page.keyboard.press('Alt+f');
   const input = page.getByRole('combobox', { name: 'Search page', exact: true });
@@ -493,20 +505,29 @@ test('reaches boxless links inside scrolling panels and hidden wrappers', async 
   const status = page.getByRole('status');
   await expect(status).toHaveText(/^(Text|Actions) \d+ \/ \d+$/);
   if ((await status.innerText()).startsWith('Text')) await input.press('Alt+s');
-  await expect(status).toHaveText('Actions 1 / 2');
-  // Explicitly selecting the sidebar link scrolls the sidebar itself to show it.
-  await input.press('Tab');
-  await input.press('Shift+Tab');
-  await expect(status).toHaveText('Actions 1 / 2');
-  await expect
-    .poll(() =>
-      page.evaluate(() => {
-        const sidebar = document.getElementById('sidebar')!.getBoundingClientRect();
-        const link = document.getElementById('side')!.getBoundingClientRect();
-        return link.top >= sidebar.top && link.bottom <= sidebar.bottom;
-      }),
-    )
-    .toBe(true);
+  await expect(status).toHaveText('Actions 1 / 3');
+  const insidePanel = (panelId: string, target: string) =>
+    page.evaluate(
+      ([panelId, target]) => {
+        const panel = document.getElementById(panelId!)!.getBoundingClientRect();
+        const element = document.getElementById(target!)!;
+        const range = document.createRange();
+        range.selectNodeContents(element);
+        const box = range.getBoundingClientRect();
+        return box.top >= panel.top && box.bottom <= panel.bottom;
+      },
+      [panelId, target],
+    );
+  // Explicitly selecting each link scrolls its own panel to show it. Actions are ranked,
+  // so step through all three and check each panel once its link has been selected.
+  const reached = { text: false, label: false };
+  for (let step = 0; step < 3; step++) {
+    await input.press('Tab');
+    await page.waitForTimeout(150);
+    reached.text ||= await insidePanel('text-panel', 'text-link');
+    reached.label ||= await insidePanel('label-panel', 'label');
+  }
+  expect(reached).toEqual({ text: true, label: true });
 });
 
 test('stays out of XML documents such as sitemaps without reporting errors', async ({ page }) => {

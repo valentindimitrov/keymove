@@ -277,9 +277,10 @@ function firstVisibleBox(element: Element, cache: StyleCache = new WeakMap()): E
     if (!(child instanceof Element)) continue;
     const style = computedStyle(child, cache);
     if (style.display === 'none') continue;
+    // A box that is invisible, such as a tooltip at opacity 0, is no place to scroll to.
     if (
       style.display !== 'contents' &&
-      style.visibility === 'visible' &&
+      isTextVisible(child, cache) &&
       child.getClientRects().length
     )
       return child;
