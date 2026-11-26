@@ -252,6 +252,8 @@ class PageSearchIndex {
   // Blocks some candidate's owned text left out. They own their inline text even without
   // a text node of their own, so they can be text results.
   private ownedBlocks = new WeakSet<Element>();
+  // The block, if any, each inline ancestor's text belongs to, for the current search.
+  private ownerBlocks = new WeakMap<Element, Element | null>();
   // Left-out blocks indexed only for that reason, not as candidates in their own right.
   private readonly lazyBlocks = new Set<Element>();
   private subtreeRevision = 0;
@@ -572,6 +574,7 @@ class PageSearchIndex {
     for (const block of this.lazyBlocks) this.records.delete(block);
     this.lazyBlocks.clear();
     this.ownedBlocks = new WeakSet();
+    this.ownerBlocks = new WeakMap();
     const collector: MatchCollector = {
       styles: new WeakMap(),
       modal: activeModal(),
@@ -799,13 +802,32 @@ class PageSearchIndex {
       !isInlineLevel(computedStyle(node, styles).display)
     )
       return null;
+    // Inline siblings share their ancestors, so each ancestor is resolved once a search.
+    const visited: Element[] = [];
+    let owner: Element | null = null;
     for (let parent = renderedParent(node); parent; parent = renderedParent(parent)) {
-      if (this.records.has(parent) || isKeyMoveNode(parent)) return null;
-      if (isSeparateBlock(parent, computedStyle(parent, styles).display)) {
-        return parent === document.documentElement ? null : parent;
+      const known = this.ownerBlocks.get(parent);
+      if (known !== undefined) {
+        owner = known;
+        break;
+      }
+      visited.push(parent);
+      const display = computedStyle(parent, styles).display;
+      // A record holds this text, unless it has no box and so is never scanned itself.
+      if (this.records.has(parent) && display !== 'contents') break;
+      if (isSeparateBlock(parent, display)) {
+        // Selecting the page's root would take in the whole page and its actions.
+        const isRoot =
+          parent === this.root ||
+          parent === document.body ||
+          parent === document.documentElement ||
+          isKeyMoveRoot(parent);
+        if (!isRoot) owner = parent;
+        break;
       }
     }
-    return null;
+    for (const element of visited) this.ownerBlocks.set(element, owner);
+    return owner;
   }
 
   /**

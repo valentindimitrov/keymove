@@ -586,6 +586,27 @@ describe('text owned by a node', () => {
     ).toEqual([document.querySelector('b')]);
   });
 
+  test('never makes the page root a result for inline phrases directly inside it', async () => {
+    document.body.innerHTML =
+      '<span>Free </span><b>shipping</b><main><a href="/account">Account</a></main>';
+    index = new PageSearchIndex();
+    expect((await index.search(scorerFor('free shipping'))).matchingText).toEqual([]);
+  });
+
+  test('finds a phrase through a wrapper laid out with display: contents', async () => {
+    document.body.innerHTML =
+      '<section><div id="block"><span style="display: contents">Free <b>shipping</b></span></div></section>';
+    // Browsers give a display: contents element no box of its own; jsdom has no layout.
+    const wrapper = document.querySelector('span')!;
+    Object.defineProperty(wrapper, 'offsetWidth', { value: 0 });
+    Object.defineProperty(wrapper, 'offsetHeight', { value: 0 });
+    wrapper.getClientRects = () => ({ length: 0 }) as DOMRectList;
+    index = new PageSearchIndex();
+    expect(
+      (await index.search(scorerFor('free shipping'))).matchingText.map(match => match.node),
+    ).toEqual([document.getElementById('block')]);
+  });
+
   test('keeps a block whose own phrase is separate from a matching nested block', async () => {
     document.body.innerHTML =
       '<div>Intro <div id="own"><span>Total </span><b>revenue</b>' +
