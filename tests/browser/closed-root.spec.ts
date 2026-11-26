@@ -137,7 +137,11 @@ test('keyboard navigation, selection, copying and activation work through the cl
     window.addEventListener(
       'keydown',
       event => {
-        if (event.key === 'j' && !(event.composedPath()[0] instanceof HTMLInputElement))
+        if (
+          ['j', 's', 'Backspace'].includes(event.key) &&
+          !(event.composedPath()[0] instanceof HTMLInputElement) &&
+          !(event.composedPath()[0] instanceof HTMLTextAreaElement)
+        )
           event.preventDefault();
       },
       true,
@@ -147,7 +151,11 @@ test('keyboard navigation, selection, copying and activation work through the cl
   await page.keyboard.type('jotter');
   await expect.poll(() => queryText(page)).toBe('jotter');
   await page.keyboard.press('ControlOrMeta+a');
-  await page.keyboard.type('otter');
+  await page.keyboard.type('otters');
+  await expect.poll(() => queryText(page)).toBe('otters');
+  // A recovered Backspace edits the query, and the search follows it.
+  await page.keyboard.press('Backspace');
+  await expect.poll(() => queryText(page)).toBe('otter');
   await expect.poll(() => statusText(page)).toMatch(/^Text 1 \/ 4$/);
   // Tab reaches KeyMove's shortcut handler from the closed root and selects frame text.
   await page.keyboard.press('Tab');

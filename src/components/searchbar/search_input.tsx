@@ -45,6 +45,27 @@ function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
   }
 }
 
+/** The value and caret a typed character, Backspace or Delete leaves in `input`. */
+function editForKey(input: HTMLInputElement, key: string) {
+  const { value } = input;
+  const start = input.selectionStart ?? value.length;
+  const end = input.selectionEnd ?? start;
+  if (Array.from(key).length === 1)
+    return { value: value.slice(0, start) + key + value.slice(end), caret: start + key.length };
+  if (key !== 'Backspace' && key !== 'Delete') return null;
+  if (start !== end) return { value: value.slice(0, start) + value.slice(end), caret: start };
+  // Whole characters, so a supplementary character is never split.
+  if (key === 'Backspace') {
+    const before = Array.from(value.slice(0, start));
+    const removed = before.pop();
+    if (removed === undefined) return null;
+    return { value: before.join('') + value.slice(end), caret: start - removed.length };
+  }
+  const after = Array.from(value.slice(end));
+  if (after.shift() === undefined) return null;
+  return { value: value.slice(0, start) + after.join(''), caret: start };
+}
+
 // Editing hands the caret back to the input, dropping the result block's native selection.
 const restoreSelection = trusted((event: React.SyntheticEvent<HTMLInputElement>) =>
   Utils.restoreInputSelection(event.currentTarget),
@@ -55,8 +76,10 @@ const SearchInput = (props: SearchInputProps) => {
     props;
 
   // A page shortcut handler sees only KeyMove's host, the whole of a closed root, and can
-  // cancel a character typed here as if it were page input. Page handlers that run in the
-  // capture phase come first, so a cancelled character KeyMove did not take is typed here.
+  // cancel a key typed here as if it were page input. Page handlers that run in the capture
+  // phase come first, so a cancelled character, Backspace or Delete that KeyMove did not
+  // take is applied here. The value is assigned through `value`, which React tracks, so its
+  // next change event still fires.
   const onKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLInputElement>) => {
       handleKeyDown(event);
@@ -68,20 +91,21 @@ const SearchInput = (props: SearchInputProps) => {
         native.isComposing ||
         event.ctrlKey ||
         event.metaKey ||
-        event.altKey ||
-        Array.from(event.key).length !== 1
+        event.altKey
       )
         return;
+      const edit = editForKey(event.currentTarget, event.key);
+      if (!edit) return;
       const input = event.currentTarget;
-      const start = input.selectionStart ?? input.value.length;
-      input.setRangeText(event.key, start, input.selectionEnd ?? start, 'end');
-      updateSearchText(input.value);
+      input.value = edit.value;
+      input.setSelectionRange(edit.caret, edit.caret);
+      updateSearchText(edit.value);
     },
     [updateSearchText],
   );
 
-  // Page script can set this input's value and dispatch input events through the open
-  // shadow root. React restores the controlled value when the handler ignores them.
+  // Page script cannot reach this input in shipped builds, whose root is closed, but can in
+  // test builds; React restores the controlled value when the handler ignores its events.
   const onSearchTextChange = React.useMemo(
     () =>
       trusted((event: React.ChangeEvent<HTMLInputElement>) => updateSearchText(event.target.value)),
