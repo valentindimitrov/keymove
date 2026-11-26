@@ -447,6 +447,26 @@ const Searchbar = () => {
     }, SCROLL_OR_RESIZE_UPDATE_TIMEOUT_DURATION);
   }, []);
 
+  // Scrolling inside an element moves the matches in it too. It refreshes outlines at most
+  // once per interval and leaves them shown: a carousel that never stops scrolling would
+  // otherwise keep them hidden, or never let a debounced refresh run.
+  const innerScrollRefresh = React.useRef<number | undefined>(undefined);
+  const handleScroll = React.useCallback(
+    (event: Event) => {
+      if (event.target === document || event.target === document.documentElement) {
+        updateSelectionPositionsAfterTimeout();
+        return;
+      }
+      if (innerScrollRefresh.current !== undefined) return;
+      innerScrollRefresh.current = window.setTimeout(() => {
+        innerScrollRefresh.current = undefined;
+        setScrollOrResizeRefresh(refresh => !refresh);
+      }, SCROLL_OR_RESIZE_UPDATE_TIMEOUT_DURATION);
+    },
+    [updateSelectionPositionsAfterTimeout],
+  );
+  React.useEffect(() => () => window.clearTimeout(innerScrollRefresh.current), []);
+
   const scheduleSearch = React.useCallback(
     (preserveSelection = false) => {
       if (
@@ -1227,7 +1247,8 @@ const Searchbar = () => {
 
   const shouldBindEvents = isInteractive && (hasActiveMatches || selectedImage !== null);
 
-  useWindowEvent('scroll', shouldBindEvents, updateSelectionPositionsAfterTimeout);
+  // Capture: scroll events from scrolling elements do not bubble to the window.
+  useWindowEvent('scroll', shouldBindEvents, handleScroll, true);
   useWindowEvent('wheel', shouldBindEvents, updateSelectionPositionsAfterTimeout);
   useWindowEvent('resize', shouldBindEvents, updateSelectionPositionsAfterTimeout);
   useDocumentEvent('keydown', typeToSearch, handleKeydown, true);

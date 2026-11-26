@@ -444,6 +444,36 @@ test('draws outlines only near the viewport, following it as the page scrolls', 
   expect((await placement()).count).toBeLessThan(600);
   await page.evaluate(() => window.scrollBy(0, 8000));
   await expect.poll(placement).toMatchObject({ near: true, onScreen: true });
+  // Scrolling inside a panel brings its matches into view; they get outlines too.
+  await page.evaluate(() => {
+    window.scrollTo(0, 0);
+    const panel = document.createElement('div');
+    panel.id = 'panel';
+    panel.style.cssText = 'position:fixed;top:0;left:0;width:400px;height:300px;overflow:auto';
+    panel.innerHTML = '<div style="height:4000px"></div><p id="deep">Quokka deep in a panel</p>';
+    document.body.append(panel);
+  });
+  await page.keyboard.press('Alt+f');
+  await page.keyboard.press('Backspace');
+  await page.keyboard.type('a');
+  await expect(page.getByRole('status')).toHaveText(/\/ 601$/);
+  await expect(page.locator('#keymove-input')).toHaveValue('quokka');
+  // Let the search and its refresh settle, so only the panel's scroll can redraw outlines.
+  await page.waitForTimeout(500);
+  await page.evaluate(() => {
+    document.getElementById('panel')!.scrollTop = 4000;
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const deep = document.getElementById('deep')!.getBoundingClientRect();
+        const root = document.getElementById('keymove-root')!.shadowRoot!;
+        return [...root.querySelectorAll('.keymove-selection')].some(
+          outline => Math.abs(outline.getBoundingClientRect().top - (deep.top - 7)) < 2,
+        );
+      }),
+    )
+    .toBe(true);
 });
 
 test('stays out of XML documents such as sitemaps without reporting errors', async ({ page }) => {
