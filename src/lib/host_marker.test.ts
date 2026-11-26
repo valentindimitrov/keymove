@@ -1,6 +1,10 @@
 import { KEYMOVE_ROOT_ID } from '../constants.js';
 import createExtensionRoot from './create_extension_root.js';
-import { removeStaleKeyMoveHosts, signKeyMoveHost } from './host_marker.js';
+import {
+  removeStaleKeyMoveHosts,
+  removeStaleKeyMoveHostsInShadowRoots,
+  signKeyMoveHost,
+} from './host_marker.js';
 
 const SECRET = '0123456789abcdef0123456789abcdef';
 
@@ -64,6 +68,46 @@ test('removes a host signed by an earlier copy of this extension, never the curr
   expect(hosts()).toEqual([stale, current]);
   expect(removeStaleKeyMoveHosts(SECRET, read)).toBe(1);
   expect(hosts()).toEqual([current]);
+});
+
+test('removes a stale host that had moved into a modal inside an open shadow root', async () => {
+  const stale = await leftByPreviousCopy();
+  await settle();
+  const component = document.createElement('checkout-dialog');
+  document.body.append(component);
+  const dialog = document.createElement('div');
+  dialog.setAttribute('role', 'dialog');
+  component.attachShadow({ mode: 'open' }).append(dialog);
+  dialog.append(stale);
+  // A page component that happens to use KeyMove's id is entered like any other.
+  component.id = KEYMOVE_ROOT_ID;
+  expect(removeStaleKeyMoveHosts(SECRET, read)).toBe(0);
+  expect(await removeStaleKeyMoveHostsInShadowRoots(SECRET, read)).toBe(1);
+  expect(stale.isConnected).toBe(false);
+  expect(component.isConnected).toBe(true);
+});
+
+test('the shadow-root walk yields on large pages and stops once the copy has gone', async () => {
+  const stale = await leftByPreviousCopy();
+  await settle();
+  const filler = document.createElement('div');
+  filler.innerHTML = '<span></span>'.repeat(5000);
+  document.body.prepend(filler);
+  const component = document.createElement('checkout-dialog');
+  component.attachShadow({ mode: 'open' }).append(stale);
+  document.body.append(component);
+  let checks = 0;
+  const alive = () => ++checks < 2;
+  expect(await removeStaleKeyMoveHostsInShadowRoots(SECRET, read, alive)).toBe(0);
+  expect(checks).toBe(2);
+  expect(stale.isConnected).toBe(true);
+  // The page replaces the part of the tree the walk paused in; it still reaches the rest.
+  const cleanup = removeStaleKeyMoveHostsInShadowRoots(SECRET, read, () => {
+    filler.remove();
+    return true;
+  });
+  expect(await cleanup).toBe(1);
+  expect(stale.isConnected).toBe(false);
 });
 
 test('keeps page elements, whatever shape or marker they copy', async () => {
