@@ -82,6 +82,42 @@ test('discards superseded responses, retains current handles, and releases hidde
   vi.restoreAllMocks();
 });
 
+test('searches answering frames first, so frames that never answer do not hold them up', async () => {
+  const frames = [0, 1, 2].map(() => {
+    const frame = document.createElement('iframe');
+    document.body.append(frame);
+    vi.spyOn(frame, 'getClientRects').mockReturnValue([
+      { width: 100, height: 100 },
+    ] as unknown as DOMRectList);
+    return frame;
+  });
+  const searched: number[] = [];
+  transport.send.mockImplementation(
+    (message: { frameId: number; request: { op: string; generation: string } }) => {
+      if (message.request.op !== 'search') return Promise.resolve(true);
+      searched.push(message.frameId);
+      return Promise.resolve({ generation: message.request.generation, rows: [], isFuzzy: false });
+    },
+  );
+  // Only the last frame answers the probe; the first two, like data: frames, never do.
+  vi.spyOn(frames[2]!.contentWindow!, 'postMessage').mockImplementation(
+    (message: { token: string }) => {
+      const listener = transport.add.mock.calls.at(-1)![0];
+      listener(
+        { type: FRAME_MESSAGE, kind: 'ready', token: message.token, frameId: 9 },
+        { id: 'test' },
+      );
+    },
+  );
+  const coordinator = new FrameSearch(vi.fn());
+  void coordinator.search('otter', new AbortController().signal, vi.fn());
+  await vi.waitFor(() => expect(searched).toEqual([9]), { timeout: 200 });
+  coordinator.stop();
+  for (const frame of frames) frame.remove();
+  vi.restoreAllMocks();
+  transport.send.mockReset();
+});
+
 test('paints a frame with the generation it currently holds, so later clears land', async () => {
   const frame = document.createElement('iframe');
   document.body.append(frame);

@@ -99,16 +99,35 @@ export class FrameSearch {
         entry.frame.contentWindow?.postMessage({ type: FRAME_PROBE, token: entry.token }, '*');
   };
 
+  // Every result row checks its frame, several times in one merge, and the modal lookup
+  // queries the whole document. Answers hold until the current task ends.
+  private eligibility: Map<HTMLIFrameElement, boolean> | null = null;
+  private modal: Element | null = null;
+
   private eligible(frame: HTMLIFrameElement) {
-    return (
-      frame.isConnected &&
-      isTextVisible(frame) &&
-      frame.getClientRects().length > 0 &&
-      actionIsInScope(frame, activeModal())
-    );
+    if (!this.eligibility) {
+      this.eligibility = new Map();
+      this.modal = activeModal();
+      queueMicrotask(() => {
+        this.eligibility = null;
+        this.modal = null;
+      });
+    }
+    let eligible = this.eligibility.get(frame);
+    if (eligible === undefined) {
+      eligible =
+        frame.isConnected &&
+        isTextVisible(frame) &&
+        frame.getClientRects().length > 0 &&
+        actionIsInScope(frame, this.modal);
+      this.eligibility.set(frame, eligible);
+    }
+    return eligible;
   }
 
   private discover() {
+    // Discovery runs once a search and always reads the page as it is now.
+    this.eligibility = null;
     const frames = [document, ...pageShadowRoots()]
       .flatMap(root => [...root.querySelectorAll('iframe')])
       .filter(frame => this.eligible(frame));
@@ -153,6 +172,9 @@ export class FrameSearch {
       this.entries.set(frame, entry);
       frame.addEventListener('load', entry.load);
       frame.contentWindow?.postMessage({ type: FRAME_PROBE, token: entry.token }, '*');
+      // Frames that never answer, such as data: frames, time out together from discovery
+      // rather than one after another in the search slots.
+      setTimeout(readiness.resolve, 1500);
     }
     return [...this.entries.values()];
   }
@@ -266,12 +288,18 @@ export class FrameSearch {
     const results = entries.map(entry =>
       entry.cached?.query === query ? entry.cached.result : empty(),
     );
+    // Frames known to answer go first, so ones still loading or never answering do not
+    // hold up their results. Results keep document order through their index.
+    const order = entries
+      .map((entry, index) => ({ index, waiting: entry.frameId === undefined }))
+      .sort((left, right) => Number(left.waiting) - Number(right.waiting))
+      .map(({ index }) => index);
     let next = 0;
     // Bound fan-out rather than giving every iframe a simultaneous work budget.
     await Promise.all(
       Array.from({ length: Math.min(2, entries.length) }, async () => {
         while (next < entries.length && !signal.aborted) {
-          const index = next++;
+          const index = order[next++]!;
           const entry = entries[index]!;
           entry.cancel?.();
           const generation = crypto.randomUUID();

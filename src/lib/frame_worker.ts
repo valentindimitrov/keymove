@@ -58,7 +58,7 @@ export function installFrameWorker(alive: () => boolean = () => true) {
   let textMatchesQuery = '';
   let nestedResults: SearchResult[] = [];
   let marks: HTMLElement | null = null;
-  let lastPaint: Extract<FrameRequest, { op: 'paint' }> | null = null;
+  const outlines = new Map<Element, HTMLElement>();
   let clearChildren = () => {};
   let clearHighlights = () => {};
   let changeTimer: ReturnType<typeof setTimeout> | undefined;
@@ -110,23 +110,24 @@ export function installFrameWorker(alive: () => boolean = () => true) {
     }
     return id;
   }
-  function available(node: Element | undefined) {
-    return resultIsConnected(node) && isTextVisible(node) && actionIsInScope(node, activeModal());
+  function available(node: Element | undefined, modal = activeModal()) {
+    return resultIsConnected(node) && isTextVisible(node) && actionIsInScope(node, modal);
   }
   function clearMarks() {
     clearHighlights();
     clearHighlights = () => {};
     marks?.remove();
     marks = null;
-    lastPaint = null;
+    outlines.clear();
     clearChildren();
   }
   function paint(request: Extract<FrameRequest, { op: 'paint' }>) {
     clearMarks();
-    lastPaint = request;
+    // One modal lookup for the whole paint: it queries the document, and results can be many.
+    const modal = activeModal();
     const matching = request.ids.flatMap(id => {
       const node = nodes.get(id);
-      return available(node) ? [node!] : [];
+      return available(node, modal) ? [node!] : [];
     });
     const selected = request.selected === null ? null : (nodes.get(request.selected) ?? null);
     clearChildren = paintFrameTargets(matching, selected, request.color, request.highlight);
@@ -180,21 +181,36 @@ export function installFrameWorker(alive: () => boolean = () => true) {
     const shadow = marks.attachShadow({ mode: 'open' });
     signKeyMoveHost(shadow);
     for (const node of local) {
-      const rect = node.getBoundingClientRect();
-      if (!rect.width || !rect.height) continue;
       const outline = document.createElement('div');
       const current = node === selected || node === selectedImage;
       outline.className = current
         ? 'keymove-selection keymove-selected-selection'
         : 'keymove-selection';
-      outline.style.cssText = `position:fixed;box-sizing:border-box;pointer-events:none;border:2px solid ${current ? request.color : rgbaForHexColor(request.color, 0.4)};border-radius:5px;left:${rect.left - 4}px;top:${rect.top - 4}px;width:${rect.width + 8}px;height:${rect.height + 8}px;`;
+      outline.style.cssText = `position:fixed;box-sizing:border-box;pointer-events:none;border:2px solid ${current ? request.color : rgbaForHexColor(request.color, 0.4)};border-radius:5px;`;
       if (current) outline.style.backgroundColor = rgbaForHexColor(request.color, 0.16);
+      placeOutline(outline, node);
+      outlines.set(node, outline);
       shadow.append(outline);
     }
-    (activeModal() ?? document.documentElement).append(marks);
+    (modal ?? document.documentElement).append(marks);
   }
+  function placeOutline(outline: HTMLElement, node: Element) {
+    const rect = node.getBoundingClientRect();
+    outline.hidden = !rect.width || !rect.height;
+    outline.style.left = `${rect.left - 4}px`;
+    outline.style.top = `${rect.top - 4}px`;
+    outline.style.width = `${rect.width + 8}px`;
+    outline.style.height = `${rect.height + 8}px`;
+  }
+  // Scrolling and resizing move outlines but change nothing else, so they only reposition
+  // them, once per frame, leaving highlights, styles and nested frames alone.
+  let repositionFrame = 0;
   const refreshPaint = () => {
-    if (lastPaint) paint(lastPaint);
+    if (!marks || repositionFrame) return;
+    repositionFrame = requestAnimationFrame(() => {
+      repositionFrame = 0;
+      for (const [node, outline] of outlines) placeOutline(outline, node);
+    });
   };
   async function serialize(result: SearchResult, signal: AbortSignal): Promise<FrameRow[]> {
     const currentNodes = new Map<number, Element>();
@@ -546,6 +562,7 @@ export function installFrameWorker(alive: () => boolean = () => true) {
     document.removeEventListener('keydown', key, true);
     window.removeEventListener('scroll', refreshPaint, true);
     window.removeEventListener('resize', refreshPaint);
+    cancelAnimationFrame(repositionFrame);
     window.removeEventListener('pagehide', pagehide);
   };
 }
