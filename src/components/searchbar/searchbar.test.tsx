@@ -16,6 +16,7 @@ import { MODAL_CHANGED_EVENT } from '../../lib/modal_context.js';
 import { stopFrameSearch } from '../../lib/find_in_page.js';
 import { RelatedImageSelection } from '../../lib/related_images.js';
 import { setFrameTarget } from '../../lib/frame_target.js';
+import type { FrameCommand } from '../../lib/frame_protocol.js';
 import { acceptSyntheticInputForTesting } from '../../lib/trusted_input.js';
 
 const searchMocks = vi.hoisted(() => ({
@@ -272,6 +273,68 @@ test('starts frame-text copying in the input event and retains a reopened menu a
     await act(async () => pending.resolve('Validated frame report'));
     vi.unstubAllGlobals();
   }
+});
+
+test('opens the current iframe link address unless a newer query arrived meanwhile', async () => {
+  const boundary = document.createElement('iframe');
+  document.body.append(boundary);
+  const link = document.createElement('a');
+  link.href = 'https://example.com/draft';
+  const replies: PromiseWithResolvers<unknown>[] = [];
+  const command = vi.fn((operation: FrameCommand) => {
+    if (operation !== 'link') return Promise.resolve(true);
+    replies.push(Promise.withResolvers<unknown>());
+    return replies.at(-1)!.promise;
+  });
+  setFrameTarget(link, {
+    boundary,
+    alive: () => boundary.isConnected,
+    command,
+    paint: vi.fn(),
+    row: {
+      id: 1,
+      kind: 'action',
+      action: null,
+      label: 'Quokka notes',
+      text: 'Quokka notes',
+      context: 'link',
+      href: 'https://example.com/draft',
+      disabled: false,
+      focusable: true,
+      score: 1,
+      term: 'quokka',
+      distance: null,
+    },
+  });
+  settingsMocks.startInActionMode = true;
+  searchMocks.findMatches.mockResolvedValue(makeSearchResult({ matchingLinksAndButtons: [link] }));
+  render(<Searchbar />);
+  const input = screen.getByRole('combobox', { name: 'Search page' });
+  input.focus();
+  fireEvent.input(input, { target: { value: 'quokka' } });
+  await flushSearch();
+
+  fireEvent.keyDown(input, { key: 'Enter', code: 'Enter', shiftKey: true });
+  expect(command).toHaveBeenLastCalledWith('link');
+  // The owning frame reports the address as it is now, not as the search saw it.
+  await act(async () => replies[0]!.resolve('https://example.com/published'));
+  expect(searchMocks.sendMessage).toHaveBeenLastCalledWith({
+    type: 'KEYMOVE_OPEN_LINK_IN_NEW_TAB',
+    url: 'https://example.com/published',
+    active: true,
+  });
+  expect(input).toHaveValue('');
+
+  searchMocks.sendMessage.mockClear();
+  fireEvent.input(input, { target: { value: 'quokka' } });
+  await flushSearch();
+  fireEvent.keyDown(input, { key: 'Enter', code: 'Enter', shiftKey: true });
+  fireEvent.input(input, { target: { value: 'quokka notes' } });
+  await act(async () => replies[1]!.resolve('https://example.com/published'));
+  // The user moved on before the reply; neither a tab nor a reset follows.
+  expect(searchMocks.sendMessage).not.toHaveBeenCalled();
+  expect(input).toHaveValue('quokka notes');
+  await flushSearch();
 });
 
 test('selects a related image on demand, offers image actions, then restores text and query', async () => {

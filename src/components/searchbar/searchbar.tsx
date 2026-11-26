@@ -26,6 +26,7 @@ import { isImageDirection, isImageInfo } from '../../lib/image_schema.js';
 import ImageViewer from './image_viewer.js';
 
 import Utils from '../../lib/utils.js';
+import { normalizedOpenableLinkUrl } from '../../lib/extension_tabs.js';
 import { hasUserActivation, isOwnEvent, isTrustedInput } from '../../lib/trusted_input.js';
 import { isActionDisabled } from '../../lib/searchable_attributes.js';
 import { activeModal, actionIsInScope, MODAL_CHANGED_EVENT } from '../../lib/modal_context.js';
@@ -280,6 +281,9 @@ const Searchbar = () => {
       // Child frames run relayed commands without activation of their own, so the gesture
       // is checked here, in the frame that received the input, before any command is sent.
       if (!hasUserActivation()) return;
+      // Frame commands are awaited; a query typed meanwhile must not be reset by them.
+      const query = previousSearchText.current;
+      const superseded = () => previousSearchText.current !== query;
       if (selectedImage) {
         event?.preventDefault();
         event?.stopPropagation();
@@ -294,6 +298,7 @@ const Searchbar = () => {
             active: activation === 'foreground-tab',
           });
         }
+        if (superseded()) return;
         resetSearchTextAndMatches();
         if (autoHide) setIsHidden(true);
         return;
@@ -307,7 +312,7 @@ const Searchbar = () => {
         return;
       }
 
-      const linkUrl = Utils.openableLinkUrlForNode(selectedActionNode);
+      let linkUrl = Utils.openableLinkUrlForNode(selectedActionNode);
       if (activation !== 'current' && !linkUrl) {
         return;
       }
@@ -318,11 +323,16 @@ const Searchbar = () => {
       if (activation === 'current') {
         const remote = frameTarget(selectedActionNode);
         if (remote) {
-          if ((await remote.command('activate')) !== true) return;
+          if ((await remote.command('activate')) !== true || superseded()) return;
         } else Utils.clickOrFocusNode(selectedActionNode);
       } else {
         const remote = frameTarget(selectedActionNode);
-        if (remote && (await remote.command('validate')) !== true) return;
+        if (remote) {
+          // The owning frame reports the link's current address; the copy here may be stale.
+          const current = await remote.command('link');
+          linkUrl = typeof current === 'string' ? normalizedOpenableLinkUrl(current) : null;
+          if (!linkUrl || superseded()) return;
+        }
         void browser.runtime
           .sendMessage({
             type: ExtensionMessageTypes.OPEN_LINK_IN_NEW_TAB,
