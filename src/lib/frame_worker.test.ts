@@ -71,6 +71,51 @@ test('routes image selection with live tokens and cleans its frame overlay', asy
     vi.restoreAllMocks();
   }
 });
+test('a new search clears outlines whose clearing paint carries the old generation', async () => {
+  document.body.innerHTML = '<p>otter one</p><p>beaver two</p>';
+  vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(100);
+  vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(100);
+  transport.add.mockClear();
+  const teardown = installFrameWorker();
+  const listener = transport.add.mock.calls[0]![0];
+  const request = (body: FrameRequest): Promise<unknown> =>
+    new Promise(resolve => {
+      listener(
+        { type: FRAME_MESSAGE, kind: 'deliver', requester: 0, request: body },
+        { id: 'test' },
+        resolve,
+      );
+    });
+  const marks = () => document.getElementById('keymove-root');
+  const paint = { op: 'paint' as const, selected: null, color: '#f59e0b', highlight: false };
+  try {
+    const reply = (await request({
+      op: 'search',
+      query: 'otter',
+      generation: 'one',
+      depth: 1,
+    })) as FrameReply;
+    const id = reply.rows.find(row => row.kind === 'text')!.id;
+    await request({ ...paint, generation: 'one', ids: [id], selected: id });
+    expect(marks()).not.toBeNull();
+    // The query moves on; this frame has no rows now, so nothing paints it again.
+    const next = (await request({
+      op: 'search',
+      query: 'otterzzz',
+      generation: 'two',
+      depth: 1,
+    })) as FrameReply;
+    expect(next.rows).toEqual([]);
+    // The top frame's cleanup paint still carries the first generation.
+    expect(await request({ ...paint, generation: 'one', ids: [] })).toBeNull();
+    expect(marks()).toBeNull();
+  } finally {
+    teardown();
+    document.body.innerHTML = '';
+    vi.restoreAllMocks();
+  }
+});
+
 vi.mock('wxt/browser', () => ({
   browser: {
     runtime: {

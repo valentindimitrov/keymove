@@ -294,6 +294,10 @@ export function installFrameWorker(alive: () => boolean = () => true) {
       controller = new AbortController();
       const signal = controller.signal;
       owner = requester;
+      // Paint requests carry the generation they were made for, so the top frame's
+      // clearing paint for an earlier search would be refused here. Marks belong to one
+      // search: clear them, and any frame with results in this one is painted again.
+      if (generation !== request.generation) clearMarks();
       generation = request.generation;
       if (!index || index.root !== document.body) {
         index?.disconnect();
