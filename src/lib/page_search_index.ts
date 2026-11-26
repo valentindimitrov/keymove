@@ -813,7 +813,7 @@ class PageSearchIndex {
     // Controls are results of their own; adjacent ones run together in a block's text.
     if (
       node.matches(TEXT_BLOCK_SELECTOR) ||
-      node.matches(this.actionableSelector) ||
+      isLinkOrButtonOrInput(node) ||
       !isInlineLevel(computedStyle(node, styles).display)
     )
       return null;

@@ -570,12 +570,15 @@ describe('text owned by a node', () => {
   test('finds a phrase in a standalone block that no candidate contains', async () => {
     document.body.innerHTML =
       '<section><div id="block"><span>Free </span><b>shipping</b></div></section>' +
-      '<div id="links"><span>Save </span><a href="#b">settings</a></div>';
+      '<div id="links"><span>Save </span><a href="#b">settings</a></div>' +
+      '<div id="labelled"><label for="address">Billing </label><a href="#help">address</a></div>' +
+      '<input id="address">';
     index = new PageSearchIndex();
     for (const [query, id] of [
       ['free shipping', 'block'],
       ['free shippong', 'block'],
       ['save settings', 'links'],
+      ['billing address', 'labelled'],
     ]) {
       const result = await index.search(scorerFor(query!));
       expect(result.matchingText.map(match => match.node)).toEqual([document.getElementById(id!)]);
