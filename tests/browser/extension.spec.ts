@@ -412,38 +412,60 @@ test('type-to-search leaves typing in an editor inside a closed shadow root alon
   await expect(page.locator('#keymove-input')).toHaveValue('');
 });
 
-test('finds, outlines and activates a link laid out with display: contents', async ({ page }) => {
+test('finds, outlines, scrolls to and activates links laid out with display: contents', async ({
+  page,
+}) => {
   await page.goto('shadow.html');
   await expect(page.locator('#keymove-bar')).toHaveAttribute('data-always-on', 'true');
   await page.evaluate(() => {
+    const spacer = document.createElement('div');
+    spacer.style.height = '3000px';
+    // Below the fold, with a hidden badge far to the side that must not stretch the outline.
     const nav = document.createElement('nav');
-    nav.style.cssText = 'position:absolute;top:300px;left:200px';
-    nav.innerHTML = '<a id="boxless" href="#boxless" style="display: contents">Quokka guide</a>';
+    nav.innerHTML =
+      '<a id="boxless" href="#boxless" style="display: contents">Quokka guide' +
+      '<span style="position:absolute;left:2000px;visibility:hidden">Badge</span></a>' +
+      '<a href="#hidden" aria-label="Quokka hidden" style="display: contents">' +
+      '<span style="visibility:hidden">Hidden</span></a>';
     nav.querySelector('a')!.addEventListener('click', event => {
       event.preventDefault();
       document.body.dataset['boxlessClicked'] = 'yes';
     });
-    document.body.append(nav);
+    // A boxless link around a slot shows the host's light-DOM text.
+    const host = document.createElement('quokka-card');
+    host.textContent = 'Quokka card';
+    host.attachShadow({ mode: 'open' }).innerHTML =
+      '<a href="#card" style="display: contents"><slot></slot></a>';
+    document.body.append(spacer, nav, host);
   });
   await page.keyboard.press('Alt+f');
   const input = page.getByRole('combobox', { name: 'Search page', exact: true });
   await input.pressSequentially('quokka');
   const status = page.getByRole('status');
-  await expect(status).toHaveText(/^(Text|Actions) 1 \/ 1$/);
+  await expect(status).toHaveText(/^(Text|Actions) \d+ \/ \d+$/);
   if ((await status.innerText()).startsWith('Text')) await input.press('Alt+s');
-  await expect(status).toHaveText('Actions 1 / 1');
-  // The selected outline surrounds the link's text, not the corner a boxless element reports.
-  const placement = await page.evaluate(() => {
-    const range = document.createRange();
-    range.selectNodeContents(document.getElementById('boxless')!);
-    const text = range.getBoundingClientRect();
-    const outline = document
-      .getElementById('keymove-root')!
-      .shadowRoot!.querySelector('.keymove-selected-selection')!
-      .getBoundingClientRect();
-    return outline.left <= text.left && outline.top <= text.top && outline.right >= text.right;
-  });
-  expect(placement).toBe(true);
+  // The guide and the card, not the link whose contents are all hidden.
+  await expect(status).toHaveText('Actions 1 / 2');
+  // The selected outline surrounds the guide's visible text, now scrolled into view.
+  const placement = () =>
+    page.evaluate(() => {
+      const text = document.getElementById('boxless')!.firstChild!;
+      const range = document.createRange();
+      range.selectNodeContents(text);
+      const box = range.getBoundingClientRect();
+      const selected = document
+        .getElementById('keymove-root')!
+        .shadowRoot!.querySelector('.keymove-selected-selection');
+      if (!selected) return null;
+      const outline = selected.getBoundingClientRect();
+      return {
+        onScreen: box.top >= 0 && box.bottom <= innerHeight,
+        surrounds: outline.left <= box.left && outline.top <= box.top && outline.right >= box.right,
+        tight: outline.width < box.width + 40,
+      };
+    });
+  // The outline is hidden while the page scrolls to the result, then drawn again.
+  await expect.poll(placement).toEqual({ onScreen: true, surrounds: true, tight: true });
   await input.press('Enter');
   await expect(page.locator('body')).toHaveAttribute('data-boxless-clicked', 'yes');
 });

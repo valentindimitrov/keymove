@@ -516,7 +516,9 @@ class PageSearchIndex {
   }
 
   isVisible(node: Element, styles: StyleCache = new WeakMap()) {
-    if (!node.isConnected || !hasRenderedBox(node, styles)) {
+    // Only actions are measured by their contents when display: contents gives them no
+    // box: text in such a wrapper already belongs to the block around it.
+    if (!node.isConnected || !hasRenderedBox(node, styles, isLinkOrButtonOrInput(node))) {
       return false;
     }
 

@@ -1,7 +1,7 @@
 import { INPUT_NODE_TYPES, KEYS_VALID_FOR_FOCUS_REGEX, MAC_OS_PLATFORMS } from '../constants.js';
 import { normalizedOpenableLinkUrl } from './extension_tabs.js';
 import { isActionDisabled, labelledToggle } from './searchable_attributes.js';
-import { elementBox, iterateRenderedText, scrollableBox } from './visible_text.js';
+import { elementBox, iterateRenderedText, lacksOwnBox } from './visible_text.js';
 import { frameTarget } from './frame_target.js';
 import { isKeyMoveNode } from './dom_tree.js';
 import { openOrClosedShadowRoot } from './host_marker.js';
@@ -204,7 +204,17 @@ function scrollToNodeAtIndexInList(nodeList: readonly Element[], selectedIndex: 
     const contextMargin = Math.min(200, viewportHeight * 0.2);
     const nearViewportEdge =
       rect.top < contextMargin || rect.bottom > viewportHeight - contextMargin;
-    scrollableBox(selectedMatchingNode).scrollIntoView({
+    // An element without a box of its own (display: contents) cannot scroll itself into
+    // view; scroll the window to the box its contents occupy instead.
+    if (lacksOwnBox(selectedMatchingNode)) {
+      if (nearViewportEdge || rect.bottom < 0 || rect.top > viewportHeight)
+        window.scrollBy({
+          top: rect.top + rect.height / 2 - viewportHeight / 2,
+          behavior: 'instant',
+        });
+      return;
+    }
+    selectedMatchingNode.scrollIntoView({
       block: nearViewportEdge ? 'center' : 'nearest',
       inline: 'nearest',
     });

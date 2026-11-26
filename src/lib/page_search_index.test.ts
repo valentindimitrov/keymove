@@ -13,7 +13,7 @@ function scorerFor(query: string) {
 function stubRangeLayout() {
   Object.defineProperty(Range.prototype, 'getClientRects', {
     configurable: true,
-    value: () => ({ length: 1 }) as DOMRectList,
+    value: () => [new DOMRect(0, 0, 100, 20)],
   });
   Object.defineProperty(Range.prototype, 'getBoundingClientRect', {
     configurable: true,
@@ -613,9 +613,9 @@ describe('text owned by a node', () => {
   });
 
   test.each([
-    // A wrapper holding text of its own is the result; it owns the whole phrase.
-    ['<span id="wrapper" style="display: contents">Free <b>shipping</b></span>', 'wrapper'],
-    // Two wrappers each hold half, so the phrase belongs to the block around them.
+    // Text in a wrapper belongs to the block around it, whether one wrapper holds it all
+    // or two each hold half.
+    ['<span style="display: contents">Free <b>shipping</b></span>', 'block'],
     [
       '<span style="display: contents">Free </span><span style="display: contents">shipping</span>',
       'block',
@@ -805,7 +805,11 @@ test('finds links and text laid out with display: contents', async () => {
   try {
     const result = await index.search(scorerFor('quokka'));
     expect(result.matchingLinksAndButtons).toEqual([document.querySelector('a')]);
-    expect(result.matchingText.map(match => match.node)).toContain(document.querySelector('span'));
+    // Text a wrapper holds is found through the block around it, not as a second result.
+    expect(result.matchingText.map(match => match.node)).toEqual([
+      document.querySelector('a'),
+      document.querySelector('div'),
+    ]);
   } finally {
     restore();
   }
