@@ -34,6 +34,7 @@ import { isMovingExtensionRoot } from '../../lib/create_extension_root.js';
 import FindInPage, { subscribeToPageChanges } from '../../lib/find_in_page.js';
 import { stopFrameSearch } from '../../lib/find_in_page.js';
 import { frameTarget, resultIsConnected } from '../../lib/frame_target.js';
+import { renderedContains } from '../../lib/dom_tree.js';
 import { writeClipboardText } from '../../lib/clipboard.js';
 import type { RankedMatch } from '../../lib/page_search_index.js';
 import { isTextVisible, visibleText } from '../../lib/visible_text.js';
@@ -446,6 +447,38 @@ const Searchbar = () => {
       setHideSelections(false);
     }, SCROLL_OR_RESIZE_UPDATE_TIMEOUT_DURATION);
   }, []);
+
+  // Scrolling inside an element moves the matches in it too. Only an element holding one
+  // of them refreshes outlines, at most once per interval, leaving them shown: a carousel
+  // elsewhere that never stops scrolling must neither hide them nor keep redrawing them.
+  const innerScrollRefresh = React.useRef<number | undefined>(undefined);
+  const scrolledElements = React.useRef(new Set<Element>());
+  const matchesForScroll = React.useRef<Element[]>([]);
+  React.useEffect(() => {
+    matchesForScroll.current = activeMatchingNodes;
+  }, [activeMatchingNodes]);
+  const handleScroll = React.useCallback(
+    (event: Event) => {
+      if (event.target === document || event.target === document.documentElement) {
+        updateSelectionPositionsAfterTimeout();
+        return;
+      }
+      if (!(event.target instanceof Element)) return;
+      scrolledElements.current.add(event.target);
+      if (innerScrollRefresh.current !== undefined) return;
+      innerScrollRefresh.current = window.setTimeout(() => {
+        innerScrollRefresh.current = undefined;
+        const scrolled = [...scrolledElements.current];
+        scrolledElements.current.clear();
+        const moved = matchesForScroll.current.some(
+          node => !frameTarget(node) && scrolled.some(element => renderedContains(element, node)),
+        );
+        if (moved) setScrollOrResizeRefresh(refresh => !refresh);
+      }, SCROLL_OR_RESIZE_UPDATE_TIMEOUT_DURATION);
+    },
+    [updateSelectionPositionsAfterTimeout],
+  );
+  React.useEffect(() => () => window.clearTimeout(innerScrollRefresh.current), []);
 
   const scheduleSearch = React.useCallback(
     (preserveSelection = false) => {
@@ -1227,7 +1260,8 @@ const Searchbar = () => {
 
   const shouldBindEvents = isInteractive && (hasActiveMatches || selectedImage !== null);
 
-  useWindowEvent('scroll', shouldBindEvents, updateSelectionPositionsAfterTimeout);
+  // Capture: scroll events from scrolling elements do not bubble to the window.
+  useWindowEvent('scroll', shouldBindEvents, handleScroll, true);
   useWindowEvent('wheel', shouldBindEvents, updateSelectionPositionsAfterTimeout);
   useWindowEvent('resize', shouldBindEvents, updateSelectionPositionsAfterTimeout);
   useDocumentEvent('keydown', typeToSearch, handleKeydown, true);
