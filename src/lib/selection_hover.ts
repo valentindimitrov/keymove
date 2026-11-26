@@ -1,7 +1,7 @@
 import { isKeyMoveNode, renderedParent } from './dom_tree.js';
 import { activeModal, actionIsInScope } from './modal_context.js';
 import { isActionDisabled } from './searchable_attributes.js';
-import { isTextVisible } from './visible_text.js';
+import { elementBox, isTextVisible } from './visible_text.js';
 import { frameTarget, resultIsConnected } from './frame_target.js';
 
 function eligible(node: Element) {
@@ -87,7 +87,8 @@ export class SelectionHover {
     const nextPath = ancestry(next);
     this.path = relinquish ? [] : nextPath;
     const generation = ++this.generation;
-    const rect = (next ?? previous)?.getBoundingClientRect();
+    const target = next ?? previous;
+    const rect = target ? elementBox(target) : undefined;
     const emit = (node: Element, type: string, relatedTarget: Element | null, bubbles: boolean) => {
       // Page handlers may synchronously close KeyMove or change modal scope.
       if (generation !== this.generation) return;

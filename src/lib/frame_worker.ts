@@ -14,7 +14,7 @@ import NodeScorer from './node_scorer.js';
 import { normalizeSearchText } from './search_text.js';
 import { FrameSearch, mergeFrameResults, connectedFrameResults } from './frame_search.js';
 import { frameTarget, resultIsConnected, paintFrameTargets } from './frame_target.js';
-import { isTextVisible, visibleText } from './visible_text.js';
+import { elementBox, isTextVisible, visibleText } from './visible_text.js';
 import { activeModal, actionIsInScope } from './modal_context.js';
 import { isActionDisabled } from './searchable_attributes.js';
 import { labelForNode, kindLabelForNode, landmarkForNode } from './suggestion_context.js';
@@ -180,7 +180,7 @@ export function installFrameWorker(alive: () => boolean = () => true) {
     const shadow = marks.attachShadow({ mode: 'open' });
     signKeyMoveHost(shadow);
     for (const node of local) {
-      const rect = node.getBoundingClientRect();
+      const rect = elementBox(node);
       if (!rect.width || !rect.height) continue;
       const outline = document.createElement('div');
       const current = node === selected || node === selectedImage;

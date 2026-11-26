@@ -1,5 +1,6 @@
 import React from 'react';
 import { rgbaForHexColor } from '../../lib/highlight_colors_schema.js';
+import { elementBox } from '../../lib/visible_text.js';
 
 const SELECTION_MARGIN = 7;
 
@@ -21,7 +22,7 @@ const Selection = (props: SelectionProps) => {
 
   const classes = isSelected ? 'keymove-selection keymove-selected-selection' : 'keymove-selection';
 
-  const nodeBounds = React.useMemo(() => node.getBoundingClientRect(), [node]);
+  const nodeBounds = React.useMemo(() => elementBox(node), [node]);
 
   const style = React.useMemo(() => {
     const left = nodeBounds.left - SELECTION_MARGIN;

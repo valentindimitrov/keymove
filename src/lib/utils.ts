@@ -1,7 +1,7 @@
 import { INPUT_NODE_TYPES, KEYS_VALID_FOR_FOCUS_REGEX, MAC_OS_PLATFORMS } from '../constants.js';
 import { normalizedOpenableLinkUrl } from './extension_tabs.js';
 import { isActionDisabled, labelledToggle } from './searchable_attributes.js';
-import { iterateRenderedText } from './visible_text.js';
+import { elementBox, iterateRenderedText, scrollableBox } from './visible_text.js';
 import { frameTarget } from './frame_target.js';
 import { isKeyMoveNode } from './dom_tree.js';
 import { openOrClosedShadowRoot } from './host_marker.js';
@@ -178,7 +178,7 @@ function nodeIsInViewport(node: Node) {
   if (!(element instanceof Element)) {
     return false;
   }
-  const boundingRect = element.getBoundingClientRect();
+  const boundingRect = elementBox(element);
   const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
   return (
@@ -197,14 +197,14 @@ function scrollToNodeAtIndexInList(nodeList: readonly Element[], selectedIndex: 
       void remote.command('scroll');
       return;
     }
-    const rect = selectedMatchingNode.getBoundingClientRect();
+    const rect = elementBox(selectedMatchingNode);
     const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
     // Native text selection can first reveal a result flush against the viewport edge.
     // Reserve context there too, while leaving comfortably visible results in place.
     const contextMargin = Math.min(200, viewportHeight * 0.2);
     const nearViewportEdge =
       rect.top < contextMargin || rect.bottom > viewportHeight - contextMargin;
-    selectedMatchingNode.scrollIntoView({
+    scrollableBox(selectedMatchingNode).scrollIntoView({
       block: nearViewportEdge ? 'center' : 'nearest',
       inline: 'nearest',
     });

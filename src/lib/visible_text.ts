@@ -241,5 +241,51 @@ function visibleText(node: Element, cache: StyleCache = new WeakMap()): string {
   return parts.join('');
 }
 
-export { computedStyle, isInlineLevel, isTextVisible, iterateRenderedText, visibleText };
+// A display: contents element generates no box; its contents do. Results, outlines,
+// scrolling and hover use the contents' box for it.
+function boxlessElement(element: Element, cache: StyleCache = new WeakMap()) {
+  return computedStyle(element, cache).display === 'contents';
+}
+
+function contentsRange(element: Element) {
+  const range = document.createRange();
+  range.selectNodeContents(element);
+  return range;
+}
+
+/** Whether an element or, for display: contents, its contents occupy any space. */
+function hasRenderedBox(element: Element, cache: StyleCache = new WeakMap()) {
+  if (
+    (element instanceof HTMLElement && (element.offsetWidth || element.offsetHeight)) ||
+    element.getClientRects().length
+  )
+    return true;
+  return boxlessElement(element, cache) && contentsRange(element).getClientRects().length > 0;
+}
+
+/** The box an element occupies, or its contents' box for display: contents. */
+function elementBox(element: Element): DOMRect {
+  return boxlessElement(element)
+    ? contentsRange(element).getBoundingClientRect()
+    : element.getBoundingClientRect();
+}
+
+/** The element to scroll into view: the first one inside a display: contents element. */
+function scrollableBox(element: Element): Element {
+  if (!boxlessElement(element)) return element;
+  for (const descendant of element.querySelectorAll('*'))
+    if (descendant.getClientRects().length) return descendant;
+  return element;
+}
+
+export {
+  elementBox,
+  hasRenderedBox,
+  scrollableBox,
+  computedStyle,
+  isInlineLevel,
+  isTextVisible,
+  iterateRenderedText,
+  visibleText,
+};
 export type { StyleCache, OwnedText, RenderedTextPart, TextBoundary };

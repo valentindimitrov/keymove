@@ -412,6 +412,42 @@ test('type-to-search leaves typing in an editor inside a closed shadow root alon
   await expect(page.locator('#keymove-input')).toHaveValue('');
 });
 
+test('finds, outlines and activates a link laid out with display: contents', async ({ page }) => {
+  await page.goto('shadow.html');
+  await expect(page.locator('#keymove-bar')).toHaveAttribute('data-always-on', 'true');
+  await page.evaluate(() => {
+    const nav = document.createElement('nav');
+    nav.style.cssText = 'position:absolute;top:300px;left:200px';
+    nav.innerHTML = '<a id="boxless" href="#boxless" style="display: contents">Quokka guide</a>';
+    nav.querySelector('a')!.addEventListener('click', event => {
+      event.preventDefault();
+      document.body.dataset['boxlessClicked'] = 'yes';
+    });
+    document.body.append(nav);
+  });
+  await page.keyboard.press('Alt+f');
+  const input = page.getByRole('combobox', { name: 'Search page', exact: true });
+  await input.pressSequentially('quokka');
+  const status = page.getByRole('status');
+  await expect(status).toHaveText(/^(Text|Actions) 1 \/ 1$/);
+  if ((await status.innerText()).startsWith('Text')) await input.press('Alt+s');
+  await expect(status).toHaveText('Actions 1 / 1');
+  // The selected outline surrounds the link's text, not the corner a boxless element reports.
+  const placement = await page.evaluate(() => {
+    const range = document.createRange();
+    range.selectNodeContents(document.getElementById('boxless')!);
+    const text = range.getBoundingClientRect();
+    const outline = document
+      .getElementById('keymove-root')!
+      .shadowRoot!.querySelector('.keymove-selected-selection')!
+      .getBoundingClientRect();
+    return outline.left <= text.left && outline.top <= text.top && outline.right >= text.right;
+  });
+  expect(placement).toBe(true);
+  await input.press('Enter');
+  await expect(page.locator('body')).toHaveAttribute('data-boxless-clicked', 'yes');
+});
+
 test('stays out of XML documents such as sitemaps without reporting errors', async ({ page }) => {
   // React DOM threw as it loaded on these, since their elements have no `.style`. The
   // context fixture fails the test on any console error or uncaught exception.

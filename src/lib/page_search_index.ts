@@ -13,6 +13,7 @@ import {
 } from './searchable_attributes.js';
 import {
   computedStyle,
+  hasRenderedBox,
   isInlineLevel,
   isTextVisible,
   iterateRenderedText,
@@ -515,13 +516,7 @@ class PageSearchIndex {
   }
 
   isVisible(node: Element, styles: StyleCache = new WeakMap()) {
-    if (
-      !node.isConnected ||
-      !(
-        (node instanceof HTMLElement && (node.offsetWidth || node.offsetHeight)) ||
-        node.getClientRects().length
-      )
-    ) {
+    if (!node.isConnected || !hasRenderedBox(node, styles)) {
       return false;
     }
 
