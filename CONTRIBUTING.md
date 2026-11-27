@@ -1,8 +1,9 @@
 # Contributing to KeyMove
 
-Report reproducible bugs through the [bug-report form](https://github.com/valentindimitrov/keymove/issues/new?template=bug_report.yml).
+Report reproducible bugs through the [bug-report form](https://github.com/valentindimitrov/keymove/issues/new?template=bug_report.yml)
+and request features through the [feature-request form](https://github.com/valentindimitrov/keymove/issues/new?template=feature_request.yml).
 Use [Q&A](https://github.com/valentindimitrov/keymove/discussions/categories/q-a) for help and
-[Ideas](https://github.com/valentindimitrov/keymove/discussions/categories/ideas) for feature proposals.
+[Ideas](https://github.com/valentindimitrov/keymove/discussions/categories/ideas) to discuss open-ended ideas first.
 Discuss substantial changes before implementing them. Maintainers can create linked implementation
 issues once a proposal is ready. Follow [SECURITY.md](SECURITY.md) for private vulnerability reports.
 

@@ -1,0 +1,57 @@
+name: Feature request
+description: Suggest a new capability or an improvement to KeyMove.
+title: '[Feature] '
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search existing issues and [Ideas](https://github.com/valentindimitrov/keymove/discussions/categories/ideas) first. For an open-ended idea you would like to discuss before it becomes a request, start an Ideas discussion instead.
+        Remove credentials and private page content from examples and screenshots.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Describe the task or situation, and what makes it hard with KeyMove today.
+      placeholder: When I search a long table, I want to...
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like KeyMove to do?
+      description: Describe the behaviour you have in mind, including any keys, settings or results involved.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and workarounds
+      description: Anything you tried instead, in KeyMove, the browser or another tool, and why it falls short.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: The part of KeyMove the request mostly concerns.
+      options:
+        - Search and results
+        - Keyboard navigation and shortcuts
+        - Actions, links and images
+        - Frames, dialogs and web components
+        - Settings and appearance
+        - Accessibility
+        - Browser support
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Browser and operating system
+      description: Useful when the request concerns a particular browser or site.
+      placeholder: Vivaldi 7.x on Windows 11
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Example pages (public URLs or a small HTML snippet), screenshots or mockups.
